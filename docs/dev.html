@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydra 🐙 — Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-code: #1a1a2e;
+            --border: #1e1e2e;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --accent: #6c5ce7;
+            --accent-glow: rgba(108, 92, 231, 0.15);
+            --green: #00d2a0;
+            --green-glow: rgba(0, 210, 160, 0.15);
+            --orange: #f0a040;
+            --red: #e74c6f;
+            --blue: #4fa8d5;
+            --yellow: #e8d44d;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ---- Sidebar ---- */
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            width: 280px;
+            height: 100vh;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 24px 0;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .sidebar-brand {
+            padding: 0 24px 24px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 16px;
+        }
+
+        .sidebar-brand h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), var(--green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sidebar-brand p {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .nav-section {
+            padding: 8px 24px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        .nav-link {
+            display: block;
+            padding: 8px 24px 8px 32px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text);
+            background: var(--accent-glow);
+            border-left-color: var(--accent);
+        }
+
+        /* ---- Main Content ---- */
+        .main {
+            margin-left: 280px;
+            padding: 48px 64px 120px;
+            max-width: 960px;
+        }
+
+        h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 64px 0 16px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+        }
+
+        h2:first-of-type { border-top: none; margin-top: 0; }
+
+        h3 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin: 40px 0 12px;
+            color: var(--green);
+        }
+
+        h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 24px 0 8px;
+            color: var(--blue);
+        }
+
+        p { margin: 8px 0 16px; color: var(--text); }
+
+        ul, ol {
+            margin: 8px 0 16px 24px;
+            color: var(--text);
+        }
+
+        li { margin: 4px 0; }
+
+        strong { color: #fff; }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+            background: var(--bg-code);
+            padding: 2px 7px;
+            border-radius: 4px;
+            color: var(--green);
+        }
+
+        pre {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px 24px;
+            overflow-x: auto;
+            margin: 12px 0 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.6;
+            color: var(--text);
+        }
+
+        /* Card style boxes */
+        .card-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 16px 0 24px;
+        }
+
+        .card-box.accent { border-left: 4px solid var(--accent); }
+        .card-box.green { border-left: 4px solid var(--green); }
+        .card-box.orange { border-left: 4px solid var(--orange); }
+        .card-box.red { border-left: 4px solid var(--red); }
+
+        .card-box h4 { margin-top: 0; }
+
+        /* Architecture diagram */
+        .arch-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0 24px;
+        }
+
+        .arch-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .arch-box .icon { font-size: 2rem; margin-bottom: 8px; }
+        .arch-box h4 { margin: 0 0 6px; color: var(--text); font-size: 0.95rem; }
+        .arch-box p { font-size: 0.8rem; color: var(--text-dim); margin: 0; }
+
+        .flow-arrow {
+            text-align: center;
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin: 8px 0;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0 24px;
+            font-size: 0.88rem;
+        }
+
+        th, td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--accent);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tr:hover td { background: var(--accent-glow); }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .badge.green { background: var(--green-glow); color: var(--green); }
+        .badge.orange { background: rgba(240,160,64,0.15); color: var(--orange); }
+        .badge.red { background: rgba(231,76,111,0.15); color: var(--red); }
+        .badge.blue { background: rgba(79,168,213,0.15); color: var(--blue); }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; padding: 24px; }
+            .arch-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar Navigation -->
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <h1>🐙 Hydra Docs</h1>
+        <p>Phone Farm Control System</p>
+    </div>
+
+    <div class="nav-section">Overview</div>
+    <a href="#overview" class="nav-link">What is Hydra?</a>
+    <a href="#architecture" class="nav-link">Architecture</a>
+    <a href="#principles" class="nav-link">Code Principles</a>
+
+    <div class="nav-section">Bot Engine</div>
+    <a href="#engine-overview" class="nav-link">How It Works</a>
+    <a href="#engine-cycle" class="nav-link">The Bot Cycle</a>
+    <a href="#engine-actions" class="nav-link">Action Modules</a>
+    <a href="#engine-igcontroller" class="nav-link">IGController (Core)</a>
+    <a href="#engine-connection" class="nav-link">Device Connection</a>
+    <a href="#engine-sources" class="nav-link">Sources & Targets</a>
+    <a href="#engine-limits" class="nav-link">Limits & Safety</a>
+
+    <div class="nav-section">Dashboard</div>
+    <a href="#dash-overview" class="nav-link">Dashboard Overview</a>
+    <a href="#dash-pages" class="nav-link">Pages & Routes</a>
+    <a href="#dash-api" class="nav-link">API Endpoints</a>
+    <a href="#dash-stability" class="nav-link">Stability & Logs</a>
+
+    <div class="nav-section">Database</div>
+    <a href="#db-schema" class="nav-link">Schema (phone_farm.db)</a>
+    <a href="#db-tables" class="nav-link">Key Tables</a>
+    <a href="#db-patterns" class="nav-link">Query Patterns</a>
+
+    <div class="nav-section">Operations</div>
+    <a href="#ops-launcher" class="nav-link">Farm Launcher</a>
+    <a href="#ops-running" class="nav-link">Running the Farm</a>
+    <a href="#ops-troubleshooting" class="nav-link">Troubleshooting</a>
+
+    <div class="nav-section">Reference</div>
+    <a href="#ref-files" class="nav-link">File Map</a>
+    <a href="#ref-selectors" class="nav-link">IG UI Selectors</a>
+    <a href="#ref-lessons" class="nav-link">Lessons Learned</a>
+</nav>
+
+<!-- Main Content -->
+<div class="main">
+
+<!-- ============================================================ -->
+<!-- OVERVIEW -->
+<!-- ============================================================ -->
+<h2 id="overview">🐙 What is Hydra?</h2>
+<p>
+    <strong>Hydra</strong> is an AI-controlled Instagram phone farm automation system. 
+    It manages 50+ Android devices, 600+ Instagram accounts, running automated actions 
+    (follow, like, comment, share, DM, reels) through real Android phones via ADB + UIAutomator2.
+</p>
+
+<div class="card-box accent">
+    <h4>🎯 The Vision: Mother/Slave Marketing Farm</h4>
+    <p>~50 slave accounts per mother account. Slaves do all interactions (follow targets, share posts, like, comment, DM). 
+    All activity funnels attention back to the mother account. Scale fast, manage hundreds of accounts autonomously.</p>
+</div>
+
+<div class="arch-grid">
+    <div class="arch-box">
+        <div class="icon">🧠</div>
+        <h4>Jarvis (AI Controller)</h4>
+        <p>Manages everything. Monitors, decides, fixes issues.</p>
+    </div>
+    <div class="arch-box">
+        <div class="icon">🖥️</div>
+        <h4>Dashboard</h4>
+        <p>Flask web UI — account management, content scheduling, stats</p>
+    </div>
+    <div class="arch-box">
+        <div class="icon">⚙️</div>
+        <h4>Bot Engine</h4>
+        <p>Python automation — runs on each device, executes actions</p>
+    </div>
+    <div class="arch-box">
+        <div class="icon">📱</div>
+        <h4>Phone Fleet</h4>
+        <p>50+ Samsung devices via ADB over WiFi</p>
+    </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- ARCHITECTURE -->
+<!-- ============================================================ -->
+<h2 id="architecture">Architecture</h2>
+
+<h3>System Layers</h3>
+<pre>
+┌─────────────────────────────────────────────────────────┐
+│                   JARVIS (AI Agent)                      │
+│         Clawdbot/Claude — orchestrates everything        │
+└─────────────────────┬───────────────────────────────────┘
+                      │ commands + monitoring
+┌─────────────────────▼───────────────────────────────────┐
+│               DASHBOARD (Flask + Bootstrap)              │
+│        http://10.1.11.168:5055                          │
+│  Account mgmt │ Bot settings │ Content │ Analytics      │
+└─────────────────────┬───────────────────────────────────┘
+                      │ reads/writes
+┌─────────────────────▼───────────────────────────────────┐
+│              phone_farm.db (SQLite + WAL)                │
+│    35+ tables │ Single source of truth │ Thread-safe     │
+└─────────────────────┬───────────────────────────────────┘
+                      │ reads settings + logs actions
+┌─────────────────────▼───────────────────────────────────┐
+│               BOT ENGINE (Python)                        │
+│   run_device.py → BotEngine → Action Modules            │
+│   1 process per device │ Account rotation               │
+└─────────────────────┬───────────────────────────────────┘
+                      │ ADB + UIAutomator2
+┌─────────────────────▼───────────────────────────────────┐
+│              ANDROID DEVICES (50+)                       │
+│   Samsung phones │ IG clone apps (androie–androip)      │
+│   WiFi ADB │ Multiple accounts per device               │
+└─────────────────────────────────────────────────────────┘
+</pre>
+
+<h3>Data Flow</h3>
+<ol>
+    <li><strong>Dashboard</strong> → writes account settings, sources, schedules to <code>phone_farm.db</code></li>
+    <li><strong>Bot Engine</strong> → reads settings from DB → determines which actions to run</li>
+    <li><strong>Action Modules</strong> → use <code>IGController</code> to interact with Instagram UI on real phones</li>
+    <li><strong>IGController</strong> → sends ADB commands via <code>uiautomator2</code>, reads XML screen hierarchy</li>
+    <li><strong>Results</strong> → logged back to DB (<code>action_history</code>, <code>account_sessions</code>)</li>
+</ol>
+
+
+<!-- ============================================================ -->
+<!-- CODE PRINCIPLES -->
+<!-- ============================================================ -->
+<h2 id="principles">⚡ Code Principles</h2>
+
+<div class="card-box green">
+    <h4>1. XML Over Coordinates — Never Blind-Click</h4>
+    <p>Every UI interaction uses XML hierarchy analysis via UIAutomator2. We <strong>never</strong> click on hardcoded pixel coordinates. 
+    Instead, we find elements by <code>resource_id</code>, <code>description</code>, <code>text</code>, or <code>className</code>.
+    This makes the bot resilient to different screen sizes, resolutions, and minor UI changes.</p>
+    <pre>
+# ✅ RIGHT — find by resource_id
+btn = d(resourceId="layout_comment_thread_post_button_icon")
+
+# ❌ WRONG — hardcoded coordinates
+d.click(540, 1820)</pre>
+</div>
+
+<div class="card-box green">
+    <h4>2. Verify Before + After — Trust Nothing</h4>
+    <p>Before every action, we check what screen we're on. After every action, we verify it worked.
+    The <code>IGController</code> always calls <code>detect_screen()</code> to know the current state.</p>
+    <pre>
+# Before acting: "where am I?"
+screen = self.ctrl.detect_screen()
+if screen != Screen.HOME_FEED:
+    self.ctrl.go_home()
+
+# After acting: "did it work?"
+screen = self.ctrl.detect_screen()
+if screen != Screen.COMMENT_VIEW:
+    log.error("Comment view didn't open!")</pre>
+</div>
+
+<div class="card-box green">
+    <h4>3. Single Source of Truth — phone_farm.db</h4>
+    <p>One SQLite database. Everything reads from it, everything writes to it. No scattered config files, 
+    no per-device databases, no CSV intermediaries. WAL mode for concurrent reads. Thread-safe connections.</p>
+</div>
+
+<div class="card-box green">
+    <h4>4. Actions Are Self-Contained</h4>
+    <p>Each action module (follow, comment, reels, share, etc.) handles its own navigation. 
+    The bot engine just calls <code>action.execute()</code> — it doesn't need to navigate home first 
+    or clean up after. Each action starts by going where it needs to go and cleans up after itself.</p>
+    <pre>
+class CommentAction:
+    def execute(self):
+        # I handle everything: navigate, find post, comment, go back
+        self.ctrl.go_home()           # start from known state
+        self._find_post_to_comment()  # navigate to target
+        self._write_comment()          # do the work
+        self._go_back()               # clean up
+        return result</pre>
+</div>
+
+<div class="card-box green">
+    <h4>5. Human-Like Delays — Random Everything</h4>
+    <p>Every delay is randomized. Every scroll speed varies. We never do things at machine speed.
+    Action delays, scroll pauses, typing speed — all randomized within human-plausible ranges.</p>
+    <pre>
+random_sleep(2.0, 5.0)    # 2-5 seconds between actions
+action_delay("follow")     # 8-20 seconds between follows
+random_sleep(0.5, 1.5)    # Quick pause after a tap</pre>
+</div>
+
+<div class="card-box green">
+    <h4>6. Graceful Degradation — Never Crash the Loop</h4>
+    <p>If an action fails, log it and move on. The bot engine wraps every action in try/except. 
+    A failed comment doesn't stop the follow action. A crashed app triggers recovery, not a full stop.
+    The engine keeps cycling — it never fully dies.</p>
+</div>
+
+<div class="card-box green">
+    <h4>7. Test → Integrate → Done</h4>
+    <p>When testing reveals a working solution (new selector, new flow, bug fix), <strong>immediately</strong> integrate it 
+    into the bot engine / production code. A tested solution that isn't in the engine is worthless. No half-jobs.</p>
+</div>
+
+<div class="card-box green">
+    <h4>8. Recovery Over Precision</h4>
+    <p>The bot runs 24/7 on real phones with real network issues. Recovery logic is more important than 
+    perfect execution. Wrong screen? Navigate back. App crashed? Restart it. Device disconnected? Reconnect. 
+    The <code>_recover()</code> method in BotEngine handles cascading fallbacks.</p>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- BOT ENGINE -->
+<!-- ============================================================ -->
+<h2 id="engine-overview">⚙️ Bot Engine — How It Works</h2>
+
+<p>The bot engine is the heart of Hydra. It runs as <strong>one Python process per physical device</strong>, 
+cycling through all accounts assigned to that device.</p>
+
+<h3>Key Components</h3>
+<table>
+    <tr><th>Component</th><th>File</th><th>Role</th></tr>
+    <tr>
+        <td><strong>Device Runner</strong></td>
+        <td><code>run_device.py</code></td>
+        <td>Entry point. Starts the loop for one device, handles account rotation, colored console output, log files.</td>
+    </tr>
+    <tr>
+        <td><strong>Bot Engine</strong></td>
+        <td><code>automation/bot_engine.py</code></td>
+        <td>Core orchestrator. Determines actions, runs them in order, handles cooldowns, recovery, sessions.</td>
+    </tr>
+    <tr>
+        <td><strong>IGController</strong></td>
+        <td><code>automation/ig_controller.py</code></td>
+        <td>XML-based UI controller. Screen detection, navigation, element finding. The "eyes and hands" of the bot.</td>
+    </tr>
+    <tr>
+        <td><strong>Device Connection</strong></td>
+        <td><code>automation/device_connection.py</code></td>
+        <td>UIAutomator2 connection manager. Reconnect logic, connection registry, thread-safe.</td>
+    </tr>
+    <tr>
+        <td><strong>Action Modules</strong></td>
+        <td><code>automation/actions/*.py</code></td>
+        <td>Individual action implementations (follow, comment, reels, etc.)</td>
+    </tr>
+    <tr>
+        <td><strong>Helpers</strong></td>
+        <td><code>automation/actions/helpers.py</code></td>
+        <td>Shared utilities: delays, DB logging, profile parsing, filter checks, source management.</td>
+    </tr>
+</table>
+
+
+<!-- ============================================================ -->
+<h2 id="engine-cycle">🔄 The Bot Cycle</h2>
+
+<p>Here's exactly what happens when the bot runs on a device:</p>
+
+<pre>
+┌──────────────────────────────────────────────────────────┐
+│                  run_device.py starts                     │
+│                                                          │
+│  1. Connect to device via ADB (WiFi)                    │
+│  2. Load all accounts assigned to this device from DB    │
+│  3. Filter: only accounts within their time window       │
+│                                                          │
+│  ┌── MAIN LOOP (runs forever) ───────────────────────┐  │
+│  │                                                    │  │
+│  │  for each active_account:                         │  │
+│  │    ├─ Check pending login tasks                   │  │
+│  │    ├─ Open the account's IG clone app             │  │
+│  │    ├─ Verify we're logged in                      │  │
+│  │    ├─ Create session in DB                        │  │
+│  │    ├─ _determine_actions():                       │  │
+│  │    │   ├─ Check scheduled content (highest prio)  │  │
+│  │    │   ├─ Check job orders (2nd priority)         │  │
+│  │    │   ├─ Add enabled actions:                    │  │
+│  │    │   │   engage, follow, reels, comment,        │  │
+│  │    │   │   share_to_story, like, dm, unfollow     │  │
+│  │    │   └─ Randomize order (engage stays first)    │  │
+│  │    ├─ Execute each action with cooldowns          │  │
+│  │    ├─ Log results to DB (action_history)          │  │
+│  │    ├─ End session                                 │  │
+│  │    └─ Inter-cycle cooldown (120s)                 │  │
+│  │                                                    │  │
+│  │  Repeat forever...                                │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                          │
+│  On error: _recover() → reconnect, dismiss modals,      │
+│            restart app. If unrecoverable: skip account.  │
+└──────────────────────────────────────────────────────────┘
+</pre>
+
+<h3>Action Priority Order</h3>
+<ol>
+    <li><span class="badge red">HIGHEST</span> <strong>Scheduled Content</strong> — time-sensitive posts/reels/stories</li>
+    <li><span class="badge orange">HIGH</span> <strong>Job Orders</strong> — paid/assigned tasks (follow X, like Y)</li>
+    <li><span class="badge blue">NORMAL</span> <strong>Engagement</strong> — home feed warmup, story viewing</li>
+    <li><span class="badge blue">NORMAL</span> <strong>Follow / Unfollow / Like / Comment / DM / Reels / Share</strong> — regular growth actions (randomized order)</li>
+</ol>
+
+<h3>Account Rotation</h3>
+<p>Each device has multiple IG clone apps installed (<code>com.instagram.androie</code> through <code>com.instagram.androip</code>).
+Each clone = one logged-in account. The bot cycles through accounts sequentially:
+<code>account_1 → account_2 → account_3 → account_1 → ...</code>
+Each account has its own time window (startTime/endTime) — outside that window, it's skipped.</p>
+
+
+<!-- ============================================================ -->
+<h2 id="engine-actions">📦 Action Modules</h2>
+
+<p>Each action lives in <code>automation/actions/</code> as a self-contained class with an <code>execute()</code> method.</p>
+
+<table>
+    <tr><th>Action</th><th>File</th><th>What It Does</th><th>Status</th></tr>
+    <tr>
+        <td><strong>Follow</strong></td>
+        <td><code>follow.py</code></td>
+        <td>Search for source accounts → open their followers list → follow eligible users. Respects tag dedup, filters, daily limits.</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Follow From List</strong></td>
+        <td><code>follow_from_list.py</code></td>
+        <td>Follow specific usernames from a pre-built list (instead of from source followers).</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Engage</strong></td>
+        <td><code>engage.py</code></td>
+        <td>Scroll home feed, view stories, like posts. Warmup behavior to look human.</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Reels</strong></td>
+        <td><code>reels.py</code></td>
+        <td>Watch reels, like some, scroll through. Configurable daily limit.</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Share to Story</strong></td>
+        <td><code>share_to_story.py</code></td>
+        <td>Find a post from source account → share it to our story. Multi-fallback UI detection for story editor.</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Comment</strong></td>
+        <td><code>comment.py</code></td>
+        <td>Find posts to comment on → open comment view → type comment → submit. Uses <code>layout_comment_thread_post_button_icon</code>.</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Like</strong></td>
+        <td><code>like.py</code></td>
+        <td>Like posts from feed or specific profiles.</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Unfollow</strong></td>
+        <td><code>unfollow.py</code></td>
+        <td>Unfollow users we previously followed (after X days). Maintains follow/unfollow ratio.</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>DM</strong></td>
+        <td><code>dm.py</code></td>
+        <td>Send direct messages to users from source lists.</td>
+        <td><span class="badge orange">🔧 Building</span></td>
+    </tr>
+    <tr>
+        <td><strong>Post Content</strong></td>
+        <td><code>post_content.py</code></td>
+        <td>Post scheduled content (photo/reel/story) via ADB file push + IG UI.</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Job Executor</strong></td>
+        <td><code>job_executor.py</code></td>
+        <td>Execute job orders (external paid tasks: follow account X, like post Y).</td>
+        <td><span class="badge green">✅ Live</span></td>
+    </tr>
+    <tr>
+        <td><strong>Scrape</strong></td>
+        <td><code>scrape.py</code></td>
+        <td>Scrape follower/following lists for data collection.</td>
+        <td><span class="badge orange">🔧 Building</span></td>
+    </tr>
+</table>
+
+<h3>Action Module Pattern</h3>
+<p>Every action follows the same structure:</p>
+<pre>
+class SomeAction:
+    def __init__(self, device, device_serial, account_info, session_id):
+        self.device = device
+        self.ctrl = IGController(device, device_serial, account_info['package'])
+        self.settings = get_account_settings(account_info['id'])
+        # ... load limits, filters, sources
+
+    def execute(self):
+        """Main entry point. Called by bot_engine."""
+        # 1. Check daily limits
+        if self._at_daily_limit():
+            return {'success': True, 'skipped': True, 'reason': 'daily_limit'}
+
+        # 2. Navigate to starting position
+        self.ctrl.go_home()
+
+        # 3. Do the work (follow users, post comment, etc.)
+        result = self._do_work()
+
+        # 4. Clean up navigation
+        self.ctrl.go_home()
+
+        # 5. Log to DB
+        log_action(self.account_id, self.session_id, 'action_type', result)
+
+        return result
+</pre>
+
+
+<!-- ============================================================ -->
+<h2 id="engine-igcontroller">🎮 IGController — The Core</h2>
+
+<p>This is the most important class in the system. It's the "eyes and hands" of the bot — 
+it reads the screen (XML hierarchy) and interacts with UI elements.</p>
+
+<div class="card-box accent">
+    <h4>Design Philosophy</h4>
+    <p><strong>Never guess, always verify.</strong> Before clicking anything, dump the XML, parse it, find the element, 
+    verify it exists and is clickable. After clicking, dump again and verify the expected result happened.
+    This is slower than blind clicking but infinitely more reliable.</p>
+</div>
+
+<h3>Screen Detection</h3>
+<pre>
+class Screen(Enum):
+    HOME_FEED     = "HOME_FEED"
+    SEARCH        = "SEARCH"
+    PROFILE       = "PROFILE"
+    REELS         = "REELS"
+    STORY_VIEW    = "STORY_VIEW"
+    FOLLOWERS_LIST = "FOLLOWERS_LIST"
+    DM_INBOX      = "DM_INBOX"
+    DM_THREAD     = "DM_THREAD"
+    COMMENT_VIEW  = "COMMENT_VIEW"
+    LOGIN         = "LOGIN"
+    POPUP         = "POPUP"
+    UNKNOWN       = "UNKNOWN"
+
+# detect_screen() analyzes XML to determine current state
+screen = ctrl.detect_screen()
+</pre>
+
+<h3>Key Methods</h3>
+<table>
+    <tr><th>Method</th><th>What It Does</th></tr>
+    <tr><td><code>detect_screen()</code></td><td>Dumps XML, analyzes elements to determine which screen we're on</td></tr>
+    <tr><td><code>go_home()</code></td><td>Navigate to home feed from any screen (multiple fallback strategies)</td></tr>
+    <tr><td><code>go_to_search()</code></td><td>Navigate to search/explore tab</td></tr>
+    <tr><td><code>search_user(username)</code></td><td>Search for a user, click their profile from results</td></tr>
+    <tr><td><code>open_followers()</code></td><td>Open the followers list of the current profile</td></tr>
+    <tr><td><code>scroll_and_find()</code></td><td>Scroll through a list finding elements (RecyclerView aware)</td></tr>
+    <tr><td><code>dismiss_popups()</code></td><td>Detect and dismiss known modal dialogs/overlays</td></tr>
+    <tr><td><code>dump_xml()</code></td><td>Get current screen XML hierarchy for analysis</td></tr>
+    <tr><td><code>find_element()</code></td><td>Find UI element by resource_id, description, text, or class</td></tr>
+</table>
+
+<h3>Element Finding Strategy</h3>
+<pre>
+# Priority order for finding elements:
+1. resource_id (most stable)  → d(resourceId="com.instagram...:id/button_name")
+2. description (accessibility) → d(description="Like")
+3. text content               → d(text="Follow")
+4. className + index          → d(className="android.widget.Button", instance=0)
+</pre>
+
+
+<!-- ============================================================ -->
+<h2 id="engine-connection">🔌 Device Connection</h2>
+
+<p>Manages the UIAutomator2 connection to each Android phone. Handles the messy reality of WiFi ADB.</p>
+
+<h3>Connection Flow</h3>
+<pre>
+1. Kill existing UIAutomator processes on the device
+2. Wait for clean shutdown (2s)
+3. u2.connect(adb_serial)    # e.g. "10.1.11.4:5555"
+4. Poll device.info + window_size() (up to 45s timeout)
+5. Mark as CONNECTED in registry
+6. On failure: retry with backoff
+
+# Auto-reconnect on UiAutomationNotConnectedError:
+try:
+    d.info
+except UiAutomationNotConnectedError:
+    device_conn.ensure_connected()  # kills, reconnects, polls
+</pre>
+
+<h3>IG Clone App Launching</h3>
+<pre>
+# We use 'monkey' command instead of app_start() — more reliable for clones
+adb shell monkey -p com.instagram.androif -c android.intent.category.LAUNCHER 1
+
+# Each account has its own clone: androie, androif, androig, ... androip
+# Up to 13 clones per device = 13 accounts per phone
+</pre>
+
+
+<!-- ============================================================ -->
+<h2 id="engine-sources">🎯 Sources & Targets</h2>
+
+<p>Sources define <em>where</em> the bot finds users to interact with.</p>
+
+<h3>Source Types</h3>
+<table>
+    <tr><th>Source Type</th><th>Example</th><th>Used By</th></tr>
+    <tr><td>Follow sources</td><td>@romeo18_private followers</td><td>Follow action</td></tr>
+    <tr><td>Share sources</td><td>@camillo_bro posts</td><td>Share to story</td></tr>
+    <tr><td>Follow lists</td><td>Specific username lists</td><td>Follow from list</td></tr>
+    <tr><td>DM sources</td><td>Specific user targets</td><td>DM action</td></tr>
+</table>
+
+<h3>Dead Source Tracking</h3>
+<pre>
+# If a source fails 3 times → marked DEAD → auto-skipped
+# Reasons: account deleted, went private, not found on search
+# Weekly auto-retry of dead sources (in case they come back)
+# 
+# ⚠️ Known gap: app crash during search also counts as source failure
+# This can falsely mark sources as dead. Fix planned.
+</pre>
+
+
+<!-- ============================================================ -->
+<h2 id="engine-limits">🛡️ Limits & Safety</h2>
+
+<div class="card-box orange">
+    <h4>Daily Limits (configurable per account in DB)</h4>
+    <ul>
+        <li><strong>Follows:</strong> ~50-60/day (per account)</li>
+        <li><strong>Reels watched:</strong> ~50/day</li>
+        <li><strong>Story shares:</strong> 1/day</li>
+        <li><strong>Follow session:</strong> 10-20 per cycle (randomized)</li>
+        <li><strong>Comments:</strong> Configurable</li>
+        <li><strong>Inter-action delay:</strong> 30-90 seconds</li>
+        <li><strong>Inter-cycle delay:</strong> 120 seconds</li>
+    </ul>
+</div>
+
+<h3>Account Filters</h3>
+<p>Before following a user, the bot can check:</p>
+<ul>
+    <li>Follower count (min/max)</li>
+    <li>Following count (min/max)</li>
+    <li>Post count (min/max)</li>
+    <li>Bio keywords (whitelist/blacklist)</li>
+    <li>Profile picture (has one or not)</li>
+    <li>Public/private account</li>
+    <li>Tag dedup — don't follow users already followed by other accounts with the same tag</li>
+</ul>
+
+
+<!-- ============================================================ -->
+<!-- DASHBOARD -->
+<!-- ============================================================ -->
+<h2 id="dash-overview">🖥️ Dashboard Overview</h2>
+
+<p>The Hydra Dashboard is a <strong>Flask web application</strong> serving as the control center for the entire farm.
+Dark theme, Bootstrap 5, accessible at <code>http://10.1.11.168:5055</code>.</p>
+
+<h3>Tech Stack</h3>
+<ul>
+    <li><strong>Backend:</strong> Python Flask + SQLite (phone_farm.db)</li>
+    <li><strong>Frontend:</strong> Bootstrap 5 + Font Awesome + vanilla JS</li>
+    <li><strong>Templating:</strong> Jinja2 (base.html → page templates)</li>
+    <li><strong>Process:</strong> Waitress WSGI server (production), Werkzeug (dev)</li>
+    <li><strong>Stability:</strong> Watchdog wrapper (run_dashboard.py) + VBS launcher (fully detached)</li>
+</ul>
+
+
+<!-- ============================================================ -->
+<h2 id="dash-pages">📄 Dashboard Pages</h2>
+
+<table>
+    <tr><th>Page</th><th>URL</th><th>What It Does</th></tr>
+    <tr><td>🏠 Main Dashboard</td><td><code>/</code></td><td>Overview: device count, account stats, quick actions</td></tr>
+    <tr><td>👥 Accounts</td><td><code>/accounts</code></td><td>All accounts: status, device assignment, enable/disable</td></tr>
+    <tr><td>💊 Account Health</td><td><code>/account-health</code></td><td>Ban detection, rate limit warnings, account status</td></tr>
+    <tr><td>📦 Account Inventory</td><td><code>/account-inventory</code></td><td>Spare account pool (unassigned accounts)</td></tr>
+    <tr><td>📱 Device Manager</td><td><code>/device-manager</code></td><td>ADB device discovery, status, account assignment</td></tr>
+    <tr><td>⚙️ Bot Settings</td><td><code>/bot-settings</code></td><td>Per-account action settings (limits, filters, time windows)</td></tr>
+    <tr><td>🤖 Bot Manager</td><td><code>/bot-manager</code></td><td>Start/stop bots, view running status, live logs</td></tr>
+    <tr><td>🎯 Sources</td><td><code>/manage-sources</code></td><td>Manage follow/share/DM source accounts per account</td></tr>
+    <tr><td>🖼️ Media Library</td><td><code>/media-library</code></td><td>Upload/manage media files for posting</td></tr>
+    <tr><td>📅 Content Schedule</td><td><code>/content-schedule</code></td><td>Schedule posts/reels/stories for specific times</td></tr>
+    <tr><td>✏️ Caption Templates</td><td><code>/caption-templates</code></td><td>Create caption groups with random selection</td></tr>
+    <tr><td>📋 Job Orders</td><td><code>/job-orders-v2</code></td><td>Create/manage paid task orders (follow/like/comment for clients)</td></tr>
+    <tr><td>📊 Farm Stats</td><td><code>/farm-stats</code></td><td>Analytics: follows/day, growth trends, action breakdowns</td></tr>
+    <tr><td>📤 Bulk Import</td><td><code>/import-accounts-v2</code></td><td>Bulk import accounts from CSV/paste</td></tr>
+    <tr><td>🔐 Login Automation</td><td><code>/login-automation-v2</code></td><td>Automated IG login with 2FA support</td></tr>
+    <tr><td>👤 Profile Automation</td><td><code>/profile-automation</code></td><td>Bulk profile updates (bio, picture, username)</td></tr>
+    <tr><td>🌐 Proxy Management</td><td><code>/proxy-management</code></td><td>Manage proxy pools for account safety</td></tr>
+    <tr><td>📝 Follow Lists</td><td><code>/follow-lists</code></td><td>Create/manage targeted follow username lists</td></tr>
+</table>
+
+
+<!-- ============================================================ -->
+<h2 id="dash-api">🔗 Dashboard API</h2>
+
+<p>The dashboard exposes REST APIs for programmatic control. All endpoints return JSON.</p>
+
+<h3>Key API Routes</h3>
+<pre>
+# Accounts
+GET  /api/accounts                    → List all accounts
+GET  /api/accounts/{id}               → Get account details
+POST /api/accounts/{id}/toggle        → Enable/disable account
+
+# Bot Settings
+GET  /api/bot-settings/{account_id}   → Get bot settings
+POST /api/bot-settings/{account_id}   → Update bot settings
+
+# Sources
+GET  /api/sources/{account_id}        → Get follow sources
+POST /api/sources/{account_id}        → Add/update sources
+
+# Content
+GET  /api/content-schedule            → List scheduled posts
+POST /api/content-schedule            → Schedule new content
+
+# Job Orders
+GET  /api/job-orders                  → List all job orders
+POST /api/job-orders                  → Create new job order
+
+# Farm Stats
+GET  /api/farm-stats                  → Farm-wide statistics
+GET  /api/farm-stats/daily            → Daily breakdown
+
+# Devices
+GET  /api/devices                     → List all devices
+POST /api/devices/discover            → ADB device discovery
+</pre>
+
+
+<!-- ============================================================ -->
+<h2 id="dash-stability">🔒 Dashboard Stability</h2>
+
+<div class="card-box orange">
+    <h4>Lesson Learned: Never launch via Clawdbot exec</h4>
+    <p>Clawdbot background sessions get killed on session cleanup (~30 min). 
+    The dashboard must run fully detached. We use a VBS launcher + Python watchdog wrapper.</p>
+</div>
+
+<h3>Launch Chain</h3>
+<pre>
+start_dashboard.vbs  (Windows Script Host — fully detached)
+  └─→ run_dashboard.py  (Watchdog — auto-restart on crash, backoff)
+        └─→ simple_app.py  (Flask dashboard — actual web server)
+</pre>
+
+<h3>Log Files</h3>
+<pre>
+phone-farm/dashboard/logs/
+  ├── dashboard.log         # Errors & warnings (RotatingFileHandler, 5MB, 3 backups)
+  ├── dashboard_stdout.log  # Request logs, stdout
+  └── watchdog.log          # Start/stop/restart tracking
+</pre>
+
+
+<!-- ============================================================ -->
+<!-- DATABASE -->
+<!-- ============================================================ -->
+<h2 id="db-schema">🗄️ Database — phone_farm.db</h2>
+
+<p>Single SQLite database with WAL journaling. 35+ tables. Thread-safe via <code>check_same_thread=False</code>.</p>
+
+<pre>
+# Location
+phone-farm/db/phone_farm.db
+
+# Connection pattern
+conn = sqlite3.connect("phone_farm.db", check_same_thread=False)
+conn.row_factory = sqlite3.Row
+conn.execute("PRAGMA journal_mode=WAL")
+conn.execute("PRAGMA foreign_keys=ON")
+</pre>
+
+
+<!-- ============================================================ -->
+<h2 id="db-tables">📋 Key Tables</h2>
+
+<table>
+    <tr><th>Table</th><th>Purpose</th></tr>
+    <tr><td><code>devices</code></td><td>Master device registry (serial, name, IP, status)</td></tr>
+    <tr><td><code>accounts</code></td><td>Instagram accounts (username, password, device FK, package, enabled flags)</td></tr>
+    <tr><td><code>account_settings</code></td><td>Detailed bot settings per account (JSON blob, mirrors all toggles/limits)</td></tr>
+    <tr><td><code>account_sources</code></td><td>Follow/share/DM source accounts per account</td></tr>
+    <tr><td><code>account_stats</code></td><td>Daily statistics snapshots per account</td></tr>
+    <tr><td><code>account_sessions</code></td><td>Bot session tracking (start/end time, actions executed, errors)</td></tr>
+    <tr><td><code>action_history</code></td><td>Granular action log (every follow, like, comment with timestamp + target)</td></tr>
+    <tr><td><code>tags</code></td><td>Tag registry for account grouping</td></tr>
+    <tr><td><code>account_tags</code></td><td>M2M junction: account ↔ tags</td></tr>
+    <tr><td><code>follow_lists</code></td><td>Named follow lists</td></tr>
+    <tr><td><code>follow_list_items</code></td><td>Usernames in each follow list</td></tr>
+    <tr><td><code>media</code></td><td>Media library items (images/videos for posting)</td></tr>
+    <tr><td><code>scheduled_posts</code></td><td>Scheduled content queue</td></tr>
+    <tr><td><code>caption_templates</code></td><td>Caption template groups</td></tr>
+    <tr><td><code>captions</code></td><td>Individual captions within template groups</td></tr>
+    <tr><td><code>login_tasks</code></td><td>Login automation queue</td></tr>
+    <tr><td><code>profile_updates</code></td><td>Profile automation tasks</td></tr>
+    <tr><td><code>bot_status</code></td><td>Per-device bot process status (running/stopped/crashed)</td></tr>
+    <tr><td><code>account_inventory</code></td><td>Spare account pool (not yet assigned)</td></tr>
+</table>
+
+
+<!-- ============================================================ -->
+<h2 id="db-patterns">🔧 Query Patterns</h2>
+
+<pre>
+# Get all active accounts for a device
+SELECT a.*, s.settings_json 
+FROM accounts a 
+LEFT JOIN account_settings s ON a.id = s.account_id
+WHERE a.device_serial = ? AND a.status = 'active'
+
+# Log an action
+INSERT INTO action_history 
+    (account_id, session_id, action_type, target_username, result, timestamp)
+VALUES (?, ?, 'follow', ?, 'success', datetime('now'))
+
+# Get today's follow count for an account
+SELECT COUNT(*) FROM action_history 
+WHERE account_id = ? 
+  AND action_type = 'follow' 
+  AND result = 'success'
+  AND date(timestamp) = date('now')
+
+# Check dead sources
+SELECT * FROM account_sources 
+WHERE account_id = ? AND is_dead = 1 AND failure_count >= 3
+</pre>
+
+
+<!-- ============================================================ -->
+<!-- OPERATIONS -->
+<!-- ============================================================ -->
+<h2 id="ops-launcher">🚀 Farm Launcher</h2>
+
+<h3>Single Device</h3>
+<pre>
+# Start bot for one device
+python run_device.py 10.1.11.4:5555
+
+# Options
+python run_device.py 10.1.11.4:5555 --dry-run   # No actual actions, just logging
+python run_device.py 10.1.11.4:5555 --once       # One cycle then exit
+</pre>
+
+<h3>Full Farm</h3>
+<pre>
+# Launch all devices (opens one console window per device)
+python launch_farm.py          # Python launcher
+# or
+.\launch_farm.ps1              # PowerShell launcher
+
+# Stop all devices gracefully
+python stop_farm.py
+# or
+.\stop_farm.ps1
+</pre>
+
+<h3>Console Output</h3>
+<p>Each device gets a colored console window with dual logging (console + file):</p>
+<pre>
+<span style="color:#4fa8d5">[10.1.11.4:5555]</span> Connected to device
+<span style="color:#e8d44d">[harrer_private]</span> Starting cycle #7
+<span style="color:#00d2a0">[follow]</span> Followed @user123 (15/50 today)
+<span style="color:#00d2a0">[reels]</span> Watched 10 reels (40/50 today)
+<span style="color:#e74c6f">[share_to_story]</span> Hit daily limit (1/1)
+<span style="color:#4fa8d5">[10.1.11.4:5555]</span> Cycle complete — 4 actions, 0 errors
+</pre>
+
+
+<!-- ============================================================ -->
+<h2 id="ops-running">🏃 Running the Farm</h2>
+
+<h3>Starting Up</h3>
+<ol>
+    <li>Start the dashboard: <code>wscript start_dashboard.vbs</code> (or double-click)</li>
+    <li>Verify dashboard at <code>http://10.1.11.168:5055</code></li>
+    <li>Launch bots: <code>python launch_farm.py</code></li>
+    <li>Monitor via dashboard Bot Manager page or console windows</li>
+</ol>
+
+<h3>Monitoring</h3>
+<ul>
+    <li><strong>Dashboard:</strong> Farm Stats page shows real-time action counts</li>
+    <li><strong>Console:</strong> Each device window shows live colored logs</li>
+    <li><strong>Log files:</strong> <code>phone-farm/logs/{device_serial}_{date}.log</code></li>
+    <li><strong>DB:</strong> <code>action_history</code> + <code>account_sessions</code> tables</li>
+    <li><strong>Jarvis:</strong> AI monitoring via Clawdbot (reads logs, checks status)</li>
+</ul>
+
+
+<!-- ============================================================ -->
+<h2 id="ops-troubleshooting">🔧 Troubleshooting</h2>
+
+<div class="card-box red">
+    <h4>⚠️ App Crashes to Launcher</h4>
+    <p><strong>Symptom:</strong> Bot starts the clone app, confirms foreground, then immediately crashes to Samsung launcher.</p>
+    <p><strong>Fix:</strong> Clone app is broken — reinstall the APK on the device. Also reset dead source failure counts for affected accounts (crashes falsely count as source failures).</p>
+</div>
+
+<div class="card-box red">
+    <h4>⚠️ UIAutomator Not Connected</h4>
+    <p><strong>Symptom:</strong> <code>UiAutomationNotConnectedError</code> exceptions.</p>
+    <p><strong>Fix:</strong> Auto-handled by <code>DeviceConnection.ensure_connected()</code>. If persistent: <code>adb kill-server && adb start-server</code>, then reconnect.</p>
+</div>
+
+<div class="card-box red">
+    <h4>⚠️ All Sources Marked Dead</h4>
+    <p><strong>Symptom:</strong> Every follow source shows failure_count >= 3.</p>
+    <p><strong>Cause:</strong> Usually an app crash (not actual dead sources). The dead source logic doesn't distinguish "app crashed" from "source not found".</p>
+    <p><strong>Fix:</strong> Fix the underlying app issue first. Then reset: <code>UPDATE account_sources SET is_dead=0, failure_count=0 WHERE account_id=?</code></p>
+</div>
+
+<div class="card-box red">
+    <h4>⚠️ Dashboard Keeps Dying</h4>
+    <p><strong>Symptom:</strong> Dashboard accessible for a while, then stops responding.</p>
+    <p><strong>Fix:</strong> Never launch via Clawdbot exec. Use the VBS launcher: <code>wscript start_dashboard.vbs</code>. Check logs in <code>dashboard/logs/</code>.</p>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- REFERENCE -->
+<!-- ============================================================ -->
+<h2 id="ref-files">📁 File Map</h2>
+
+<pre>
+phone-farm/
+├── db/
+│   ├── phone_farm.db          # THE database (single source of truth)
+│   ├── models.py              # Schema definition + migrations
+│   └── seed.py                # Initial data seeding
+│
+├── automation/
+│   ├── ig_controller.py       # 🎮 Core UI controller (XML-based)
+│   ├── bot_engine.py          # ⚙️ Orchestrator (determines + runs actions)
+│   ├── device_connection.py   # 🔌 UIAutomator2 connection manager
+│   ├── instagram_actions.py   # Legacy action wrapper
+│   ├── source_manager.py      # Source file + DB management
+│   ├── tag_dedup.py           # Tag-based follow deduplication
+│   ├── bot_logger.py          # Structured bot event logging
+│   ├── login.py               # Login automation core
+│   ├── profile.py             # Profile info parsing
+│   ├── api.py                 # REST API for automation control
+│   └── actions/
+│       ├── helpers.py         # 🔧 Shared utilities (delays, DB, filters)
+│       ├── follow.py          # Follow from source followers
+│       ├── follow_from_list.py # Follow from username list
+│       ├── engage.py          # Feed scrolling, story viewing
+│       ├── reels.py           # Reels watching
+│       ├── share_to_story.py  # Share posts to our story
+│       ├── comment.py         # Post comments
+│       ├── like.py            # Like posts
+│       ├── unfollow.py        # Unfollow old follows
+│       ├── dm.py              # Direct messaging
+│       ├── post_content.py    # Post scheduled content
+│       ├── job_executor.py    # Execute job orders
+│       └── scrape.py          # Data scraping
+│
+├── dashboard/
+│   ├── simple_app.py          # 🖥️ Flask app (main entry)
+│   ├── run_dashboard.py       # Watchdog wrapper (auto-restart)
+│   ├── start_dashboard.vbs    # VBS launcher (fully detached)
+│   ├── templates/             # Jinja2 HTML templates
+│   │   ├── base.html          # Base layout (navbar, Bootstrap)
+│   │   ├── index.html         # Main dashboard
+│   │   ├── accounts.html      # Account management
+│   │   ├── bot_settings.html  # Bot configuration
+│   │   └── ... (20+ pages)
+│   ├── static/
+│   │   ├── css/style.css      # Custom dark theme styles
+│   │   └── js/*.js            # Page-specific JavaScript
+│   └── *_routes.py            # Flask blueprint route files
+│
+├── run_device.py              # 🏃 Single device bot runner
+├── launch_farm.py             # 🚀 Multi-device launcher (Python)
+├── launch_farm.ps1            # 🚀 Multi-device launcher (PowerShell)
+├── stop_farm.py               # 🛑 Graceful shutdown
+├── stop_farm.ps1              # 🛑 Graceful shutdown (PowerShell)
+│
+├── docs/                      # 📚 This documentation
+│   └── index.html
+│
+└── logs/                      # 📝 Bot log files per device per day
+</pre>
+
+
+<!-- ============================================================ -->
+<h2 id="ref-selectors">🏷️ IG UI Selectors (Verified)</h2>
+
+<p>These are the confirmed working selectors for Instagram clone apps, tested on real devices:</p>
+
+<table>
+    <tr><th>Element</th><th>Selector</th><th>Type</th></tr>
+    <tr><td>Home feed tab</td><td><code>description='Home'</code> or tab_icon</td><td>desc</td></tr>
+    <tr><td>Search tab</td><td><code>description='Search and explore'</code></td><td>desc</td></tr>
+    <tr><td>Search input</td><td><code>resource_id='action_bar_search_edit_text'</code></td><td>res_id</td></tr>
+    <tr><td>Profile tab</td><td><code>description='Profile'</code></td><td>desc</td></tr>
+    <tr><td>Comment button</td><td><code>description='Comment'</code> or <code>resource_id='row_feed_button_comment'</code></td><td>desc/res_id</td></tr>
+    <tr><td>Comment input</td><td><code>resource_id='layout_comment_thread_edittext'</code></td><td>res_id</td></tr>
+    <tr><td><strong>Comment Post button</strong></td><td><code>resource_id='layout_comment_thread_post_button_icon'</code></td><td>res_id</td></tr>
+    <tr><td>Like button</td><td><code>description='Like'</code> or <code>resource_id='row_feed_button_like'</code></td><td>desc/res_id</td></tr>
+    <tr><td>Share button</td><td><code>description='Send post'</code> or <code>resource_id='row_feed_button_share'</code></td><td>desc/res_id</td></tr>
+    <tr><td>Follow button</td><td><code>text='Follow'</code> (on profile)</td><td>text</td></tr>
+    <tr><td>Followers count</td><td><code>resource_id='row_profile_header_textview_followers_count'</code></td><td>res_id</td></tr>
+    <tr><td>Story ring</td><td>Container with reel_viewer elements</td><td>class</td></tr>
+    <tr><td>Reels tab</td><td><code>description='Reels'</code></td><td>desc</td></tr>
+    <tr><td>DM inbox</td><td><code>description='Direct'</code> or messenger icon</td><td>desc</td></tr>
+</table>
+
+
+<!-- ============================================================ -->
+<h2 id="ref-lessons">📝 Lessons Learned</h2>
+
+<ul>
+    <li><strong>Never launch long-running processes via Clawdbot exec</strong> — session cleanup kills children. Use VBS/detached.</li>
+    <li><strong>Android RecyclerView recycles off-screen elements</strong> — always scroll to make elements visible before reading XML.</li>
+    <li><strong>IG clone apps have permanent invisible UI layers</strong> — <code>modal_container</code>, <code>overlay_layout_container</code>, <code>bottom_sheet_camera_container</code> exist always. Don't mistake them for active popups.</li>
+    <li><strong>IG search requires submit + tab click</strong> — just typing shows keyword suggestions. Must press Enter, then click "Accounts" tab.</li>
+    <li><strong>PowerShell kills processes that write to stderr</strong> — use <code>Start-Process</code> or <code>cmd /c</code> for long-running servers.</li>
+    <li><strong><code>monkey -p PKG</code> is more reliable than <code>app_start()</code></strong> for launching clone apps.</li>
+    <li><strong>Zombie Python processes hold ports</strong> — always kill ALL python before restarting the dashboard.</li>
+    <li><strong>Test → Integrate → Done</strong> — never celebrate a working test without putting it in production code.</li>
+    <li><strong><code>adb shell input text</code> works for emoji</strong> via unicode escapes, but console encoding (cp1250) can't print them. Use <code>sys.stdout.reconfigure(encoding='utf-8')</code>.</li>
+    <li><strong>Grid posts have content-desc</strong> like <code>"Reel by Username at row 1, column 1"</code> — useful for clicking specific posts.</li>
+</ul>
+
+<br><br>
+<p style="color: var(--text-dim); font-size: 0.8rem; text-align: center; border-top: 1px solid var(--border); padding-top: 24px;">
+    Hydra 🐙 Documentation — Built by Jarvis — Last updated: February 2026
+</p>
+
+</div>
+
+<script>
+// Highlight active nav link on scroll
+const sections = document.querySelectorAll('h2[id], h3[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+
+function highlightNav() {
+    let current = '';
+    sections.forEach(section => {
+        const sectionTop = section.offsetTop - 100;
+        if (window.scrollY >= sectionTop) {
+            current = section.getAttribute('id');
+        }
+    });
+
+    navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + current) {
+            link.classList.add('active');
+        }
+    });
+}
+
+window.addEventListener('scroll', highlightNav);
+highlightNav();
+
+// Smooth scrolling
+navLinks.forEach(link => {
+    link.addEventListener('click', e => {
+        e.preventDefault();
+        const target = document.querySelector(link.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+});
+</script>
+
+</body>
+</html>

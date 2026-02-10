@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Library Debug</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: white; }
+        .debug-section { margin-bottom: 20px; padding: 15px; border: 1px solid #333; border-radius: 5px; }
+        .debug-log { height: 200px; overflow-y: auto; background-color: #222; padding: 10px; font-family: monospace; }
+        .media-item { display: inline-block; margin: 10px; border: 1px solid #444; padding: 5px; }
+        .media-thumbnail { width: 150px; height: 150px; object-fit: cover; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Media Library Debug</h1>
+        
+        <div class="debug-section">
+            <h3>API Tests</h3>
+            <button id="testFolders" class="btn btn-primary me-2">Test Folders API</button>
+            <button id="testMedia" class="btn btn-success me-2">Test Media API</button>
+            <button id="testTags" class="btn btn-info">Test Tags API</button>
+        </div>
+        
+        <div class="debug-section">
+            <h3>Console Output</h3>
+            <div class="debug-log" id="debugLog"></div>
+        </div>
+        
+        <div class="debug-section">
+            <h3>Folders</h3>
+            <div id="folderDisplay"></div>
+        </div>
+        
+        <div class="debug-section">
+            <h3>Media</h3>
+            <div id="mediaDisplay"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Helper to log messages to the debug console
+        function log(message, isError = false) {
+            const logEl = document.getElementById('debugLog');
+            const msgEl = document.createElement('div');
+            msgEl.className = isError ? 'text-danger' : 'text-white-50';
+            msgEl.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logEl.appendChild(msgEl);
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(message);
+        }
+        
+        // Test folders API
+        document.getElementById('testFolders').addEventListener('click', async () => {
+            try {
+                log('Testing folders API...');
+                const response = await fetch('/api/folders');
+                if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+                
+                const folders = await response.json();
+                log(`Got ${folders.length} folders`);
+                
+                // Display folders
+                const folderDisplay = document.getElementById('folderDisplay');
+                folderDisplay.innerHTML = '<ul class="list-group">';
+                
+                folders.forEach(folder => {
+                    folderDisplay.innerHTML += `
+                        <li class="list-group-item bg-dark text-white border-secondary">
+                            ${folder.name} (ID: ${folder.id})
+                        </li>
+                    `;
+                });
+                
+                folderDisplay.innerHTML += '</ul>';
+            } catch (error) {
+                log(`Error testing folders API: ${error.message}`, true);
+            }
+        });
+        
+        // Test media API
+        document.getElementById('testMedia').addEventListener('click', async () => {
+            try {
+                log('Testing media API...');
+                const response = await fetch('/api/media');
+                if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+                
+                const media = await response.json();
+                log(`Got ${media.length} media items`);
+                
+                // Display media
+                const mediaDisplay = document.getElementById('mediaDisplay');
+                mediaDisplay.innerHTML = '';
+                
+                media.forEach(item => {
+                    let thumbnailSrc;
+                    
+                    if (item.processed_path) {
+                        thumbnailSrc = `/api/media/processed/${item.processed_path.split('/').pop()}`;
+                    } else {
+                        thumbnailSrc = `/api/media/original/${item.original_path.split('/').pop()}`;
+                    }
+                    
+                    log(`Media: ${item.filename} - Path: ${thumbnailSrc}`);
+                    
+                    mediaDisplay.innerHTML += `
+                        <div class="media-item">
+                            <img src="${thumbnailSrc}" alt="${item.filename}" class="media-thumbnail" 
+                                onerror="log('Failed to load image: ' + this.src, true); this.src='/static/img/placeholder.jpg';">
+                            <div>${item.filename}</div>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                log(`Error testing media API: ${error.message}`, true);
+            }
+        });
+        
+        // Test tags API
+        document.getElementById('testTags').addEventListener('click', async () => {
+            try {
+                log('Testing tags API...');
+                const response = await fetch('/api/tags');
+                if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+                
+                const tags = await response.json();
+                log(`Got ${tags.length} tags: ${tags.join(', ')}`);
+            } catch (error) {
+                log(`Error testing tags API: ${error.message}`, true);
+            }
+        });
+        
+        // Log startup
+        log('Debug page loaded. Click the buttons to test API endpoints.');
+    </script>
+</body>
+</html>

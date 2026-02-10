@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+
+{% block title %}Farm Stats & Analytics{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        background: #1a1d23;
+        border: 1px solid #2d3139;
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: transform .15s, box-shadow .15s;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,.3); }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
+    .stat-card .stat-label { font-size: .85rem; color: #8b949e; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-card .stat-icon { font-size: 1.5rem; opacity: .6; }
+
+    .chart-container {
+        background: #1a1d23;
+        border: 1px solid #2d3139;
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+    .chart-container canvas { max-height: 350px; }
+
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: .75rem;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .range-btn {
+        padding: .25rem .65rem;
+        font-size: .8rem;
+        border-radius: 6px;
+        border: 1px solid #3d444d;
+        background: transparent;
+        color: #8b949e;
+        cursor: pointer;
+        transition: all .15s;
+    }
+    .range-btn:hover, .range-btn.active { background: #238636; border-color: #238636; color: #fff; }
+
+    .table-dark-custom th { background: #161b22; border-bottom: 2px solid #30363d; font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; color: #8b949e; }
+    .table-dark-custom td { border-bottom: 1px solid #21262d; font-size: .875rem; vertical-align: middle; }
+    .table-dark-custom tbody tr:hover { background: rgba(56,139,253,.08); }
+
+    .badge-success-soft { background: rgba(35,134,54,.2); color: #3fb950; }
+    .badge-danger-soft { background: rgba(248,81,73,.2); color: #f85149; }
+    .badge-warning-soft { background: rgba(210,153,34,.15); color: #d29922; }
+    .badge-info-soft { background: rgba(56,139,253,.15); color: #58a6ff; }
+
+    .error-row { font-size: .82rem; }
+    .error-row .error-msg { color: #f85149; font-family: 'Courier New', monospace; font-size: .78rem; }
+
+    .dropdown-menu-dark { background: #1a1d23; border-color: #30363d; }
+    .dropdown-menu-dark .dropdown-item { color: #c9d1d9; }
+    .dropdown-menu-dark .dropdown-item:hover { background: #30363d; }
+
+    .refresh-indicator { font-size: .75rem; color: #484f58; }
+    .pulse { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+    .sortable { cursor: pointer; user-select: none; }
+    .sortable:hover { color: #58a6ff; }
+    .sortable::after { content: ' ⇅'; font-size: .7rem; opacity: .4; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="fas fa-chart-line text-info me-2"></i>Farm Stats & Analytics</h4>
+    <div class="d-flex align-items-center gap-2">
+        <span class="refresh-indicator" id="lastRefresh"></span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+<!-- ═══════ Summary Cards ═══════ -->
+<div class="row g-3 mb-4" id="summaryCards">
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-label">Actions Today</div>
+                    <div class="stat-value text-info" id="actionsToday">—</div>
+                </div>
+                <div class="stat-icon text-info"><i class="fas fa-bolt"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-label">This Week</div>
+                    <div class="stat-value text-primary" id="actionsWeek">—</div>
+                </div>
+                <div class="stat-icon text-primary"><i class="fas fa-calendar-week"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-label">All Time</div>
+                    <div class="stat-value text-success" id="actionsAll">—</div>
+                </div>
+                <div class="stat-icon text-success"><i class="fas fa-database"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-label">Active Devices</div>
+                    <div class="stat-value text-warning" id="activeDevices">—</div>
+                </div>
+                <div class="stat-icon text-warning"><i class="fas fa-mobile-alt"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-label">Sessions Today</div>
+                    <div class="stat-value text-light" id="sessionsToday">—</div>
+                </div>
+                <div class="stat-icon text-light"><i class="fas fa-play-circle"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-label">Error Rate</div>
+                    <div class="stat-value" id="errorRate">—</div>
+                </div>
+                <div class="stat-icon text-danger"><i class="fas fa-exclamation-triangle"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════ Charts Row ═══════ -->
+<div class="row g-3 mb-4">
+    <!-- Actions Over Time -->
+    <div class="col-lg-8">
+        <div class="chart-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="section-title mb-0"><i class="fas fa-chart-area text-info"></i> Actions Over Time</div>
+                <div class="d-flex gap-1">
+                    <button class="range-btn" data-range="7" onclick="setActionsRange(7)">7d</button>
+                    <button class="range-btn active" data-range="30" onclick="setActionsRange(30)">30d</button>
+                    <button class="range-btn" data-range="all" onclick="setActionsRange('all')">All</button>
+                </div>
+            </div>
+            <canvas id="actionsChart"></canvas>
+        </div>
+    </div>
+    <!-- Action Breakdown -->
+    <div class="col-lg-4">
+        <div class="chart-container">
+            <div class="section-title"><i class="fas fa-chart-pie text-warning"></i> Action Breakdown</div>
+            <canvas id="breakdownChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════ Follower Growth ═══════ -->
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="chart-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="section-title mb-0"><i class="fas fa-user-plus text-success"></i> Follower Growth</div>
+                <div class="d-flex gap-2 align-items-center">
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="followerAccountSelect" style="width:220px">
+                        <option value="top10">Top 10 Accounts</option>
+                        <option value="all">All (Averaged)</option>
+                    </select>
+                    <div class="d-flex gap-1">
+                        <button class="range-btn" data-frange="30" onclick="setFollowerRange(30)">30d</button>
+                        <button class="range-btn active" data-frange="90" onclick="setFollowerRange(90)">90d</button>
+                        <button class="range-btn" data-frange="all" onclick="setFollowerRange('all')">All</button>
+                    </div>
+                </div>
+            </div>
+            <canvas id="followerChart" style="max-height:300px"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════ Tables Row ═══════ -->
+<div class="row g-3 mb-4">
+    <!-- Recent Activity -->
+    <div class="col-lg-7">
+        <div class="chart-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="section-title mb-0"><i class="fas fa-stream text-primary"></i> Recent Activity</div>
+                <span class="refresh-indicator pulse" id="activityPulse">● live</span>
+            </div>
+            <div class="table-responsive" style="max-height:400px; overflow-y:auto">
+                <table class="table table-dark-custom table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Device</th>
+                            <th>Account</th>
+                            <th>Action</th>
+                            <th>Target</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activityBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- Per-Device Stats -->
+    <div class="col-lg-5">
+        <div class="chart-container">
+            <div class="section-title"><i class="fas fa-server text-warning"></i> Per-Device Stats</div>
+            <div class="table-responsive" style="max-height:400px; overflow-y:auto">
+                <table class="table table-dark-custom table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-col="device_serial">Device</th>
+                            <th class="sortable" data-col="total_accounts">Accounts</th>
+                            <th class="sortable" data-col="actions_today_actual">Actions</th>
+                            <th class="sortable" data-col="sessions_today">Sessions</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deviceBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════ Error Log (Collapsible) ═══════ -->
+<div class="row g-3 mb-5">
+    <div class="col-12">
+        <div class="chart-container">
+            <div class="d-flex justify-content-between align-items-center" style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#errorCollapse">
+                <div class="section-title mb-0"><i class="fas fa-bug text-danger"></i> Error Log <span class="badge badge-danger-soft ms-2" id="errorCount">0</span></div>
+                <i class="fas fa-chevron-down text-secondary" id="errorChevron"></i>
+            </div>
+            <div class="collapse mt-3" id="errorCollapse">
+                <div class="table-responsive" style="max-height:350px; overflow-y:auto">
+                    <table class="table table-dark-custom table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Device</th>
+                                <th>Account</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>Error</th>
+                            </tr>
+                        </thead>
+                        <tbody id="errorBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+// ── Globals ──
+let actionsChart, breakdownChart, followerChart;
+let currentActionsRange = 30;
+let currentFollowerRange = 90;
+let currentFollowerMode = 'top10';
+let deviceSortCol = 'actions_today_actual';
+let deviceSortAsc = false;
+let deviceData = [];
+
+const COLORS = [
+    '#58a6ff','#3fb950','#d29922','#f85149','#bc8cff',
+    '#f778ba','#79c0ff','#7ee787','#e3b341','#ff7b72',
+    '#d2a8ff','#56d364','#e6edf3','#8b949e','#ffa657'
+];
+
+function fmtNum(n) { return n != null ? n.toLocaleString() : '—'; }
+
+function shortSerial(s) {
+    if (!s) return '—';
+    return s.replace('_5555','').replace('10.1.','');
+}
+
+function timeAgo(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60) return Math.floor(diff) + 's ago';
+    if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+    return Math.floor(diff/86400) + 'd ago';
+}
+
+function actionBadge(type) {
+    const map = {
+        'follow': 'badge-info-soft',
+        'unfollow': 'badge-warning-soft',
+        'like': 'badge-success-soft',
+        'story_view': 'badge-info-soft',
+        'reel_watch': 'badge-info-soft',
+        'reel_like': 'badge-success-soft',
+        'share_to_story': 'badge-warning-soft',
+        'comment': 'badge-info-soft'
+    };
+    return `<span class="badge ${map[type] || 'badge-info-soft'}">${type}</span>`;
+}
+
+function statusBadge(success) {
+    return success ? '<span class="badge badge-success-soft">OK</span>' : '<span class="badge badge-danger-soft">FAIL</span>';
+}
+
+function deviceStatusBadge(st) {
+    const map = { 'running':'badge-success-soft', 'idle':'badge-warning-soft', 'stopped':'badge-danger-soft', 'error':'badge-danger-soft' };
+    return `<span class="badge ${map[st] || 'badge-info-soft'}">${st}</span>`;
+}
+
+// ── API Fetchers ──
+
+async function fetchJSON(url) {
+    const resp = await fetch(url);
+    return resp.json();
+}
+
+async function loadSummary() {
+    const d = await fetchJSON('/api/farm-stats/summary');
+    document.getElementById('actionsToday').textContent = fmtNum(d.actions_today);
+    document.getElementById('actionsWeek').textContent = fmtNum(d.actions_week);
+    document.getElementById('actionsAll').textContent = fmtNum(d.actions_all);
+    document.getElementById('activeDevices').textContent = `${d.active_devices}/${d.total_devices}`;
+    document.getElementById('sessionsToday').textContent = fmtNum(d.sessions_today);
+    const er = document.getElementById('errorRate');
+    er.textContent = d.error_rate + '%';
+    er.className = 'stat-value ' + (d.error_rate > 10 ? 'text-danger' : d.error_rate > 5 ? 'text-warning' : 'text-success');
+}
+
+async function loadActionsChart() {
+    const d = await fetchJSON(`/api/farm-stats/actions-over-time?days=${currentActionsRange}`);
+    const datasets = d.action_types.map((at, i) => ({
+        label: at,
+        data: d.series[at],
+        borderColor: COLORS[i % COLORS.length],
+        backgroundColor: COLORS[i % COLORS.length] + '20',
+        fill: true,
+        tension: .3,
+        borderWidth: 2,
+        pointRadius: d.dates.length > 60 ? 0 : 3
+    }));
+
+    if (actionsChart) actionsChart.destroy();
+    actionsChart = new Chart(document.getElementById('actionsChart'), {
+        type: 'line',
+        data: { labels: d.dates, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#8b949e', padding: 15, usePointStyle: true, pointStyle: 'circle' } } },
+            scales: {
+                x: { ticks: { color: '#484f58', maxTicksLimit: 15 }, grid: { color: '#21262d' } },
+                y: { ticks: { color: '#484f58' }, grid: { color: '#21262d' }, beginAtZero: true }
+            },
+            interaction: { intersect: false, mode: 'index' }
+        }
+    });
+}
+
+async function loadBreakdownChart() {
+    const d = await fetchJSON('/api/farm-stats/action-breakdown');
+    if (breakdownChart) breakdownChart.destroy();
+    breakdownChart = new Chart(document.getElementById('breakdownChart'), {
+        type: 'doughnut',
+        data: {
+            labels: d.labels,
+            datasets: [{ data: d.values, backgroundColor: COLORS.slice(0, d.labels.length), borderWidth: 0 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#8b949e', padding: 10, usePointStyle: true, pointStyle: 'circle' } }
+            },
+            cutout: '55%'
+        }
+    });
+}
+
+async function loadFollowerChart() {
+    const mode = currentFollowerMode;
+    const d = await fetchJSON(`/api/farm-stats/follower-growth?mode=${mode}&days=${currentFollowerRange}`);
+    const series = d.series || {};
+    const names = Object.keys(series);
+
+    const datasets = names.map((name, i) => ({
+        label: name,
+        data: series[name],
+        borderColor: COLORS[i % COLORS.length],
+        backgroundColor: 'transparent',
+        tension: .3,
+        borderWidth: 2,
+        pointRadius: d.dates.length > 60 ? 0 : 2,
+        spanGaps: true
+    }));
+
+    if (followerChart) followerChart.destroy();
+    followerChart = new Chart(document.getElementById('followerChart'), {
+        type: 'line',
+        data: { labels: d.dates, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#8b949e', padding: 10, usePointStyle: true, pointStyle: 'circle' } } },
+            scales: {
+                x: { ticks: { color: '#484f58', maxTicksLimit: 15 }, grid: { color: '#21262d' } },
+                y: { ticks: { color: '#484f58' }, grid: { color: '#21262d' }, beginAtZero: false }
+            },
+            interaction: { intersect: false, mode: 'index' }
+        }
+    });
+}
+
+async function loadAccountDropdown() {
+    const accts = await fetchJSON('/api/farm-stats/accounts');
+    const sel = document.getElementById('followerAccountSelect');
+    // Keep first two options (top10, all)
+    while (sel.options.length > 2) sel.remove(2);
+    accts.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = `${a.username} (${fmtNum(a.followers)})`;
+        sel.appendChild(opt);
+    });
+}
+
+async function loadRecentActivity() {
+    const rows = await fetchJSON('/api/farm-stats/recent-activity?limit=50');
+    const tbody = document.getElementById('activityBody');
+    tbody.innerHTML = rows.map(r => `
+        <tr>
+            <td title="${r.timestamp}">${timeAgo(r.timestamp)}</td>
+            <td><code>${shortSerial(r.device_serial)}</code></td>
+            <td>${r.username || '—'}</td>
+            <td>${actionBadge(r.action_type)}</td>
+            <td>${r.target_username || r.target_post_id || '—'}</td>
+            <td>${statusBadge(r.success)}</td>
+        </tr>
+    `).join('');
+}
+
+async function loadDeviceStats() {
+    deviceData = await fetchJSON('/api/farm-stats/device-stats');
+    renderDeviceTable();
+}
+
+function renderDeviceTable() {
+    let sorted = [...deviceData];
+    sorted.sort((a, b) => {
+        let va = a[deviceSortCol] ?? 0, vb = b[deviceSortCol] ?? 0;
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        return deviceSortAsc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+    });
+
+    const tbody = document.getElementById('deviceBody');
+    tbody.innerHTML = sorted.map(r => `
+        <tr>
+            <td><code>${shortSerial(r.device_serial)}</code></td>
+            <td>${r.total_accounts || 0}</td>
+            <td>${r.actions_today_actual || 0}</td>
+            <td>${r.sessions_today || 0}</td>
+            <td>${deviceStatusBadge(r.status)}</td>
+        </tr>
+    `).join('');
+}
+
+async function loadErrors() {
+    const rows = await fetchJSON('/api/farm-stats/errors?limit=100');
+    document.getElementById('errorCount').textContent = rows.length;
+    const tbody = document.getElementById('errorBody');
+    tbody.innerHTML = rows.map(r => `
+        <tr class="error-row">
+            <td title="${r.timestamp}">${timeAgo(r.timestamp)}</td>
+            <td><code>${shortSerial(r.device_serial)}</code></td>
+            <td>${r.username || '—'}</td>
+            <td>${actionBadge(r.action_type)}</td>
+            <td>${r.target_username || '—'}</td>
+            <td class="error-msg">${r.error_message || 'No details'}</td>
+        </tr>
+    `).join('');
+}
+
+// ── Controls ──
+
+function setActionsRange(r) {
+    currentActionsRange = r;
+    document.querySelectorAll('[data-range]').forEach(b => b.classList.toggle('active', b.dataset.range == r));
+    loadActionsChart();
+}
+
+function setFollowerRange(r) {
+    currentFollowerRange = r;
+    document.querySelectorAll('[data-frange]').forEach(b => b.classList.toggle('active', b.dataset.frange == r));
+    loadFollowerChart();
+}
+
+document.getElementById('followerAccountSelect').addEventListener('change', function() {
+    currentFollowerMode = this.value;
+    loadFollowerChart();
+});
+
+// Sortable device columns
+document.querySelectorAll('.sortable').forEach(th => {
+    th.addEventListener('click', function() {
+        const col = this.dataset.col;
+        if (deviceSortCol === col) deviceSortAsc = !deviceSortAsc;
+        else { deviceSortCol = col; deviceSortAsc = false; }
+        renderDeviceTable();
+    });
+});
+
+// Error collapse chevron toggle
+document.getElementById('errorCollapse').addEventListener('show.bs.collapse', () => {
+    document.getElementById('errorChevron').style.transform = 'rotate(180deg)';
+});
+document.getElementById('errorCollapse').addEventListener('hide.bs.collapse', () => {
+    document.getElementById('errorChevron').style.transform = 'rotate(0deg)';
+});
+
+// ── Init & Auto-refresh ──
+
+function updateTimestamp() {
+    document.getElementById('lastRefresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+async function refreshAll() {
+    await Promise.all([
+        loadSummary(),
+        loadActionsChart(),
+        loadBreakdownChart(),
+        loadFollowerChart(),
+        loadRecentActivity(),
+        loadDeviceStats(),
+        loadErrors()
+    ]);
+    updateTimestamp();
+}
+
+(async function init() {
+    await loadAccountDropdown();
+    await refreshAll();
+    // Auto-refresh activity feed every 30s
+    setInterval(async () => {
+        await loadRecentActivity();
+        await loadSummary();
+        updateTimestamp();
+    }, 30000);
+})();
+</script>
+{% endblock %}

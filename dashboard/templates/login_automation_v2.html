@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}Login Automation V2 - Phone Farm{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-sign-in-alt me-2"></i>Login Automation V2</h2>
+    <div>
+        <a href="/login-automation" class="btn btn-sm btn-outline-secondary me-2">
+            <i class="fas fa-arrow-left me-1"></i> Old Login
+        </a>
+        <button class="btn btn-primary" onclick="loadAccounts()">
+            <i class="fas fa-sync me-1"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-dark border-warning text-center p-3">
+            <h4 class="mb-0 text-warning" id="statPending">0</h4>
+            <small class="text-muted">Pending Login</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-danger text-center p-3">
+            <h4 class="mb-0 text-danger" id="statFailed">0</h4>
+            <small class="text-muted">Failed</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-info text-center p-3">
+            <h4 class="mb-0 text-info" id="statRunning">0</h4>
+            <small class="text-muted">Running</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-success text-center p-3">
+            <h4 class="mb-0 text-success" id="statDone">0</h4>
+            <small class="text-muted">Completed</small>
+        </div>
+    </div>
+</div>
+
+<!-- Filter + Actions -->
+<div class="card bg-dark border-secondary mb-4">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+        <div>
+            <label class="form-label mb-0 small">Filter by Device</label>
+            <select id="deviceFilter" class="form-select form-select-sm bg-dark text-white border-secondary" style="width:250px" onchange="loadAccounts()">
+                <option value="">All Devices</option>
+            </select>
+        </div>
+        <div class="ms-auto d-flex gap-2">
+            <button class="btn btn-sm btn-outline-light" onclick="selectAll()">
+                <i class="fas fa-check-double me-1"></i> Select All
+            </button>
+            <button class="btn btn-sm btn-outline-light" onclick="deselectAll()">
+                <i class="fas fa-times me-1"></i> Deselect
+            </button>
+            <button class="btn btn-sm btn-outline-warning" onclick="resetFailed()">
+                <i class="fas fa-redo me-1"></i> Reset Failed → Pending
+            </button>
+            <button class="btn btn-success" id="loginBtn" onclick="loginSelected()">
+                <i class="fas fa-sign-in-alt me-1"></i> Login Selected (<span id="selectedCount">0</span>)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Accounts table -->
+<div class="card bg-dark border-secondary mb-4">
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height:500px;overflow-y:auto">
+            <table class="table table-dark table-hover table-sm mb-0">
+                <thead style="position:sticky;top:0;background:#1a1a2e;z-index:1">
+                    <tr>
+                        <th><input type="checkbox" id="checkAll" onchange="toggleAll()"></th>
+                        <th>Username</th>
+                        <th>Device</th>
+                        <th>App Package</th>
+                        <th>2FA</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsTableBody">
+                    <tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Live progress panel (hidden until login starts) -->
+<div class="card bg-dark border-info mb-4 d-none" id="progressPanel">
+    <div class="card-header bg-dark border-info d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-tasks me-2 text-info"></i>Login Progress</h5>
+        <span id="progressBadge" class="badge bg-info">0 / 0</span>
+    </div>
+    <div class="card-body">
+        <div class="progress mb-3" style="height:24px">
+            <div class="progress-bar bg-success" id="progressSuccess" style="width:0%">0</div>
+            <div class="progress-bar bg-danger" id="progressFail" style="width:0%">0</div>
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" id="progressRunning" style="width:0%"></div>
+        </div>
+        <div id="progressLog" style="max-height:300px;overflow-y:auto;font-family:monospace;font-size:0.85em">
+        </div>
+        <div class="mt-3 d-none" id="completionActions">
+            <a href="/bot-manager" class="btn btn-primary">
+                <i class="fas fa-rocket me-1"></i> Launch Farm →
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allAccounts = [];
+let activeBatchId = null;
+let pollInterval = null;
+
+$(document).ready(function() {
+    loadDevices();
+    loadAccounts();
+});
+
+function loadDevices() {
+    $.get('/api/login-v2/devices', function(data) {
+        if (data.status !== 'success') return;
+        let html = '<option value="">All Devices</option>';
+        data.devices.forEach(d => {
+            html += `<option value="${d.device_serial}">${d.device_name || d.device_serial}</option>`;
+        });
+        $('#deviceFilter').html(html);
+    });
+}
+
+function loadAccounts() {
+    const device = $('#deviceFilter').val();
+    const url = '/api/login-v2/pending' + (device ? `?device_serial=${device}` : '');
+
+    $.get(url, function(data) {
+        if (data.status !== 'success') return;
+        allAccounts = data.accounts;
+
+        let pending = 0, failed = 0, running = 0;
+        let html = '';
+
+        if (allAccounts.length === 0) {
+            html = '<tr><td colspan="6" class="text-center text-muted py-4">No accounts with pending_login or login_failed status.<br>Import accounts first → <a href="/import-accounts-v2" class="text-info">Import V2</a></td></tr>';
+        }
+
+        allAccounts.forEach(acc => {
+            if (acc.status === 'pending_login') pending++;
+            else if (acc.status === 'login_failed') failed++;
+            else if (acc.status === 'logging_in') running++;
+
+            const statusBadge = getStatusBadge(acc.status);
+            const twofa = acc.two_fa_token ? '<span class="badge bg-success">✓</span>' : '<span class="badge bg-secondary">—</span>';
+
+            html += `<tr>
+                <td><input type="checkbox" class="acc-check" data-id="${acc.id}" onchange="updateSelectedCount()"></td>
+                <td><strong>${acc.username}</strong></td>
+                <td><code class="text-info">${acc.device_serial || '-'}</code>
+                    ${acc.device_name ? `<small class="text-muted ms-1">(${acc.device_name})</small>` : ''}</td>
+                <td><small>${acc.instagram_package || '-'}</small></td>
+                <td>${twofa}</td>
+                <td>${statusBadge}</td>
+            </tr>`;
+        });
+
+        $('#accountsTableBody').html(html);
+        $('#statPending').text(pending);
+        $('#statFailed').text(failed);
+        $('#statRunning').text(running);
+        updateSelectedCount();
+    });
+}
+
+function getStatusBadge(status) {
+    const map = {
+        'pending_login': '<span class="badge bg-warning text-dark">Pending</span>',
+        'logging_in': '<span class="badge bg-info">Logging in...</span>',
+        'login_failed': '<span class="badge bg-danger">Failed</span>',
+        'active': '<span class="badge bg-success">Active</span>',
+    };
+    return map[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function toggleAll() {
+    const checked = $('#checkAll').is(':checked');
+    $('.acc-check').prop('checked', checked);
+    updateSelectedCount();
+}
+
+function selectAll() {
+    $('.acc-check').prop('checked', true);
+    $('#checkAll').prop('checked', true);
+    updateSelectedCount();
+}
+
+function deselectAll() {
+    $('.acc-check').prop('checked', false);
+    $('#checkAll').prop('checked', false);
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const count = $('.acc-check:checked').length;
+    $('#selectedCount').text(count);
+}
+
+function getSelectedIds() {
+    return $('.acc-check:checked').map(function() { return parseInt($(this).data('id')); }).get();
+}
+
+function resetFailed() {
+    const ids = getSelectedIds().length > 0 ? getSelectedIds() :
+        allAccounts.filter(a => a.status === 'login_failed').map(a => a.id);
+
+    if (ids.length === 0) { alert('No failed accounts to reset'); return; }
+    if (!confirm(`Reset ${ids.length} account(s) to pending_login?`)) return;
+
+    $.ajax({
+        url: '/api/login-v2/reset-failed',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ account_ids: ids }),
+        success: function(data) {
+            if (data.status === 'success') {
+                loadAccounts();
+            } else {
+                alert(data.message);
+            }
+        }
+    });
+}
+
+function loginSelected() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) { alert('Select accounts to login'); return; }
+    if (!confirm(`Create login tasks for ${ids.length} account(s)?`)) return;
+
+    const btn = $('#loginBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Creating tasks...');
+
+    // Step 1: Create tasks
+    $.ajax({
+        url: '/api/login-v2/create-tasks',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ account_ids: ids }),
+        success: function(data) {
+            if (data.status !== 'success') {
+                btn.prop('disabled', false).html('<i class="fas fa-sign-in-alt me-1"></i> Login Selected');
+                alert(data.message);
+                return;
+            }
+
+            // Step 2: Execute tasks
+            $.ajax({
+                url: '/api/login-v2/execute',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ task_ids: data.task_ids }),
+                success: function(execData) {
+                    btn.prop('disabled', false).html('<i class="fas fa-sign-in-alt me-1"></i> Login Selected');
+
+                    if (execData.status === 'success') {
+                        activeBatchId = execData.batch_id;
+                        showProgress(execData.total_tasks);
+                        startPolling();
+                    } else {
+                        alert(execData.message);
+                    }
+                },
+                error: function() {
+                    btn.prop('disabled', false).html('<i class="fas fa-sign-in-alt me-1"></i> Login Selected');
+                    alert('Failed to execute login tasks');
+                }
+            });
+        },
+        error: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-sign-in-alt me-1"></i> Login Selected');
+            alert('Failed to create login tasks');
+        }
+    });
+}
+
+function showProgress(total) {
+    $('#progressPanel').removeClass('d-none');
+    $('#progressBadge').text(`0 / ${total}`);
+    $('#progressLog').html('');
+    $('#completionActions').addClass('d-none');
+    $('#progressSuccess').css('width', '0%').text('0');
+    $('#progressFail').css('width', '0%').text('0');
+    $('#progressRunning').css('width', '100%');
+}
+
+function startPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(pollProgress, 2000);
+}
+
+function pollProgress() {
+    if (!activeBatchId) return;
+
+    $.get(`/api/login-v2/status?batch_id=${activeBatchId}`, function(data) {
+        if (data.status !== 'success' || !data.progress) return;
+
+        const p = data.progress;
+        const total = p.total || 1;
+        const done = p.completed + p.failed;
+        const successPct = (p.completed / total * 100).toFixed(0);
+        const failPct = (p.failed / total * 100).toFixed(0);
+        const runningPct = Math.max(0, 100 - parseFloat(successPct) - parseFloat(failPct));
+
+        $('#progressBadge').text(`${done} / ${total}`);
+        $('#progressSuccess').css('width', successPct + '%').text(p.completed || '');
+        $('#progressFail').css('width', failPct + '%').text(p.failed || '');
+        $('#progressRunning').css('width', runningPct + '%');
+
+        // Update log
+        let logHtml = '';
+        Object.values(p.results || {}).forEach(r => {
+            const icon = r.status === 'completed' ? '✅' :
+                         r.status === 'failed' ? '❌' :
+                         '<i class="fas fa-spinner fa-spin"></i>';
+            const msg = r.message || r.error || '';
+            logHtml += `<div class="mb-1">${icon} <strong>${r.username}</strong> @ ${r.device} ${msg ? '— ' + msg : ''}</div>`;
+        });
+        $('#progressLog').html(logHtml);
+
+        // Update stats
+        $('#statRunning').text(p.in_progress);
+        $('#statDone').text(p.completed);
+
+        // All done?
+        if (done >= total) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+            $('#completionActions').removeClass('d-none');
+            loadAccounts(); // Refresh table
+        }
+    });
+}
+</script>
+{% endblock %}

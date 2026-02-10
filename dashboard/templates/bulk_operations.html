@@ -1,0 +1,612 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Bulk Operations - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    .operation-card {
+        transition: all 0.3s ease;
+        border: 2px solid #495057;
+        background-color: #2c3034;
+        cursor: pointer;
+    }
+    .operation-card:hover {
+        border-color: #0d6efd;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(13, 110, 253, 0.3);
+    }
+    .operation-card.active {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+    .form-control, .form-select {
+        background-color: #343a40;
+        border-color: #495057;
+        color: #f8f9fa;
+    }
+    .form-control:focus, .form-select:focus {
+        background-color: #343a40;
+        color: #f8f9fa;
+        border-color: #86b7fe;
+    }
+    .account-badge {
+        background-color: #495057;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        margin: 0.25rem;
+        display: inline-block;
+    }
+    .section-card {
+        background-color: #2c3034;
+        border: 1px solid #495057;
+        border-radius: 8px;
+    }
+    .section-header {
+        background-color: #343a40;
+        border-bottom: 1px solid #495057;
+        padding: 1rem;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4 text-light">
+        <i class="fas fa-tasks me-2"></i>Bulk Operations
+    </h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/" class="text-light">Dashboard</a></li>
+        <li class="breadcrumb-item active text-light">Bulk Operations</li>
+    </ol>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i> Perform bulk operations on multiple accounts at once. Tag accounts by device or copy settings from one account to many.
+    </div>
+
+    <!-- Operation Type Selection -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="operation-card card p-4 active" id="bulkTagCard" onclick="selectOperation('bulk-tag')">
+                <div class="text-center">
+                    <i class="fas fa-tags fa-3x text-primary mb-3"></i>
+                    <h4>Bulk Tagging</h4>
+                    <p class="text-white-50">Tag all accounts on one or more devices with a single tag</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="operation-card card p-4" id="copySettingsCard" onclick="selectOperation('copy-settings')">
+                <div class="text-center">
+                    <i class="fas fa-copy fa-3x text-success mb-3"></i>
+                    <h4>Copy Settings</h4>
+                    <p class="text-white-50">Copy settings from one account to multiple accounts</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Tagging Section -->
+    <div id="bulkTagSection" class="section-card mb-4">
+        <div class="section-header">
+            <h5 class="mb-0"><i class="fas fa-tags me-2"></i>Bulk Tagging</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Step 1: Select Devices -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-light mb-3">Step 1: Select Devices</h6>
+                    <label for="bulkTagDeviceSelect" class="form-label">Devices</label>
+                    <select class="form-select" id="bulkTagDeviceSelect" multiple size="8">
+                        <option value="">Loading devices...</option>
+                    </select>
+                    <small class="text-white-50">Hold Ctrl/Cmd to select multiple devices</small>
+
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-outline-primary w-100" onclick="selectAllDevices()">
+                            <i class="fas fa-check-square me-1"></i> Select All Devices
+                        </button>
+                    </div>
+
+                    <div class="mt-3 p-3 bg-dark rounded" id="selectedDevicesPreview">
+                        <strong>Selected Devices: </strong>
+                        <span class="text-white-50" id="selectedDevicesCount">0</span>
+                        <div id="selectedDevicesList" class="mt-2"></div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Enter Tag -->
+                <div class="col-md-6 mb-4">
+                    <h6 class="text-light mb-3">Step 2: Select or Create Tag</h6>
+
+                    <div class="mb-3">
+                        <label for="existingTagSelect" class="form-label">Existing Tags</label>
+                        <select class="form-select" id="existingTagSelect">
+                            <option value="">-- Select existing tag --</option>
+                        </select>
+                    </div>
+
+                    <div class="text-center text-white-50 mb-3">-- OR --</div>
+
+                    <div class="mb-3">
+                        <label for="newTagInput" class="form-label">Create New Tag</label>
+                        <input type="text" class="form-control" id="newTagInput" placeholder="Enter new tag name">
+                        <small class="text-white-50">Leave empty to use existing tag from dropdown</small>
+                    </div>
+
+                    <div class="mt-4">
+                        <div class="alert alert-secondary">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Preview:</strong>
+                            <div class="mt-2">
+                                <span id="tagPreviewText" class="text-white-50">Select devices and enter a tag name</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <div class="row">
+                <div class="col-12">
+                    <button class="btn btn-primary btn-lg w-100" id="executeBulkTagBtn" onclick="executeBulkTag()" disabled>
+                        <i class="fas fa-play-circle me-2"></i>Tag Accounts
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="bulkTagResults" class="mt-4" style="display: none;">
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle me-2"></i>Success!</h5>
+                    <p id="bulkTagResultText"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Copy Settings Section -->
+    <div id="copySettingsSection" class="section-card mb-4" style="display: none;">
+        <div class="section-header">
+            <h5 class="mb-0"><i class="fas fa-copy me-2"></i>Copy Settings</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Step 1: Select Source Account -->
+                <div class="col-md-4 mb-4">
+                    <h6 class="text-light mb-3">Step 1: Source Account</h6>
+                    <label for="sourceDeviceSelect" class="form-label">Device</label>
+                    <select class="form-select mb-3" id="sourceDeviceSelect" onchange="loadSourceAccounts()">
+                        <option value="">Select device...</option>
+                    </select>
+
+                    <label for="sourceAccountSelect" class="form-label">Account</label>
+                    <select class="form-select" id="sourceAccountSelect" onchange="loadAccountSettings()">
+                        <option value="">Select account...</option>
+                    </select>
+
+                    <div id="sourceSettingsPreview" class="mt-3 p-3 bg-dark rounded" style="display: none;">
+                        <strong>Current Settings:</strong>
+                        <div id="sourceSettingsContent" class="mt-2 small"></div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Select Target Accounts -->
+                <div class="col-md-4 mb-4">
+                    <h6 class="text-light mb-3">Step 2: Target Accounts</h6>
+
+                    <div class="mb-3">
+                        <label for="targetDeviceSelect" class="form-label">Filter by Device</label>
+                        <select class="form-select" id="targetDeviceSelect" multiple size="5">
+                            <option value="">Loading...</option>
+                        </select>
+                        <small class="text-white-50">Hold Ctrl/Cmd for multiple</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="targetTagSelect" class="form-label">Filter by Tag</label>
+                        <select class="form-select" id="targetTagSelect" multiple size="3">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-sm btn-outline-primary w-100" onclick="loadTargetAccounts()">
+                        <i class="fas fa-sync me-1"></i> Load Accounts
+                    </button>
+                </div>
+
+                <!-- Step 3: Preview and Execute -->
+                <div class="col-md-4 mb-4">
+                    <h6 class="text-light mb-3">Step 3: Review & Execute</h6>
+
+                    <div class="p-3 bg-dark rounded mb-3">
+                        <strong>Target Accounts:</strong>
+                        <div id="targetAccountsCount" class="text-white-50 mt-2">0 accounts selected</div>
+                        <div id="targetAccountsList" class="mt-2 small" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Settings to Copy</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="copyMention" checked>
+                            <label class="form-check-label" for="copyMention">Share Post Mention</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="copyPostType" checked>
+                            <label class="form-check-label" for="copyPostType">Post Type to Share</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="copyEnableMention" checked>
+                            <label class="form-check-label" for="copyEnableMention">Enable Mention to Story</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <div class="row">
+                <div class="col-12">
+                    <button class="btn btn-success btn-lg w-100" id="executeCopySettingsBtn" onclick="executeCopySettings()" disabled>
+                        <i class="fas fa-copy me-2"></i>Copy Settings to Selected Accounts
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="copySettingsResults" class="mt-4" style="display: none;">
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle me-2"></i>Success!</h5>
+                    <p id="copySettingsResultText"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // State
+    let allDevices = [];
+    let allTags = [];
+    let sourceSettings = null;
+    let targetAccounts = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDevices();
+        loadTags();
+    });
+
+    // Operation Selection
+    function selectOperation(operation) {
+        if (operation === 'bulk-tag') {
+            document.getElementById('bulkTagCard').classList.add('active');
+            document.getElementById('copySettingsCard').classList.remove('active');
+            document.getElementById('bulkTagSection').style.display = 'block';
+            document.getElementById('copySettingsSection').style.display = 'none';
+        } else {
+            document.getElementById('bulkTagCard').classList.remove('active');
+            document.getElementById('copySettingsCard').classList.add('active');
+            document.getElementById('bulkTagSection').style.display = 'none';
+            document.getElementById('copySettingsSection').style.display = 'block';
+        }
+    }
+
+    // Load Devices
+    async function loadDevices() {
+        try {
+            const response = await fetch('/api/sources/accounts?source_type=follow');
+            if (!response.ok) throw new Error('Failed to load accounts');
+
+            const accounts = await response.json();
+
+            // Extract unique devices
+            const deviceIds = [...new Set(accounts.map(acc => acc.device_id))].sort();
+            allDevices = deviceIds;
+
+            // Populate bulk tag device select
+            const bulkTagSelect = document.getElementById('bulkTagDeviceSelect');
+            bulkTagSelect.innerHTML = deviceIds.map(deviceId =>
+                `<option value="${deviceId}">${deviceId}</option>`
+            ).join('');
+
+            // Populate source device select
+            const sourceDeviceSelect = document.getElementById('sourceDeviceSelect');
+            sourceDeviceSelect.innerHTML = '<option value="">Select device...</option>' +
+                deviceIds.map(deviceId => `<option value="${deviceId}">${deviceId}</option>`).join('');
+
+            // Populate target device select
+            const targetDeviceSelect = document.getElementById('targetDeviceSelect');
+            targetDeviceSelect.innerHTML = deviceIds.map(deviceId =>
+                `<option value="${deviceId}">${deviceId}</option>`
+            ).join('');
+
+        } catch (error) {
+            console.error('Error loading devices:', error);
+        }
+    }
+
+    // Load Tags
+    async function loadTags() {
+        try {
+            const response = await fetch('/api/profile_automation/tags');
+            if (!response.ok) throw new Error('Failed to load tags');
+
+            const data = await response.json();
+            allTags = data.tags || data;
+
+            // Populate existing tags dropdown
+            const existingTagSelect = document.getElementById('existingTagSelect');
+            existingTagSelect.innerHTML = '<option value="">-- Select existing tag --</option>' +
+                allTags.map(tag => `<option value="${tag.name}">${tag.name}</option>`).join('');
+
+            // Populate target tag select
+            const targetTagSelect = document.getElementById('targetTagSelect');
+            targetTagSelect.innerHTML = allTags.map(tag =>
+                `<option value="${tag.name}">${tag.name}</option>`
+            ).join('');
+
+        } catch (error) {
+            console.error('Error loading tags:', error);
+        }
+    }
+
+    // Bulk Tag: Update Preview
+    function updateBulkTagPreview() {
+        const deviceSelect = document.getElementById('bulkTagDeviceSelect');
+        const selectedDevices = Array.from(deviceSelect.selectedOptions).map(opt => opt.value);
+        const existingTag = document.getElementById('existingTagSelect').value;
+        const newTag = document.getElementById('newTagInput').value.trim();
+        const tagName = newTag || existingTag;
+
+        // Update selected devices count
+        document.getElementById('selectedDevicesCount').textContent = selectedDevices.length;
+        document.getElementById('selectedDevicesList').innerHTML = selectedDevices.map(device =>
+            `<span class="account-badge">${device}</span>`
+        ).join('');
+
+        // Update tag preview
+        if (selectedDevices.length > 0 && tagName) {
+            document.getElementById('tagPreviewText').innerHTML =
+                `Tag <strong class="text-primary">"${tagName}"</strong> will be applied to all accounts on <strong>${selectedDevices.length}</strong> device(s)`;
+            document.getElementById('executeBulkTagBtn').disabled = false;
+        } else {
+            document.getElementById('tagPreviewText').innerHTML =
+                '<span class="text-white-50">Select devices and enter a tag name</span>';
+            document.getElementById('executeBulkTagBtn').disabled = true;
+        }
+    }
+
+    // Event listeners for bulk tag
+    document.getElementById('bulkTagDeviceSelect').addEventListener('change', updateBulkTagPreview);
+    document.getElementById('existingTagSelect').addEventListener('change', function() {
+        if (this.value) {
+            document.getElementById('newTagInput').value = '';
+        }
+        updateBulkTagPreview();
+    });
+    document.getElementById('newTagInput').addEventListener('input', function() {
+        if (this.value.trim()) {
+            document.getElementById('existingTagSelect').value = '';
+        }
+        updateBulkTagPreview();
+    });
+
+    // Select All Devices
+    function selectAllDevices() {
+        const select = document.getElementById('bulkTagDeviceSelect');
+        for (let i = 0; i < select.options.length; i++) {
+            select.options[i].selected = true;
+        }
+        updateBulkTagPreview();
+    }
+
+    // Execute Bulk Tag
+    async function executeBulkTag() {
+        const deviceSelect = document.getElementById('bulkTagDeviceSelect');
+        const selectedDevices = Array.from(deviceSelect.selectedOptions).map(opt => opt.value);
+        const existingTag = document.getElementById('existingTagSelect').value;
+        const newTag = document.getElementById('newTagInput').value.trim();
+        const tagName = newTag || existingTag;
+
+        if (selectedDevices.length === 0 || !tagName) {
+            alert('Please select devices and enter a tag name');
+            return;
+        }
+
+        const btn = document.getElementById('executeBulkTagBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Tagging...';
+
+        try {
+            // If using new tag, create it first
+            if (newTag) {
+                const createResponse = await fetch('/api/profile_automation/tags', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name: tagName, description: '' })
+                });
+
+                if (!createResponse.ok && !createResponse.status === 409) {
+                    throw new Error('Failed to create tag');
+                }
+            }
+
+            // Bulk tag accounts
+            const response = await fetch('/api/profile_automation/accounts/tag/bulk', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    tag: tagName,
+                    device_serials: selectedDevices,
+                    usernames: []  // Empty means all accounts on those devices
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                document.getElementById('bulkTagResults').style.display = 'block';
+                document.getElementById('bulkTagResultText').innerHTML =
+                    `Successfully tagged <strong>${result.tagged_count}</strong> accounts with tag <strong>"${tagName}"</strong>`;
+
+                // Reload tags
+                loadTags();
+            } else {
+                alert('Error: ' + result.message);
+            }
+
+        } catch (error) {
+            alert('Error: ' + error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play-circle me-2"></i>Tag Accounts';
+        }
+    }
+
+    // Copy Settings: Load Source Accounts
+    async function loadSourceAccounts() {
+        const deviceId = document.getElementById('sourceDeviceSelect').value;
+        if (!deviceId) return;
+
+        try {
+            const response = await fetch(`/api/sources/accounts?source_type=follow`);
+            const accounts = await response.json();
+
+            const deviceAccounts = accounts.filter(acc => acc.device_id === deviceId);
+
+            const select = document.getElementById('sourceAccountSelect');
+            select.innerHTML = '<option value="">Select account...</option>' +
+                deviceAccounts.map(acc =>
+                    `<option value="${acc.account_name}">${acc.account_name}</option>`
+                ).join('');
+
+        } catch (error) {
+            console.error('Error loading source accounts:', error);
+        }
+    }
+
+    // Copy Settings: Load Account Settings
+    async function loadAccountSettings() {
+        const deviceId = document.getElementById('sourceDeviceSelect').value;
+        const username = document.getElementById('sourceAccountSelect').value;
+
+        if (!deviceId || !username) return;
+
+        try {
+            const response = await fetch(`/api/profile_automation/mother_account/${deviceId}/${username}`);
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                sourceSettings = data;
+
+                // Show preview (this endpoint doesn't return all settings we need, so we'll need to enhance it)
+                document.getElementById('sourceSettingsPreview').style.display = 'block';
+                document.getElementById('sourceSettingsContent').innerHTML = `
+                    <div><strong>Account:</strong> ${username}</div>
+                    <div><strong>Device:</strong> ${deviceId}</div>
+                    <div class="mt-2 text-white-50">Settings will be loaded...</div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Error loading account settings:', error);
+        }
+    }
+
+    // Copy Settings: Load Target Accounts
+    async function loadTargetAccounts() {
+        const deviceSelect = document.getElementById('targetDeviceSelect');
+        const tagSelect = document.getElementById('targetTagSelect');
+
+        const selectedDevices = Array.from(deviceSelect.selectedOptions).map(opt => opt.value);
+        const selectedTags = Array.from(tagSelect.selectedOptions).map(opt => opt.value);
+
+        try {
+            const response = await fetch('/api/sources/accounts?source_type=follow');
+            const accounts = await response.json();
+
+            // Filter accounts
+            let filtered = accounts;
+
+            if (selectedDevices.length > 0) {
+                filtered = filtered.filter(acc => selectedDevices.includes(acc.device_id));
+            }
+
+            if (selectedTags.length > 0) {
+                filtered = filtered.filter(acc =>
+                    acc.tags && acc.tags.some(tag => selectedTags.includes(tag))
+                );
+            }
+
+            targetAccounts = filtered;
+
+            // Update UI
+            document.getElementById('targetAccountsCount').textContent = `${filtered.length} accounts selected`;
+            document.getElementById('targetAccountsList').innerHTML = filtered.map(acc =>
+                `<div class="account-badge">${acc.account_name}<br><small>${acc.device_id}</small></div>`
+            ).join('');
+
+            // Enable execute button if we have source settings and target accounts
+            document.getElementById('executeCopySettingsBtn').disabled =
+                !sourceSettings || filtered.length === 0;
+
+        } catch (error) {
+            console.error('Error loading target accounts:', error);
+        }
+    }
+
+    // Execute Copy Settings
+    async function executeCopySettings() {
+        if (!sourceSettings || targetAccounts.length === 0) {
+            alert('Please select source account and target accounts');
+            return;
+        }
+
+        const btn = document.getElementById('executeCopySettingsBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Copying...';
+
+        try {
+            // Prepare accounts data
+            const accountsData = targetAccounts.map(acc => ({
+                device_id: acc.device_id,
+                account_name: acc.account_name
+            }));
+
+            // Prepare settings (this needs a proper endpoint - placeholder for now)
+            const settings = {
+                sharepost_mention: sourceSettings.mention || '',
+                enable_mention_to_story: 'true',  // Get from source
+                post_type_to_share: 'post_all'  // Get from source
+            };
+
+            const response = await fetch('/api/accounts/bulk-settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    accounts: accountsData,
+                    settings: settings
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                document.getElementById('copySettingsResults').style.display = 'block';
+                document.getElementById('copySettingsResultText').innerHTML =
+                    `Successfully copied settings to <strong>${result.updated_accounts}</strong> accounts`;
+            } else {
+                alert('Error: ' + (result.error || 'Unknown error'));
+            }
+
+        } catch (error) {
+            alert('Error: ' + error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-copy me-2"></i>Copy Settings to Selected Accounts';
+        }
+    }
+</script>
+{% endblock %}

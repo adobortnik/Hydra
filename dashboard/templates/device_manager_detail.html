@@ -1,0 +1,1519 @@
+{% extends "base.html" %}
+{% block title %}Device {{ device_serial }} - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    .back-btn {
+        color: #9ca3af;
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: color 0.2s;
+    }
+    .back-btn:hover { color: #fff; }
+
+    .health-badge {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+    .health-active { background: #28a745; box-shadow: 0 0 4px #28a745; }
+    .health-suspended { background: #dc3545; box-shadow: 0 0 4px #dc3545; }
+    .health-logged_out { background: #343a40; box-shadow: 0 0 4px #555; }
+    .health-verification { background: #ffc107; box-shadow: 0 0 4px #ffc107; }
+    .health-pending_login { background: #17a2b8; box-shadow: 0 0 4px #17a2b8; }
+    .health-disabled { background: #6c757d; box-shadow: 0 0 4px #6c757d; }
+    .health-banned { background: #dc3545; box-shadow: 0 0 4px #dc3545; }
+
+    .delta-up { color: #28a745; font-size: 0.75rem; font-weight: 600; }
+    .delta-down { color: #dc3545; font-size: 0.75rem; font-weight: 600; }
+    .delta-zero { color: #6c757d; font-size: 0.75rem; }
+
+    .acct-table th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #9ca3af;
+        border-bottom: 2px solid #2d3238;
+        padding: 10px 8px;
+        white-space: nowrap;
+    }
+    .acct-table td {
+        padding: 8px;
+        vertical-align: middle;
+        border-bottom: 1px solid #2d3238;
+        font-size: 0.85rem;
+    }
+    .acct-table tr:hover { background: #1e2228; }
+
+    .stat-num {
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+    .stat-zero { color: #555; }
+
+    .username-cell { font-weight: 600; }
+
+    .btn-settings {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 5px 12px;
+        font-size: 0.75rem;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        text-decoration: none !important;
+        transition: all 0.2s;
+        font-weight: 600;
+    }
+    .btn-settings:hover { background: linear-gradient(135deg, #818cf8, #6366f1); color: #fff; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(99,102,241,0.3); }
+
+    .device-header {
+        background: linear-gradient(145deg, #1a1d21, #22262b);
+        border-radius: 10px;
+        padding: 20px 28px;
+        border: 1px solid #2d3238;
+    }
+    .device-serial-header {
+        font-family: 'JetBrains Mono', 'Courier New', monospace;
+        color: #71717a;
+        font-size: 0.85rem;
+    }
+
+    .summary-cards .card {
+        background: linear-gradient(145deg, #1a1d21, #22262b);
+        border: 1px solid #2d3238;
+        border-radius: 10px;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .summary-cards .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .summary-cards .card-body { padding: 14px 16px; text-align: center; }
+    .summary-cards .card-value { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .summary-cards .card-label { font-size: 0.68rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+
+    /* Prevent Bootstrap scrollbar compensation shift */
+    body[style*="padding-right"] {
+        padding-right: 0 !important;
+    }
+    .navbar[style*="padding-right"] {
+        padding-right: 0 !important;
+    }
+
+    /* ── Settings Offcanvas Panel ── */
+    #settingsPanel {
+        width: 75vw !important;
+        max-width: 1100px;
+        background: #14171a;
+        border-left: 1px solid #2d3238;
+        right: 0 !important;
+        z-index: 1060;
+    }
+    @media (max-width: 768px) { #settingsPanel { width: 98vw !important; } }
+
+    #settingsPanel .offcanvas-header {
+        background: linear-gradient(145deg, #1a1d21, #22262b);
+        border-bottom: 1px solid #2d3238;
+        padding: 16px 24px;
+    }
+    #settingsPanel .offcanvas-body { padding: 0; }
+
+    /* Settings tabs */
+    .sp-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        padding: 12px 20px;
+        background: #1a1d21;
+        border-bottom: 1px solid #2d3238;
+    }
+    .sp-tab-btn {
+        padding: 6px 14px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        border: 1px solid #2d3238;
+        border-radius: 6px;
+        background: transparent;
+        color: #9ca3af;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .sp-tab-btn:hover { color: #fff; border-color: #6366f1; }
+    .sp-tab-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+    /* Settings content */
+    .sp-content { padding: 20px 24px; overflow-y: auto; max-height: calc(100vh - 170px); }
+    .sp-pane { display: none; }
+    .sp-pane.active { display: block; }
+
+    .sp-section {
+        background: #1e2228;
+        border: 1px solid #2d3238;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 16px;
+    }
+    .sp-section h6 {
+        color: #9ca3af;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 14px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #2d3238;
+    }
+
+    /* Master toggle */
+    .sp-master-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 18px;
+        background: linear-gradient(135deg, #1a1d21, #2c3034);
+        border: 1px solid #2d3238;
+        border-radius: 8px;
+        margin-bottom: 16px;
+    }
+    .sp-master-toggle label { font-weight: 600; color: #f8f9fa; font-size: 0.95rem; margin: 0; }
+    .sp-master-toggle .form-check-input { width: 3rem; height: 1.5rem; }
+    .sp-master-toggle .form-check-input:checked { background-color: #28a745; border-color: #28a745; }
+
+    /* Form controls inside panel */
+    .sp-section .form-control,
+    .sp-section .form-select {
+        background: #343a40;
+        border-color: #495057;
+        color: #f8f9fa;
+        font-size: 0.85rem;
+    }
+    .sp-section .form-control:focus,
+    .sp-section .form-select:focus {
+        background: #343a40;
+        color: #f8f9fa;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0.2rem rgba(99,102,241,0.25);
+    }
+    .sp-section .form-label {
+        color: #d1d5db;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+    .sp-section .form-text { color: #6c757d; font-size: 0.73rem; }
+
+    /* Range row (min/max side by side) */
+    .sp-range-row { display: flex; gap: 12px; align-items: flex-end; }
+    .sp-range-row > div { flex: 1; }
+
+    /* Sources textarea */
+    .sp-sources-textarea {
+        min-height: 80px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        resize: vertical;
+    }
+
+    /* Save bar */
+    .sp-save-bar {
+        position: sticky;
+        bottom: 0;
+        background: linear-gradient(0deg, #14171a 80%, transparent);
+        padding: 16px 24px;
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        align-items: center;
+    }
+    .sp-save-bar .btn-save {
+        padding: 8px 28px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .sp-save-bar .btn-save:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(40,167,69,0.3); }
+    .sp-save-bar .save-status { font-size: 0.8rem; color: #6c757d; }
+
+    /* Toggle rows */
+    .sp-toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #2a2e34;
+    }
+    .sp-toggle-row:last-child { border-bottom: none; }
+    .sp-toggle-row label { color: #d1d5db; font-size: 0.85rem; margin: 0; }
+    .sp-toggle-row .form-check-input:checked { background-color: #28a745; border-color: #28a745; }
+
+    /* Toast */
+    .sp-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        z-index: 10000;
+        transform: translateY(100px);
+        opacity: 0;
+        transition: all 0.3s ease;
+        pointer-events: none;
+    }
+    .sp-toast.show { transform: translateY(0); opacity: 1; }
+    .sp-toast.success { background: #28a745; color: #fff; }
+    .sp-toast.error { background: #dc3545; color: #fff; }
+
+    /* Loading overlay */
+    .sp-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 60px;
+        color: #9ca3af;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="device-header mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <a href="/device-manager" class="back-btn">
+                <i class="fas fa-arrow-left me-1"></i> Back to Device List
+            </a>
+            <h3 class="mt-2 mb-1" id="deviceName">
+                <i class="fas fa-mobile-alt me-2 text-warning"></i>Loading...
+            </h3>
+            <div class="device-serial-header" id="deviceSerial">{{ device_serial }}</div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <span id="deviceStatusBadge" class="badge bg-secondary">--</span>
+            <span id="botStatusBadge" class="badge bg-secondary">--</span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshDetail()">
+                <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row summary-cards mb-4">
+    <div class="col-md-2 col-sm-4 mb-2">
+        <div class="card">
+            <div class="card-body">
+                <div class="card-value text-info" id="sumAccounts">-</div>
+                <div class="card-label">Accounts</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 mb-2">
+        <div class="card">
+            <div class="card-body">
+                <div class="card-value text-success" id="sumFollowed">-</div>
+                <div class="card-label">Followed Today</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 mb-2">
+        <div class="card">
+            <div class="card-body">
+                <div class="card-value text-warning" id="sumUnfollowed">-</div>
+                <div class="card-label">Unfollowed Today</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 mb-2">
+        <div class="card">
+            <div class="card-body">
+                <div class="card-value text-primary" id="sumLikes">-</div>
+                <div class="card-label">Likes Today</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 mb-2">
+        <div class="card">
+            <div class="card-body">
+                <div class="card-value text-danger" id="sumStories">-</div>
+                <div class="card-label">Stories Today</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 mb-2">
+        <div class="card">
+            <div class="card-body">
+                <div class="card-value" style="color:#a78bfa" id="sumDMs">-</div>
+                <div class="card-label">DMs Today</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Accounts Table -->
+<div class="card bg-dark border-secondary">
+    <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-users me-2"></i>Accounts</h5>
+        <span class="text-muted small" id="lastRefreshDetail"></span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark acct-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Username</th>
+                        <th>Followers</th>
+                        <th>Following</th>
+                        <th>Followed</th>
+                        <th>Unfollowed</th>
+                        <th>Story</th>
+                        <th>Like</th>
+                        <th>Comment</th>
+                        <th>DM</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="accountsTableBody">
+                    <tr>
+                        <td colspan="12" class="text-center text-muted py-4">
+                            <i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<!-- ═══════════════ Settings Offcanvas Panel ═══════════════ -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="settingsPanel" data-bs-scroll="true" data-bs-backdrop="true">
+    <div class="offcanvas-header">
+        <div>
+            <h5 class="offcanvas-title mb-0" style="color:#f8f9fa">
+                <i class="fas fa-sliders-h me-2 text-info"></i>
+                <span id="spUsername">Account Settings</span>
+            </h5>
+            <small class="text-muted" id="spDevice"></small>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <!-- Tab buttons -->
+        <div class="sp-tabs" id="spTabs">
+            <button class="sp-tab-btn active" data-tab="overview"><i class="fas fa-user me-1"></i>Overview</button>
+            <button class="sp-tab-btn" data-tab="timer"><i class="fas fa-clock me-1"></i>Timer</button>
+            <button class="sp-tab-btn" data-tab="follow"><i class="fas fa-user-plus me-1"></i>Follow</button>
+            <button class="sp-tab-btn" data-tab="unfollow"><i class="fas fa-user-minus me-1"></i>Unfollow</button>
+            <button class="sp-tab-btn" data-tab="like"><i class="fas fa-heart me-1"></i>Like</button>
+            <button class="sp-tab-btn" data-tab="reels"><i class="fas fa-film me-1"></i>Reels</button>
+            <button class="sp-tab-btn" data-tab="share"><i class="fas fa-share me-1"></i>Share</button>
+            <button class="sp-tab-btn" data-tab="story"><i class="fas fa-eye me-1"></i>Story</button>
+            <button class="sp-tab-btn" data-tab="comment"><i class="fas fa-comment me-1"></i>Comment</button>
+            <button class="sp-tab-btn" data-tab="dm"><i class="fas fa-envelope me-1"></i>DM</button>
+        </div>
+
+        <!-- Loading -->
+        <div class="sp-loading" id="spLoading">
+            <i class="fas fa-spinner fa-spin me-2"></i> Loading settings...
+        </div>
+
+        <!-- Tab panes container -->
+        <div class="sp-content" id="spContent" style="display:none">
+
+            <!-- ─── Overview Tab ─── -->
+            <div class="sp-pane active" data-pane="overview">
+                <div class="sp-section">
+                    <h6><i class="fas fa-id-card me-1"></i> Account Info</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" id="sp_username" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Password</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="sp_password" readonly>
+                                <button class="btn btn-outline-secondary btn-sm" type="button"
+                                    onclick="togglePasswordVis()"><i class="fas fa-eye"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Status</label>
+                            <input type="text" class="form-control" id="sp_status" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">App Cloner</label>
+                            <input type="text" class="form-control" id="sp_app_cloner" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Followers</label>
+                            <input type="text" class="form-control" id="sp_followers" readonly>
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-toggle-on me-1"></i> Master Toggles</h6>
+                    <div class="sp-toggle-row">
+                        <label>Follow</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_follow" data-key="enable_follow">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Unfollow</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_unfollow" data-key="enable_unfollow">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Like</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_likepost" data-key="enable_likepost">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Comment</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_comment" data-key="enable_comment">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Story Viewer</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_story_viewer" data-key="enable_story_viewer">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>DM</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_directmessage" data-key="enable_directmessage">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Timer Tab ─── -->
+            <div class="sp-pane" data-pane="timer">
+                <div class="sp-section">
+                    <h6><i class="fas fa-clock me-1"></i> Active Hours</h6>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Start Hour</label>
+                            <input type="number" class="form-control sp-acct-setting" id="sp_start_time" data-acct-key="start_time" min="0" max="23">
+                        </div>
+                        <div>
+                            <label class="form-label">End Hour</label>
+                            <input type="number" class="form-control sp-acct-setting" id="sp_end_time" data-acct-key="end_time" min="0" max="23">
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">Bot will only run between these hours (0-23)</div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-random me-1"></i> Random Action Delay</h6>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Min Actions</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_random_action" data-key="min_random_action" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Actions</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_random_action" data-key="max_random_action" min="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-hourglass-half me-1"></i> Random Delay Between Actions</h6>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Min Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_random_delay" data-key="min_random_delay" min="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_random_delay" data-key="max_random_delay" min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Follow Tab ─── -->
+            <div class="sp-pane" data-pane="follow">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-user-plus me-2"></i>Follow Enabled</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_follow_enabled_master" data-key="enable_follow">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cog me-1"></i> Follow Settings</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Follow Method</label>
+                            <select class="form-select sp-setting" id="sp_follow_method" data-key="follow_method">
+                                <option value="follow-followers">Follow Followers</option>
+                                <option value="follow-likers">Follow Likers</option>
+                                <option value="follow-specific">Follow Specific</option>
+                                <option value="follow-keyword">Follow by Keyword</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Daily Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_default_action_limit_perday" data-key="default_action_limit_perday" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range &amp; Delay</h6>
+                    <div class="sp-range-row mb-3">
+                        <div>
+                            <label class="form-label">Min Follow Actions</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_follow_action" data-key="min_follow_action" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Follow Actions</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_follow_action" data-key="max_follow_action" min="1">
+                        </div>
+                    </div>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Min Follow Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_follow_delay" data-key="min_follow_delay" min="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Follow Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_follow_delay" data-key="max_follow_delay" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-clock me-1"></i> Follow Timer</h6>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Follow Timer Min Hour</label>
+                            <input type="number" class="form-control sp-setting" id="sp_follow_timer_min_hour" data-key="follow_timer_min_hour" min="0" max="23">
+                        </div>
+                        <div>
+                            <label class="form-label">Follow Timer Max Hour</label>
+                            <input type="number" class="form-control sp-setting" id="sp_follow_timer_max_hour" data-key="follow_timer_max_hour" min="0" max="23">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-list me-1"></i> Follow Sources</h6>
+                    <textarea class="form-control sp-sources-textarea" id="sp_follow_sources" rows="5"
+                        placeholder="One source per line (e.g. @username)"></textarea>
+                    <div class="form-text mt-1">One username per line. These are the accounts whose followers will be followed.</div>
+                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('sources', 'sp_follow_sources')">
+                        <i class="fas fa-save me-1"></i> Save Sources
+                    </button>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cogs me-1"></i> Advanced</h6>
+                    <div class="sp-toggle-row">
+                        <label>Mute After Follow</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_mute_after_follow" data-key="mute_after_follow">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Don't Follow Private Accounts</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_follow_private" data-key="dont_follow_private_accounts_using_followfollowers">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Follow Only If Story Exists</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_follow_only_story" data-key="enable_follow_only_if_story_exist">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Followings Limit Enabled</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_followings_limit" data-key="enable_followings_limit">
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <label class="form-label">Followings Limit</label>
+                        <input type="number" class="form-control sp-setting" id="sp_followings_limit" data-key="followings_limit" min="0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Unfollow Tab ─── -->
+            <div class="sp-pane" data-pane="unfollow">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-user-minus me-2"></i>Unfollow Enabled</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_unfollow_enabled_master" data-key="enable_unfollow">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cog me-1"></i> Unfollow Settings</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Unfollow Method</label>
+                            <select class="form-select sp-setting" id="sp_unfollow_method" data-key="unfollow_method">
+                                <option value="unfollow-non-followers">Unfollow Non-Followers</option>
+                                <option value="unfollow-all">Unfollow All</option>
+                                <option value="unfollow-specific">Unfollow Specific</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Daily Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_unfollow_limit_perday" data-key="unfollow_limit_perday" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range &amp; Delay</h6>
+                    <div class="sp-range-row mb-3">
+                        <div>
+                            <label class="form-label">Min Unfollow Actions</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_unfollow_action" data-key="min_unfollow_action" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Unfollow Actions</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_unfollow_action" data-key="max_unfollow_action" min="1">
+                        </div>
+                    </div>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Min Unfollow Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_unfollow_delay" data-key="min_unfollow_delay" min="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Unfollow Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_unfollow_delay" data-key="max_unfollow_delay" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-calendar-day me-1"></i> Unfollow Timing</h6>
+                    <div class="sp-range-row mb-3">
+                        <div>
+                            <label class="form-label">Unfollow Timer Min Hour</label>
+                            <input type="number" class="form-control sp-setting" id="sp_unfollow_timer_min_hour" data-key="unfollow_timer_min_hour" min="0" max="23">
+                        </div>
+                        <div>
+                            <label class="form-label">Unfollow Timer Max Hour</label>
+                            <input type="number" class="form-control sp-setting" id="sp_unfollow_timer_max_hour" data-key="unfollow_timer_max_hour" min="0" max="23">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label">Unfollow Delay Days</label>
+                        <input type="number" class="form-control sp-setting" id="sp_unfollow_delay_day" data-key="unfollow_delay_day" min="0">
+                        <div class="form-text">Wait N days before unfollowing someone you followed</div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cogs me-1"></i> Advanced</h6>
+                    <div class="sp-toggle-row">
+                        <label>Don't Unfollow Followers</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_unfollow_followers" data-key="dont_unfollow_followers">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Prioritize Unfollow Action</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_prioritize_unfollow" data-key="enable_prioritize_unfollow_action">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Like Tab ─── -->
+            <div class="sp-pane" data-pane="like">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-heart me-2"></i>Like Enabled</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_like_enabled_master" data-key="enable_likepost">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cog me-1"></i> Like Settings</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Like Method</label>
+                            <select class="form-select sp-setting" id="sp_likepost_method" data-key="likepost_method">
+                                <option value="like-from-sources">Like from Sources</option>
+                                <option value="like-from-keywords">Like from Keywords</option>
+                                <option value="like-specific">Like Specific</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Daily Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_like_limit_perday" data-key="like_limit_perday" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range</h6>
+                    <div class="sp-range-row mb-3">
+                        <div>
+                            <label class="form-label">Min Like Actions</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_likepost_action" data-key="min_likepost_action" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Like Actions</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_likepost_action" data-key="max_likepost_action" min="1">
+                        </div>
+                    </div>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Min Posts to Like</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_post_to_like" data-key="min_post_to_like" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Posts to Like</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_post_to_like" data-key="max_post_to_like" min="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-list me-1"></i> Like Sources</h6>
+                    <textarea class="form-control sp-sources-textarea" id="sp_like_sources" rows="4"
+                        placeholder="One source per line"></textarea>
+                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('like_sources', 'sp_like_sources')">
+                        <i class="fas fa-save me-1"></i> Save Sources
+                    </button>
+                </div>
+            </div>
+
+            <!-- ─── Reels Tab ─── -->
+            <div class="sp-pane" data-pane="reels">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-film me-2"></i>Watch Reels Enabled</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_watch_reels" data-key="enable_watch_reels">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-hashtag me-1"></i> Reels Count</h6>
+                    <div class="sp-range-row mb-3">
+                        <div>
+                            <label class="form-label">Min Reels to Watch</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_reels_to_watch" data-key="min_reels_to_watch" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Reels to Watch</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_reels_to_watch" data-key="max_reels_to_watch" min="1">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label">Daily Reel Watch Limit</label>
+                        <input type="number" class="form-control sp-setting" id="sp_watch_reel_limit_perday" data-key="watch_reel_limit_perday" min="0">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-stopwatch me-1"></i> Watch Duration (seconds)</h6>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Min Duration</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_sec_reel_watch" data-key="min_sec_reel_watch" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Duration</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_sec_reel_watch" data-key="max_sec_reel_watch" min="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cogs me-1"></i> Options</h6>
+                    <div class="sp-toggle-row">
+                        <label>Save Reels After Watching</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_save_reels" data-key="enable_save_reels_after_watching">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Like Reel</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_like_reel" data-key="enable_like_reel">
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <label class="form-label">Like Reel Percent</label>
+                        <input type="number" class="form-control sp-setting" id="sp_like_reel_percent" data-key="like_reel_percent" min="0" max="100">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-list me-1"></i> Reel Sources</h6>
+                    <textarea class="form-control sp-sources-textarea" id="sp_reels_sources" rows="4"
+                        placeholder="One source per line"></textarea>
+                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('watch_reels_sources', 'sp_reels_sources')">
+                        <i class="fas fa-save me-1"></i> Save Sources
+                    </button>
+                </div>
+            </div>
+
+            <!-- ─── Share Tab ─── -->
+            <div class="sp-pane" data-pane="share">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-share me-2"></i>Share Post to Story</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_share_post_to_story" data-key="enable_share_post_to_story">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cog me-1"></i> Share Settings</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Daily Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_shared_post_limit_perday" data-key="shared_post_limit_perday" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Limit Per Source Per Day</label>
+                            <input type="number" class="form-control sp-setting" id="sp_shared_post_limit_persource_perday" data-key="shared_post_limit_persource_perday" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cogs me-1"></i> Share Options</h6>
+                    <div class="sp-toggle-row">
+                        <label>Enable Shared Post</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_shared_post" data-key="enable_shared_post">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Enable Repost</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_repost_post" data-key="enable_repost_post">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Add Link to Story</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_add_link" data-key="enable_add_link_to_story">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Add Mention to Story</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_mention" data-key="enable_mention_to_story">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Post Type to Share</label>
+                            <select class="form-select sp-setting" id="sp_post_type_to_share" data-key="post_type_to_share">
+                                <option value="photo">Photo</option>
+                                <option value="video">Video</option>
+                                <option value="reel">Reel</option>
+                                <option value="all">All</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-list me-1"></i> Share Sources</h6>
+                    <textarea class="form-control sp-sources-textarea" id="sp_share_sources" rows="4"
+                        placeholder="One source per line"></textarea>
+                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('share_sources', 'sp_share_sources')">
+                        <i class="fas fa-save me-1"></i> Save Sources
+                    </button>
+                </div>
+            </div>
+
+            <!-- ─── Story Tab ─── -->
+            <div class="sp-pane" data-pane="story">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-eye me-2"></i>Story Viewer Enabled</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_story_enabled_master" data-key="enable_story_viewer">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cog me-1"></i> Story View Settings</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">View Method</label>
+                            <select class="form-select sp-setting" id="sp_view_method" data-key="view_method">
+                                <option value="view-followers">View Followers</option>
+                                <option value="view-following">View Following</option>
+                                <option value="view-specific">View Specific</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Daily Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_story_viewer_daily_limit" data-key="story_viewer_daily_limit" min="0">
+                        </div>
+                    </div>
+                    <div class="sp-range-row mt-3">
+                        <div>
+                            <label class="form-label">Min Stories to View</label>
+                            <input type="number" class="form-control sp-setting" id="sp_story_viewer_min" data-key="story_viewer_min" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Stories to View</label>
+                            <input type="number" class="form-control sp-setting" id="sp_story_viewer_max" data-key="story_viewer_max" min="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cogs me-1"></i> Options</h6>
+                    <div class="sp-toggle-row">
+                        <label>Like Story After Viewing</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_like_story_after_viewing" data-key="like_story_after_viewing">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Don't View Same Account Twice</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_view_same_twice" data-key="dont_view_same_account_twice">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>View Home Feed Stories</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_viewhomefeedstory" data-key="enable_viewhomefeedstory">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Comment Tab ─── -->
+            <div class="sp-pane" data-pane="comment">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-comment me-2"></i>Comment Enabled</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_comment_enabled_master" data-key="enable_comment">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cog me-1"></i> Comment Settings</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Comment Method</label>
+                            <select class="form-select sp-setting" id="sp_comment_method" data-key="comment_method">
+                                <option value="comment-sources">From Sources</option>
+                                <option value="comment-keywords">From Keywords</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Daily Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_comment_limit_perday" data-key="comment_limit_perday" min="0">
+                        </div>
+                    </div>
+                    <div class="sp-range-row mt-3">
+                        <div>
+                            <label class="form-label">Min Comments</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_comment" data-key="min_comment" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Comments</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_comment" data-key="max_comment" min="1">
+                        </div>
+                    </div>
+                    <div class="sp-range-row mt-3">
+                        <div>
+                            <label class="form-label">Min Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_comment_min_delay" data-key="comment_min_delay" min="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_comment_max_delay" data-key="comment_max_delay" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-list me-1"></i> Comment Sources</h6>
+                    <textarea class="form-control sp-sources-textarea" id="sp_comment_sources" rows="4"
+                        placeholder="One source per line"></textarea>
+                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('comment_sources', 'sp_comment_sources')">
+                        <i class="fas fa-save me-1"></i> Save Sources
+                    </button>
+                </div>
+            </div>
+
+            <!-- ─── DM Tab ─── -->
+            <div class="sp-pane" data-pane="dm">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-envelope me-2"></i>Direct Message Enabled</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_dm_master" data-key="enable_directmessage">
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cog me-1"></i> DM Settings</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">DM Method</label>
+                            <select class="form-select sp-setting" id="sp_directmessage_method" data-key="directmessage_method">
+                                <option value="dm-new-followers">DM New Followers</option>
+                                <option value="dm-specific-users">DM Specific Users</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Daily Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_directmessage_daily_limit" data-key="directmessage_daily_limit" min="0">
+                        </div>
+                    </div>
+                    <div class="sp-range-row mt-3">
+                        <div>
+                            <label class="form-label">Min DMs per Batch</label>
+                            <input type="number" class="form-control sp-setting" id="sp_directmessage_min" data-key="directmessage_min" min="1">
+                        </div>
+                        <div>
+                            <label class="form-label">Max DMs per Batch</label>
+                            <input type="number" class="form-control sp-setting" id="sp_directmessage_max" data-key="directmessage_max" min="1">
+                        </div>
+                    </div>
+                    <div class="sp-range-row mt-3">
+                        <div>
+                            <label class="form-label">Min Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_directmessage_min_delay" data-key="directmessage_min_delay" min="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Delay (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_directmessage_max_delay" data-key="directmessage_max_delay" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-cogs me-1"></i> Options</h6>
+                    <div class="sp-toggle-row">
+                        <label>Enable OpenAI DM</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_openai_dm" data-key="enable_openai_dm">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Skip If DM Already Exists (New Followers)</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_skip_dm_new" data-key="enable_skip_if_dm_exists_directmessage_new_followers">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row">
+                        <label>Skip If DM Already Exists (Specific User)</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_skip_dm_specific" data-key="enable_skip_if_dm_exists_directmessage_specificuser">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">New Followers Limit/Day</label>
+                            <input type="number" class="form-control sp-setting" id="sp_dm_new_followers_limit" data-key="directmessage_new_followers_limitperday" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Specific User Limit/Day</label>
+                            <input type="number" class="form-control sp-setting" id="sp_dm_specific_limit" data-key="directmessage_specific_user_limitperday" min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save bar -->
+            <div class="sp-save-bar">
+                <span class="save-status" id="spSaveStatus"></span>
+                <button class="btn-save" onclick="saveAllSettings()">
+                    <i class="fas fa-save me-1"></i> Save Settings
+                </button>
+            </div>
+        </div><!-- /sp-content -->
+    </div>
+</div>
+
+<!-- Toast notification -->
+<div class="sp-toast" id="spToast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const DEVICE_SERIAL = {{ device_serial | tojson }};
+let accountsData = [];
+
+function refreshDetail() {
+    fetch(`/api/device-manager/devices/${encodeURIComponent(DEVICE_SERIAL)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            renderDevice(data.device);
+            accountsData = data.accounts || [];
+            renderAccounts(accountsData);
+            updateSummary(accountsData);
+            document.getElementById('lastRefreshDetail').textContent =
+                'Updated: ' + new Date().toLocaleTimeString();
+        })
+        .catch(err => showError('Failed to load: ' + err));
+}
+
+function renderDevice(dev) {
+    document.getElementById('deviceName').innerHTML =
+        `<i class="fas fa-mobile-alt me-2 text-warning"></i>${escHtml(dev.device_name || dev.device_serial)}`;
+    
+    const statusClass = dev.status === 'connected' ? 'bg-success' : 'bg-danger';
+    document.getElementById('deviceStatusBadge').className = `badge ${statusClass}`;
+    document.getElementById('deviceStatusBadge').textContent = dev.status || 'unknown';
+
+    const bs = dev.bot_status || {};
+    const botSt = bs.status || 'stopped';
+    const botClass = botSt === 'running' || botSt === 'active' ? 'bg-success' :
+                     botSt === 'hung' ? 'bg-warning text-dark' : 'bg-secondary';
+    document.getElementById('botStatusBadge').className = `badge ${botClass}`;
+    document.getElementById('botStatusBadge').textContent = 'Bot: ' + botSt;
+}
+
+function renderAccounts(accounts) {
+    const tbody = document.getElementById('accountsTableBody');
+
+    if (!accounts.length) {
+        tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted py-4">
+            <i class="fas fa-inbox me-2"></i>No accounts on this device
+        </td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = accounts.map(a => {
+        const healthClass = getHealthClass(a.status);
+        const healthTitle = a.status || 'unknown';
+
+        return `<tr>
+            <td>${formatHour(a.start_time)}</td>
+            <td>${formatHour(a.end_time)}</td>
+            <td class="username-cell">
+                <span class="health-badge ${healthClass}" title="${healthTitle}"></span>
+                ${escHtml(a.username)}
+            </td>
+            <td>${statWithDelta(a.followers, a.followers_delta)}</td>
+            <td>${statWithDelta(a.following, a.following_delta)}</td>
+            <td>${statCell(a.follows_done)}</td>
+            <td>${statCell(a.unfollows_done)}</td>
+            <td>${statCell(a.stories_viewed)}</td>
+            <td>${statCell(a.likes_done)}</td>
+            <td>${statCell(a.comments_done)}</td>
+            <td>${statCell(a.dms_sent)}</td>
+            <td>
+                <button class="btn-settings" title="Bot Settings"
+                    onclick="openAccountSettings('${a.device_serial}', '${a.username}')">
+                    <i class="fas fa-sliders-h"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function updateSummary(accounts) {
+    document.getElementById('sumAccounts').textContent = accounts.length;
+    document.getElementById('sumFollowed').textContent = 
+        accounts.reduce((s, a) => s + (parseInt(a.follows_done) || 0), 0);
+    document.getElementById('sumUnfollowed').textContent = 
+        accounts.reduce((s, a) => s + (parseInt(a.unfollows_done) || 0), 0);
+    document.getElementById('sumLikes').textContent = 
+        accounts.reduce((s, a) => s + (parseInt(a.likes_done) || 0), 0);
+    document.getElementById('sumStories').textContent = 
+        accounts.reduce((s, a) => s + (parseInt(a.stories_viewed) || 0), 0);
+    document.getElementById('sumDMs').textContent = 
+        accounts.reduce((s, a) => s + (parseInt(a.dms_sent) || 0), 0);
+}
+
+function getHealthClass(status) {
+    const map = {
+        'active': 'health-active',
+        'suspended': 'health-suspended',
+        'banned': 'health-banned',
+        'logged_out': 'health-logged_out',
+        'verification': 'health-verification',
+        'pending_login': 'health-pending_login',
+        'disabled': 'health-disabled'
+    };
+    return map[status] || 'health-disabled';
+}
+
+function formatHour(val) {
+    if (val === null || val === undefined || val === '') return '<span class="text-muted">-</span>';
+    const h = parseInt(val);
+    if (isNaN(h)) return '<span class="text-muted">-</span>';
+    return h;
+}
+
+function statCell(val) {
+    const n = parseInt(val) || 0;
+    if (n === 0) return '<span class="stat-num stat-zero">0</span>';
+    return `<span class="stat-num">${n}</span>`;
+}
+
+function statWithDelta(value, delta) {
+    const v = parseInt(value) || 0;
+    let html = `<span class="stat-num">${v.toLocaleString()}</span>`;
+    
+    if (delta !== null && delta !== undefined) {
+        const d = parseInt(delta);
+        if (d > 0) {
+            html += ` <span class="delta-up">▲${d}</span>`;
+        } else if (d < 0) {
+            html += ` <span class="delta-down">▼${Math.abs(d)}</span>`;
+        }
+    }
+    return html;
+}
+
+function showError(msg) {
+    document.getElementById('accountsTableBody').innerHTML =
+        `<tr><td colspan="12" class="text-center text-danger py-4">
+            <i class="fas fa-exclamation-triangle me-2"></i>${escHtml(msg)}
+        </td></tr>`;
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// Initial load + auto-refresh every 30s
+refreshDetail();
+setInterval(refreshDetail, 30000);
+
+// ═══════════════════════════════════════════════════════════
+//  Settings Panel Logic
+// ═══════════════════════════════════════════════════════════
+
+let spCurrentDevice = '';
+let spCurrentAccount = '';
+let spOffcanvas = null;
+
+// ── Tab Switching ──
+document.querySelectorAll('.sp-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.sp-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.sp-pane').forEach(p => p.classList.remove('active'));
+        const pane = document.querySelector(`.sp-pane[data-pane="${tab}"]`);
+        if (pane) pane.classList.add('active');
+    });
+});
+
+// ── Open Settings Panel ──
+function openAccountSettings(deviceSerial, username) {
+    spCurrentDevice = deviceSerial;
+    spCurrentAccount = username;
+
+    // Header
+    document.getElementById('spUsername').textContent = '@' + username;
+    document.getElementById('spDevice').textContent = deviceSerial;
+
+    // Reset to overview tab
+    document.querySelectorAll('.sp-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.sp-tab-btn[data-tab="overview"]').classList.add('active');
+    document.querySelectorAll('.sp-pane').forEach(p => p.classList.remove('active'));
+    document.querySelector('.sp-pane[data-pane="overview"]').classList.add('active');
+
+    // Show loading, hide content
+    document.getElementById('spLoading').style.display = 'flex';
+    document.getElementById('spContent').style.display = 'none';
+
+    // Show offcanvas
+    var panelEl = document.getElementById('settingsPanel');
+    if (!spOffcanvas) {
+        spOffcanvas = new bootstrap.Offcanvas(panelEl);
+        // Strip Bootstrap's scrollbar padding compensation after panel is fully shown
+        panelEl.addEventListener('shown.bs.offcanvas', function() {
+            document.body.style.removeProperty('padding-right');
+            document.querySelectorAll('.navbar, .fixed-top, .navbar-expand-lg').forEach(function(el) {
+                el.style.removeProperty('padding-right');
+            });
+        });
+    }
+    spOffcanvas.show();
+
+    // Load settings from API
+    fetch(`/api/bot-settings/${encodeURIComponent(deviceSerial)}/${encodeURIComponent(username)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                showSpToast(data.error || 'Failed to load settings', 'error');
+                return;
+            }
+            populateSettings(data.settings || {}, data.account_data || {});
+
+            // Load sources in background
+            loadSources('sources', 'sp_follow_sources');
+            loadSources('like_sources', 'sp_like_sources');
+            loadSources('watch_reels_sources', 'sp_reels_sources');
+            loadSources('share_sources', 'sp_share_sources');
+            loadSources('comment_sources', 'sp_comment_sources');
+
+            document.getElementById('spLoading').style.display = 'none';
+            document.getElementById('spContent').style.display = 'block';
+        })
+        .catch(err => {
+            showSpToast('Error loading settings: ' + err, 'error');
+        });
+}
+
+// ── Populate Settings into Form ──
+function populateSettings(settings, accountData) {
+    // Overview - readonly account info
+    document.getElementById('sp_username').value = accountData.username || '';
+    document.getElementById('sp_password').value = accountData.password || '';
+    document.getElementById('sp_status').value = accountData.status || '';
+    document.getElementById('sp_app_cloner').value = accountData.app_cloner || '';
+    document.getElementById('sp_followers').value = accountData.followers || '0';
+
+    // Timer - from account data
+    document.getElementById('sp_start_time').value = accountData.start_time || '';
+    document.getElementById('sp_end_time').value = accountData.end_time || '';
+
+    // All sp-setting fields (settings_json + toggles merged)
+    document.querySelectorAll('.sp-setting').forEach(el => {
+        const key = el.dataset.key;
+        if (!key) return;
+        const val = settings[key];
+
+        if (el.type === 'checkbox') {
+            el.checked = toBool(val);
+        } else if (el.tagName === 'SELECT') {
+            if (val !== undefined && val !== null) {
+                // Try to set the option; if not found, just set value
+                el.value = val;
+            }
+        } else {
+            el.value = (val !== undefined && val !== null) ? val : '';
+        }
+    });
+}
+
+// ── Collect Settings from Form ──
+function collectSettings() {
+    const settings = {};
+
+    document.querySelectorAll('.sp-setting').forEach(el => {
+        const key = el.dataset.key;
+        if (!key) return;
+
+        if (el.type === 'checkbox') {
+            settings[key] = el.checked;
+        } else if (el.type === 'number') {
+            const v = el.value.trim();
+            settings[key] = v !== '' ? parseInt(v) : null;
+        } else {
+            settings[key] = el.value;
+        }
+    });
+
+    return settings;
+}
+
+// ── Collect account-level fields (start_time, end_time) ──
+function collectAccountSettings() {
+    const acctSettings = {};
+    document.querySelectorAll('.sp-acct-setting').forEach(el => {
+        const key = el.dataset.acctKey;
+        if (!key) return;
+        const v = el.value.trim();
+        acctSettings[key] = v !== '' ? v : null;
+    });
+    return acctSettings;
+}
+
+// ── Save All Settings ──
+function saveAllSettings() {
+    const statusEl = document.getElementById('spSaveStatus');
+    statusEl.textContent = 'Saving...';
+    statusEl.style.color = '#ffc107';
+
+    const settings = collectSettings();
+    const acctSettings = collectAccountSettings();
+
+    // Merge account-level settings for the POST (they'll go into settings_json too)
+    // But also update accounts table for start_time / end_time
+    Object.assign(settings, acctSettings);
+
+    fetch(`/api/bot-settings/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast('Settings saved!', 'success');
+            statusEl.textContent = 'Saved ✓';
+            statusEl.style.color = '#28a745';
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
+            // Refresh the main table to reflect toggle changes
+            refreshDetail();
+        } else {
+            showSpToast(data.error || 'Save failed', 'error');
+            statusEl.textContent = 'Error';
+            statusEl.style.color = '#dc3545';
+        }
+    })
+    .catch(err => {
+        showSpToast('Save error: ' + err, 'error');
+        statusEl.textContent = 'Error';
+        statusEl.style.color = '#dc3545';
+    });
+}
+
+// ── Sources (load/save) ──
+function loadSources(listType, textareaId) {
+    fetch(`/api/bot-settings/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/lists/${listType}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById(textareaId).value = (data.items || []).join('\n');
+            }
+        })
+        .catch(() => {}); // Silently fail for sources
+}
+
+function saveSources(listType, textareaId) {
+    const text = document.getElementById(textareaId).value;
+    const items = text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+
+    fetch(`/api/bot-settings/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/lists/${listType}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(`Sources saved (${items.length} items)`, 'success');
+        } else {
+            showSpToast(data.error || 'Failed to save sources', 'error');
+        }
+    })
+    .catch(err => showSpToast('Error: ' + err, 'error'));
+}
+
+// ── Helpers ──
+function toBool(val) {
+    if (val === true || val === 'True' || val === 'true' || val === 'On' || val === 'on' || val === '1' || val === 1) return true;
+    return false;
+}
+
+function togglePasswordVis() {
+    const inp = document.getElementById('sp_password');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function showSpToast(msg, type) {
+    const toast = document.getElementById('spToast');
+    toast.textContent = msg;
+    toast.className = 'sp-toast ' + (type || 'success');
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+</script>
+{% endblock %}

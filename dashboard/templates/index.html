@@ -1,0 +1,286 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Hydra - Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .text-purple {
+        color: #9c27b0 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Dashboard Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0 text-white">Dashboard</h1>
+                        <p class="text-white-50 mb-0">Overview of your Instagram accounts</p>
+                    </div>
+                    <div>
+                        <button id="refreshDashboard" class="btn btn-primary btn-action" data-bs-toggle="tooltip" title="Refresh Data">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-4 mb-md-0">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 text-primary mb-2">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <h2 class="h1 text-white mb-2" id="totalDevices">0</h2>
+                    <p class="text-white-50 mb-0">Total Devices</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4 mb-md-0">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 text-info mb-2">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <h2 class="h1 text-white mb-2" id="totalAccounts">0</h2>
+                    <p class="text-white-50 mb-0">Total Accounts</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4 mb-md-0">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 text-success mb-2">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h2 class="h1 text-white mb-2" id="activeAccounts">0</h2>
+                    <p class="text-white-50 mb-0">Active Accounts</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4 mb-md-0">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 text-purple mb-2">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <h2 class="h1 text-white mb-2" id="inventoryAccounts">0</h2>
+                    <p class="text-white-50 mb-0">Inventory Accounts</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Account Health Summary Row -->
+    <div class="row mb-4" id="healthSummaryRow">
+        <div class="col-md-12">
+            <div class="card h-100">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Account Health</h5>
+                    <a href="/account-health" class="btn btn-sm btn-outline-danger">View All</a>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="card bg-dark border-success h-100">
+                                <div class="card-body text-center">
+                                    <div class="h2 text-success mb-1">🟢</div>
+                                    <h3 class="h2 text-white mb-1" id="healthActive">-</h3>
+                                    <p class="text-white-50 mb-0">Active</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="card bg-dark border-warning h-100">
+                                <div class="card-body text-center">
+                                    <div class="h2 text-warning mb-1">🟡</div>
+                                    <h3 class="h2 text-white mb-1" id="healthWarning">-</h3>
+                                    <p class="text-white-50 mb-0">Verification / 2FA</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="card bg-dark border-danger h-100">
+                                <div class="card-body text-center">
+                                    <div class="h2 text-danger mb-1">🔴</div>
+                                    <h3 class="h2 text-white mb-1" id="healthSuspended">-</h3>
+                                    <p class="text-white-50 mb-0">Suspended</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="card bg-dark border-secondary h-100">
+                                <div class="card-body text-center">
+                                    <div class="h2 text-secondary mb-1">⚫</div>
+                                    <h3 class="h2 text-white mb-1" id="healthLoggedOut">-</h3>
+                                    <p class="text-white-50 mb-0">Logged Out</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Stats Row -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card h-100">
+                <div class="card-header bg-dark">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-warehouse me-2"></i>Account Inventory</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="card bg-dark border-success h-100">
+                                <div class="card-body text-center">
+                                    <div class="h2 text-success mb-2">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                    <h3 class="h2 text-white mb-2" id="availableAccounts">0</h3>
+                                    <p class="text-white-50 mb-0">Available Accounts</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="card bg-dark border-secondary h-100">
+                                <div class="card-body text-center">
+                                    <div class="h2 text-secondary mb-2">
+                                        <i class="fas fa-user-check"></i>
+                                    </div>
+                                    <h3 class="h2 text-white mb-2" id="usedAccounts">0</h3>
+                                    <p class="text-white-50 mb-0">Used Accounts</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="card bg-dark border-info h-100">
+                                <div class="card-body text-center">
+                                    <div class="h2 text-info mb-2">
+                                        <i class="fas fa-calendar-plus"></i>
+                                    </div>
+                                    <h3 class="h2 text-white mb-2" id="recentlyAddedAccounts">0</h3>
+                                    <p class="text-white-50 mb-0">Added (Last 7 Days)</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="card bg-dark border-warning h-100">
+                                <div class="card-body text-center">
+                                    <div class="h2 text-warning mb-2">
+                                        <i class="fas fa-calendar-check"></i>
+                                    </div>
+                                    <h3 class="h2 text-white mb-2" id="recentlyUsedAccounts">0</h3>
+                                    <p class="text-white-50 mb-0">Used (Last 7 Days)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="/account-inventory" class="btn btn-primary">
+                            <i class="fas fa-warehouse me-1"></i> Go to Account Inventory
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-4 mb-md-0">
+            <div class="card h-100">
+                <div class="card-header bg-dark">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-chart-pie me-2"></i>Accounts by Device</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="position: relative; height: 300px;">
+                        <canvas id="deviceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-dark">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-chart-bar me-2"></i>Account Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="position: relative; height: 300px;">
+                        <canvas id="settingsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-list-alt me-2"></i>Recent Activity</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Device</th>
+                                    <th>Status</th>
+                                    <th>Last Active</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentActivityTable">
+                                <tr>
+                                    <td colspan="5" class="text-center">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                        <span class="text-white">Loading activity data...</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+<!-- Dashboard JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard-charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/inventory-dashboard.js') }}"></script>
+<script>
+// Load Account Health summary
+(function() {
+    fetch('/api/account-health/summary')
+        .then(r => r.json())
+        .then(data => {
+            const s = data.accounts_by_status || {};
+            const e = data.events_by_type || {};
+            document.getElementById('healthActive').textContent = s.active || 0;
+            document.getElementById('healthWarning').textContent =
+                (e.verification_required || 0) + (e['2fa_required'] || 0);
+            document.getElementById('healthSuspended').textContent =
+                (e.suspended || 0) + (e.action_blocked || 0);
+            document.getElementById('healthLoggedOut').textContent = e.logged_out || 0;
+        })
+        .catch(() => {});
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+{% block title %}Manage Devices - Phone Farm{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-mobile-alt me-2"></i>Device Management</h2>
+    <div>
+        <button class="btn btn-success me-2" onclick="discoverDevices()">
+            <i class="fas fa-search me-1"></i> Discover Devices
+        </button>
+        <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
+            <i class="fas fa-plus me-1"></i> Add Manually
+        </button>
+    </div>
+</div>
+
+<!-- Stats row -->
+<div class="row mb-4" id="statsRow">
+    <div class="col-md-3">
+        <div class="card bg-dark border-warning text-center p-3">
+            <h4 class="mb-0 text-warning" id="statTotal">-</h4>
+            <p class="mb-0 mt-1 text-white-50">Total Devices</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-success text-center p-3">
+            <h4 class="mb-0 text-success" id="statOnline">-</h4>
+            <p class="mb-0 mt-1 text-white-50">Online</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-danger text-center p-3">
+            <h4 class="mb-0 text-danger" id="statOffline">-</h4>
+            <p class="mb-0 mt-1 text-white-50">Offline</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-info text-center p-3">
+            <h4 class="mb-0 text-info" id="statAccounts">-</h4>
+            <p class="mb-0 mt-1 text-white-50">Total Accounts</p>
+        </div>
+    </div>
+</div>
+
+<!-- Discovery results (hidden by default) -->
+<div class="card bg-dark border-success mb-4 d-none" id="discoveryPanel">
+    <div class="card-header bg-dark border-success d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-broadcast-tower me-2 text-success"></i>Discovery Results</h5>
+        <button class="btn btn-sm btn-outline-secondary" onclick="$('#discoveryPanel').addClass('d-none')">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="card-body" id="discoveryBody">
+        <!-- Filled by JS -->
+    </div>
+</div>
+
+<!-- Devices table -->
+<div class="card bg-dark border-secondary">
+    <div class="card-header bg-dark border-secondary">
+        <h5 class="mb-0"><i class="fas fa-server me-2"></i>All Devices</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Name</th>
+                        <th>Serial</th>
+                        <th>IP Address</th>
+                        <th>Accounts</th>
+                        <th>Last Seen</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="devicesTableBody">
+                    <tr><td colspan="8" class="text-center text-muted py-4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Device Modal -->
+<div class="modal fade" id="addDeviceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Add Device</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">IP Address</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="addIp" placeholder="10.1.10.200">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">ADB Port</label>
+                    <input type="number" class="form-control bg-dark text-white border-secondary" id="addPort" value="5555">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Friendly Name</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="addName" placeholder="Phone 51">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control bg-dark text-white border-secondary" id="addNotes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="addDevice()">
+                    <i class="fas fa-plus me-1"></i> Add Device
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Device Modal -->
+<div class="modal fade" id="editDeviceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Device</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editDeviceId">
+                <div class="mb-3">
+                    <label class="form-label">Serial</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="editSerial" disabled>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Friendly Name</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="editName">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control bg-dark text-white border-secondary" id="editNotes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveDevice()">
+                    <i class="fas fa-save me-1"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load devices on page load
+$(document).ready(function() {
+    loadDevices();
+});
+
+function loadDevices() {
+    $.get('/api/devices/list', function(data) {
+        if (data.status !== 'success') return;
+        const devices = data.devices;
+        let html = '';
+        let totalAccounts = 0;
+        let online = 0, offline = 0;
+
+        if (devices.length === 0) {
+            html = '<tr><td colspan="8" class="text-center text-muted py-4">No devices found. Click "Discover Devices" to scan.</td></tr>';
+        }
+
+        devices.forEach(d => {
+            const isOnline = d.status === 'connected';
+            if (isOnline) online++; else offline++;
+            totalAccounts += d.account_count || 0;
+
+            const statusBadge = isOnline
+                ? '<span class="badge bg-success"><i class="fas fa-circle me-1" style="font-size:0.5em;vertical-align:middle"></i>Online</span>'
+                : '<span class="badge bg-secondary"><i class="fas fa-circle me-1" style="font-size:0.5em;vertical-align:middle"></i>Offline</span>';
+
+            const lastSeen = d.last_seen ? new Date(d.last_seen).toLocaleString() : '-';
+
+            html += `<tr>
+                <td>${statusBadge}</td>
+                <td>${d.device_name || '-'}</td>
+                <td><code class="text-info">${d.device_serial}</code></td>
+                <td>${d.ip_address || '-'}</td>
+                <td><span class="badge bg-info">${d.account_count || 0}</span></td>
+                <td><small class="text-muted">${lastSeen}</small></td>
+                <td><small>${d.notes || ''}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editDevice(${d.id}, '${d.device_serial}', '${(d.device_name||'').replace(/'/g,"\\'")}', '${(d.notes||'').replace(/'/g,"\\'")}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteDevice(${d.id}, '${d.device_serial}', ${d.account_count || 0})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+
+        $('#devicesTableBody').html(html);
+        $('#statTotal').text(devices.length);
+        $('#statOnline').text(online);
+        $('#statOffline').text(offline);
+        $('#statAccounts').text(totalAccounts);
+    });
+}
+
+function discoverDevices() {
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Scanning...';
+
+    $.get('/api/devices/discover', function(data) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-search me-1"></i> Discover Devices';
+
+        if (data.status !== 'success') {
+            alert('Discovery failed: ' + data.message);
+            return;
+        }
+
+        let html = '';
+
+        // New devices
+        if (data.new_devices.length > 0) {
+            html += `<h6 class="text-success"><i class="fas fa-plus-circle me-1"></i> New Devices (${data.new_devices.length})</h6>`;
+            html += '<div class="table-responsive"><table class="table table-dark table-sm mb-3"><thead><tr><th>Serial</th><th>IP</th><th>Port</th><th>Action</th></tr></thead><tbody>';
+            data.new_devices.forEach(d => {
+                html += `<tr>
+                    <td><code class="text-success">${d.db_serial}</code></td>
+                    <td>${d.ip_address}</td>
+                    <td>${d.adb_port}</td>
+                    <td><button class="btn btn-sm btn-success" onclick="quickAdd('${d.db_serial}', '${d.ip_address}', ${d.adb_port})">
+                        <i class="fas fa-plus me-1"></i>Add</button></td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+        }
+
+        // Summary
+        html += `<div class="d-flex gap-3 mt-2">
+            <span class="text-success"><i class="fas fa-check-circle me-1"></i>${data.online_devices.length} online</span>
+            <span class="text-secondary"><i class="fas fa-times-circle me-1"></i>${data.offline_devices.length} offline</span>
+            <span class="text-info"><i class="fas fa-broadcast-tower me-1"></i>${data.adb_count} ADB devices</span>
+            <span class="text-warning"><i class="fas fa-plus-circle me-1"></i>${data.new_devices.length} new</span>
+        </div>`;
+
+        if (data.new_devices.length === 0) {
+            html += '<p class="text-muted mt-2 mb-0">All connected devices are already in the database.</p>';
+        }
+
+        $('#discoveryBody').html(html);
+        $('#discoveryPanel').removeClass('d-none');
+
+        // Refresh main table (statuses may have updated)
+        loadDevices();
+    }).fail(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-search me-1"></i> Discover Devices';
+        alert('Discovery request failed');
+    });
+}
+
+function quickAdd(serial, ip, port) {
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+
+    $.ajax({
+        url: '/api/devices/add',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            device_serial: serial,
+            ip_address: ip,
+            adb_port: port,
+            device_name: ip,
+        }),
+        success: function(data) {
+            if (data.status === 'success') {
+                btn.outerHTML = '<span class="badge bg-success">Added ✓</span>';
+                loadDevices();
+            } else {
+                alert(data.message);
+                btn.disabled = false;
+            }
+        },
+        error: function() {
+            alert('Failed to add device');
+            btn.disabled = false;
+        }
+    });
+}
+
+function addDevice() {
+    const ip = $('#addIp').val().trim();
+    const port = parseInt($('#addPort').val()) || 5555;
+    const name = $('#addName').val().trim();
+    const notes = $('#addNotes').val().trim();
+
+    if (!ip) { alert('IP address required'); return; }
+
+    $.ajax({
+        url: '/api/devices/add',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ ip_address: ip, adb_port: port, device_name: name || ip, notes: notes }),
+        success: function(data) {
+            if (data.status === 'success') {
+                bootstrap.Modal.getInstance($('#addDeviceModal')[0]).hide();
+                $('#addIp, #addName, #addNotes').val('');
+                loadDevices();
+            } else {
+                alert(data.message);
+            }
+        }
+    });
+}
+
+function editDevice(id, serial, name, notes) {
+    $('#editDeviceId').val(id);
+    $('#editSerial').val(serial);
+    $('#editName').val(name);
+    $('#editNotes').val(notes);
+    new bootstrap.Modal($('#editDeviceModal')[0]).show();
+}
+
+function saveDevice() {
+    const id = $('#editDeviceId').val();
+    $.ajax({
+        url: `/api/devices/${id}`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            device_name: $('#editName').val().trim(),
+            notes: $('#editNotes').val().trim(),
+        }),
+        success: function(data) {
+            if (data.status === 'success') {
+                bootstrap.Modal.getInstance($('#editDeviceModal')[0]).hide();
+                loadDevices();
+            } else {
+                alert(data.message);
+            }
+        }
+    });
+}
+
+function deleteDevice(id, serial, accountCount) {
+    if (accountCount > 0) {
+        alert(`Cannot delete ${serial}: ${accountCount} accounts still assigned. Remove accounts first.`);
+        return;
+    }
+    if (!confirm(`Delete device ${serial}?`)) return;
+
+    $.ajax({
+        url: `/api/devices/${id}`,
+        method: 'DELETE',
+        success: function(data) {
+            if (data.status === 'success') {
+                loadDevices();
+            } else {
+                alert(data.message);
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

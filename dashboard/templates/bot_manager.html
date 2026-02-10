@@ -1,0 +1,1538 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Bot Manager - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    .device-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #374151;
+        transition: background-color 0.2s;
+    }
+    .device-item:last-child {
+        border-bottom: none;
+    }
+    .device-item:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    .device-item.running {
+        border-left: 3px solid #48bb78;
+    }
+    .device-item.stopped {
+        border-left: 3px solid #718096;
+    }
+    .device-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .device-name {
+        font-weight: 500;
+        color: #f8f9fa;
+    }
+    .device-serial {
+        font-size: 0.8rem;
+        color: #9ca3af;
+    }
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .status-dot.running {
+        background-color: #48bb78;
+        box-shadow: 0 0 6px rgba(72, 187, 120, 0.6);
+    }
+    .status-dot.stopped {
+        background-color: #718096;
+    }
+    .device-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .bot-type-selector {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        width: auto;
+    }
+    .accounts-count {
+        font-size: 0.85rem;
+        color: #9ca3af;
+        margin-left: 0.5rem;
+    }
+    /* WebSocket real-time highlight */
+    .ws-highlight {
+        animation: wsFlash 2s ease-out;
+    }
+    @keyframes wsFlash {
+        0%   { background-color: rgba(72, 187, 120, 0.3); }
+        100% { background-color: transparent; }
+    }
+    #wsIndicator {
+        cursor: default;
+        transition: background-color 0.3s;
+    }
+    #wsIndicator.bg-success {
+        box-shadow: 0 0 6px rgba(72, 187, 120, 0.5);
+    }
+    /* Modal styles */
+    .modal-xl-custom {
+        max-width: 95%;
+        width: 1400px;
+    }
+    .account-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #374151;
+        transition: background-color 0.2s;
+    }
+    .account-row:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    .account-row:last-child {
+        border-bottom: none;
+    }
+    .account-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex: 1;
+    }
+    .account-username {
+        font-weight: 500;
+        color: #f8f9fa;
+        min-width: 150px;
+    }
+    .account-stats {
+        display: flex;
+        gap: 1.5rem;
+        color: #9ca3af;
+        font-size: 0.85rem;
+    }
+    .account-stat {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .account-stat i {
+        font-size: 0.75rem;
+    }
+    .account-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    /* Settings view in modal */
+    .modal-settings-view {
+        display: none;
+    }
+    .modal-settings-view.active {
+        display: block;
+    }
+    .modal-accounts-view {
+        display: block;
+    }
+    .modal-accounts-view.hidden {
+        display: none;
+    }
+    /* Settings tabs in modal */
+    .modal-settings-tabs {
+        border-bottom: 2px solid #495057;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+    .modal-settings-tabs .nav-link {
+        color: #adb5bd;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+    }
+    .modal-settings-tabs .nav-link:hover {
+        color: #f8f9fa;
+    }
+    .modal-settings-tabs .nav-link.active {
+        color: #0d6efd;
+        border-color: transparent transparent #0d6efd;
+    }
+    .settings-section-modal {
+        background-color: #2c3034;
+        border: 1px solid #495057;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .settings-section-modal h6 {
+        color: #6c757d;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #495057;
+        font-size: 0.9rem;
+    }
+    .master-toggle-modal {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background: linear-gradient(135deg, #1a1d21 0%, #2c3034 100%);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border: 1px solid #495057;
+    }
+    .master-toggle-modal h6 {
+        margin: 0;
+        font-weight: 600;
+        color: #f8f9fa;
+        font-size: 0.95rem;
+    }
+    .checkbox-group-modal {
+        padding: 0.35rem 0;
+    }
+    .checkbox-group-modal label {
+        color: #e9ecef;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+    .tab-status-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-left: 4px;
+        background-color: transparent;
+    }
+    .tab-status-indicator.active {
+        background-color: #28a745;
+        box-shadow: 0 0 4px rgba(40, 167, 69, 0.6);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <h1 class="h3 mb-0 text-white">
+                                <i class="fas fa-robot me-2"></i>Bot Manager
+                            </h1>
+                            <p class="text-white-50 mb-0">Device management &amp; phone farm launcher</p>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <button class="btn btn-outline-success btn-sm" onclick="discoverDevices(this)">
+                                <i class="fas fa-broadcast-tower me-1"></i>Discover Devices
+                            </button>
+                            <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
+                                <i class="fas fa-plus me-1"></i>Add Device
+                            </button>
+                            <button class="btn btn-info btn-sm" onclick="farmRefresh()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                            <span id="wsIndicator" class="badge bg-secondary rounded-pill" title="WebSocket: Disconnected" style="font-size:0.65rem;">WS</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stat Cards Row -->
+    <div class="row mb-4" id="statsRow">
+        <div class="col">
+            <div class="card bg-dark border-warning text-center p-3">
+                <h4 class="mb-0 text-warning" id="statTotalDevices">-</h4>
+                <p class="mb-0 mt-1 text-white-50">Total Devices</p>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card bg-dark border-success text-center p-3">
+                <h4 class="mb-0 text-success" id="statOnline">-</h4>
+                <p class="mb-0 mt-1 text-white-50">Online</p>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card bg-dark border-danger text-center p-3">
+                <h4 class="mb-0 text-danger" id="statOffline">-</h4>
+                <p class="mb-0 mt-1 text-white-50">Offline</p>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card bg-dark border-info text-center p-3">
+                <h4 class="mb-0 text-info" id="statAccounts">-</h4>
+                <p class="mb-0 mt-1 text-white-50">Total Accounts</p>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card bg-dark text-center p-3" style="border-color: #a855f7 !important;">
+                <h4 class="mb-0" style="color: #a855f7;" id="statRunningBots">-</h4>
+                <p class="mb-0 mt-1 text-white-50">Running Bots</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Discovery Results Panel (hidden by default) -->
+    <div class="card bg-dark border-success mb-4 d-none" id="discoveryPanel">
+        <div class="card-header bg-dark border-success d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-broadcast-tower me-2 text-success"></i>Discovery Results</h5>
+            <button class="btn btn-sm btn-outline-secondary" onclick="$('#discoveryPanel').addClass('d-none')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="card-body" id="discoveryBody">
+            <!-- Filled by JS -->
+        </div>
+    </div>
+
+    <!-- Phone Farm Launcher -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark-secondary d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-seedling me-2 text-success"></i>Phone Farm Launcher <small class="text-muted">(run_device.py)</small></h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-success me-1" id="farmRunning">0 running</span>
+                        <span class="badge bg-secondary" id="farmStopped">0 stopped</span>
+                        <button class="btn btn-outline-info btn-sm ms-2" onclick="farmRefresh()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn btn-success btn-sm" onclick="farmLaunchAll()" id="farmLaunchAllBtn">
+                            <i class="fas fa-rocket me-1"></i>Launch All
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="farmStopAll()" id="farmStopAllBtn">
+                            <i class="fas fa-power-off me-1"></i>Stop All
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="farmDevicesList">
+                        <div class="text-center text-white-50 py-4">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                            <p class="mb-0">Loading farm status...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Farm Log Viewer Modal -->
+    <div class="modal fade" id="farmLogModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white">
+                        <i class="fas fa-terminal me-2"></i>
+                        <span id="farmLogModalTitle">Device Log</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-2">
+                    <div id="farmLogContent" style="
+                        background: #0d1117;
+                        border: 1px solid #21262d;
+                        border-radius: 8px;
+                        font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+                        font-size: 0.78rem;
+                        line-height: 1.55;
+                        max-height: 500px;
+                        overflow-y: auto;
+                        padding: 0.75rem;
+                        color: #c9d1d9;
+                        white-space: pre-wrap;
+                        word-break: break-word;
+                    ">Loading...</div>
+                </div>
+                <div class="modal-footer border-secondary py-2">
+                    <button class="btn btn-outline-info btn-sm" onclick="farmRefreshLog()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Device Manage Modal -->
+<div class="modal fade" id="manageDeviceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl-custom modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-secondary btn-sm me-3" id="backToAccountsBtn" onclick="showAccountsList()" style="display: none;">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h5 class="modal-title" id="manageModalTitle">
+                        <i class="fas fa-mobile-alt me-2"></i>
+                        <span id="modalDeviceName">Device</span>
+                    </h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Accounts List View -->
+                <div id="accountsListView" class="modal-accounts-view">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <span class="text-muted">Accounts on this device</span>
+                            <span class="badge bg-primary ms-2" id="accountsCountBadge">0</span>
+                        </div>
+                        <div>
+                            <button class="btn btn-outline-primary btn-sm" onclick="refreshAccountsList()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div id="accountsListContent">
+                        <div class="text-center text-white-50 py-4">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                            <p>Loading accounts...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings View (hidden initially) -->
+                <div id="settingsView" class="modal-settings-view">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <span class="text-muted">Settings for</span>
+                            <strong class="text-white ms-2" id="settingsAccountName"></strong>
+                        </div>
+                        <button class="btn btn-success btn-sm" onclick="saveModalSettings()">
+                            <i class="fas fa-save me-1"></i>Save Settings
+                        </button>
+                    </div>
+
+                    <!-- Settings Tabs -->
+                    <ul class="nav nav-tabs modal-settings-tabs" id="modalSettingsTabs">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#modal-follow">
+                                <i class="fas fa-user-plus me-1"></i>Follow<span class="tab-status-indicator" id="modal-follow-indicator"></span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modal-unfollow">
+                                <i class="fas fa-user-minus me-1"></i>Unfollow<span class="tab-status-indicator" id="modal-unfollow-indicator"></span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modal-like">
+                                <i class="fas fa-heart me-1"></i>Like<span class="tab-status-indicator" id="modal-like-indicator"></span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modal-comment">
+                                <i class="fas fa-comment me-1"></i>Comment<span class="tab-status-indicator" id="modal-comment-indicator"></span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modal-story">
+                                <i class="fas fa-play-circle me-1"></i>Story<span class="tab-status-indicator" id="modal-story-indicator"></span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modal-dm">
+                                <i class="fas fa-envelope me-1"></i>DM<span class="tab-status-indicator" id="modal-dm-indicator"></span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Settings Tab Content -->
+                    <div class="tab-content" id="modalSettingsContent">
+                        <!-- FOLLOW TAB -->
+                        <div class="tab-pane fade show active" id="modal-follow">
+                            <div class="master-toggle-modal">
+                                <h6><i class="fas fa-user-plus me-2 text-success"></i>FOLLOW</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="modal_enable_follow" data-setting="enable_follow">
+                                    </div>
+                                    <span class="ms-2 text-muted" id="modal_followStatusLabel">OFF</span>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-sliders-h me-2"></i>Follow Method</h6>
+                                <div class="checkbox-group-modal">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modal_follow_followers" data-setting="follow_method.follow_followers">
+                                        <label class="form-check-label" for="modal_follow_followers">Follow Followers of Sources</label>
+                                    </div>
+                                </div>
+                                <div class="checkbox-group-modal">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modal_follow_likers" data-setting="follow_method.follow_likers">
+                                        <label class="form-check-label" for="modal_follow_likers">Follow Likers of Sources</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-running me-2"></i>Follow Action</h6>
+                                <div class="row mb-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-light small">Follow Limit per Day</label>
+                                        <input type="number" class="form-control form-control-sm" id="modal_default_action_limit_perday" data-setting="default_action_limit_perday" value="60">
+                                    </div>
+                                </div>
+                                <div class="checkbox-group-modal">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modal_enable_auto_increment_follow_limit_perday" data-setting="enable_auto_increment_follow_limit_perday">
+                                        <label class="form-check-label" for="modal_enable_auto_increment_follow_limit_perday">Auto Increment Follow Limit per Day</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- UNFOLLOW TAB -->
+                        <div class="tab-pane fade" id="modal-unfollow">
+                            <div class="master-toggle-modal">
+                                <h6><i class="fas fa-user-minus me-2 text-danger"></i>UNFOLLOW</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="modal_enable_unfollow" data-setting="enable_unfollow">
+                                    </div>
+                                    <span class="ms-2 text-muted" id="modal_unfollowStatusLabel">OFF</span>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-sliders-h me-2"></i>Unfollow Method</h6>
+                                <div class="checkbox-group-modal">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modal_unfollow_using_profile" data-setting="unfollow_method.unfollow_using_profile">
+                                        <label class="form-check-label" for="modal_unfollow_using_profile">Unfollow Using Profile</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-running me-2"></i>Unfollow Action</h6>
+                                <div class="row mb-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-light small">Unfollow Limit per Day</label>
+                                        <input type="number" class="form-control form-control-sm" id="modal_unfollow_limit_perday" data-setting="unfollow_limit_perday" value="60">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- LIKE TAB -->
+                        <div class="tab-pane fade" id="modal-like">
+                            <div class="master-toggle-modal">
+                                <h6><i class="fas fa-heart me-2 text-danger"></i>LIKE</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="modal_enable_likepost" data-setting="enable_likepost">
+                                    </div>
+                                    <span class="ms-2 text-muted" id="modal_likeStatusLabel">OFF</span>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-sliders-h me-2"></i>Like Method</h6>
+                                <div class="checkbox-group-modal">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modal_enable_likepost_sources_followers" data-setting="likepost_method.enable_likepost_sources_followers">
+                                        <label class="form-check-label" for="modal_enable_likepost_sources_followers">Like Source's Followers Posts</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-running me-2"></i>Like Action</h6>
+                                <div class="row mb-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-light small">Like Limit per Day</label>
+                                        <input type="number" class="form-control form-control-sm" id="modal_like_limit_perday" data-setting="like_limit_perday" value="50">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- COMMENT TAB -->
+                        <div class="tab-pane fade" id="modal-comment">
+                            <div class="master-toggle-modal">
+                                <h6><i class="fas fa-comment me-2 text-info"></i>COMMENT</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="modal_enable_comment" data-setting="enable_comment">
+                                    </div>
+                                    <span class="ms-2 text-muted" id="modal_commentStatusLabel">OFF</span>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-running me-2"></i>Comment Action</h6>
+                                <div class="row mb-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-light small">Comment Limit per Day</label>
+                                        <input type="number" class="form-control form-control-sm" id="modal_comment_limit_perday" data-setting="comment_limit_perday" value="25">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STORY TAB -->
+                        <div class="tab-pane fade" id="modal-story">
+                            <div class="master-toggle-modal">
+                                <h6><i class="fas fa-play-circle me-2 text-warning"></i>STORY VIEWER</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="modal_enable_story_viewer" data-setting="enable_story_viewer">
+                                    </div>
+                                    <span class="ms-2 text-muted" id="modal_storyStatusLabel">OFF</span>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-running me-2"></i>Story Action</h6>
+                                <div class="row mb-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label text-light small">Story View Limit per Day</label>
+                                        <input type="number" class="form-control form-control-sm" id="modal_story_viewer_daily_limit" data-setting="story_viewer_daily_limit" value="800">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DM TAB -->
+                        <div class="tab-pane fade" id="modal-dm">
+                            <div class="master-toggle-modal">
+                                <h6><i class="fas fa-envelope me-2 text-primary"></i>DIRECT MESSAGE</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="modal_enable_directmessage" data-setting="enable_directmessage">
+                                    </div>
+                                    <span class="ms-2 text-muted" id="modal_dmStatusLabel">OFF</span>
+                                </div>
+                            </div>
+                            <div class="settings-section-modal">
+                                <h6><i class="fas fa-sliders-h me-2"></i>DM Method</h6>
+                                <div class="checkbox-group-modal">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modal_directmessage_new_followers" data-setting="directmessage_method.directmessage_new_followers">
+                                        <label class="form-check-label" for="modal_directmessage_new_followers">DM New Followers</label>
+                                    </div>
+                                </div>
+                                <div class="checkbox-group-modal">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modal_directmessage_reply" data-setting="directmessage_method.directmessage_reply">
+                                        <label class="form-check-label" for="modal_directmessage_reply">Reply to DMs</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Link to full settings -->
+                    <div class="text-center mt-3 pt-3 border-top border-secondary">
+                        <a href="#" id="openFullSettingsLink" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>Open Full Settings Page
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Device Modal -->
+<div class="modal fade" id="addDeviceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Add Device</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">IP Address</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="addIp" placeholder="10.1.10.200">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">ADB Port</label>
+                    <input type="number" class="form-control bg-dark text-white border-secondary" id="addPort" value="5555">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Friendly Name</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="addName" placeholder="Phone 51">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control bg-dark text-white border-secondary" id="addNotes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="addDevice()">
+                    <i class="fas fa-plus me-1"></i>Add Device
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// =============================================================================
+// STATE
+// =============================================================================
+
+let farmDevices = [];
+let deviceStatusMap = {};   // serial → { status, device_name, account_count, ... }
+let _farmLogSerial = null;
+let _farmAutoRefresh = null;
+
+// Modal state
+let currentModalDevice = null;
+let currentModalAccount = null;
+let modalCurrentSettings = {};
+
+// =============================================================================
+// INIT
+// =============================================================================
+
+$(document).ready(function() {
+    farmRefresh();
+    loadDeviceStatuses();
+    setupModalToggleListeners();
+
+    // Auto-refresh farm status every 10s
+    _farmAutoRefresh = setInterval(farmRefresh, 10000);
+
+    // Auto-refresh device statuses every 30s
+    setInterval(loadDeviceStatuses, 30000);
+
+    // Initialize WebSocket after a short delay
+    setTimeout(initWebSocket, 2000);
+});
+
+// =============================================================================
+// DEVICE MANAGEMENT (from /api/devices/*)
+// =============================================================================
+
+function loadDeviceStatuses() {
+    $.get('/api/devices/list', function(data) {
+        if (data.status !== 'success') return;
+
+        const devices = data.devices;
+        deviceStatusMap = {};
+        let totalAccounts = 0;
+        let online = 0, offline = 0;
+
+        devices.forEach(function(d) {
+            deviceStatusMap[d.device_serial] = d;
+            const isOnline = d.status === 'connected';
+            if (isOnline) online++; else offline++;
+            totalAccounts += d.account_count || 0;
+        });
+
+        // Update stat cards (device-side)
+        $('#statTotalDevices').text(devices.length);
+        $('#statOnline').text(online);
+        $('#statOffline').text(offline);
+        $('#statAccounts').text(totalAccounts);
+
+        // Re-render farm table if it's already loaded (to update status badges)
+        if (farmDevices.length > 0) {
+            renderFarmDevices(farmDevices);
+        }
+    });
+}
+
+function updateStatCards() {
+    // Running bots from farm data
+    const runningBots = farmDevices.filter(function(d) { return d.running; }).length;
+    $('#statRunningBots').text(runningBots);
+}
+
+function discoverDevices(btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Scanning...';
+
+    $.get('/api/devices/discover', function(data) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-broadcast-tower me-1"></i>Discover Devices';
+
+        if (data.status !== 'success') {
+            showNotification('error', 'Discovery failed: ' + (data.message || 'Unknown error'));
+            return;
+        }
+
+        let html = '';
+
+        // New devices
+        if (data.new_devices.length > 0) {
+            html += '<h6 class="text-success"><i class="fas fa-plus-circle me-1"></i>New Devices (' + data.new_devices.length + ')</h6>';
+            html += '<div class="table-responsive"><table class="table table-dark table-sm mb-3"><thead><tr><th>Serial</th><th>IP</th><th>Port</th><th>Action</th></tr></thead><tbody>';
+            data.new_devices.forEach(function(d) {
+                html += '<tr>';
+                html += '<td><code class="text-success">' + d.db_serial + '</code></td>';
+                html += '<td>' + d.ip_address + '</td>';
+                html += '<td>' + d.adb_port + '</td>';
+                html += '<td><button class="btn btn-sm btn-success" onclick="quickAdd(\'' + d.db_serial + '\', \'' + d.ip_address + '\', ' + d.adb_port + ', this)">';
+                html += '<i class="fas fa-plus me-1"></i>Add</button></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+
+        // Summary
+        html += '<div class="d-flex gap-3 mt-2">';
+        html += '<span class="text-success"><i class="fas fa-check-circle me-1"></i>' + data.online_devices.length + ' online</span>';
+        html += '<span class="text-secondary"><i class="fas fa-times-circle me-1"></i>' + data.offline_devices.length + ' offline</span>';
+        html += '<span class="text-info"><i class="fas fa-broadcast-tower me-1"></i>' + data.adb_count + ' ADB devices</span>';
+        html += '<span class="text-warning"><i class="fas fa-plus-circle me-1"></i>' + data.new_devices.length + ' new</span>';
+        html += '</div>';
+
+        if (data.new_devices.length === 0) {
+            html += '<p class="text-muted mt-2 mb-0">All connected devices are already in the database.</p>';
+        }
+
+        $('#discoveryBody').html(html);
+        $('#discoveryPanel').removeClass('d-none');
+
+        // Refresh statuses (discovery updates online/offline in DB)
+        loadDeviceStatuses();
+    }).fail(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-broadcast-tower me-1"></i>Discover Devices';
+        showNotification('error', 'Discovery request failed');
+    });
+}
+
+function quickAdd(serial, ip, port, btn) {
+    btn.disabled = true;
+
+    $.ajax({
+        url: '/api/devices/add',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            device_serial: serial,
+            ip_address: ip,
+            adb_port: port,
+            device_name: ip,
+        }),
+        success: function(data) {
+            if (data.status === 'success') {
+                btn.outerHTML = '<span class="badge bg-success">Added âœ“</span>';
+                showNotification('success', 'Device ' + serial + ' added');
+                loadDeviceStatuses();
+                farmRefresh();
+            } else {
+                showNotification('error', data.message || 'Failed to add');
+                btn.disabled = false;
+            }
+        },
+        error: function() {
+            showNotification('error', 'Failed to add device');
+            btn.disabled = false;
+        }
+    });
+}
+
+function addDevice() {
+    const ip = $('#addIp').val().trim();
+    const port = parseInt($('#addPort').val()) || 5555;
+    const name = $('#addName').val().trim();
+    const notes = $('#addNotes').val().trim();
+
+    if (!ip) {
+        showNotification('warning', 'IP address is required');
+        return;
+    }
+
+    $.ajax({
+        url: '/api/devices/add',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            ip_address: ip,
+            adb_port: port,
+            device_name: name || ip,
+            notes: notes
+        }),
+        success: function(data) {
+            if (data.status === 'success') {
+                bootstrap.Modal.getInstance($('#addDeviceModal')[0]).hide();
+                $('#addIp, #addName, #addNotes').val('');
+                showNotification('success', 'Device added successfully');
+                loadDeviceStatuses();
+                farmRefresh();
+            } else {
+                showNotification('error', data.message || 'Failed to add device');
+            }
+        },
+        error: function() {
+            showNotification('error', 'Failed to add device');
+        }
+    });
+}
+
+// =============================================================================
+// PHONE FARM LAUNCHER (run_device.py)
+// =============================================================================
+
+function farmRefresh() {
+    $.get('/api/bot/status', function(data) {
+        if (data.success) {
+            farmDevices = data.devices;
+            renderFarmDevices(data.devices);
+            $('#farmRunning').text(data.running + ' running');
+            $('#farmStopped').text(data.stopped + ' stopped');
+            updateStatCards();
+        }
+    }).fail(function() {
+        $('#farmDevicesList').html(
+            '<div class="text-center text-danger py-3"><i class="fas fa-exclamation-triangle me-2"></i>Failed to load farm status</div>'
+        );
+    });
+}
+
+function renderFarmDevices(devices) {
+    if (!devices || devices.length === 0) {
+        $('#farmDevicesList').html(
+            '<div class="text-center text-white-50 py-4"><i class="fas fa-inbox fa-2x mb-2"></i><p class="mb-0">No devices in database</p></div>'
+        );
+        return;
+    }
+
+    let html = '<div class="table-responsive"><table class="table table-dark table-sm table-hover mb-0">';
+    html += '<thead><tr>';
+    html += '<th>Status</th>';
+    html += '<th style="width:30px;"></th>';
+    html += '<th>Device</th>';
+    html += '<th>Serial</th>';
+    html += '<th>Accounts</th>';
+    html += '<th>Active Account</th>';
+    html += '<th>PID</th>';
+    html += '<th class="text-end">Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    devices.forEach(function(dev) {
+        const running = dev.running;
+        const dotClass = running ? 'running' : 'stopped';
+        const rowStyle = running ? 'border-left: 3px solid #48bb78;' : '';
+
+        // Online/Offline from device management data
+        const devInfo = deviceStatusMap[dev.serial] || {};
+        const isOnline = devInfo.status === 'connected';
+        const statusBadge = isOnline
+            ? '<span class="badge bg-success"><i class="fas fa-circle me-1" style="font-size:0.5em;vertical-align:middle"></i>Online</span>'
+            : '<span class="badge bg-secondary"><i class="fas fa-circle me-1" style="font-size:0.5em;vertical-align:middle"></i>Offline</span>';
+
+        html += '<tr style="' + rowStyle + '">';
+        html += '<td>' + statusBadge + '</td>';
+        html += '<td><span class="status-dot ' + dotClass + '"></span></td>';
+        html += '<td class="text-white fw-500">' + (dev.device_name || '—') + '</td>';
+        html += '<td class="text-white-50" style="font-size:0.85rem;">' + dev.serial + '</td>';
+        html += '<td><span class="badge bg-secondary">' + (dev.account_count || 0) + '</span></td>';
+        html += '<td>';
+        if (running && dev.account) {
+            html += '<span class="text-info"><i class="fas fa-user me-1"></i>' + dev.account + '</span>';
+        } else if (running) {
+            html += '<span class="text-white-50"><i class="fas fa-hourglass-half me-1"></i>initializing...</span>';
+        } else {
+            html += '<span class="text-white-50">—</span>';
+        }
+        html += '</td>';
+        html += '<td>';
+        if (dev.pid) {
+            html += '<code class="text-warning">' + dev.pid + '</code>';
+        } else {
+            html += '<span class="text-white-50">—</span>';
+        }
+        html += '</td>';
+        html += '<td class="text-end">';
+        html += '<button class="btn btn-outline-info btn-sm me-1" onclick="openManageModal(\'' + dev.serial + '\', \'' + (dev.device_name || dev.serial).replace(/'/g, "\\'") + '\')" title="Manage"><i class="fas fa-cog"></i></button>';
+        html += '<button class="btn btn-outline-secondary btn-sm me-1" onclick="farmViewLog(\'' + dev.serial + '\', \'' + (dev.device_name || dev.serial).replace(/'/g, "\\'") + '\')" title="View Log"><i class="fas fa-file-alt"></i></button>';
+        if (running) {
+            html += '<button class="btn btn-danger btn-sm" onclick="farmStopDevice(\'' + dev.serial + '\')" title="Stop"><i class="fas fa-stop"></i></button>';
+        } else {
+            html += '<button class="btn btn-success btn-sm" onclick="farmLaunchDevice(\'' + dev.serial + '\')" title="Launch"' +
+                (dev.account_count === 0 ? ' disabled' : '') + '><i class="fas fa-play"></i></button>';
+        }
+        html += '</td>';
+        html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    $('#farmDevicesList').html(html);
+}
+
+function farmLaunchDevice(serial) {
+    showNotification('info', 'Launching bot for ' + serial + '...');
+    $.ajax({
+        url: '/api/bot/launch/' + encodeURIComponent(serial),
+        method: 'POST',
+        success: function(data) {
+            if (data.success) {
+                showNotification('success', 'Bot launched for ' + (data.device_name || serial) + (data.pid ? ' (PID ' + data.pid + ')' : ''));
+            } else {
+                showNotification('warning', data.message || 'Launch failed');
+            }
+            setTimeout(farmRefresh, 1500);
+        },
+        error: function(xhr) {
+            const msg = xhr.responseJSON ? xhr.responseJSON.message : 'Request failed';
+            showNotification('error', 'Launch failed: ' + msg);
+        }
+    });
+}
+
+function farmStopDevice(serial) {
+    $.ajax({
+        url: '/api/bot/stop/' + encodeURIComponent(serial),
+        method: 'POST',
+        success: function(data) {
+            if (data.success) {
+                showNotification('info', 'Bot stopped for ' + serial);
+            } else {
+                showNotification('warning', data.message || 'Stop failed');
+            }
+            setTimeout(farmRefresh, 1000);
+        },
+        error: function(xhr) {
+            const msg = xhr.responseJSON ? xhr.responseJSON.message : 'Request failed';
+            showNotification('error', 'Stop failed: ' + msg);
+        }
+    });
+}
+
+function farmLaunchAll() {
+    const stoppedDevices = farmDevices.filter(function(d) { return !d.running && d.account_count > 0; });
+    if (stoppedDevices.length === 0) {
+        showNotification('warning', 'All devices are already running (or have no accounts)');
+        return;
+    }
+    if (!confirm('Launch bots for ' + stoppedDevices.length + ' devices?')) return;
+
+    $('#farmLaunchAllBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Launching...');
+
+    $.ajax({
+        url: '/api/bot/launch-all',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(data) {
+            showNotification('success', 'Launched ' + data.launched + ' bots' +
+                (data.skipped > 0 ? ', ' + data.skipped + ' skipped (already running)' : '') +
+                (data.failed > 0 ? ', ' + data.failed + ' failed' : ''));
+            setTimeout(farmRefresh, 2000);
+        },
+        error: function() {
+            showNotification('error', 'Failed to launch bots');
+        },
+        complete: function() {
+            $('#farmLaunchAllBtn').prop('disabled', false).html('<i class="fas fa-rocket me-1"></i>Launch All');
+        }
+    });
+}
+
+function farmStopAll() {
+    const runningDevices = farmDevices.filter(function(d) { return d.running; });
+    if (runningDevices.length === 0) {
+        showNotification('warning', 'No bots are running');
+        return;
+    }
+    if (!confirm('Stop ALL ' + runningDevices.length + ' running bots?')) return;
+
+    $('#farmStopAllBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Stopping...');
+
+    $.ajax({
+        url: '/api/bot/stop-all',
+        method: 'POST',
+        success: function(data) {
+            showNotification('info', 'Stopped ' + data.stopped + ' bots' +
+                (data.failed > 0 ? ', ' + data.failed + ' failed' : ''));
+            setTimeout(farmRefresh, 1000);
+        },
+        error: function() {
+            showNotification('error', 'Failed to stop bots');
+        },
+        complete: function() {
+            $('#farmStopAllBtn').prop('disabled', false).html('<i class="fas fa-power-off me-1"></i>Stop All');
+        }
+    });
+}
+
+function farmViewLog(serial, deviceName) {
+    _farmLogSerial = serial;
+    $('#farmLogModalTitle').text('Log: ' + deviceName + ' (' + serial + ')');
+    $('#farmLogContent').text('Loading...');
+
+    const modal = new bootstrap.Modal(document.getElementById('farmLogModal'));
+    modal.show();
+
+    farmRefreshLog();
+}
+
+function farmRefreshLog() {
+    if (!_farmLogSerial) return;
+
+    $.get('/api/bot/logs/' + encodeURIComponent(_farmLogSerial) + '?lines=150', function(data) {
+        if (data.success && data.lines && data.lines.length > 0) {
+            let html = '';
+            data.lines.forEach(function(line) {
+                let cls = '';
+                if (/ERROR|CRITICAL|âœ—/.test(line)) cls = 'color:#f85149;';
+                else if (/WARNING|⚠/.test(line)) cls = 'color:#d29922;';
+                else if (/âœ“|SUCCESS|Started|Connected/.test(line)) cls = 'color:#3fb950;';
+                else if (/={3,}|â”€{3,}/.test(line)) cls = 'color:#58a6ff; font-weight:600;';
+                html += '<div style="' + cls + '">' + escapeHtml(line) + '</div>';
+            });
+            $('#farmLogContent').html(html);
+
+            var el = document.getElementById('farmLogContent');
+            el.scrollTop = el.scrollHeight;
+
+            if (data.log_file) {
+                $('#farmLogModalTitle').text($('#farmLogModalTitle').text().split(' — ')[0] + ' — ' + data.log_file);
+            }
+        } else {
+            $('#farmLogContent').html('<div style="color:#484f58;">No log data available for this device.</div>');
+        }
+    }).fail(function() {
+        $('#farmLogContent').html('<div style="color:#f85149;">Failed to fetch logs.</div>');
+    });
+}
+
+// =============================================================================
+// MANAGE MODAL FUNCTIONS
+// =============================================================================
+
+function openManageModal(deviceSerial, deviceName) {
+    currentModalDevice = deviceSerial;
+    currentModalAccount = null;
+
+    $('#modalDeviceName').text(deviceName || deviceSerial);
+    $('#manageModalTitle i').removeClass().addClass('fas fa-mobile-alt me-2');
+
+    showAccountsList();
+
+    var modal = new bootstrap.Modal(document.getElementById('manageDeviceModal'));
+    modal.show();
+
+    loadAccountsForModal(deviceSerial);
+}
+
+function loadAccountsForModal(deviceSerial) {
+    $('#accountsListContent').html(
+        '<div class="text-center text-white-50 py-4"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><p>Loading accounts...</p></div>'
+    );
+
+    $.ajax({
+        url: '/api/bots/' + deviceSerial + '/accounts',
+        method: 'GET',
+        success: function(response) {
+            if (response.status === 'success') {
+                renderAccountsList(response.accounts);
+                $('#accountsCountBadge').text(response.accounts.length);
+            } else {
+                $('#accountsListContent').html(
+                    '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>' +
+                    (response.message || 'Failed to load accounts') + '</div>'
+                );
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#accountsListContent').html(
+                '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Failed to load accounts: ' + error + '</div>'
+            );
+        }
+    });
+}
+
+function renderAccountsList(accounts) {
+    if (!accounts || accounts.length === 0) {
+        $('#accountsListContent').html(
+            '<div class="text-center text-white-50 py-4"><i class="fas fa-user-slash fa-2x mb-2"></i><p>No accounts found on this device</p></div>'
+        );
+        return;
+    }
+
+    let html = '<div class="accounts-list">';
+
+    accounts.forEach(function(account) {
+        const username = account.account || account.username;
+        const followers = account.followers || 0;
+        const following = account.following || 0;
+        const followed = account.followed_today || 0;
+        const unfollowed = account.unfollowed_today || 0;
+
+        html += '<div class="account-row">';
+        html += '  <div class="account-info">';
+        html += '    <div class="account-username"><i class="fas fa-user me-2 text-muted"></i>' + username + '</div>';
+        html += '    <div class="account-stats">';
+        html += '      <div class="account-stat" title="Followers"><i class="fas fa-users text-info"></i><span>' + followers + '</span></div>';
+        html += '      <div class="account-stat" title="Following"><i class="fas fa-user-friends text-primary"></i><span>' + following + '</span></div>';
+        html += '      <div class="account-stat" title="Followed Today"><i class="fas fa-user-plus text-success"></i><span>' + followed + '</span></div>';
+        html += '      <div class="account-stat" title="Unfollowed Today"><i class="fas fa-user-minus text-danger"></i><span>' + unfollowed + '</span></div>';
+        html += '    </div>';
+        html += '  </div>';
+        html += '  <div class="account-actions">';
+        html += '    <button class="btn btn-outline-info btn-sm" onclick="openAccountSettings(\'' + username + '\')" title="Settings"><i class="fas fa-cog"></i></button>';
+        html += '  </div>';
+        html += '</div>';
+    });
+
+    html += '</div>';
+    $('#accountsListContent').html(html);
+}
+
+function refreshAccountsList() {
+    if (currentModalDevice) {
+        loadAccountsForModal(currentModalDevice);
+    }
+}
+
+function showAccountsList() {
+    $('#accountsListView').removeClass('hidden');
+    $('#settingsView').removeClass('active');
+    $('#backToAccountsBtn').hide();
+    $('#modalDeviceName').text(currentModalDevice);
+    $('#manageModalTitle i').removeClass().addClass('fas fa-mobile-alt me-2');
+}
+
+function openAccountSettings(accountUsername) {
+    currentModalAccount = accountUsername;
+
+    $('#accountsListView').addClass('hidden');
+    $('#settingsView').addClass('active');
+    $('#backToAccountsBtn').show();
+    $('#settingsAccountName').text(accountUsername);
+    $('#modalDeviceName').text(accountUsername);
+    $('#manageModalTitle i').removeClass().addClass('fas fa-user me-2');
+
+    $('#openFullSettingsLink').attr('href', '/bot-settings?device=' + encodeURIComponent(currentModalDevice) + '&account=' + encodeURIComponent(accountUsername));
+
+    loadModalSettings(currentModalDevice, accountUsername);
+}
+
+function loadModalSettings(deviceSerial, account) {
+    $.ajax({
+        url: '/api/bot-settings/' + deviceSerial + '/' + account,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                modalCurrentSettings = response.settings;
+                populateModalForm(response.settings);
+            } else {
+                showNotification('error', 'Failed to load settings: ' + response.error);
+            }
+        },
+        error: function() {
+            showNotification('error', 'Failed to load settings');
+        }
+    });
+}
+
+function populateModalForm(settings) {
+    $('#settingsView [data-setting]').each(function() {
+        var $el = $(this);
+        var settingPath = $el.data('setting');
+        var value = getNestedModalValue(settings, settingPath);
+
+        if (value !== undefined) {
+            if ($el.is(':checkbox')) {
+                $el.prop('checked', value === true || value === 'true');
+            } else {
+                $el.val(value);
+            }
+        }
+    });
+
+    updateModalToggleLabels();
+    updateModalTabIndicators();
+}
+
+function getNestedModalValue(obj, path) {
+    var keys = path.split('.');
+    var value = obj;
+    for (var i = 0; i < keys.length; i++) {
+        if (value && typeof value === 'object' && keys[i] in value) {
+            value = value[keys[i]];
+        } else {
+            return undefined;
+        }
+    }
+    return value;
+}
+
+function setNestedModalValue(obj, path, value) {
+    var keys = path.split('.');
+    var current = obj;
+    for (var i = 0; i < keys.length - 1; i++) {
+        if (!(keys[i] in current) || typeof current[keys[i]] !== 'object') {
+            current[keys[i]] = {};
+        }
+        current = current[keys[i]];
+    }
+    current[keys[keys.length - 1]] = value;
+}
+
+function collectModalFormData() {
+    var settings = JSON.parse(JSON.stringify(modalCurrentSettings));
+
+    $('#settingsView [data-setting]').each(function() {
+        var $el = $(this);
+        var settingPath = $el.data('setting');
+        var value;
+        if ($el.is(':checkbox')) {
+            value = $el.is(':checked');
+        } else {
+            value = $el.val();
+        }
+        setNestedModalValue(settings, settingPath, value);
+    });
+
+    return settings;
+}
+
+function saveModalSettings() {
+    if (!currentModalDevice || !currentModalAccount) {
+        showNotification('warning', 'No account selected');
+        return;
+    }
+
+    var settings = collectModalFormData();
+
+    $.ajax({
+        url: '/api/bot-settings/' + currentModalDevice + '/' + currentModalAccount,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(settings),
+        success: function(response) {
+            if (response.success) {
+                modalCurrentSettings = response.settings;
+                showNotification('success', 'Settings saved successfully!');
+            } else {
+                showNotification('error', 'Failed to save: ' + response.error);
+            }
+        },
+        error: function() {
+            showNotification('error', 'Failed to save settings');
+        }
+    });
+}
+
+function setupModalToggleListeners() {
+    $('#modal_enable_follow').on('change', function() {
+        $('#modal_followStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateModalTabIndicators();
+    });
+    $('#modal_enable_unfollow').on('change', function() {
+        $('#modal_unfollowStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateModalTabIndicators();
+    });
+    $('#modal_enable_likepost').on('change', function() {
+        $('#modal_likeStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateModalTabIndicators();
+    });
+    $('#modal_enable_comment').on('change', function() {
+        $('#modal_commentStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateModalTabIndicators();
+    });
+    $('#modal_enable_story_viewer').on('change', function() {
+        $('#modal_storyStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateModalTabIndicators();
+    });
+    $('#modal_enable_directmessage').on('change', function() {
+        $('#modal_dmStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateModalTabIndicators();
+    });
+}
+
+function updateModalToggleLabels() {
+    $('#modal_followStatusLabel').text($('#modal_enable_follow').is(':checked') ? 'ON' : 'OFF');
+    $('#modal_unfollowStatusLabel').text($('#modal_enable_unfollow').is(':checked') ? 'ON' : 'OFF');
+    $('#modal_likeStatusLabel').text($('#modal_enable_likepost').is(':checked') ? 'ON' : 'OFF');
+    $('#modal_commentStatusLabel').text($('#modal_enable_comment').is(':checked') ? 'ON' : 'OFF');
+    $('#modal_storyStatusLabel').text($('#modal_enable_story_viewer').is(':checked') ? 'ON' : 'OFF');
+    $('#modal_dmStatusLabel').text($('#modal_enable_directmessage').is(':checked') ? 'ON' : 'OFF');
+}
+
+function updateModalTabIndicators() {
+    $('#modal-follow-indicator').toggleClass('active', $('#modal_enable_follow').is(':checked'));
+    $('#modal-unfollow-indicator').toggleClass('active', $('#modal_enable_unfollow').is(':checked'));
+    $('#modal-like-indicator').toggleClass('active', $('#modal_enable_likepost').is(':checked'));
+    $('#modal-comment-indicator').toggleClass('active', $('#modal_enable_comment').is(':checked'));
+    $('#modal-story-indicator').toggleClass('active', $('#modal_enable_story_viewer').is(':checked'));
+    $('#modal-dm-indicator').toggleClass('active', $('#modal_enable_directmessage').is(':checked'));
+}
+
+// =============================================================================
+// WEBSOCKET REAL-TIME STATUS
+// =============================================================================
+
+let _ws = null;
+let _wsReconnectTimer = null;
+let _wsConnected = false;
+
+function initWebSocket() {
+    var wsUrl = 'ws://' + window.location.hostname + ':5056';
+    console.log('[WS] Connecting to', wsUrl);
+
+    try {
+        _ws = new WebSocket(wsUrl);
+    } catch (e) {
+        console.warn('[WS] Connection failed:', e);
+        scheduleWsReconnect();
+        return;
+    }
+
+    _ws.onopen = function() {
+        _wsConnected = true;
+        console.log('[WS] Connected');
+        updateWsIndicator(true);
+        if (_wsReconnectTimer) {
+            clearTimeout(_wsReconnectTimer);
+            _wsReconnectTimer = null;
+        }
+    };
+
+    _ws.onclose = function() {
+        _wsConnected = false;
+        console.log('[WS] Disconnected');
+        updateWsIndicator(false);
+        scheduleWsReconnect();
+    };
+
+    _ws.onerror = function(e) {
+        console.warn('[WS] Error:', e);
+    };
+
+    _ws.onmessage = function(event) {
+        try {
+            var msg = JSON.parse(event.data);
+            handleWsEvent(msg);
+        } catch (e) {
+            console.warn('[WS] Parse error:', e);
+        }
+    };
+}
+
+function scheduleWsReconnect() {
+    if (_wsReconnectTimer) return;
+    _wsReconnectTimer = setTimeout(function() {
+        _wsReconnectTimer = null;
+        if (!_wsConnected) {
+            initWebSocket();
+        }
+    }, 5000);
+}
+
+function updateWsIndicator(connected) {
+    var $ind = $('#wsIndicator');
+    if ($ind.length) {
+        $ind.removeClass('bg-success bg-secondary bg-danger')
+            .addClass(connected ? 'bg-success' : 'bg-secondary')
+            .attr('title', connected ? 'WebSocket: Connected' : 'WebSocket: Disconnected');
+    }
+}
+
+function handleWsEvent(msg) {
+    switch (msg.type) {
+        case 'bot_status':
+            onBotStatusUpdate(msg.data);
+            break;
+        case 'device_status':
+            onDeviceStatusUpdate(msg.data);
+            break;
+        case 'stats_update':
+            onStatsUpdate(msg.data);
+            break;
+        case 'status_snapshot':
+            onStatusSnapshot(msg.data);
+            break;
+        case 'action_event':
+            // Could refresh farm status on action events
+            break;
+        case 'pong':
+            break;
+        default:
+            console.log('[WS] Unknown event:', msg.type);
+    }
+}
+
+function onBotStatusUpdate(data) {
+    var serial = data.device_serial;
+    var status = data.status;
+    console.log('[WS] Bot status:', serial, status);
+
+    // Refresh farm display
+    farmRefresh();
+
+    if (status === 'running') {
+        showNotification('success', '<i class="fas fa-robot me-1"></i> Bot started: ' + (data.username || serial));
+    } else if (status === 'idle') {
+        showNotification('info', '<i class="fas fa-stop-circle me-1"></i> Bot stopped: ' + (data.username || serial));
+    } else if (status === 'error') {
+        showNotification('error', '<i class="fas fa-exclamation-triangle me-1"></i> Bot error: ' + (data.username || serial));
+    }
+}
+
+function onDeviceStatusUpdate(data) {
+    // Refresh device statuses when ADB status changes
+    loadDeviceStatuses();
+}
+
+function onStatsUpdate(data) {
+    // Update running bots count from WS data if available
+    if (data.active_sessions) {
+        $('#statRunningBots').text(data.active_sessions.length);
+    }
+}
+
+function onStatusSnapshot(data) {
+    console.log('[WS] Status snapshot received');
+    if (data.active_sessions) {
+        onStatsUpdate(data);
+    }
+}
+
+// =============================================================================
+// UTILITIES
+// =============================================================================
+
+function showNotification(type, message) {
+    var bgColor = {
+        'success': '#48bb78',
+        'error': '#f56565',
+        'warning': '#ed8936',
+        'info': '#4299e1'
+    }[type] || '#4299e1';
+
+    var icon = {
+        'success': 'fa-check-circle',
+        'error': 'fa-exclamation-circle',
+        'warning': 'fa-exclamation-triangle',
+        'info': 'fa-info-circle'
+    }[type] || 'fa-info-circle';
+
+    var notification = $(
+        '<div class="alert alert-dismissible fade show" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px; background-color: ' + bgColor + '; color: white; border: none;">' +
+        '<i class="fas ' + icon + ' me-2"></i>' + message +
+        '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>' +
+        '</div>'
+    );
+
+    $('body').append(notification);
+    setTimeout(function() { notification.alert('close'); }, 5000);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+</script>
+{% endblock %}

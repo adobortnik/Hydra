@@ -1,0 +1,878 @@
+{% extends "base.html" %}
+{% block title %}Proxy Management - Hydra{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-shield-alt me-2"></i>Proxy Management</h2>
+    <div>
+        <button class="btn btn-info me-2" onclick="checkAllProxies()">
+            <i class="fas fa-heartbeat me-1"></i> Health Check All
+        </button>
+        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#importModal">
+            <i class="fas fa-file-import me-1"></i> Import Proxies
+        </button>
+        <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#addProxyModal">
+            <i class="fas fa-plus me-1"></i> Add Proxy
+        </button>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row mb-4" id="statsRow">
+    <div class="col-md-3">
+        <div class="card bg-dark border-info text-center p-3">
+            <h4 class="mb-0 text-info" id="statTotal">-</h4>
+            <p class="mb-0 mt-1 text-white-50">Total Proxies</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-success text-center p-3">
+            <h4 class="mb-0 text-success" id="statAvailable">-</h4>
+            <p class="mb-0 mt-1 text-white-50">Available</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-warning text-center p-3">
+            <h4 class="mb-0 text-warning" id="statInUse">-</h4>
+            <p class="mb-0 mt-1 text-white-50">In Use</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-dark border-danger text-center p-3">
+            <h4 class="mb-0 text-danger" id="statDead">-</h4>
+            <p class="mb-0 mt-1 text-white-50">Dead</p>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#proxyPoolTab">
+            <i class="fas fa-server me-1"></i> Proxy Pool
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#deviceProxyTab">
+            <i class="fas fa-mobile-alt me-1"></i> Device Proxies
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#historyTab">
+            <i class="fas fa-history me-1"></i> History
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Proxy Pool Tab -->
+    <div class="tab-pane fade show active" id="proxyPoolTab">
+        <div class="card bg-dark border-secondary">
+            <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Proxy Pool</h5>
+                <div>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary d-inline-block" 
+                            style="width:auto;" id="proxyStatusFilter" onchange="loadProxies()">
+                        <option value="">All Statuses</option>
+                        <option value="available">Available</option>
+                        <option value="in_use">In Use</option>
+                        <option value="dead">Dead</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Host</th>
+                                <th>Port</th>
+                                <th>Type</th>
+                                <th>Auth</th>
+                                <th>Label</th>
+                                <th>Status</th>
+                                <th>Assigned Device</th>
+                                <th>Latency</th>
+                                <th>Last Checked</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="proxyTableBody">
+                            <tr><td colspan="11" class="text-center text-white-50 py-4">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Proxies Tab -->
+    <div class="tab-pane fade" id="deviceProxyTab">
+        <div class="card bg-dark border-secondary">
+            <div class="card-header bg-dark border-secondary">
+                <h5 class="mb-0"><i class="fas fa-mobile-alt me-2"></i>Device Proxy Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="deviceProxyGrid">
+                    <div class="col-12 text-center text-white-50 py-4">Loading devices...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Tab -->
+    <div class="tab-pane fade" id="historyTab">
+        <div class="card bg-dark border-secondary">
+            <div class="card-header bg-dark border-secondary">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Actions</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Device</th>
+                                <th>Proxy</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr><td colspan="5" class="text-center text-white-50 py-4">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Proxy Modal -->
+<div class="modal fade" id="addProxyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Add Proxy</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-8 mb-3">
+                        <label class="form-label">Host / IP</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="addProxyHost" placeholder="1.2.3.4">
+                    </div>
+                    <div class="col-4 mb-3">
+                        <label class="form-label">Port</label>
+                        <input type="number" class="form-control bg-dark text-white border-secondary" id="addProxyPort" placeholder="8080">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Type</label>
+                        <select class="form-select bg-dark text-white border-secondary" id="addProxyType">
+                            <option value="HTTP">HTTP</option>
+                            <option value="HTTPS">HTTPS</option>
+                            <option value="SOCKS5">SOCKS5</option>
+                            <option value="SOCKS4">SOCKS4</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Label</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="addProxyLabel" placeholder="US Proxy 1">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Username <small class="text-white-50">(optional)</small></label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="addProxyUser">
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Password <small class="text-white-50">(optional)</small></label>
+                        <input type="password" class="form-control bg-dark text-white border-secondary" id="addProxyPass">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Country <small class="text-white-50">(optional)</small></label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="addProxyCountry" placeholder="US">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" onclick="addProxy()">
+                    <i class="fas fa-plus me-1"></i> Add Proxy
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-file-import me-2"></i>Bulk Import Proxies</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Default Proxy Type</label>
+                    <select class="form-select bg-dark text-white border-secondary" id="importDefaultType">
+                        <option value="HTTP">HTTP</option>
+                        <option value="HTTPS">HTTPS</option>
+                        <option value="SOCKS5">SOCKS5</option>
+                        <option value="SOCKS4">SOCKS4</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Paste Proxies</label>
+                    <textarea class="form-control bg-dark text-white border-secondary font-monospace" 
+                              id="importText" rows="10"
+                              placeholder="Supported formats (one per line):&#10;host:port&#10;host:port:username:password&#10;host:port:type:username:password&#10;&#10;Lines starting with # are skipped"></textarea>
+                </div>
+                <div class="text-white-50 small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Duplicates (same host:port) will be skipped automatically.
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" onclick="importProxies()">
+                    <i class="fas fa-file-import me-1"></i> Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Proxy Modal -->
+<div class="modal fade" id="editProxyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Proxy</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editProxyId">
+                <div class="row">
+                    <div class="col-8 mb-3">
+                        <label class="form-label">Host / IP</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="editProxyHost">
+                    </div>
+                    <div class="col-4 mb-3">
+                        <label class="form-label">Port</label>
+                        <input type="number" class="form-control bg-dark text-white border-secondary" id="editProxyPort">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Type</label>
+                        <select class="form-select bg-dark text-white border-secondary" id="editProxyType">
+                            <option value="HTTP">HTTP</option>
+                            <option value="HTTPS">HTTPS</option>
+                            <option value="SOCKS5">SOCKS5</option>
+                            <option value="SOCKS4">SOCKS4</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Label</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="editProxyLabel">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="editProxyUser">
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control bg-dark text-white border-secondary" id="editProxyPass">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select bg-dark text-white border-secondary" id="editProxyStatus">
+                            <option value="available">Available</option>
+                            <option value="in_use">In Use</option>
+                            <option value="dead">Dead</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Country</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="editProxyCountry">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" onclick="updateProxy()">
+                    <i class="fas fa-save me-1"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Set Proxy on Device Modal -->
+<div class="modal fade" id="setProxyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-exchange-alt me-2"></i>Set Proxy on Device</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="setProxyDeviceSerial">
+                <p class="text-white-50">Device: <strong id="setProxyDeviceName" class="text-white"></strong></p>
+                <div class="mb-3">
+                    <label class="form-label">Select Proxy</label>
+                    <select class="form-select bg-dark text-white border-secondary" id="setProxySelect">
+                        <option value="">Loading proxies...</option>
+                    </select>
+                </div>
+                <div class="alert alert-info bg-dark border-info text-white-50 small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    This will open SuperProxy on the device and configure the selected proxy.
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" onclick="setProxyOnDevice()">
+                    <i class="fas fa-check me-1"></i> Apply Proxy
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let allProxies = [];
+let allDevices = [];
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+$(document).ready(function() {
+    loadStats();
+    loadProxies();
+    loadDevices();
+    loadHistory();
+});
+
+// ─────────────────────────────────────────────
+// STATS
+// ─────────────────────────────────────────────
+function loadStats() {
+    $.get('/api/proxies/stats', function(res) {
+        if (res.status === 'success') {
+            const s = res.stats;
+            $('#statTotal').text(s.total);
+            $('#statAvailable').text(s.available);
+            $('#statInUse').text(s.in_use);
+            $('#statDead').text(s.dead);
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+// PROXY LIST
+// ─────────────────────────────────────────────
+function loadProxies() {
+    const filter = $('#proxyStatusFilter').val();
+    const url = filter ? `/api/proxies?status=${filter}` : '/api/proxies';
+    
+    $.get(url, function(res) {
+        if (res.status === 'success') {
+            allProxies = res.proxies;
+            renderProxyTable(res.proxies);
+        }
+    });
+}
+
+function renderProxyTable(proxies) {
+    const tbody = $('#proxyTableBody');
+    
+    if (!proxies.length) {
+        tbody.html('<tr><td colspan="11" class="text-center text-white-50 py-4">No proxies found. Add some or import a list.</td></tr>');
+        return;
+    }
+    
+    let html = '';
+    proxies.forEach(p => {
+        const statusBadge = getStatusBadge(p.status);
+        const hasAuth = p.username ? '<i class="fas fa-key text-warning" title="Has credentials"></i>' : '<span class="text-white-50">—</span>';
+        const latency = p.check_latency_ms ? `${p.check_latency_ms}ms` : '—';
+        const lastChecked = p.last_checked ? timeAgo(p.last_checked) : 'Never';
+        const assigned = p.assigned_device_serial 
+            ? `<span class="badge bg-info">${p.assigned_device_serial}</span>` 
+            : '<span class="text-white-50">—</span>';
+        const label = p.label || '<span class="text-white-50">—</span>';
+        
+        html += `
+        <tr>
+            <td class="text-white-50">${p.id}</td>
+            <td><code>${p.host}</code></td>
+            <td>${p.port}</td>
+            <td><span class="badge bg-secondary">${p.proxy_type}</span></td>
+            <td>${hasAuth}</td>
+            <td>${label}</td>
+            <td>${statusBadge}</td>
+            <td>${assigned}</td>
+            <td>${latency}</td>
+            <td class="text-white-50 small">${lastChecked}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary btn-sm" onclick="editProxy(${p.id})" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteProxy(${p.id})" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+    
+    tbody.html(html);
+}
+
+function getStatusBadge(status) {
+    const map = {
+        'available': '<span class="badge bg-success">Available</span>',
+        'in_use': '<span class="badge bg-warning text-dark">In Use</span>',
+        'dead': '<span class="badge bg-danger">Dead</span>',
+        'checking': '<span class="badge bg-info">Checking...</span>',
+    };
+    return map[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+// ─────────────────────────────────────────────
+// ADD PROXY
+// ─────────────────────────────────────────────
+function addProxy() {
+    const data = {
+        host: $('#addProxyHost').val().trim(),
+        port: parseInt($('#addProxyPort').val()),
+        proxy_type: $('#addProxyType').val(),
+        label: $('#addProxyLabel').val().trim() || null,
+        username: $('#addProxyUser').val().trim() || null,
+        password: $('#addProxyPass').val().trim() || null,
+        country: $('#addProxyCountry').val().trim() || null,
+    };
+    
+    if (!data.host || !data.port) {
+        alert('Host and port are required');
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/proxies',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(res) {
+            if (res.status === 'success') {
+                $('#addProxyModal').modal('hide');
+                loadProxies();
+                loadStats();
+                showToast('Proxy added successfully', 'success');
+            } else {
+                alert(res.message);
+            }
+        },
+        error: function(xhr) {
+            alert(xhr.responseJSON?.message || 'Failed to add proxy');
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+// EDIT PROXY
+// ─────────────────────────────────────────────
+function editProxy(id) {
+    const p = allProxies.find(x => x.id === id);
+    if (!p) return;
+    
+    $('#editProxyId').val(p.id);
+    $('#editProxyHost').val(p.host);
+    $('#editProxyPort').val(p.port);
+    $('#editProxyType').val(p.proxy_type);
+    $('#editProxyLabel').val(p.label || '');
+    $('#editProxyUser').val(p.username || '');
+    $('#editProxyPass').val('');
+    $('#editProxyStatus').val(p.status);
+    $('#editProxyCountry').val(p.country || '');
+    
+    $('#editProxyModal').modal('show');
+}
+
+function updateProxy() {
+    const id = $('#editProxyId').val();
+    const data = {
+        host: $('#editProxyHost').val().trim(),
+        port: parseInt($('#editProxyPort').val()),
+        proxy_type: $('#editProxyType').val(),
+        label: $('#editProxyLabel').val().trim() || null,
+        username: $('#editProxyUser').val().trim() || null,
+        status: $('#editProxyStatus').val(),
+        country: $('#editProxyCountry').val().trim() || null,
+    };
+    
+    // Only include password if changed
+    const pass = $('#editProxyPass').val().trim();
+    if (pass) data.password = pass;
+    
+    $.ajax({
+        url: `/api/proxies/${id}`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(res) {
+            if (res.status === 'success') {
+                $('#editProxyModal').modal('hide');
+                loadProxies();
+                loadStats();
+                showToast('Proxy updated', 'success');
+            } else {
+                alert(res.message);
+            }
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+// DELETE PROXY
+// ─────────────────────────────────────────────
+function deleteProxy(id) {
+    if (!confirm('Delete this proxy?')) return;
+    
+    $.ajax({
+        url: `/api/proxies/${id}`,
+        method: 'DELETE',
+        success: function(res) {
+            if (res.status === 'success') {
+                loadProxies();
+                loadStats();
+                showToast('Proxy deleted', 'success');
+            } else {
+                alert(res.message);
+            }
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+// IMPORT PROXIES
+// ─────────────────────────────────────────────
+function importProxies() {
+    const text = $('#importText').val().trim();
+    const defaultType = $('#importDefaultType').val();
+    
+    if (!text) {
+        alert('Paste some proxies first');
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/proxies/import',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ proxies_text: text, default_type: defaultType }),
+        success: function(res) {
+            if (res.status === 'success') {
+                $('#importModal').modal('hide');
+                $('#importText').val('');
+                loadProxies();
+                loadStats();
+                
+                let msg = `Imported ${res.added} proxies`;
+                if (res.skipped > 0) msg += ` (${res.skipped} duplicates skipped)`;
+                if (res.errors.length > 0) msg += `\n\nErrors:\n${res.errors.join('\n')}`;
+                showToast(msg, 'success');
+            } else {
+                alert(res.message);
+            }
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+// HEALTH CHECK
+// ─────────────────────────────────────────────
+function checkAllProxies() {
+    $.ajax({
+        url: '/api/proxies/check-all',
+        method: 'POST',
+        success: function(res) {
+            showToast(res.message || 'Health check started', 'info');
+            // Reload after a delay
+            setTimeout(() => { loadProxies(); loadStats(); }, 8000);
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+// DEVICE PROXY OVERVIEW
+// ─────────────────────────────────────────────
+function loadDevices() {
+    // Try phone farm V2 API first, fallback to legacy
+    $.get('/api/devices/list', function(res) {
+        if (res.status === 'success') {
+            allDevices = res.devices;
+            renderDeviceGrid(res.devices);
+        }
+    }).fail(function() {
+        // Fallback: try legacy endpoint
+        $.get('/api/devices', function(res) {
+            if (res.devices) {
+                allDevices = res.devices;
+                renderDeviceGrid(res.devices);
+            }
+        });
+    });
+}
+
+function renderDeviceGrid(devices) {
+    const grid = $('#deviceProxyGrid');
+    
+    if (!devices.length) {
+        grid.html('<div class="col-12 text-center text-white-50 py-4">No devices found</div>');
+        return;
+    }
+    
+    let html = '';
+    devices.forEach(d => {
+        const serial = d.device_serial || d.deviceid;
+        const name = d.device_name || d.devicename || serial;
+        const status = d.status || 'unknown';
+        const statusDot = status === 'connected' ? '🟢' : (status === 'disconnected' ? '🔴' : '🟡');
+        
+        // Check if device has a proxy assigned
+        const assignedProxy = allProxies.find(p => p.assigned_device_serial === serial);
+        const proxyInfo = assignedProxy 
+            ? `<span class="badge bg-info">${assignedProxy.host}:${assignedProxy.port}</span>`
+            : '<span class="text-white-50">No proxy</span>';
+        
+        html += `
+        <div class="col-md-4 col-lg-3 mb-3">
+            <div class="card bg-dark border-secondary h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">${statusDot} ${name}</h6>
+                    </div>
+                    <p class="text-white-50 small mb-2"><code>${serial}</code></p>
+                    <p class="mb-2">Proxy: ${proxyInfo}</p>
+                    <div class="btn-group btn-group-sm w-100">
+                        <button class="btn btn-outline-success" onclick="openSuperProxy('${serial}')" title="Open SuperProxy">
+                            <i class="fas fa-play"></i> Open
+                        </button>
+                        <button class="btn btn-outline-info" onclick="checkDeviceProxy('${serial}')" title="Check Status">
+                            <i class="fas fa-search"></i> Status
+                        </button>
+                        <button class="btn btn-outline-warning" onclick="showSetProxy('${serial}', '${name}')" title="Set Proxy">
+                            <i class="fas fa-exchange-alt"></i> Set
+                        </button>
+                    </div>
+                </div>
+                <div class="card-footer bg-dark border-secondary p-2" id="deviceStatus_${serial.replace(/[:.]/g, '_')}" style="display:none;">
+                    <small class="text-white-50">—</small>
+                </div>
+            </div>
+        </div>`;
+    });
+    
+    grid.html(html);
+}
+
+// ─────────────────────────────────────────────
+// DEVICE ACTIONS
+// ─────────────────────────────────────────────
+function openSuperProxy(serial) {
+    const safeId = serial.replace(/[:.]/g, '_');
+    const footer = $(`#deviceStatus_${safeId}`);
+    footer.show().html('<small class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Opening SuperProxy...</small>');
+    
+    $.ajax({
+        url: `/api/devices/${serial}/proxy/open`,
+        method: 'POST',
+        success: function(res) {
+            if (res.status === 'success') {
+                footer.html('<small class="text-success"><i class="fas fa-check me-1"></i>' + (res.data?.message || 'Opened') + ' — checking status...</small>');
+                // Auto-check proxy status after opening (give app 2s to load)
+                setTimeout(() => checkDeviceProxy(serial), 2000);
+            } else {
+                footer.html('<small class="text-danger"><i class="fas fa-times me-1"></i>' + (res.data?.message || res.message) + '</small>');
+            }
+        },
+        error: function(xhr) {
+            footer.html('<small class="text-danger"><i class="fas fa-times me-1"></i>' + (xhr.responseJSON?.message || 'Failed') + '</small>');
+        }
+    });
+}
+
+function checkDeviceProxy(serial) {
+    const safeId = serial.replace(/[:.]/g, '_');
+    const footer = $(`#deviceStatus_${safeId}`);
+    footer.show().html('<small class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Checking...</small>');
+    
+    $.ajax({
+        url: `/api/devices/${serial}/proxy/status`,
+        method: 'GET',
+        success: function(res) {
+            if (res.status === 'success') {
+                const d = res.data;
+                const icon = d.active ? '🟢' : '🔴';
+                const proxy = d.current_proxy?.host ? `${d.current_proxy.host}:${d.current_proxy.port}` : 'Unknown';
+                footer.html(`<small>${icon} Proxy: ${d.active ? 'Active' : 'Inactive'} | ${proxy} (${d.confidence})</small>`);
+            } else {
+                footer.html('<small class="text-danger">' + res.message + '</small>');
+            }
+        },
+        error: function(xhr) {
+            footer.html('<small class="text-danger">' + (xhr.responseJSON?.message || 'Failed') + '</small>');
+        }
+    });
+}
+
+function showSetProxy(serial, name) {
+    $('#setProxyDeviceSerial').val(serial);
+    $('#setProxyDeviceName').text(name || serial);
+    
+    // Populate proxy dropdown
+    const select = $('#setProxySelect');
+    select.empty();
+    select.append('<option value="">-- Select a proxy --</option>');
+    
+    allProxies.filter(p => p.status === 'available' || p.assigned_device_serial === serial)
+        .forEach(p => {
+            const label = p.label ? `${p.label} (${p.host}:${p.port})` : `${p.host}:${p.port}`;
+            const tag = p.assigned_device_serial === serial ? ' [current]' : '';
+            select.append(`<option value="${p.id}">${label} [${p.proxy_type}]${tag}</option>`);
+        });
+    
+    $('#setProxyModal').modal('show');
+}
+
+function setProxyOnDevice() {
+    const serial = $('#setProxyDeviceSerial').val();
+    const proxyId = $('#setProxySelect').val();
+    
+    if (!proxyId) {
+        alert('Select a proxy first');
+        return;
+    }
+    
+    $.ajax({
+        url: `/api/devices/${serial}/proxy/set`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ proxy_id: parseInt(proxyId) }),
+        success: function(res) {
+            $('#setProxyModal').modal('hide');
+            if (res.status === 'success') {
+                showToast('Proxy set on device', 'success');
+                loadProxies();
+                loadDevices();
+            } else {
+                showToast(res.data?.message || res.message || 'Failed', 'danger');
+            }
+        },
+        error: function(xhr) {
+            alert(xhr.responseJSON?.message || 'Failed to set proxy');
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+// HISTORY
+// ─────────────────────────────────────────────
+function loadHistory() {
+    $.get('/api/proxies/history?limit=50', function(res) {
+        if (res.status === 'success') {
+            renderHistory(res.history);
+        }
+    });
+}
+
+function renderHistory(history) {
+    const tbody = $('#historyTableBody');
+    
+    if (!history.length) {
+        tbody.html('<tr><td colspan="5" class="text-center text-white-50 py-4">No history yet</td></tr>');
+        return;
+    }
+    
+    let html = '';
+    history.forEach(h => {
+        const proxy = h.proxy_host ? `${h.proxy_host}:${h.proxy_port}` : '—';
+        const actionBadge = getActionBadge(h.action);
+        
+        html += `
+        <tr>
+            <td class="text-white-50 small">${timeAgo(h.timestamp)}</td>
+            <td><code>${h.device_serial}</code></td>
+            <td>${proxy}</td>
+            <td>${actionBadge}</td>
+            <td class="text-white-50 small">${h.details || '—'}</td>
+        </tr>`;
+    });
+    
+    tbody.html(html);
+}
+
+function getActionBadge(action) {
+    const map = {
+        'assigned': '<span class="badge bg-success">Assigned</span>',
+        'removed': '<span class="badge bg-warning text-dark">Removed</span>',
+        'failed': '<span class="badge bg-danger">Failed</span>',
+        'toggled_on': '<span class="badge bg-info">Toggled ON</span>',
+        'toggled_off': '<span class="badge bg-secondary">Toggled OFF</span>',
+        'app_opened': '<span class="badge bg-primary">App Opened</span>',
+    };
+    return map[action] || `<span class="badge bg-dark">${action}</span>`;
+}
+
+// ─────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────
+function timeAgo(dateStr) {
+    if (!dateStr) return '—';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000);
+    
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+}
+
+function showToast(message, type) {
+    // Simple toast using Bootstrap
+    const id = 'toast_' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-info';
+    
+    const html = `
+    <div id="${id}" class="position-fixed top-0 end-0 m-3 p-3 rounded ${bgClass} text-white shadow" 
+         style="z-index:9999; max-width:400px;">
+        <div class="d-flex align-items-start">
+            <div class="flex-grow-1">${message}</div>
+            <button class="btn-close btn-close-white ms-2" onclick="$('#${id}').fadeOut()"></button>
+        </div>
+    </div>`;
+    
+    $('body').append(html);
+    setTimeout(() => $(`#${id}`).fadeOut(500, function() { $(this).remove(); }), 4000);
+}
+</script>
+{% endblock %}

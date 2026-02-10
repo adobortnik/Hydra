@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydra 🐙 — Používateľská príručka</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-hover: #1a1a28;
+            --border: #1e1e2e;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --accent: #6c5ce7;
+            --accent-light: #a29bfe;
+            --accent-glow: rgba(108, 92, 231, 0.12);
+            --green: #00d2a0;
+            --green-glow: rgba(0, 210, 160, 0.12);
+            --orange: #f0a040;
+            --orange-glow: rgba(240, 160, 64, 0.12);
+            --red: #e74c6f;
+            --blue: #4fa8d5;
+            --blue-glow: rgba(79, 168, 213, 0.12);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+        .sidebar { position: fixed; top: 0; left: 0; width: 270px; height: 100vh; background: var(--bg-card); border-right: 1px solid var(--border); padding: 24px 0; overflow-y: auto; z-index: 100; }
+        .sidebar-brand { padding: 0 24px 20px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+        .sidebar-brand h1 { font-size: 1.4rem; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .sidebar-brand p { font-size: 0.72rem; color: var(--text-dim); margin-top: 4px; }
+        .nav-section { padding: 10px 24px 4px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin-top: 6px; }
+        .nav-link { display: flex; align-items: center; gap: 10px; padding: 9px 24px 9px 28px; font-size: 0.84rem; color: var(--text-dim); text-decoration: none; transition: all 0.2s; border-left: 3px solid transparent; }
+        .nav-link i { width: 18px; text-align: center; font-size: 0.8rem; }
+        .nav-link:hover, .nav-link.active { color: var(--text); background: var(--accent-glow); border-left-color: var(--accent); }
+        .nav-divider { height: 1px; background: var(--border); margin: 12px 24px; }
+        .sidebar-footer { padding: 16px 24px; border-top: 1px solid var(--border); margin-top: 12px; }
+        .sidebar-footer a { font-size: 0.78rem; color: var(--accent-light); text-decoration: none; display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+        .sidebar-footer a:hover { color: var(--green); }
+        .main { margin-left: 270px; padding: 40px 56px 120px; max-width: 920px; }
+        .hero { background: linear-gradient(135deg, rgba(108,92,231,0.08), rgba(0,210,160,0.06)); border: 1px solid var(--border); border-radius: 16px; padding: 40px; margin-bottom: 48px; text-align: center; }
+        .hero h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; }
+        .hero p { color: var(--text-dim); font-size: 1rem; margin: 0; }
+        .hero .version { display: inline-block; margin-top: 12px; padding: 4px 14px; background: var(--accent-glow); border: 1px solid rgba(108,92,231,0.3); border-radius: 20px; font-size: 0.72rem; color: var(--accent-light); font-weight: 600; }
+        h2 { font-size: 1.6rem; font-weight: 800; margin: 56px 0 12px; padding-top: 24px; }
+        h2:first-of-type { margin-top: 0; }
+        h3 { font-size: 1.15rem; font-weight: 700; margin: 32px 0 10px; color: var(--green); }
+        p { margin: 6px 0 14px; }
+        ul, ol { margin: 6px 0 16px 20px; }
+        li { margin: 5px 0; }
+        strong { color: #fff; }
+        .features { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0 28px; }
+        .feature { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; transition: all 0.2s; }
+        .feature:hover { border-color: rgba(108,92,231,0.4); background: var(--bg-hover); }
+        .feature .icon { font-size: 1.6rem; margin-bottom: 10px; }
+        .feature h4 { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+        .feature p { font-size: 0.82rem; color: var(--text-dim); margin: 0; line-height: 1.5; }
+        .steps { counter-reset: step; margin: 16px 0 24px; }
+        .step { display: flex; gap: 18px; margin: 16px 0; padding: 18px 22px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; }
+        .step::before { counter-increment: step; content: counter(step); flex-shrink: 0; width: 36px; height: 36px; background: var(--accent-glow); border: 1px solid rgba(108,92,231,0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.9rem; color: var(--accent-light); }
+        .step-content h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+        .step-content p { font-size: 0.84rem; color: var(--text-dim); margin: 0; }
+        .page-card { display: flex; align-items: flex-start; gap: 16px; padding: 18px; margin: 10px 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; transition: all 0.2s; }
+        .page-card:hover { border-color: rgba(108,92,231,0.4); background: var(--bg-hover); }
+        .page-card .page-icon { font-size: 1.4rem; flex-shrink: 0; width: 40px; text-align: center; }
+        .page-card h4 { font-size: 0.92rem; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+        .page-card .page-url { font-size: 0.72rem; color: var(--accent-light); font-weight: 500; margin-bottom: 4px; }
+        .page-card p { font-size: 0.82rem; color: var(--text-dim); margin: 0; line-height: 1.5; }
+        .info-box { padding: 18px 22px; border-radius: 10px; margin: 14px 0 20px; border-left: 4px solid; }
+        .info-box.tip { background: var(--green-glow); border-color: var(--green); }
+        .info-box.warning { background: var(--orange-glow); border-color: var(--orange); }
+        .info-box.danger { background: rgba(231,76,111,0.1); border-color: var(--red); }
+        .info-box.info { background: var(--blue-glow); border-color: var(--blue); }
+        .info-box strong { display: block; margin-bottom: 4px; }
+        .info-box p { margin: 0; font-size: 0.88rem; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0 20px; font-size: 0.86rem; }
+        th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { font-weight: 600; color: var(--accent-light); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:hover td { background: var(--accent-glow); }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
+        .badge.green { background: var(--green-glow); color: var(--green); }
+        .badge.orange { background: var(--orange-glow); color: var(--orange); }
+        .faq-item { margin: 12px 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .faq-q { padding: 16px 20px; font-weight: 600; font-size: 0.92rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; }
+        .faq-q:hover { background: var(--bg-hover); }
+        .faq-q i { color: var(--text-dim); font-size: 0.75rem; transition: transform 0.3s; }
+        .faq-item.open .faq-q i { transform: rotate(180deg); }
+        .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .faq-item.open .faq-a { max-height: 500px; }
+        .faq-a-inner { padding: 0 20px 16px; font-size: 0.86rem; color: var(--text-dim); line-height: 1.6; }
+        @media (max-width: 900px) { .sidebar { display: none; } .main { margin-left: 0; padding: 20px; } .features { grid-template-columns: 1fr; } .hero { padding: 28px 20px; } .hero h1 { font-size: 1.6rem; } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <h1>🐙 Hydra</h1>
+        <p>Používateľská príručka</p>
+    </div>
+    <div class="nav-section">Začíname</div>
+    <a href="#vitajte" class="nav-link"><i class="fas fa-home"></i> Vitajte</a>
+    <a href="#co-je-hydra" class="nav-link"><i class="fas fa-info-circle"></i> Čo je Hydra?</a>
+    <a href="#rychly-start" class="nav-link"><i class="fas fa-rocket"></i> Rýchly štart</a>
+    <div class="nav-section">Sprievodca dashboardom</div>
+    <a href="#dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i> Hlavný prehľad</a>
+    <a href="#ucty" class="nav-link"><i class="fas fa-users"></i> Správa účtov</a>
+    <a href="#nastavenia-bota" class="nav-link"><i class="fas fa-sliders-h"></i> Nastavenia bota</a>
+    <a href="#zdroje" class="nav-link"><i class="fas fa-crosshairs"></i> Zdroje a ciele</a>
+    <a href="#obsah" class="nav-link"><i class="fas fa-photo-video"></i> Obsah a médiá</a>
+    <a href="#zakazky" class="nav-link"><i class="fas fa-tasks"></i> Zákazky</a>
+    <a href="#zariadenia" class="nav-link"><i class="fas fa-mobile-alt"></i> Správa zariadení</a>
+    <div class="nav-section">Automatizácia</div>
+    <a href="#ako-funguje-bot" class="nav-link"><i class="fas fa-robot"></i> Ako bot funguje</a>
+    <a href="#akcie" class="nav-link"><i class="fas fa-bolt"></i> Vysvetlenie akcií</a>
+    <a href="#limity" class="nav-link"><i class="fas fa-shield-alt"></i> Bezpečnosť a limity</a>
+    <a href="#planovanie" class="nav-link"><i class="fas fa-calendar-alt"></i> Plánovanie</a>
+    <div class="nav-section">Pomoc</div>
+    <a href="#faq" class="nav-link"><i class="fas fa-question-circle"></i> Časté otázky</a>
+    <a href="#riesenie-problemov" class="nav-link"><i class="fas fa-wrench"></i> Riešenie problémov</a>
+    <a href="#slovnik" class="nav-link"><i class="fas fa-book"></i> Slovník pojmov</a>
+    <div class="nav-divider"></div>
+    <div class="sidebar-footer">
+        <a href="/docs"><i class="fas fa-globe"></i> English version</a>
+        <a href="/docs-dev"><i class="fas fa-code"></i> Vývojárska dokumentácia</a>
+    </div>
+</nav>
+
+<div class="main">
+
+<div class="hero">
+    <h1>🐙 Vitajte v Hydra</h1>
+    <p>Vaša platforma na automatizáciu Instagram phone farmy</p>
+    <span class="version">v1.0 — Február 2026</span>
+</div>
+
+<h2 id="vitajte">👋 Vitajte</h2>
+<p>Tento sprievodca vás naučí všetko, čo potrebujete vedieť o používaní systému Hydra — od pridávania účtov až po spustenie plnej automatizácie na 50+ telefónoch. Žiadne programovanie nie je potrebné.</p>
+
+<div class="features">
+    <div class="feature"><div class="icon">📱</div><h4>50+ telefónov</h4><p>Spravujte celú flotilu Android zariadení z jedného dashboardu.</p></div>
+    <div class="feature"><div class="icon">👥</div><h4>600+ účtov</h4><p>Prevádzkujte stovky Instagram účtov cez viaceré klonové aplikácie na každom zariadení.</p></div>
+    <div class="feature"><div class="icon">🤖</div><h4>Plná automatizácia</h4><p>Sledovanie, lajky, komentáre, zdieľanie, DM, pozeranie reels — všetko na autopilote.</p></div>
+    <div class="feature"><div class="icon">📊</div><h4>Analytika</h4><p>Sledujte rast, denné štatistiky, počty akcií a zdravie účtov v reálnom čase.</p></div>
+</div>
+
+<h2 id="co-je-hydra">🐙 Čo je Hydra?</h2>
+<p>Hydra je <strong>Instagram marketingový systém typu mother/slave</strong>. Používa reálne Android telefóny s reálnymi Instagram účtami na rast vašich hlavných (mother) účtov prostredníctvom automatizovaných interakcií.</p>
+
+<h3>Ako to funguje (veľký obraz)</h3>
+<div class="steps">
+    <div class="step"><div class="step-content"><h4>Slave účty bežia na reálnych telefónoch</h4><p>Každý telefón má nainštalovaných viacero klonových Instagram aplikácií. Každý klon = jeden prihlásený účet. Toto sú vaše "slave" účty.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Slave účty interagujú s cieľovou skupinou</h4><p>Boty automaticky sledujú ľudí, lajkujú ich príspevky, pozerajú reels, komentujú, zdieľajú príspevky na story a posielajú DM — všetko na pritiahnutie pozornosti.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Pozornosť plynie k vášmu mother účtu</h4><p>Keď si ľudia skontrolujú, kto ich začal sledovať alebo lajkol, uvidia váš slave účet — ktorý propaguje váš mother účet cez bio linky, story zdieľania a tagy.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Mother účet rastie organicky</h4><p>Výsledok: váš hlavný účet získava reálnych sledovateľov, reálny engagement a reálnu viditeľnosť — všetko poháňané vašou armádou slave účtov.</p></div></div>
+</div>
+
+<div class="info-box tip">
+    <strong>💡 Prečo reálne telefóny?</strong>
+    <p>Instagram deteguje emulátory a falošné zariadenia. Hydra beží na reálnych Samsung telefónoch cez WiFi, takže každá interakcia vyzerá ako skutočná osoba používajúca skutočný telefón. Toto je najbezpečnejší prístup k automatizácii.</p>
+</div>
+
+<h2 id="rychly-start">🚀 Rýchly štart</h2>
+<p>Tu je najrýchlejší spôsob, ako začať:</p>
+
+<div class="steps">
+    <div class="step"><div class="step-content"><h4>Otvorte Dashboard</h4><p>Choďte na <strong>http://10.1.11.168:5055</strong> vo vašom prehliadači. Toto je vaše riadiace centrum pre všetko.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Skontrolujte zariadenia</h4><p>Choďte na <strong>Phone Farm → Device Manager</strong>. Mali by ste vidieť všetky pripojené telefóny so stavom (zelená = online).</p></div></div>
+    <div class="step"><div class="step-content"><h4>Pridajte účty</h4><p>Choďte na <strong>Phone Farm → Import Accounts V2</strong>. Vložte prihlasovacie údaje (formát meno:heslo). Priraďte ich k zariadeniam.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Prihláste ich</h4><p>Choďte na <strong>Phone Farm → Login Automation V2</strong>. Vyberte účty a kliknite Login. Systém automaticky prihlási každý účet do jeho priradenej klonovej aplikácie.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Nastavte zdroje</h4><p>Choďte na <strong>Operations → Manage Sources</strong>. Pridajte zdrojové účty — toto sú účty, ktorých sledovateľov budú vaše boty cieľovať.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Nakonfigurujte nastavenia bota</h4><p>Choďte na <strong>Automation → Bot Settings</strong>. Zapnite akcie, ktoré chcete (sledovanie, lajky, reels, komentáre, atď.) a nastavte denné limity.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Spustite boty!</h4><p>Choďte na <strong>Automation → Bot Manager</strong> a spustite boty. Alebo požiadajte Jarvisa (AI), aby spustil farmu za vás.</p></div></div>
+</div>
+
+<h2 id="dashboard">🖥️ Hlavný prehľad</h2>
+<p>Hlavný dashboard na <strong>/</strong> vám dáva rýchly prehľad celej farmy:</p>
+<ul>
+    <li><strong>Celkový počet zariadení</strong> — koľko telefónov je pripojených</li>
+    <li><strong>Celkový počet účtov</strong> — koľko IG účtov je v systéme</li>
+    <li><strong>Aktívne boty</strong> — koľko práve beží</li>
+    <li><strong>Dnešné štatistiky</strong> — sledovania, lajky, komentáre vykonané dnes</li>
+</ul>
+
+<h2 id="ucty">👥 Správa účtov</h2>
+
+<div class="page-card"><div class="page-icon">👤</div><div><h4>Účty</h4><div class="page-url">/accounts</div><p>Zobrazenie všetkých vašich Instagram účtov. Vidíte, na ktorom zariadení každý účet je, či je aktívny alebo vypnutý, a rýchle zapnutie/vypnutie.</p></div></div>
+<div class="page-card"><div class="page-icon">💊</div><div><h4>Zdravie účtov</h4><div class="page-url">/account-health</div><p>Monitorovanie problémov účtov — zablokované účty, limitované účty, účty ktoré stále zlyhávajú. Zvonček 🔔 v navigácii vás upozorní, keď niečo vyžaduje pozornosť.</p></div></div>
+<div class="page-card"><div class="page-icon">📦</div><div><h4>Inventár účtov</h4><div class="page-url">/account-inventory</div><p>Vaša zásoba náhradných účtov. Účty, ktoré ešte nie sú priradené k žiadnemu zariadeniu. Keď potrebujete čerstvé účty, vytiahnite ich z inventára.</p></div></div>
+<div class="page-card"><div class="page-icon">📤</div><div><h4>Hromadný import</h4><div class="page-url">/import-accounts-v2</div><p>Importujte veľa účtov naraz. Vložte ich vo formáte <strong>meno:heslo</strong> (jeden na riadok), vyberte zariadenie a importujte.</p></div></div>
+
+<div class="info-box tip">
+    <strong>💡 Sprievodca stavmi účtov</strong>
+    <p><strong>Active</strong> = funguje a je pripravený. <strong>Pending Login</strong> = importovaný, ale neprihlásený. <strong>Disabled</strong> = vypnutý. <strong>Banned</strong> = Instagram ho označil.</p>
+</div>
+
+<h2 id="nastavenia-bota">⚙️ Nastavenia bota</h2>
+
+<div class="page-card"><div class="page-icon">🎛️</div><div><h4>Nastavenia bota</h4><div class="page-url">/bot-settings</div><p>Ovládací panel automatizácie každého účtu. Vyberte účet a nakonfigurujte všetko, čo robí.</p></div></div>
+
+<h3>Čo môžete nakonfigurovať</h3>
+<table>
+    <tr><th>Nastavenie</th><th>Čo robí</th></tr>
+    <tr><td><strong>Časové okno</strong></td><td>Kedy je bot aktívny (napr. 8:00 do 23:00). Mimo tohto okna účet spí.</td></tr>
+    <tr><td><strong>Sledovanie</strong></td><td>Zapnúť/vypnúť sledovanie. Nastavenie denného limitu (napr. max 60 denne).</td></tr>
+    <tr><td><strong>Lajky</strong></td><td>Zapnúť/vypnúť lajkovanie príspevkov.</td></tr>
+    <tr><td><strong>Komentáre</strong></td><td>Zapnúť/vypnúť komentovanie. Nastavenie šablón komentárov.</td></tr>
+    <tr><td><strong>Reels</strong></td><td>Zapnúť pozeranie reels. Nastavenie denného limitu.</td></tr>
+    <tr><td><strong>Zdieľanie na story</strong></td><td>Zapnúť zdieľanie príspevkov zo zdrojov na story tohto účtu.</td></tr>
+    <tr><td><strong>DM</strong></td><td>Zapnúť posielanie priamych správ cieľovým používateľom.</td></tr>
+    <tr><td><strong>Odsledovanie</strong></td><td>Zapnúť odsledovanie starých sledovaní (udržanie pomeru).</td></tr>
+    <tr><td><strong>Engagement</strong></td><td>Zapnúť zahriatie (scrollovanie feedu, stories) aby účet vyzeral prirodzene.</td></tr>
+    <tr><td><strong>Filtre</strong></td><td>Sledovať len používateľov spĺňajúcich kritériá (min/max sledovateľov, profilová fotka, atď.)</td></tr>
+</table>
+
+<div class="info-box warning">
+    <strong>⚠️ Začnite pomaly!</strong>
+    <p>Nové účty by mali začať s nízkymi limitmi (10-20 sledovaní/deň) a postupne zvyšovať počas 1-2 týždňov. 100 sledovaní v prvý deň = okamžité označenie.</p>
+</div>
+
+<h2 id="zdroje">🎯 Zdroje a ciele</h2>
+
+<div class="page-card"><div class="page-icon">🎯</div><div><h4>Správa zdrojov</h4><div class="page-url">/manage-sources</div><p>Tu hovoríte botovi, <strong>kde má nájsť ľudí na interakciu</strong>. Zdroje sú Instagram účty, ktorých sledovatelia sa stanú vašimi cieľmi.</p></div></div>
+
+<h3>Ako zdroje fungujú</h3>
+<p>Predstavte si to takto: ak propagujete fitness značku, chcete cieľovať sledovateľov populárnych fitness influencerov. Títo influenceri sú vaše <strong>zdroje</strong>.</p>
+
+<table>
+    <tr><th>Typ zdroja</th><th>Príklad</th><th>Použitie</th></tr>
+    <tr><td><strong>Zdroje sledovania</strong></td><td>@fitnessguru123</td><td>Bot otvorí zoznam sledovateľov a sleduje z nich ľudí</td></tr>
+    <tr><td><strong>Zdroje zdieľania</strong></td><td>@vas_hlavny_ucet</td><td>Bot vezme príspevky a zdieľa ich na story</td></tr>
+    <tr><td><strong>Zoznamy sledovania</strong></td><td>Zoznam konkrétnych mien</td><td>Bot sleduje presne tieto používateľské mená</td></tr>
+</table>
+
+<div class="info-box tip">
+    <strong>💡 Výber dobrých zdrojov</strong>
+    <p>Vyberte účty s <strong>aktívnymi, zapojenými sledovateľmi</strong> vo vašom odvetví. Vyhýbajte sa mega-celebritám. Účty s 10K-500K sledovateľmi vo vašom cieľovom odvetví sú ideálne.</p>
+</div>
+
+<h2 id="obsah">🖼️ Obsah a médiá</h2>
+
+<div class="page-card"><div class="page-icon">🖼️</div><div><h4>Knižnica médií</h4><div class="page-url">/media-library</div><p>Nahrajte obrázky a videá, ktoré vaše účty budú postovať. Organizujte podľa kategórií.</p></div></div>
+<div class="page-card"><div class="page-icon">📅</div><div><h4>Plánovanie obsahu</h4><div class="page-url">/content-schedule</div><p>Naplánujte príspevky na konkrétne dátumy a časy. Bot automaticky postne v naplánovanom čase.</p></div></div>
+<div class="page-card"><div class="page-icon">✏️</div><div><h4>Šablóny popiskov</h4><div class="page-url">/caption-templates</div><p>Vytvorte skupiny popiskov, z ktorých bot náhodne vyberá. Každý príspevok má unikátny popisok.</p></div></div>
+
+<h3>Typy obsahu</h3>
+<table>
+    <tr><th>Typ</th><th>Čo to je</th><th>Najlepšie pre</th></tr>
+    <tr><td><strong>Fotka</strong></td><td>Jeden obrázok do feedu</td><td>Produkty, citáty, lifestyle</td></tr>
+    <tr><td><strong>Reel</strong></td><td>Krátke video (do 90s)</td><td>Najväčší dosah. Tutoriály, trendy</td></tr>
+    <tr><td><strong>Story</strong></td><td>Zmizne po 24 hodinách</td><td>Denné aktualizácie, engagement</td></tr>
+</table>
+
+<h2 id="zakazky">📋 Zákazky</h2>
+
+<div class="page-card"><div class="page-icon">📋</div><div><h4>Zákazky</h4><div class="page-url">/job-orders-v2</div><p>Vytvorte úlohy distribuované naprieč účtami. "Získaj 1000 sledovateľov na @klient" — Hydra rozdelí prácu po celej farme.</p></div></div>
+
+<table>
+    <tr><th>Typ</th><th>Čo robí</th></tr>
+    <tr><td><strong>Sledovanie</strong></td><td>X účtov začne sledovať cieľový účet</td></tr>
+    <tr><td><strong>Lajky</strong></td><td>X lajkov na konkrétny príspevok</td></tr>
+    <tr><td><strong>Komentáre</strong></td><td>X komentárov na konkrétny príspevok</td></tr>
+    <tr><td><strong>Zdieľanie</strong></td><td>X účtov zdieľa príspevok na story</td></tr>
+</table>
+
+<p>Zákazky majú <strong>vyššiu prioritu</strong> ako bežná automatizácia.</p>
+
+<h2 id="zariadenia">📱 Správa zariadení</h2>
+
+<div class="page-card"><div class="page-icon">📱</div><div><h4>Správca zariadení</h4><div class="page-url">/device-manager</div><p>Zobrazte všetky telefóny, ich stav pripojenia a priradené účty.</p></div></div>
+
+<table>
+    <tr><th>Stav</th><th>Význam</th></tr>
+    <tr><td><span class="badge green">🟢 Pripojený</span></td><td>Telefón je online a dostupný cez WiFi</td></tr>
+    <tr><td><span class="badge orange">🟡 Odpojený</span></td><td>Telefón je offline — skontrolujte fyzické zariadenie</td></tr>
+</table>
+
+<div class="info-box info">
+    <strong>ℹ️ Klonové aplikácie</strong>
+    <p>Každý telefón má až <strong>13 klonových Instagram aplikácií</strong> (androie až androip). Každý klon = jedna samostatná inštalácia Instagramu s jedným účtom. Takto jeden telefón prevádzkuje viacero účtov.</p>
+</div>
+
+<h2 id="ako-funguje-bot">🤖 Ako bot funguje</h2>
+<p>Pochopenie cyklu bota vám pomôže lepšie ho nakonfigurovať.</p>
+
+<h3>Cyklus</h3>
+<p>Pre každé zariadenie bot beží v <strong>nepretržitej slučke</strong>:</p>
+
+<div class="steps">
+    <div class="step"><div class="step-content"><h4>Vyberie ďalší účet</h4><p>Bot rotuje cez všetky aktívne účty na zariadení. Ak je účet mimo svojho časového okna, preskočí ho.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Otvorí Instagram klon</h4><p>Bot otvorí konkrétnu klonovú aplikáciu pre daný účet.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Vykoná povolené akcie</h4><p>Na základe nastavení vykonáva akcie: scrolluje feed, sleduje ľudí, lajkuje, pozerá reels, zdieľa na story. Poradie je náhodné.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Oddych</h4><p>Po dokončení čaká 2 minúty pred ďalším účtom. Medzi akciami sú náhodné pauzy (30-90 sekúnd).</p></div></div>
+    <div class="step"><div class="step-content"><h4>Opakuje</h4><p>Cyklus pokračuje 24/7. Účet 1 → Účet 2 → Účet 3 → Účet 1 → ...</p></div></div>
+</div>
+
+<div class="info-box tip">
+    <strong>💡 Systém priorít</strong>
+    <p><strong>Naplánované príspevky</strong> majú najvyššiu prioritu. Potom <strong>zákazky</strong>. Potom bežná automatizácia.</p>
+</div>
+
+<h2 id="akcie">⚡ Vysvetlenie akcií</h2>
+
+<div class="page-card"><div class="page-icon">➕</div><div><h4>Sledovanie (Follow)</h4><p>Prejde na zoznam sledovateľov zdroja → scrolluje → sleduje oprávnených používateľov s náhodnými pauzami. Rešpektuje limity a filtre.</p></div></div>
+<div class="page-card"><div class="page-icon">❤️</div><div><h4>Lajkovanie (Like)</h4><p>Lajkuje príspevky vo feede alebo na profiloch. "Mäkká" interakcia, ktorá pritiahne pozornosť.</p></div></div>
+<div class="page-card"><div class="page-icon">💬</div><div><h4>Komentovanie (Comment)</h4><p>Zanechá komentár pod príspevkom. Používa šablóny, aby komentáre vyzerali prirodzene. Príklad: "Pecka bro 🔥"</p></div></div>
+<div class="page-card"><div class="page-icon">📤</div><div><h4>Zdieľanie na story (Share to Story)</h4><p>Vezme príspevok z mother účtu a zdieľa ho na story. Váš obsah sa dostane pred publikum slave účtu.</p></div></div>
+<div class="page-card"><div class="page-icon">🎬</div><div><h4>Pozeranie Reels</h4><p>Scrolluje cez reels, pozerá realisticky dlho, niektoré lajkne. Zahriatie — účet vyzerá ako skutočný používateľ.</p></div></div>
+<div class="page-card"><div class="page-icon">📩</div><div><h4>DM (Priama správa)</h4><p>Posiela priame správy. Použite pre outreach. Opatrne — DM majú najvyššie riziko banu.</p></div></div>
+<div class="page-card"><div class="page-icon">👋</div><div><h4>Engagement (Zahriatie)</h4><p>Scrolluje feed, pozerá stories, lajkuje náhodné príspevky. Prirodzené správanie pred rastovými akciami.</p></div></div>
+<div class="page-card"><div class="page-icon">➖</div><div><h4>Odsledovanie (Unfollow)</h4><p>Odsleduje ľudí sledovaných pred X dňami. Udržiava zdravý pomer sledovatelia/sledovaní.</p></div></div>
+<div class="page-card"><div class="page-icon">📝</div><div><h4>Postovanie obsahu</h4><p>Postne naplánovaný obsah (fotku, reel, story) z knižnice médií. Plne automatizované.</p></div></div>
+
+<h2 id="limity">🛡️ Bezpečnosť a limity</h2>
+<p>Instagram blokuje účty, ktoré sa správajú agresívne. Hydra má zabudované ochrany:</p>
+
+<h3>Predvolené denné limity</h3>
+<table>
+    <tr><th>Akcia</th><th>Limit</th><th>Odporúčanie</th></tr>
+    <tr><td>Sledovania</td><td>50-60/deň</td><td>Nové účty začnite na 20, zvyšujte 2 týždne</td></tr>
+    <tr><td>Reels</td><td>50/deň</td><td>Bezpečné na akejkoľvek úrovni</td></tr>
+    <tr><td>Zdieľania</td><td>1/deň</td><td>1-3 denne je bezpečné</td></tr>
+    <tr><td>Komentáre</td><td>Konfig.</td><td>10-20 denne max, rôzne šablóny</td></tr>
+    <tr><td>Lajky</td><td>Konfig.</td><td>50-100 denne je bezpečné</td></tr>
+    <tr><td>DM</td><td>Konfig.</td><td>5-10 denne max — najvyššie riziko</td></tr>
+</table>
+
+<div class="info-box danger">
+    <strong>🚨 Tipy na prevenciu banu</strong>
+    <p>
+        • <strong>Zahrejte nové účty</strong> — len engagement prvých 3-5 dní.<br>
+        • <strong>Nemaxujte limity</strong> — obmeňujte dennú aktivitu.<br>
+        • <strong>Používajte filtre</strong> — sledovanie falošných účtov nepomáha.<br>
+        • <strong>Časové okná</strong> — nepúšťajte účty 24/7, nastavte realistické hodiny.<br>
+        • <strong>Sledujte stránku Zdravie</strong> — ak účty sú označované, okamžite znížte limity.
+    </p>
+</div>
+
+<h2 id="planovanie">📅 Plánovanie</h2>
+
+<h3>1. Plánovanie obsahu</h3>
+<p>Naplánujte príspevok/reel/story na konkrétny dátum a čas v <strong>Content Schedule</strong>. Vyberte účet, pripojte médiá, napíšte popisok, vyberte čas. Hotovo.</p>
+
+<h3>2. Časové okná účtov</h3>
+<p>Každý účet má <strong>čas začiatku</strong> a <strong>čas konca</strong>. Bot prevádzkuje účet len počas tohto okna — simuluje reálneho človeka.</p>
+
+<div class="info-box tip">
+    <strong>💡 Rozložte časové okná</strong>
+    <p>3 účty na jednom telefóne? Rozložte: Účet 1 = 7:00-15:00, Účet 2 = 10:00-18:00, Účet 3 = 13:00-23:00. Telefón stále pracuje a účty vyzerajú prirodzene.</p>
+</div>
+
+<h2 id="faq">❓ Často kladené otázky</h2>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Koľko účtov zvládne jeden telefón?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Až <strong>13 účtov na telefón</strong>. V praxi 3-5 aktívnych účtov dáva najlepší výkon.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Budú moje účty zablokované?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Riziko existuje pri akejkoľvek automatizácii. Hydra ho minimalizuje reálnymi telefónmi, ľudskými pauzami, náhodnými akciami a dennými limitmi. Začnite pomaly a sledujte Zdravie účtov.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Musím mať zapnutý počítač?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Áno — bot beží na počítači a ovláda telefóny cez WiFi. Ak sa počítač vypne, boty sa zastavia. Telefóny musia len zostať zapnuté a na WiFi.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Čo sa stane, keď sa telefón odpojí?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Bot sa automaticky pokúsi znova pripojiť. Ostatné zariadenia pokračujú normálne — jeden offline telefón neovplyvní zvyšok.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Ako pridám nový zdrojový účet?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Choďte na <strong>Operations → Manage Sources</strong>, vyberte účet, zadajte Instagram meno zdroja a pridajte ho.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Aký je rozdiel medzi zdrojom a cieľom?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner"><strong>Zdroj</strong> = Instagram účet, ktorého sledovateľov chcete osloviť. <strong>Ciele</strong> = jednotliví sledovatelia, ktorých bot skutočne sleduje/lajkuje.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Môžem vidieť, čo bot robí?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Áno! Každé zariadenie má konzolu s farebnými logmi. Tiež <strong>Farm Stats</strong> pre dnešné čísla, alebo monitoring softvér pre live pohľad.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Ako zastavím bota?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Choďte na <strong>Automation → Bot Manager</strong> a zastavte zariadenia alebo celú farmu. Alebo povedzte Jarvisovi.</div></div></div>
+
+<h2 id="riesenie-problemov">🔧 Riešenie problémov</h2>
+
+<div class="page-card"><div class="page-icon">🔴</div><div><h4>Účet stále zlyháva / 0 akcií</h4><p>Skontrolujte klonovú aplikáciu na telefóne. Niekedy padajú alebo sa účet odhlási. Ak padá okamžite, klon treba preinštalovať.</p></div></div>
+<div class="page-card"><div class="page-icon">🔴</div><div><h4>Všetky zdroje označené ako "mŕtve"</h4><p>Ak klonová aplikácia padá, všetky vyhľadávania zlyhajú a falošne označia zdroje ako mŕtve. Opravte aplikáciu, potom resetujte zdroje.</p></div></div>
+<div class="page-card"><div class="page-icon">🔴</div><div><h4>Telefón odpojený</h4><p>Skontrolujte či je zapnutý, na WiFi a má USB ladenie zapnuté. Skúste reštart. Musí byť na rovnakej sieti (10.1.11.x).</p></div></div>
+<div class="page-card"><div class="page-icon">🔴</div><div><h4>Dashboard sa nenačíta</h4><p>Server sa zastavil. Požiadajte Jarvisa o reštart, alebo dvakrát kliknite na <strong>start_dashboard.vbs</strong>.</p></div></div>
+<div class="page-card"><div class="page-icon">🔴</div><div><h4>Účet je rate-limitovaný</h4><p>Instagram varuje aby ste spomalili. Znížte limity na polovicu. Nechajte účet oddychovať 24-48h len s engagementom.</p></div></div>
+<div class="page-card"><div class="page-icon">🟡</div><div><h4>Bot beží ale nikoho nesleduje</h4><p>Skontrolujte: 1) Sú zdroje nastavené? 2) Nie sú mŕtve? 3) Dosiahnutý denný limit? 4) Príliš prísne filtre?</p></div></div>
+
+<h2 id="slovnik">📖 Slovník pojmov</h2>
+
+<table>
+    <tr><th>Pojem</th><th>Význam</th></tr>
+    <tr><td><strong>Mother účet</strong></td><td>Váš hlavný Instagram účet, ktorý chcete rásť.</td></tr>
+    <tr><td><strong>Slave účet</strong></td><td>Automatizačné účty, ktoré robia prácu na presmerovanie trafficu na mother.</td></tr>
+    <tr><td><strong>Klonová aplikácia</strong></td><td>Samostatná kópia Instagramu na telefóne. Každý klon = jeden účet.</td></tr>
+    <tr><td><strong>Zdroj (Source)</strong></td><td>Instagram účet, ktorého sledovateľov vaše boty cieľujú.</td></tr>
+    <tr><td><strong>Cieľ (Target)</strong></td><td>Individuálny používateľ, s ktorým bot interaguje.</td></tr>
+    <tr><td><strong>Akcia</strong></td><td>Niečo, čo bot robí: sledovanie, lajkovanie, komentovanie, atď.</td></tr>
+    <tr><td><strong>Cyklus</strong></td><td>Jedno kompletné vykonanie akcií pre jeden účet.</td></tr>
+    <tr><td><strong>Session</strong></td><td>Jedno aktívne obdobie pre jeden účet zaznamenané v databáze.</td></tr>
+    <tr><td><strong>Zahriatie (Warmup)</strong></td><td>Nízko-rizikové aktivity (scrollovanie, reels) pred rastovými akciami.</td></tr>
+    <tr><td><strong>Mŕtvy zdroj</strong></td><td>Zdrojový účet, ktorý už neexistuje alebo je súkromný. Automaticky preskočený.</td></tr>
+    <tr><td><strong>Zákazka (Job Order)</strong></td><td>Konkrétna úloha distribuovaná po farme.</td></tr>
+    <tr><td><strong>Tag Dedup</strong></td><td>Zabraňuje viacerým účtom sledovať rovnakého človeka.</td></tr>
+    <tr><td><strong>ADB</strong></td><td>Android Debug Bridge — komunikácia počítač → telefóny cez WiFi.</td></tr>
+    <tr><td><strong>UIAutomator</strong></td><td>Framework na ovládanie obrazoviek telefónu (klikanie, scrollovanie, čítanie).</td></tr>
+    <tr><td><strong>Jarvis</strong></td><td>AI asistent, ktorý dohliada na celú operáciu.</td></tr>
+</table>
+
+<br><br>
+<div style="text-align: center; padding-top: 24px; border-top: 1px solid var(--border);">
+    <p style="color: var(--text-dim); font-size: 0.8rem;">Hydra 🐙 Používateľská príručka — Posledná aktualizácia: Február 2026</p>
+    <p style="margin-top: 8px;">
+        <a href="/docs" style="color: var(--accent-light); text-decoration: none; font-size: 0.82rem; margin-right: 20px;"><i class="fas fa-globe"></i> English version</a>
+        <a href="/docs-dev" style="color: var(--accent-light); text-decoration: none; font-size: 0.82rem;"><i class="fas fa-code"></i> Vývojárska dokumentácia</a>
+    </p>
+</div>
+
+</div>
+
+<script>
+const sections = document.querySelectorAll('h2[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+function highlightNav() {
+    let current = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 100) current = s.getAttribute('id'); });
+    navLinks.forEach(l => { l.classList.remove('active'); if (l.getAttribute('href') === '#' + current) l.classList.add('active'); });
+}
+window.addEventListener('scroll', highlightNav);
+highlightNav();
+document.querySelectorAll('.nav-link[href^="#"]').forEach(l => {
+    l.addEventListener('click', e => { e.preventDefault(); const el = document.querySelector(l.getAttribute('href')); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+});
+</script>
+
+</body>
+</html>

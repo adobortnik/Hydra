@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydra 🐙 — User Guide</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-hover: #1a1a28;
+            --border: #1e1e2e;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --accent: #6c5ce7;
+            --accent-light: #a29bfe;
+            --accent-glow: rgba(108, 92, 231, 0.12);
+            --green: #00d2a0;
+            --green-glow: rgba(0, 210, 160, 0.12);
+            --orange: #f0a040;
+            --orange-glow: rgba(240, 160, 64, 0.12);
+            --red: #e74c6f;
+            --blue: #4fa8d5;
+            --blue-glow: rgba(79, 168, 213, 0.12);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+
+        /* ---- Sidebar ---- */
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            width: 270px;
+            height: 100vh;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 24px 0;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .sidebar-brand {
+            padding: 0 24px 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+
+        .sidebar-brand h1 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), var(--green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sidebar-brand p {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .nav-section {
+            padding: 10px 24px 4px;
+            font-size: 0.62rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+            margin-top: 6px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 24px 9px 28px;
+            font-size: 0.84rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-link i { width: 18px; text-align: center; font-size: 0.8rem; }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text);
+            background: var(--accent-glow);
+            border-left-color: var(--accent);
+        }
+
+        .nav-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 12px 24px;
+        }
+
+        .sidebar-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            margin-top: 12px;
+        }
+
+        .sidebar-footer a {
+            font-size: 0.78rem;
+            color: var(--accent-light);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar-footer a:hover { color: var(--green); }
+
+        /* ---- Main ---- */
+        .main {
+            margin-left: 270px;
+            padding: 40px 56px 120px;
+            max-width: 920px;
+        }
+
+        /* ---- Hero ---- */
+        .hero {
+            background: linear-gradient(135deg, rgba(108,92,231,0.08), rgba(0,210,160,0.06));
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 48px;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .hero p { color: var(--text-dim); font-size: 1rem; margin: 0; }
+
+        .hero .version {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 4px 14px;
+            background: var(--accent-glow);
+            border: 1px solid rgba(108,92,231,0.3);
+            border-radius: 20px;
+            font-size: 0.72rem;
+            color: var(--accent-light);
+            font-weight: 600;
+        }
+
+        /* ---- Typography ---- */
+        h2 {
+            font-size: 1.6rem;
+            font-weight: 800;
+            margin: 56px 0 12px;
+            padding-top: 24px;
+        }
+
+        h2:first-of-type { margin-top: 0; }
+
+        h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin: 32px 0 10px;
+            color: var(--green);
+        }
+
+        p { margin: 6px 0 14px; }
+        ul, ol { margin: 6px 0 16px 20px; }
+        li { margin: 5px 0; }
+        strong { color: #fff; }
+
+        /* ---- Feature Cards ---- */
+        .features {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin: 20px 0 28px;
+        }
+
+        .feature {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 22px;
+            transition: all 0.2s;
+        }
+
+        .feature:hover {
+            border-color: rgba(108,92,231,0.4);
+            background: var(--bg-hover);
+        }
+
+        .feature .icon {
+            font-size: 1.6rem;
+            margin-bottom: 10px;
+        }
+
+        .feature h4 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .feature p {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        /* ---- Steps ---- */
+        .steps {
+            counter-reset: step;
+            margin: 16px 0 24px;
+        }
+
+        .step {
+            display: flex;
+            gap: 18px;
+            margin: 16px 0;
+            padding: 18px 22px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .step::before {
+            counter-increment: step;
+            content: counter(step);
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            background: var(--accent-glow);
+            border: 1px solid rgba(108,92,231,0.4);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.9rem;
+            color: var(--accent-light);
+        }
+
+        .step-content h4 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+
+        .step-content p {
+            font-size: 0.84rem;
+            color: var(--text-dim);
+            margin: 0;
+        }
+
+        /* ---- Page Cards (for dashboard pages) ---- */
+        .page-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 18px;
+            margin: 10px 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+
+        .page-card:hover {
+            border-color: rgba(108,92,231,0.4);
+            background: var(--bg-hover);
+        }
+
+        .page-card .page-icon {
+            font-size: 1.4rem;
+            flex-shrink: 0;
+            width: 40px;
+            text-align: center;
+        }
+
+        .page-card h4 {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 3px;
+        }
+
+        .page-card .page-url {
+            font-size: 0.72rem;
+            color: var(--accent-light);
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .page-card p {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        /* ---- Info boxes ---- */
+        .info-box {
+            padding: 18px 22px;
+            border-radius: 10px;
+            margin: 14px 0 20px;
+            border-left: 4px solid;
+        }
+
+        .info-box.tip { background: var(--green-glow); border-color: var(--green); }
+        .info-box.warning { background: var(--orange-glow); border-color: var(--orange); }
+        .info-box.danger { background: rgba(231,76,111,0.1); border-color: var(--red); }
+        .info-box.info { background: var(--blue-glow); border-color: var(--blue); }
+
+        .info-box strong { display: block; margin-bottom: 4px; }
+        .info-box p { margin: 0; font-size: 0.88rem; }
+
+        /* ---- Table ---- */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 20px;
+            font-size: 0.86rem;
+        }
+
+        th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { font-weight: 600; color: var(--accent-light); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:hover td { background: var(--accent-glow); }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .badge.green { background: var(--green-glow); color: var(--green); }
+        .badge.orange { background: var(--orange-glow); color: var(--orange); }
+
+        /* ---- FAQ ---- */
+        .faq-item {
+            margin: 12px 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .faq-q {
+            padding: 16px 20px;
+            font-weight: 600;
+            font-size: 0.92rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .faq-q:hover { background: var(--bg-hover); }
+        .faq-q i { color: var(--text-dim); font-size: 0.75rem; transition: transform 0.3s; }
+        .faq-item.open .faq-q i { transform: rotate(180deg); }
+
+        .faq-a {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .faq-item.open .faq-a { max-height: 500px; }
+
+        .faq-a-inner {
+            padding: 0 20px 16px;
+            font-size: 0.86rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; padding: 20px; }
+            .features { grid-template-columns: 1fr; }
+            .hero { padding: 28px 20px; }
+            .hero h1 { font-size: 1.6rem; }
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <h1>🐙 Hydra</h1>
+        <p>User Guide</p>
+    </div>
+
+    <div class="nav-section">Getting Started</div>
+    <a href="#welcome" class="nav-link"><i class="fas fa-home"></i> Welcome</a>
+    <a href="#what-is-hydra" class="nav-link"><i class="fas fa-info-circle"></i> What is Hydra?</a>
+    <a href="#quick-start" class="nav-link"><i class="fas fa-rocket"></i> Quick Start</a>
+
+    <div class="nav-section">Dashboard Guide</div>
+    <a href="#dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard Home</a>
+    <a href="#accounts" class="nav-link"><i class="fas fa-users"></i> Managing Accounts</a>
+    <a href="#bot-settings" class="nav-link"><i class="fas fa-sliders-h"></i> Bot Settings</a>
+    <a href="#sources" class="nav-link"><i class="fas fa-crosshairs"></i> Sources & Targets</a>
+    <a href="#content" class="nav-link"><i class="fas fa-photo-video"></i> Content & Media</a>
+    <a href="#jobs" class="nav-link"><i class="fas fa-tasks"></i> Job Orders</a>
+    <a href="#devices" class="nav-link"><i class="fas fa-mobile-alt"></i> Device Management</a>
+
+    <div class="nav-section">Automation</div>
+    <a href="#how-bot-works" class="nav-link"><i class="fas fa-robot"></i> How the Bot Works</a>
+    <a href="#actions" class="nav-link"><i class="fas fa-bolt"></i> Actions Explained</a>
+    <a href="#limits" class="nav-link"><i class="fas fa-shield-alt"></i> Safety & Limits</a>
+    <a href="#scheduling" class="nav-link"><i class="fas fa-calendar-alt"></i> Scheduling</a>
+
+    <div class="nav-section">Help</div>
+    <a href="#faq" class="nav-link"><i class="fas fa-question-circle"></i> FAQ</a>
+    <a href="#troubleshooting" class="nav-link"><i class="fas fa-wrench"></i> Troubleshooting</a>
+    <a href="#glossary" class="nav-link"><i class="fas fa-book"></i> Glossary</a>
+
+    <div class="nav-divider"></div>
+    <div class="sidebar-footer">
+        <a href="/docs-sk"><i class="fas fa-globe"></i> 🇸🇰 Slovenská verzia</a>
+        <a href="/docs-dev"><i class="fas fa-code"></i> Developer Docs</a>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<div class="main">
+
+<!-- Hero -->
+<div class="hero">
+    <h1>🐙 Welcome to Hydra</h1>
+    <p>Your Instagram phone farm automation platform</p>
+    <span class="version">v1.0 — February 2026</span>
+</div>
+
+<!-- ======================== WELCOME ======================== -->
+<h2 id="welcome">👋 Welcome</h2>
+<p>This guide will teach you everything you need to know about using Hydra — from adding accounts to running full automation across 50+ phones. No coding required.</p>
+
+<div class="features">
+    <div class="feature">
+        <div class="icon">📱</div>
+        <h4>50+ Phones</h4>
+        <p>Manage an entire fleet of Android devices from one dashboard.</p>
+    </div>
+    <div class="feature">
+        <div class="icon">👥</div>
+        <h4>600+ Accounts</h4>
+        <p>Run hundreds of Instagram accounts across multiple clone apps per device.</p>
+    </div>
+    <div class="feature">
+        <div class="icon">🤖</div>
+        <h4>Full Automation</h4>
+        <p>Follow, like, comment, share, DM, watch reels — all on autopilot.</p>
+    </div>
+    <div class="feature">
+        <div class="icon">📊</div>
+        <h4>Analytics</h4>
+        <p>Track growth, daily stats, action counts, and account health in real time.</p>
+    </div>
+</div>
+
+
+<!-- ======================== WHAT IS HYDRA ======================== -->
+<h2 id="what-is-hydra">🐙 What is Hydra?</h2>
+<p>Hydra is a <strong>mother/slave Instagram marketing system</strong>. It uses real Android phones with real Instagram accounts to grow your main (mother) accounts through automated interactions.</p>
+
+<h3>How It Works (Big Picture)</h3>
+<div class="steps">
+    <div class="step">
+        <div class="step-content">
+            <h4>Slave accounts run on real phones</h4>
+            <p>Each phone has multiple Instagram clone apps installed. Each clone = one logged-in account. These are your "slave" accounts.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Slaves interact with target audiences</h4>
+            <p>The bots automatically follow people, like their posts, watch their reels, leave comments, share posts to story, and send DMs — all to attract attention.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Attention flows to your mother account</h4>
+            <p>When people check who followed/liked them, they see your slave account — which promotes your mother account through bio links, story shares, and tags.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Mother account grows organically</h4>
+            <p>The result: your main account gets real followers, real engagement, and real visibility — all powered by your army of slave accounts.</p>
+        </div>
+    </div>
+</div>
+
+<div class="info-box tip">
+    <strong>💡 Why real phones?</strong>
+    <p>Instagram detects emulators and fake devices. Hydra runs on real Samsung phones over WiFi, making every interaction look like a real person using a real phone. This is the safest approach for automation.</p>
+</div>
+
+
+<!-- ======================== QUICK START ======================== -->
+<h2 id="quick-start">🚀 Quick Start</h2>
+<p>Here's the fastest way to get up and running:</p>
+
+<div class="steps">
+    <div class="step">
+        <div class="step-content">
+            <h4>Open the Dashboard</h4>
+            <p>Go to <strong>http://10.1.11.168:5055</strong> in your browser. This is your control center for everything.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Check your devices</h4>
+            <p>Go to <strong>Phone Farm → Device Manager</strong>. You should see all connected phones listed with their status (green = online).</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Add accounts</h4>
+            <p>Go to <strong>Phone Farm → Import Accounts V2</strong>. Paste your account credentials (username:password format). Assign them to devices.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Log them in</h4>
+            <p>Go to <strong>Phone Farm → Login Automation V2</strong>. Select accounts and click Login. The system will automatically log each account into its assigned clone app.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Set up sources</h4>
+            <p>Go to <strong>Operations → Manage Sources</strong>. Add source accounts — these are the accounts whose followers your bots will target.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Configure bot settings</h4>
+            <p>Go to <strong>Automation → Bot Settings</strong>. Enable the actions you want (follow, like, reels, comment, etc.) and set daily limits.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Launch the bots!</h4>
+            <p>Go to <strong>Automation → Bot Manager</strong> and start the bots. Or ask Jarvis (the AI) to launch the farm for you.</p>
+        </div>
+    </div>
+</div>
+
+
+<!-- ======================== DASHBOARD ======================== -->
+<h2 id="dashboard">🖥️ Dashboard Home</h2>
+<p>The main dashboard at <strong>/</strong> gives you a quick overview of your entire farm:</p>
+
+<ul>
+    <li><strong>Total devices</strong> — how many phones are connected</li>
+    <li><strong>Total accounts</strong> — how many IG accounts are in the system</li>
+    <li><strong>Active bots</strong> — how many are currently running</li>
+    <li><strong>Today's stats</strong> — follows, likes, comments done today</li>
+</ul>
+
+<p>The navigation bar at the top gives you access to every page. Here's what each section does:</p>
+
+
+<!-- ======================== ACCOUNTS ======================== -->
+<h2 id="accounts">👥 Managing Accounts</h2>
+
+<div class="page-card">
+    <div class="page-icon">👤</div>
+    <div>
+        <h4>Accounts</h4>
+        <div class="page-url">/accounts</div>
+        <p>View all your Instagram accounts. See which device each account is on, whether it's active or disabled, and quick-toggle accounts on/off. This is your master account list.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">💊</div>
+    <div>
+        <h4>Account Health</h4>
+        <div class="page-url">/account-health</div>
+        <p>Monitor your accounts for issues — banned accounts, rate-limited accounts, accounts that keep failing. The health bell 🔔 in the navbar alerts you when something needs attention.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">📦</div>
+    <div>
+        <h4>Account Inventory</h4>
+        <div class="page-url">/account-inventory</div>
+        <p>Your spare account pool. Accounts that aren't assigned to any device yet live here. When you need fresh accounts, pull them from inventory and assign them to a device.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">📤</div>
+    <div>
+        <h4>Bulk Import</h4>
+        <div class="page-url">/import-accounts-v2</div>
+        <p>Import many accounts at once. Paste them in <strong>username:password</strong> format (one per line), select a device, and import. You can also import from CSV files.</p>
+    </div>
+</div>
+
+<div class="info-box tip">
+    <strong>💡 Account Status Guide</strong>
+    <p><strong>Active</strong> = working and ready for automation. <strong>Pending Login</strong> = imported but not logged in yet. <strong>Disabled</strong> = turned off (won't run). <strong>Banned</strong> = Instagram flagged this account.</p>
+</div>
+
+
+<!-- ======================== BOT SETTINGS ======================== -->
+<h2 id="bot-settings">⚙️ Bot Settings</h2>
+
+<div class="page-card">
+    <div class="page-icon">🎛️</div>
+    <div>
+        <h4>Bot Settings</h4>
+        <div class="page-url">/bot-settings</div>
+        <p>The control panel for each account's automation. Select an account and configure everything it does.</p>
+    </div>
+</div>
+
+<h3>What You Can Configure</h3>
+<table>
+    <tr><th>Setting</th><th>What It Does</th></tr>
+    <tr><td><strong>Time Window</strong></td><td>When the bot is active (e.g., 8:00 AM to 11:00 PM). Outside this window, the account sleeps.</td></tr>
+    <tr><td><strong>Follow</strong></td><td>Enable/disable following. Set daily limit (e.g., max 60 follows per day).</td></tr>
+    <tr><td><strong>Like</strong></td><td>Enable/disable liking posts. Set how many per session.</td></tr>
+    <tr><td><strong>Comment</strong></td><td>Enable/disable commenting. Set comment templates.</td></tr>
+    <tr><td><strong>Reels</strong></td><td>Enable watching reels. Set daily limit (e.g., max 50 reels per day).</td></tr>
+    <tr><td><strong>Share to Story</strong></td><td>Enable sharing source posts to this account's story.</td></tr>
+    <tr><td><strong>DM</strong></td><td>Enable sending direct messages to target users.</td></tr>
+    <tr><td><strong>Unfollow</strong></td><td>Enable unfollowing old follows (to maintain follow/follower ratio).</td></tr>
+    <tr><td><strong>Engagement</strong></td><td>Enable warmup behavior (scroll feed, view stories) to look human.</td></tr>
+    <tr><td><strong>Filters</strong></td><td>Only follow users that match criteria (min/max followers, has profile pic, public account, etc.)</td></tr>
+</table>
+
+<div class="info-box warning">
+    <strong>⚠️ Start slow!</strong>
+    <p>New accounts should start with low limits (10-20 follows/day) and gradually increase over 1-2 weeks. Blasting 100 follows on day 1 will get the account flagged.</p>
+</div>
+
+
+<!-- ======================== SOURCES ======================== -->
+<h2 id="sources">🎯 Sources & Targets</h2>
+
+<div class="page-card">
+    <div class="page-icon">🎯</div>
+    <div>
+        <h4>Manage Sources</h4>
+        <div class="page-url">/manage-sources</div>
+        <p>This is where you tell the bot <strong>where to find people to interact with</strong>. Sources are Instagram accounts whose followers become your targets.</p>
+    </div>
+</div>
+
+<h3>How Sources Work</h3>
+<p>Think of it like this: if you're promoting a fitness brand, you'd want to target followers of popular fitness influencers. Those influencers are your <strong>sources</strong>.</p>
+
+<table>
+    <tr><th>Source Type</th><th>Example</th><th>Used For</th></tr>
+    <tr><td><strong>Follow Sources</strong></td><td>@fitnessguru123</td><td>The bot opens this account's followers list and follows people from it</td></tr>
+    <tr><td><strong>Share Sources</strong></td><td>@yourmother_account</td><td>The bot takes posts from this account and shares them to story</td></tr>
+    <tr><td><strong>Follow Lists</strong></td><td>A list of specific usernames</td><td>The bot follows these exact usernames (instead of random followers)</td></tr>
+</table>
+
+<div class="info-box tip">
+    <strong>💡 Picking good sources</strong>
+    <p>Choose accounts with <strong>active, engaged followers</strong> in your niche. Avoid mega-celebrities (their followers are too broad). Accounts with 10K-500K followers in your target niche are ideal.</p>
+</div>
+
+<div class="info-box info">
+    <strong>ℹ️ Dead sources</strong>
+    <p>If a source account gets deleted, goes private, or changes username, Hydra will automatically mark it as "dead" and skip it. You'll see dead sources highlighted in red on the Sources page. Replace them with new ones.</p>
+</div>
+
+
+<!-- ======================== CONTENT ======================== -->
+<h2 id="content">🖼️ Content & Media</h2>
+
+<div class="page-card">
+    <div class="page-icon">🖼️</div>
+    <div>
+        <h4>Media Library</h4>
+        <div class="page-url">/media-library</div>
+        <p>Upload images and videos that your accounts will post. Organize them by category. Supports photos, reels, and stories.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">📅</div>
+    <div>
+        <h4>Content Schedule</h4>
+        <div class="page-url">/content-schedule</div>
+        <p>Schedule posts for specific dates and times. Pick which account posts what, when. The bot will automatically post at the scheduled time.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">✏️</div>
+    <div>
+        <h4>Caption Templates</h4>
+        <div class="page-url">/caption-templates</div>
+        <p>Create groups of captions that the bot picks from randomly. This way, every post has a unique caption. You can use different template groups for different accounts or content types.</p>
+    </div>
+</div>
+
+<h3>Content Types</h3>
+<table>
+    <tr><th>Type</th><th>What It Is</th><th>Best For</th></tr>
+    <tr><td><strong>Photo Post</strong></td><td>Single image posted to the feed</td><td>Product shots, quotes, lifestyle photos</td></tr>
+    <tr><td><strong>Reel</strong></td><td>Short video (up to 90 seconds)</td><td>Highest reach. Tutorials, trends, behind-the-scenes</td></tr>
+    <tr><td><strong>Story</strong></td><td>Disappears after 24 hours</td><td>Daily updates, engagement, polls</td></tr>
+</table>
+
+
+<!-- ======================== JOB ORDERS ======================== -->
+<h2 id="jobs">📋 Job Orders</h2>
+
+<div class="page-card">
+    <div class="page-icon">📋</div>
+    <div>
+        <h4>Job Orders</h4>
+        <div class="page-url">/job-orders-v2</div>
+        <p>Create tasks that get distributed across your accounts. "Get 1000 followers to @client_account" or "Get 500 likes on this post" — Hydra splits the work across your farm.</p>
+    </div>
+</div>
+
+<h3>Job Order Types</h3>
+<table>
+    <tr><th>Type</th><th>What It Does</th></tr>
+    <tr><td><strong>Follow</strong></td><td>Get X accounts to follow a target account</td></tr>
+    <tr><td><strong>Like</strong></td><td>Get X likes on a specific post</td></tr>
+    <tr><td><strong>Comment</strong></td><td>Get X comments on a specific post</td></tr>
+    <tr><td><strong>Share</strong></td><td>Get X accounts to share a post to their story</td></tr>
+</table>
+
+<p>Jobs have <strong>higher priority</strong> than regular automation — when a job order is active, the bot will prioritize it over normal follow/like cycles.</p>
+
+
+<!-- ======================== DEVICES ======================== -->
+<h2 id="devices">📱 Device Management</h2>
+
+<div class="page-card">
+    <div class="page-icon">📱</div>
+    <div>
+        <h4>Device Manager</h4>
+        <div class="page-url">/device-manager</div>
+        <p>See all your phones, their connection status, and which accounts are assigned to each device. Add new devices, check connectivity, and manage assignments.</p>
+    </div>
+</div>
+
+<h3>Device Status</h3>
+<table>
+    <tr><th>Status</th><th>Meaning</th></tr>
+    <tr><td><span class="badge green">🟢 Connected</span></td><td>Phone is online and reachable via WiFi</td></tr>
+    <tr><td><span class="badge orange">🟡 Disconnected</span></td><td>Phone is offline or WiFi dropped — check the physical device</td></tr>
+</table>
+
+<div class="info-box info">
+    <strong>ℹ️ Clone apps</strong>
+    <p>Each phone has up to <strong>13 Instagram clone apps</strong> installed (named androie through androip). Each clone is a separate Instagram installation where one account can be logged in. This is how one phone runs multiple accounts.</p>
+</div>
+
+
+<!-- ======================== HOW THE BOT WORKS ======================== -->
+<h2 id="how-bot-works">🤖 How the Bot Works</h2>
+<p>Understanding the bot cycle helps you configure it better.</p>
+
+<h3>The Cycle</h3>
+<p>For each device, the bot runs in a <strong>continuous loop</strong>:</p>
+
+<div class="steps">
+    <div class="step">
+        <div class="step-content">
+            <h4>Pick the next account</h4>
+            <p>The bot rotates through all active accounts on the device. If an account is outside its time window, it's skipped.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Open the Instagram clone</h4>
+            <p>The bot opens the specific clone app for that account (e.g., the "androif" clone for account #2).</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Run enabled actions</h4>
+            <p>Based on that account's settings, the bot performs actions: scroll feed, follow people, like posts, watch reels, share to story, etc. The order is randomized to look natural.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Cool down</h4>
+            <p>After finishing, the bot waits 2 minutes before switching to the next account. Between individual actions, there are random delays (30-90 seconds).</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Repeat</h4>
+            <p>The cycle continues 24/7. Account 1 → Account 2 → Account 3 → Account 1 → ...</p>
+        </div>
+    </div>
+</div>
+
+<div class="info-box tip">
+    <strong>💡 Priority system</strong>
+    <p>Not all tasks are equal. <strong>Scheduled posts</strong> always come first (they're time-sensitive). Then <strong>job orders</strong> (they're paid/assigned work). Then regular automation (follows, likes, etc.).</p>
+</div>
+
+
+<!-- ======================== ACTIONS ======================== -->
+<h2 id="actions">⚡ Actions Explained</h2>
+<p>Here's every action the bot can perform, explained simply:</p>
+
+<div class="page-card">
+    <div class="page-icon">➕</div>
+    <div>
+        <h4>Follow</h4>
+        <p>Goes to a source account's followers list → scrolls through → follows eligible users one by one with random delays. Respects daily limits and filters.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">❤️</div>
+    <div>
+        <h4>Like</h4>
+        <p>Likes posts in the home feed or on specific profiles. A "soft" interaction that draws attention without being too aggressive.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">💬</div>
+    <div>
+        <h4>Comment</h4>
+        <p>Leaves a comment on a post. Uses caption templates so comments look natural and varied. Example: "Looking fire bro 🔥" or "Love this! 😍"</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">📤</div>
+    <div>
+        <h4>Share to Story</h4>
+        <p>Takes a post from your mother/source account and shares it to the slave's story. This puts your content in front of the slave's audience.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">🎬</div>
+    <div>
+        <h4>Watch Reels</h4>
+        <p>Scrolls through reels, watches them for realistic durations, likes some. This is "warmup" activity that makes the account look like a real active user.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">📩</div>
+    <div>
+        <h4>DM (Direct Message)</h4>
+        <p>Sends direct messages to specific users. Use for outreach campaigns or driving traffic. Use carefully — DMs have the highest ban risk.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">👋</div>
+    <div>
+        <h4>Engage (Warmup)</h4>
+        <p>Scrolls the home feed, views friends' stories, likes random posts. This is natural behavior that makes the account look real before doing any growth actions.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">➖</div>
+    <div>
+        <h4>Unfollow</h4>
+        <p>Unfollows people the account followed X days ago. This keeps the following count low and the follow/follower ratio healthy.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">📝</div>
+    <div>
+        <h4>Post Content</h4>
+        <p>Posts scheduled content (photo, reel, or story) from your media library. Fully automated — picks up the content, types the caption, posts it.</p>
+    </div>
+</div>
+
+
+<!-- ======================== LIMITS ======================== -->
+<h2 id="limits">🛡️ Safety & Limits</h2>
+<p>Instagram bans accounts that act too aggressively. Hydra has built-in protections:</p>
+
+<h3>Default Daily Limits</h3>
+<table>
+    <tr><th>Action</th><th>Default Limit</th><th>Recommendation</th></tr>
+    <tr><td>Follows</td><td>50-60 / day</td><td>Start at 20 for new accounts, increase over 2 weeks</td></tr>
+    <tr><td>Reels watched</td><td>50 / day</td><td>Safe at any level, just warmup</td></tr>
+    <tr><td>Story shares</td><td>1 / day</td><td>1-3 per day is safe</td></tr>
+    <tr><td>Comments</td><td>Configurable</td><td>10-20 per day max, use varied templates</td></tr>
+    <tr><td>Likes</td><td>Configurable</td><td>50-100 per day is safe</td></tr>
+    <tr><td>DMs</td><td>Configurable</td><td>5-10 per day max — highest ban risk</td></tr>
+</table>
+
+<div class="info-box danger">
+    <strong>🚨 Ban Prevention Tips</strong>
+    <p>
+        • <strong>Warm up new accounts</strong> — do only engagement (scroll, watch reels) for the first 3-5 days before enabling follow/like.<br>
+        • <strong>Don't max out every limit</strong> — vary daily activity. Some days do 40 follows, some days do 20.<br>
+        • <strong>Use filters</strong> — following empty/fake accounts doesn't help and may flag you.<br>
+        • <strong>Time windows matter</strong> — don't run accounts 24/7. Set realistic hours (e.g., 8AM-11PM).<br>
+        • <strong>Watch the Health page</strong> — if accounts start getting flagged, reduce limits immediately.
+    </p>
+</div>
+
+<h3>Filters</h3>
+<p>Filters help you follow <strong>quality accounts</strong> instead of bots and empty profiles:</p>
+<ul>
+    <li><strong>Min/Max followers</strong> — Skip accounts with 0 followers (likely bots) or millions (won't follow back)</li>
+    <li><strong>Min posts</strong> — Skip accounts with 0 posts (inactive or fake)</li>
+    <li><strong>Has profile picture</strong> — Skip accounts without a profile pic</li>
+    <li><strong>Public only</strong> — Skip private accounts (they can't see your content)</li>
+    <li><strong>Bio keywords</strong> — Whitelist/blacklist certain keywords in bios</li>
+</ul>
+
+
+<!-- ======================== SCHEDULING ======================== -->
+<h2 id="scheduling">📅 Scheduling</h2>
+<p>There are two types of scheduling in Hydra:</p>
+
+<h3>1. Content Scheduling</h3>
+<p>Schedule a post/reel/story to go live at a specific date and time. Set it up in <strong>Content Schedule</strong>, pick the account, attach the media, write the caption, pick the time. Done.</p>
+
+<h3>2. Account Time Windows</h3>
+<p>Each account has a <strong>start time</strong> and <strong>end time</strong> in Bot Settings. The bot only runs that account during this window. This simulates a real person who's only active during certain hours.</p>
+
+<div class="info-box tip">
+    <strong>💡 Stagger your time windows</strong>
+    <p>If you have 3 accounts on one phone, stagger them: Account 1 = 7AM-3PM, Account 2 = 10AM-6PM, Account 3 = 1PM-11PM. This way the phone is always doing something, and accounts get more natural-looking usage patterns.</p>
+</div>
+
+
+<!-- ======================== FAQ ======================== -->
+<h2 id="faq">❓ Frequently Asked Questions</h2>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        How many accounts can one phone handle?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Up to <strong>13 accounts per phone</strong>, each running in a separate Instagram clone app. In practice, 3-5 active accounts per phone gives the best performance.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        Will my accounts get banned?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Risk exists with any automation. Hydra minimizes it by using real phones, human-like delays, randomized actions, and daily limits. Start slow with new accounts and follow the safety guidelines. Monitor the Account Health page.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        Do I need to keep my computer on?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Yes — the bot engine runs on your computer and controls the phones remotely via WiFi. If your computer shuts down, the bots stop. The phones just need to stay on and connected to WiFi.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        What happens if a phone disconnects?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        The bot automatically tries to reconnect. If the phone stays offline, that device's accounts pause until it's back. Other devices continue normally — one offline phone doesn't affect the rest.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        How do I add a new source account?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Go to <strong>Operations → Manage Sources</strong>, select the account, type the source's Instagram username, and add it. The bot will start using it on the next cycle.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        What's the difference between a source and a target?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        A <strong>source</strong> is an Instagram account whose followers you want to reach. The <strong>targets</strong> are the individual followers the bot actually follows/likes — they're automatically discovered from the source's follower list.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        Can I see what the bot is doing right now?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Yes! Each device has a console window with colored live logs showing every action. You can also check <strong>Farm Stats</strong> for today's numbers, or watch the phones in real time via your device monitoring software.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        How do I stop the bot?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Go to <strong>Automation → Bot Manager</strong> and stop individual devices or the whole farm. You can also ask Jarvis to stop everything.
+    </div></div>
+</div>
+
+
+<!-- ======================== TROUBLESHOOTING ======================== -->
+<h2 id="troubleshooting">🔧 Troubleshooting</h2>
+
+<div class="page-card">
+    <div class="page-icon">🔴</div>
+    <div>
+        <h4>Account keeps failing / 0 actions</h4>
+        <p>Check if the Instagram clone app on that phone is working. Sometimes clone apps crash or the account gets logged out. Go to the phone and manually check the app. If it crashes instantly, the clone needs to be reinstalled.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">🔴</div>
+    <div>
+        <h4>All sources marked as "dead"</h4>
+        <p>If the clone app crashes, all source lookups fail, which falsely marks sources as dead. Fix the app issue first, then go to Manage Sources and reset the dead sources.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">🔴</div>
+    <div>
+        <h4>Phone shows as disconnected</h4>
+        <p>Check if the phone is on, connected to WiFi, and USB debugging is enabled. Try restarting the phone. Make sure it's on the same network as the computer (10.1.11.x).</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">🔴</div>
+    <div>
+        <h4>Dashboard won't load</h4>
+        <p>The dashboard server might have stopped. Ask Jarvis to restart it, or launch it manually by double-clicking <strong>start_dashboard.vbs</strong> in the dashboard folder.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">🔴</div>
+    <div>
+        <h4>Account getting rate-limited</h4>
+        <p>Instagram is warning you to slow down. Reduce daily limits immediately (cut them in half). Let the account rest for 24-48 hours with only engagement (reels + feed scroll) before resuming growth actions.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">🟡</div>
+    <div>
+        <h4>Bot runs but doesn't follow anyone</h4>
+        <p>Check: 1) Are follow sources set up? 2) Are the sources still active (not dead)? 3) Has the daily follow limit been reached? 4) Are filters too strict? Check Bot Settings and Manage Sources.</p>
+    </div>
+</div>
+
+
+<!-- ======================== GLOSSARY ======================== -->
+<h2 id="glossary">📖 Glossary</h2>
+
+<table>
+    <tr><th>Term</th><th>Meaning</th></tr>
+    <tr><td><strong>Mother Account</strong></td><td>Your main Instagram account that you want to grow. The one that gets the followers.</td></tr>
+    <tr><td><strong>Slave Account</strong></td><td>Automation accounts that do the grunt work (following, liking) to drive traffic to the mother.</td></tr>
+    <tr><td><strong>Clone App</strong></td><td>A separate copy of Instagram installed on the phone. Each clone can log into one account.</td></tr>
+    <tr><td><strong>Source</strong></td><td>An Instagram account whose followers your bots will target.</td></tr>
+    <tr><td><strong>Target</strong></td><td>An individual user that the bot interacts with (follows, likes their posts, etc.)</td></tr>
+    <tr><td><strong>Action</strong></td><td>Something the bot does: follow, like, comment, share, watch reels, DM, etc.</td></tr>
+    <tr><td><strong>Cycle</strong></td><td>One complete run of all enabled actions for one account. The bot does many cycles per day.</td></tr>
+    <tr><td><strong>Session</strong></td><td>A single active period for one account. Logged in the database with start time, actions done, and errors.</td></tr>
+    <tr><td><strong>Warmup</strong></td><td>Low-risk activities (scrolling feed, watching reels) that make the account look natural before doing growth actions.</td></tr>
+    <tr><td><strong>Dead Source</strong></td><td>A source account that no longer exists, went private, or can't be found. Automatically skipped.</td></tr>
+    <tr><td><strong>Job Order</strong></td><td>A specific task to complete (e.g., "get 1000 follows on @account"). Distributed across the farm.</td></tr>
+    <tr><td><strong>Tag Dedup</strong></td><td>Prevents multiple accounts from following the same person. Accounts with the same tag share a "do not follow again" list.</td></tr>
+    <tr><td><strong>Device Serial</strong></td><td>The phone's network address (e.g., 10.1.11.4:5555). Used to identify each phone.</td></tr>
+    <tr><td><strong>ADB</strong></td><td>Android Debug Bridge — the tool that lets the computer talk to the phones over WiFi.</td></tr>
+    <tr><td><strong>UIAutomator</strong></td><td>Android testing framework that lets the bot tap, scroll, and read screens on the phone.</td></tr>
+    <tr><td><strong>Jarvis</strong></td><td>The AI assistant that oversees the whole operation. Can monitor, fix issues, and execute commands.</td></tr>
+</table>
+
+<br><br>
+<div style="text-align: center; padding-top: 24px; border-top: 1px solid var(--border);">
+    <p style="color: var(--text-dim); font-size: 0.8rem;">Hydra 🐙 User Guide — Last updated: February 2026</p>
+    <p style="margin-top: 8px;"><a href="/docs-dev" style="color: var(--accent-light); text-decoration: none; font-size: 0.82rem;"><i class="fas fa-code"></i> Looking for developer docs? Click here</a></p>
+</div>
+
+</div>
+
+<script>
+// Active nav highlight on scroll
+const sections = document.querySelectorAll('h2[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+
+function highlightNav() {
+    let current = '';
+    sections.forEach(section => {
+        if (window.scrollY >= section.offsetTop - 100) {
+            current = section.getAttribute('id');
+        }
+    });
+    navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + current) link.classList.add('active');
+    });
+}
+
+window.addEventListener('scroll', highlightNav);
+highlightNav();
+
+// Smooth scroll
+document.querySelectorAll('.nav-link[href^="#"]').forEach(link => {
+    link.addEventListener('click', e => {
+        e.preventDefault();
+        const el = document.querySelector(link.getAttribute('href'));
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+});
+</script>
+
+</body>
+</html>

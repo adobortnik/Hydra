@@ -1,0 +1,511 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Hydra - Instagram Accounts{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0 text-white">Instagram Accounts</h1>
+                        <p class="text-white-50 mb-0">Manage your Instagram accounts</p>
+                    </div>
+                    <div>
+                        <button id="refreshData" class="btn btn-primary btn-action" data-bs-toggle="tooltip" title="Refresh Data">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filters Row -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3 mb-md-0">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-white mb-3"><i class="fas fa-search me-2"></i>Search Accounts</h5>
+                    <div class="input-group">
+                        <span class="input-group-text bg-dark border-secondary">
+                            <i class="fas fa-search text-white-50"></i>
+                        </span>
+                        <input type="text" id="accountSearch" class="form-control bg-dark text-white border-secondary" placeholder="Search by username...">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-white mb-3"><i class="fas fa-filter me-2"></i>Filter by Device</h5>
+                    <select id="deviceFilter" class="form-select bg-dark text-white border-secondary">
+                        <option value="" selected>All Devices</option>
+                        <!-- Device options will be populated by JavaScript -->
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Accounts Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-user-circle me-2"></i>Instagram Accounts</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table id="accountsTable" class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortTable(0)" class="cursor-pointer">
+                                        Username <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable(1)" class="cursor-pointer">
+                                        Device <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable(2)" class="cursor-pointer">
+                                        Runtime <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable(3)" class="cursor-pointer">
+                                        Followers <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable(4)" class="cursor-pointer">
+                                        Following <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable(5)" class="cursor-pointer">
+                                        Follow <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortTable(6)" class="cursor-pointer">
+                                        Unfollow <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accountsTableBody">
+                                <tr>
+                                    <td colspan="8" class="text-center">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                        <span class="text-white">Loading accounts data...</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Account Details Modal -->
+<div class="modal fade" id="accountDetailsModal" tabindex="-1" aria-labelledby="accountDetailsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="accountDetailsTitle">Account Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="accountDetailsBody">
+                <!-- Account details will be populated by JavaScript -->
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Remove Account Modal -->
+<div class="modal fade" id="removeAccountModal" tabindex="-1" aria-labelledby="removeAccountTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="removeAccountTitle">Remove Account</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="removeAccountConfirmText">Are you sure you want to remove this account?</p>
+                <form id="removeAccountForm">
+                    <input type="hidden" id="removeDeviceId">
+                    <input type="hidden" id="removeAccountName">
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmRemoveBtn" onclick="removeAccount()">
+                    <i class="fas fa-trash me-2"></i>Remove Account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Buy Followers Modal -->
+<div class="modal fade" id="buyFollowersModal" tabindex="-1" role="dialog" aria-labelledby="buyFollowersModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="buyFollowersModalLabel">Buy Followers</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="buyFollowersError" class="alert alert-danger" style="display: none;"></div>
+                <div id="buyFollowersSuccess" class="alert alert-success" style="display: none;"></div>
+                
+                <form id="buyFollowersForm">
+                    <input type="hidden" id="followerAccountId" name="accountId">
+                    <input type="hidden" id="followerUsername" name="username">
+                    
+                    <div class="form-group mb-3">
+                        <label for="followerService" class="form-label">Service</label>
+                        <select class="form-control bg-dark text-light border-secondary" id="followerService" name="service_id" required>
+                            <option value="">Loading services...</option>
+                        </select>
+                        <small class="form-text text-muted">Select the follower service you want to use.</small>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="followerQuantity" class="form-label">Quantity</label>
+                        <input type="number" class="form-control bg-dark text-light border-secondary" id="followerQuantity" name="quantity" min="1" required>
+                        <small id="quantityHelp" class="form-text text-muted">Enter the number of followers you want to purchase.</small>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label class="form-label">Instagram Profile</label>
+                        <p id="buyFollowersAccountName" class="form-control-static text-info"></p>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitBuyFollowers()">Buy Followers</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+<!-- Dashboard JavaScript -->
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+<!-- Buy Followers JavaScript -->
+<script>
+    let followerServices = [];
+    
+    // Fetch follower services when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchFollowerServices();
+    });
+    
+    function fetchFollowerServices() {
+        fetch('/api/jap/services')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching services:', data.error);
+                    return;
+                }
+                
+                followerServices = data;
+                populateServicesDropdown();
+            })
+            .catch(error => {
+                console.error('Error fetching services:', error);
+            });
+    }
+    
+    function populateServicesDropdown() {
+        const dropdown = document.getElementById('followerService');
+        dropdown.innerHTML = '';
+        
+        if (!followerServices || followerServices.length === 0 || followerServices.error) {
+            dropdown.innerHTML = '<option value="">No services available or API key not configured</option>';
+            return;
+        }
+        
+        // Log all services for debugging
+        console.log('All services:', followerServices);
+        
+        // More flexible filtering for Instagram Followers
+        const instagramFollowerServices = followerServices.filter(service => {
+            const name = (service.name || '').toLowerCase();
+            const category = (service.category || '').toLowerCase();
+            const type = (service.type || '').toLowerCase();
+            
+            // Check for Instagram followers in various combinations
+            const isInstagramFollowers = 
+                // Check name contains both instagram and follower/followers
+                (name.includes('instagram') && (name.includes('follower') || name.includes('followers'))) ||
+                // Check if category is instagram and name or type contains follower
+                (category.includes('instagram') && (name.includes('follower') || name.includes('followers') || type.includes('follower'))) ||
+                // Check if name contains instagram and type is follower
+                (name.includes('instagram') && type.includes('follower')) ||
+                // Check if service is explicitly for Instagram
+                (name.includes('ig ') || name.includes('ig_') || name.startsWith('ig ')) && (name.includes('follower') || name.includes('followers'));
+                
+            return isInstagramFollowers;
+        });
+        
+        // If no Instagram services found, show all follower services as fallback
+        if (instagramFollowerServices.length === 0) {
+            console.log('No Instagram follower services found, showing all follower services');
+            
+            const allFollowerServices = followerServices.filter(service => {
+                const name = (service.name || '').toLowerCase();
+                const type = (service.type || '').toLowerCase();
+                
+                return name.includes('follower') || name.includes('followers') || type.includes('follower');
+            });
+            
+            if (allFollowerServices.length === 0) {
+                dropdown.innerHTML = '<option value="">No follower services available</option>';
+                return;
+            }
+            
+            dropdown.innerHTML = '<option value="">No Instagram Follower services found. Showing all follower services:</option>';
+            
+            allFollowerServices.forEach(service => {
+                const option = document.createElement('option');
+                option.value = service.service;
+                option.textContent = `${service.name} - $${service.rate} per 1000 (Min: ${service.min}, Max: ${service.max})`;
+                option.dataset.min = service.min;
+                option.dataset.max = service.max;
+                option.dataset.rate = service.rate;
+                
+                // Preselect service ID 8839
+                if (service.service == 8839) {
+                    option.selected = true;
+                }
+                
+                dropdown.appendChild(option);
+            });
+        } else {
+            // Sort Instagram follower services by rate (price)
+            instagramFollowerServices.sort((a, b) => parseFloat(a.rate) - parseFloat(b.rate));
+            
+            instagramFollowerServices.forEach(service => {
+                const option = document.createElement('option');
+                option.value = service.service;
+                option.textContent = `${service.name} - $${service.rate} per 1000 (Min: ${service.min}, Max: ${service.max})`;
+                option.dataset.min = service.min;
+                option.dataset.max = service.max;
+                option.dataset.rate = service.rate;
+                
+                // Preselect service ID 8839
+                if (service.service == 8839) {
+                    option.selected = true;
+                }
+                
+                dropdown.appendChild(option);
+            });
+        }
+        
+        // Update quantity help text based on selected service
+        updateQuantityHelp();
+    }
+    
+    function updateQuantityHelp() {
+        const serviceSelect = document.getElementById('followerService');
+        const quantityHelp = document.getElementById('quantityHelp');
+        const quantityInput = document.getElementById('followerQuantity');
+        
+        if (serviceSelect.selectedIndex > -1) {
+            const selectedOption = serviceSelect.options[serviceSelect.selectedIndex];
+            const min = selectedOption.dataset.min;
+            const max = selectedOption.dataset.max;
+            const rate = selectedOption.dataset.rate;
+            
+            if (min && max) {
+                quantityHelp.textContent = `Enter a value between ${min} and ${max}. Cost: $${rate} per 1000 followers.`;
+                quantityInput.min = min;
+                quantityInput.max = max;
+                
+                // Set a default value
+                if (!quantityInput.value || quantityInput.value < min) {
+                    quantityInput.value = min;
+                }
+            }
+        }
+    }
+    
+    // Add event listener for service selection change
+    document.addEventListener('DOMContentLoaded', function() {
+        const serviceSelect = document.getElementById('followerService');
+        if (serviceSelect) {
+            serviceSelect.addEventListener('change', updateQuantityHelp);
+        }
+    });
+    
+    // Function to submit the buy followers form
+    function submitBuyFollowers() {
+        console.log('Buy Followers button clicked');
+        
+        const form = document.getElementById('buyFollowersForm');
+        const formData = new FormData(form);
+        
+        // Set the username from the modal title
+        const username = document.getElementById('buyFollowersAccountName').textContent.trim();
+        formData.set('username', username);
+        
+        // Debug form data
+        console.log('Form data:');
+        for (let pair of formData.entries()) {
+            console.log(pair[0] + ': ' + pair[1]); 
+        }
+        
+        // Validate form
+        const serviceId = formData.get('service_id');
+        const quantity = formData.get('quantity');
+        
+        console.log('Validation:', { serviceId, quantity, username });
+        
+        if (!serviceId) {
+            showBuyFollowersError('Please select a service');
+            return;
+        }
+        
+        if (!quantity || quantity <= 0) {
+            showBuyFollowersError('Please enter a valid quantity');
+            return;
+        }
+        
+        // Show loading state
+        const submitButton = document.querySelector('#buyFollowersModal .modal-footer .btn-primary');
+        const originalButtonText = submitButton.textContent;
+        submitButton.textContent = 'Processing...';
+        submitButton.disabled = true;
+        
+        console.log('Submitting order to API...');
+        
+        // Submit order
+        fetch('/api/jap/order-followers', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            console.log('API response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('API response data:', data);
+            if (data.error) {
+                showBuyFollowersError(data.error);
+            } else if (data.order) {
+                showBuyFollowersSuccess(`Order placed successfully! Order ID: ${data.order}`);
+                setTimeout(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('buyFollowersModal')).hide();
+                }, 3000);
+            } else {
+                showBuyFollowersError('Unknown error occurred');
+            }
+        })
+        .catch(error => {
+            console.error('Error placing order:', error);
+            showBuyFollowersError('Error placing order. Please try again later.');
+        })
+        .finally(() => {
+            // Reset button state
+            submitButton.textContent = originalButtonText;
+            submitButton.disabled = false;
+        });
+    }
+    
+    function showBuyFollowersError(message) {
+        const errorDiv = document.getElementById('buyFollowersError');
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        document.getElementById('buyFollowersSuccess').style.display = 'none';
+    }
+    
+    function showBuyFollowersSuccess(message) {
+        const successDiv = document.getElementById('buyFollowersSuccess');
+        successDiv.textContent = message;
+        successDiv.style.display = 'block';
+        document.getElementById('buyFollowersError').style.display = 'none';
+    }
+</script>
+
+<!-- Account Health Badges Overlay -->
+<style>
+    .health-badge-inline {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 5px;
+        font-size: .72rem;
+        font-weight: 600;
+        margin-left: 6px;
+        vertical-align: middle;
+    }
+    .hb-active             { background: #28a74522; color: #28a745; }
+    .hb-logged_out         { background: #6c757d33; color: #adb5bd; }
+    .hb-suspended          { background: #dc354533; color: #dc3545; }
+    .hb-verification_required { background: #ffc10733; color: #ffc107; }
+    .hb-2fa_required       { background: #fd7e1433; color: #fd7e14; }
+    .hb-action_blocked     { background: #dc354522; color: #e06070; }
+    .hb-replaced           { background: #6c757d22; color: #6c757d; }
+</style>
+<script>
+// Overlay health badges on account rows after they render.
+// Polls every 10s + runs on initial load after a short delay.
+(function() {
+    const STATUS_ICONS = {
+        active: '🟢', logged_out: '⚫', suspended: '🔴',
+        verification_required: '🟡', '2fa_required': '🟠',
+        action_blocked: '🔴', replaced: '⚪',
+    };
+
+    function applyHealthBadges() {
+        fetch('/api/account-status-badges')
+            .then(r => r.json())
+            .then(badges => {
+                // Build lookup: username → status
+                const lookup = {};
+                badges.forEach(b => { lookup[b.username] = b.status; });
+
+                // Find all account rows in the table
+                const rows = document.querySelectorAll('#accountsTableBody tr');
+                rows.forEach(row => {
+                    const strong = row.querySelector('td:first-child strong');
+                    if (!strong) return;
+                    const username = strong.textContent.trim();
+                    const status = lookup[username];
+                    if (!status || status === 'active') {
+                        // Remove any old badge
+                        const old = strong.parentElement.querySelector('.health-badge-inline');
+                        if (old) old.remove();
+                        return;
+                    }
+
+                    // Add or update badge
+                    let badge = strong.parentElement.querySelector('.health-badge-inline');
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'health-badge-inline';
+                        strong.parentElement.appendChild(badge);
+                    }
+                    const icon = STATUS_ICONS[status] || '❓';
+                    badge.className = 'health-badge-inline hb-' + status;
+                    badge.textContent = icon + ' ' + status.replace(/_/g, ' ');
+                });
+            })
+            .catch(() => {});
+    }
+
+    // Run after dashboard.js has loaded accounts (1s delay), then every 15s
+    setTimeout(applyHealthBadges, 1500);
+    setInterval(applyHealthBadges, 15000);
+})();
+</script>
+{% endblock %}

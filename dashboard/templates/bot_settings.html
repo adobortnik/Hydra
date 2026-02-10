@@ -1,0 +1,2942 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Bot Settings - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Dark theme text overrides */
+    .text-muted { color: #9ca3af !important; }
+    .form-label { color: #d1d5db; }
+    .form-text { color: #9ca3af; }
+    p.small { color: #9ca3af; }
+    .form-check-label { color: #d1d5db; }
+
+    /* Master toggle styling */
+    .master-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        background: linear-gradient(135deg, #1a1d21 0%, #2c3034 100%);
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        border: 1px solid #495057;
+    }
+
+    .master-toggle h5 {
+        margin: 0;
+        font-weight: 600;
+        color: #f8f9fa;
+    }
+
+    .master-toggle .form-check-input {
+        width: 3rem;
+        height: 1.5rem;
+    }
+
+    .master-toggle .form-check-input:checked {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+
+    .master-toggle-label {
+        font-size: 0.9rem;
+        color: #adb5bd;
+        margin-left: 0.5rem;
+    }
+
+    /* Settings section styling */
+    .settings-section {
+        background-color: #2c3034;
+        border: 1px solid #495057;
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .settings-section h6 {
+        color: #adb5bd;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #495057;
+    }
+
+    /* Form controls */
+    .form-control, .form-select {
+        background-color: #343a40;
+        border-color: #495057;
+        color: #f8f9fa;
+    }
+
+    .form-control:focus, .form-select:focus {
+        background-color: #343a40;
+        color: #f8f9fa;
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+
+    .form-control:disabled, .form-select:disabled {
+        background-color: #1a1d21;
+        color: #6c757d;
+    }
+
+    /* Checkbox groups */
+    .checkbox-group {
+        padding: 0.5rem 0;
+    }
+
+    .checkbox-group .form-check-input {
+        margin-top: 0.3rem;
+    }
+
+    .checkbox-group label {
+        color: #e9ecef;
+        cursor: pointer;
+    }
+
+    .checkbox-group label:hover {
+        color: #0d6efd;
+    }
+
+    /* Min/Max input groups */
+    .min-max-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .min-max-group .form-control {
+        width: 100px;
+    }
+
+    .min-max-group span {
+        color: #9ca3af;
+        font-size: 0.85rem;
+    }
+
+    /* Conditional settings (hidden by default) */
+    .conditional-settings {
+        margin-left: 1.5rem;
+        padding-left: 1rem;
+        border-left: 2px solid #495057;
+        margin-top: 0.5rem;
+        display: none;
+    }
+
+    .conditional-settings.show {
+        display: block;
+    }
+
+    /* Tab styling */
+    .nav-tabs {
+        border-bottom: 2px solid #495057;
+        margin-bottom: 1.5rem;
+    }
+
+    .nav-tabs .nav-link {
+        color: #adb5bd;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        padding: 0.75rem 1.25rem;
+        font-weight: 500;
+    }
+
+    .nav-tabs .nav-link:hover {
+        color: #f8f9fa;
+        border-color: transparent;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #0d6efd;
+        background-color: transparent;
+        border-color: transparent transparent #0d6efd;
+    }
+
+    /* Tab status indicator */
+    .tab-status-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-left: 6px;
+        background-color: transparent;
+        transition: background-color 0.3s ease;
+    }
+
+    .tab-status-indicator.active {
+        background-color: #28a745;
+        box-shadow: 0 0 6px rgba(40, 167, 69, 0.6);
+    }
+
+    /* Account selector */
+    .account-selector {
+        background-color: #2c3034;
+        border: 1px solid #495057;
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .account-selector .row {
+        align-items: flex-end;
+    }
+
+    /* Bulk selection badge */
+    .bulk-badge {
+        background-color: #0d6efd;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+    }
+
+    /* Settings hint text */
+    .hint-text {
+        color: #9ca3af;
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Button for GPT prompt */
+    .btn-prompt {
+        margin-top: 0.5rem;
+    }
+
+    /* Toast container */
+    .toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1050;
+    }
+
+    /* Loading overlay */
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+        display: none;
+    }
+
+    .loading-overlay.show {
+        display: flex;
+    }
+
+    /* Sticky header */
+    .sticky-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #212529;
+        padding: 1rem 0;
+        margin: -1rem -1rem 1rem -1rem;
+        padding: 1rem;
+    }
+
+    /* List editor inline button */
+    .list-edit-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        margin-left: 8px;
+        font-size: 0.65rem;
+        border-radius: 4px;
+        background: transparent;
+        border: 1px solid #495057;
+        color: #6c9bd2;
+        cursor: pointer;
+        vertical-align: middle;
+        transition: all 0.2s;
+    }
+
+    .list-edit-btn:hover {
+        background: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+
+    #listModalContent {
+        font-family: monospace;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+        <div>
+            <h1 class="text-light">
+                <i class="fas fa-cogs me-2"></i>Bot Settings
+            </h1>
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/" class="text-light">Dashboard</a></li>
+                <li class="breadcrumb-item active text-light">Bot Settings</li>
+            </ol>
+        </div>
+        <div>
+            <button class="btn btn-success" id="saveAllBtn" onclick="saveSettings()" style="display: none;">
+                <i class="fas fa-save me-2"></i>Save Settings
+            </button>
+        </div>
+    </div>
+
+    <!-- Account Selector -->
+    <div class="account-selector">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label text-light">Device</label>
+                <select class="form-select" id="deviceSelect" onchange="loadAccountsForDevice()">
+                    <option value="">Select Device...</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-light">Account</label>
+                <select class="form-select" id="accountSelect" onchange="loadSettings()">
+                    <option value="">Select Account...</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-light">&nbsp;</label>
+                <button class="btn btn-primary w-100" onclick="loadSettings()">
+                    <i class="fas fa-download me-2"></i>Load
+                </button>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-light">Bulk Operations</label>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-info flex-grow-1" data-bs-toggle="modal" data-bs-target="#bulkSelectModal">
+                        <i class="fas fa-users me-2"></i>Select Accounts
+                        <span class="bulk-badge ms-2" id="bulkCount" style="display: none;">0</span>
+                    </button>
+                    <button class="btn btn-warning" onclick="copyToSelected()" id="copyBtn" disabled>
+                        <i class="fas fa-copy me-2"></i>Copy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Placeholder when no account selected -->
+    <div id="noAccountPlaceholder" class="text-center py-5">
+        <div class="text-muted">
+            <i class="fas fa-user-cog fa-4x mb-3"></i>
+            <h4>Select an Account to View Settings</h4>
+            <p>Choose a device and account from the dropdowns above, then click "Load" to view and edit bot settings.</p>
+        </div>
+    </div>
+
+    <!-- Settings Container (hidden until account is loaded) -->
+    <div id="settingsContainer" style="display: none;">
+
+    <!-- Settings Tabs -->
+    <ul class="nav nav-tabs flex-nowrap" id="settingsTabs" role="tablist" style="overflow-x: auto;">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button">
+                <i class="fas fa-home me-1"></i>Overview
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="timer-tab" data-bs-toggle="tab" data-bs-target="#timer" type="button">
+                <i class="fas fa-clock me-1"></i>Timer
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="follow-tab" data-bs-toggle="tab" data-bs-target="#follow" type="button">
+                <i class="fas fa-user-plus me-1"></i>Follow<span class="tab-status-indicator" id="follow-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="unfollow-tab" data-bs-toggle="tab" data-bs-target="#unfollow" type="button">
+                <i class="fas fa-user-minus me-1"></i>Unfollow<span class="tab-status-indicator" id="unfollow-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="like-tab" data-bs-toggle="tab" data-bs-target="#like" type="button">
+                <i class="fas fa-heart me-1"></i>Like<span class="tab-status-indicator" id="like-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="comment-tab" data-bs-toggle="tab" data-bs-target="#comment" type="button">
+                <i class="fas fa-comment me-1"></i>Comment<span class="tab-status-indicator" id="comment-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="story-tab" data-bs-toggle="tab" data-bs-target="#story" type="button">
+                <i class="fas fa-play-circle me-1"></i>Story<span class="tab-status-indicator" id="story-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="dm-tab" data-bs-toggle="tab" data-bs-target="#dm" type="button">
+                <i class="fas fa-envelope me-1"></i>DM<span class="tab-status-indicator" id="dm-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="reels-tab" data-bs-toggle="tab" data-bs-target="#reels" type="button">
+                <i class="fas fa-film me-1"></i>Reels<span class="tab-status-indicator" id="reels-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="share-tab" data-bs-toggle="tab" data-bs-target="#share" type="button">
+                <i class="fas fa-share me-1"></i>Share<span class="tab-status-indicator" id="share-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="post-tab" data-bs-toggle="tab" data-bs-target="#post" type="button">
+                <i class="fas fa-image me-1"></i>Post<span class="tab-status-indicator" id="post-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="hbe-tab" data-bs-toggle="tab" data-bs-target="#hbe" type="button">
+                <i class="fas fa-robot me-1"></i>HBE<span class="tab-status-indicator" id="hbe-indicator"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="filters-tab" data-bs-toggle="tab" data-bs-target="#filters" type="button">
+                <i class="fas fa-filter me-1"></i>Filters<span class="tab-status-indicator" id="filters-indicator"></span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="settingsTabContent">
+
+        <!-- ========== OVERVIEW TAB ========== -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+            <!-- Login Credentials Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-user-lock me-2"></i>Login Credentials</h6>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" id="overview_username" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="overview_password" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility()">
+                                <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- App Cloner Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-clone me-2"></i>App Cloner | NomixCloner</h6>
+                <div class="mb-3">
+                    <label class="form-label">APP ID</label>
+                    <input type="text" class="form-control" id="app_cloner" data-setting="app_cloner"
+                           placeholder="com.instagram.android/com.instagram.mainactivity.MainActivity">
+                </div>
+            </div>
+
+            <!-- Job Orders Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-tasks me-2"></i>Participate in Job Orders</h6>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_participate_job_orders" data-setting="enable_participate_job_orders">
+                        <label class="form-check-label" for="enable_participate_job_orders">Enable Job Orders Participation</label>
+                    </div>
+                </div>
+                <div class="conditional-settings ms-4 mt-2" id="job_orders_settings">
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="enable_follow_joborders" data-setting="enable_follow_joborders">
+                            <label class="form-check-label" for="enable_follow_joborders">Enable Follow Job Orders</label>
+                        </div>
+                    </div>
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="enable_like_joborders" data-setting="enable_like_joborders">
+                            <label class="form-check-label" for="enable_like_joborders">Enable Like Job Orders</label>
+                        </div>
+                    </div>
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="enable_comment_joborders" data-setting="enable_comment_joborders">
+                            <label class="form-check-label" for="enable_comment_joborders">Enable Comment Job Orders</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tags Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-tags me-2"></i>Tags</h6>
+                <div class="checkbox-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_tags" data-setting="enable_tags">
+                        <label class="form-check-label" for="enable_tags">Enable Tags</label>
+                    </div>
+                </div>
+                <div class="conditional-settings show" id="tags_settings">
+                    <div class="mb-3">
+                        <label class="form-label">Tags</label>
+                        <input type="text" class="form-control" id="tags" data-setting="tags" placeholder="Enter tags">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Settings Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-cog me-2"></i>Additional Settings</h6>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_dashboard_email" data-setting="enable_dashboard_email">
+                        <label class="form-check-label" for="enable_dashboard_email">Enable Dashboard Email</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_2fa" data-setting="enable_2fa">
+                        <label class="form-check-label" for="enable_2fa">Enable 2FA Login</label>
+                    </div>
+                </div>
+                <div class="conditional-settings" id="2fa_settings">
+                    <div class="mb-3">
+                        <label class="form-label">2FA Code</label>
+                        <input type="text" class="form-control" id="code_2fa" data-setting="code_2fa" placeholder="Enter 2FA code">
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="override_global_settings" data-setting="override_global_settings">
+                        <label class="form-check-label" for="override_global_settings">Override Global Settings</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== TIMER TAB ========== -->
+        <div class="tab-pane fade" id="timer" role="tabpanel">
+            <!-- Account Schedule Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-calendar-alt me-2"></i>Account Schedule</h6>
+                <p class="text-muted small">You can enter multiple timers by separating each time with a comma</p>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Start Hour</label>
+                        <input type="text" class="form-control" id="starttime" data-accounts-db="starttime" placeholder="0">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">End Hour</label>
+                        <input type="text" class="form-control" id="endtime" data-accounts-db="endtime" placeholder="24">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Random Action Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-random me-2"></i>Random Action Operation</h6>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Random Action</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="randomaction_min" data-accounts-db="randomaction_min" placeholder="0">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="randomaction_max" data-accounts-db="randomaction_max" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Random Delay (seconds)</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="randomdelay_min" data-accounts-db="randomdelay_min" placeholder="0">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="randomdelay_max" data-accounts-db="randomdelay_max" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Follow Timer Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-user-plus me-2"></i>Follow Timer</h6>
+                <p class="text-muted small">Enter Hour you want follow tool to run. Enter None to disable</p>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Start Hour</label>
+                        <input type="text" class="form-control" id="follow_timer_min_hour" data-setting="follow_timer_min_hour" placeholder="None">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">End Hour</label>
+                        <input type="text" class="form-control" id="follow_timer_max_hour" data-setting="follow_timer_max_hour" placeholder="None">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unfollow Timer Section -->
+            <div class="settings-section">
+                <h6><i class="fas fa-user-minus me-2"></i>Unfollow Timer</h6>
+                <p class="text-muted small">Enter Hour you want unfollow tool to run. Enter None to disable</p>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Start Hour</label>
+                        <input type="text" class="form-control" id="unfollow_timer_min_hour" data-setting="unfollow_timer_min_hour" placeholder="None">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">End Hour</label>
+                        <input type="text" class="form-control" id="unfollow_timer_max_hour" data-setting="unfollow_timer_max_hour" placeholder="None">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== LIKE TAB ========== -->
+        <div class="tab-pane fade" id="like" role="tabpanel">
+            <!-- Master Toggle -->
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-heart me-2 text-danger"></i>LIKE</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_likepost" data-setting="enable_likepost">
+                    </div>
+                    <span class="master-toggle-label" id="likeStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <!-- Like Method -->
+            <div class="settings-section">
+                <h6><i class="fas fa-sliders-h me-2"></i>Like Method</h6>
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('like_sources', 'Like Sources')">
+                        <i class="fas fa-list me-1"></i>Edit Sources
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('like_keywords', 'Like Keywords')">
+                        <i class="fas fa-list me-1"></i>Edit Keywords
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('like_specific_accounts', 'Like Specific Accounts')">
+                        <i class="fas fa-list me-1"></i>Edit Specific Accounts
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('name_must_include_likes', 'Name Must Include (Likes)')">
+                        <i class="fas fa-list me-1"></i>Name Include
+                    </button>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_likepost_sources_followers" data-setting="likepost_method.enable_likepost_sources_followers">
+                        <label class="form-check-label" for="enable_likepost_sources_followers">Like Source's Followers</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_likepost_via_keywords" data-setting="likepost_method.enable_likepost_via_keywords">
+                        <label class="form-check-label" for="enable_likepost_via_keywords">Like Likers of Posts Via Keywords Search</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_likepost_specific_accounts" data-setting="likepost_method.enable_likepost_specific_accounts">
+                        <label class="form-check-label" for="enable_likepost_specific_accounts">Like Posts of Specific Accounts</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Like Action -->
+            <div class="settings-section">
+                <h6><i class="fas fa-running me-2"></i>Like Action</h6>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Likes per Operation</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_likepost_action" data-setting="min_likepost_action" value="10">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_likepost_action" data-setting="max_likepost_action" value="20">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Delays after Liking (seconds)</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="like_min_delay" data-setting="like_min_delay" value="0">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="like_max_delay" data-setting="like_max_delay" value="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Likes post per User</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_post_to_like" data-setting="min_post_to_like" value="1">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_post_to_like" data-setting="max_post_to_like" value="2">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">Like Limit per Day</label>
+                        <input type="number" class="form-control" id="like_limit_perday" data-setting="like_limit_perday" value="20">
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_auto_increment_like_limit_perday" data-setting="enable_auto_increment_like_limit_perday">
+                        <label class="form-check-label" for="enable_auto_increment_like_limit_perday">Auto Increment Like Limit per Day</label>
+                    </div>
+                    <div class="conditional-settings" id="like_auto_increment_settings">
+                        <div class="row mt-2">
+                            <div class="col-md-3">
+                                <label class="form-label text-light">Increase by</label>
+                                <input type="number" class="form-control" id="auto_increment_like_limit_perday_increase" data-setting="auto_increment_like_limit_perday_increase" value="5">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-light">Max Limit</label>
+                                <input type="number" class="form-control" id="auto_increment_like_limit_perday_increase_limit" data-setting="auto_increment_like_limit_perday_increase_limit" value="50">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Settings -->
+            <div class="settings-section">
+                <h6><i class="fas fa-cog me-2"></i>Additional Settings</h6>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="like_enable_filters" data-setting="like_enable_filters">
+                        <label class="form-check-label" for="like_enable_filters">Enable Filters</label>
+                    </div>
+                    <p class="hint-text">Filter accounts to like based on followers, posts, etc.</p>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_dont_like_if_user_followed" data-setting="enable_dont_like_if_user_followed">
+                        <label class="form-check-label" for="enable_dont_like_if_user_followed">Don't Like user if it was already followed</label>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_dont_like_sametag_accounts" data-setting="enable_dont_like_sametag_accounts">
+                        <label class="form-check-label" for="enable_dont_like_sametag_accounts">Don't Like user that was already Liked by the same tagged account</label>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_scrape_before_likingpost" data-setting="enable_scrape_before_likingpost">
+                        <label class="form-check-label" for="enable_scrape_before_likingpost">Scrape Accounts before Liking posts</label>
+                    </div>
+                    <p class="hint-text">Bot will scrape and store accounts from followers or search results before liking posts</p>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_delete_like_posts_specific_sources" data-setting="enable_delete_like_posts_specific_sources">
+                        <label class="form-check-label" for="enable_delete_like_posts_specific_sources">Delete Specific Accounts Sources after Liking Posts</label>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="like_story_after_liking_post" data-setting="like_story_after_liking_post">
+                        <label class="form-check-label" for="like_story_after_liking_post">Like Stories after Liking Posts</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== COMMENT TAB ========== -->
+        <div class="tab-pane fade" id="comment" role="tabpanel">
+            <!-- Master Toggle -->
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-comment me-2 text-info"></i>COMMENT</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_comment" data-setting="enable_comment">
+                    </div>
+                    <span class="master-toggle-label" id="commentStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <!-- Comment Method -->
+            <div class="settings-section">
+                <h6><i class="fas fa-sliders-h me-2"></i>Comment Method</h6>
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('comment_sources', 'Comment Sources')">
+                        <i class="fas fa-list me-1"></i>Edit Sources
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('comment_keywords', 'Comment Keywords')">
+                        <i class="fas fa-list me-1"></i>Edit Keywords
+                    </button>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="comment_using_keyword_search" data-setting="comment_method.comment_using_keyword_search">
+                        <label class="form-check-label" for="comment_using_keyword_search">Comment Using Keyword Search</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comment Text -->
+            <div class="settings-section">
+                <h6><i class="fas fa-pen me-2"></i>Comment Text</h6>
+                <textarea class="form-control" id="comment_text" data-setting="comment_text" rows="3" placeholder="Enter comment text or [AI] for AI-generated comments">[AI]</textarea>
+                <p class="hint-text">Because of how the IG App works, Comment requires that the device enables Gesture Mode Navigation. If it was not setup manually, IGBot will automatically change the device to Gesture Mode.</p>
+                <button class="btn btn-outline-primary btn-sm btn-prompt" onclick="editPrompt('comment_gpt_prompt')">
+                    <i class="fas fa-robot me-2"></i>CUSTOM COMMENT GPT PROMPT
+                </button>
+            </div>
+
+            <!-- Comment Action -->
+            <div class="settings-section">
+                <h6><i class="fas fa-running me-2"></i>Comment Action</h6>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Comment per Operation</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_comment" data-setting="min_comment" value="10">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_comment" data-setting="max_comment" value="20">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Delays after Comment (seconds)</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="comment_min_delay" data-setting="comment_min_delay" value="5">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="comment_max_delay" data-setting="comment_max_delay" value="10">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">Comment Daily Limit</label>
+                        <input type="number" class="form-control" id="comment_limit_perday" data-setting="comment_limit_perday" value="25">
+                        <p class="hint-text">Enter None to use the default daily limit</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Settings -->
+            <div class="settings-section">
+                <h6><i class="fas fa-cog me-2"></i>Additional Settings</h6>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_dont_comment_sametag_accounts" data-setting="enable_dont_comment_sametag_accounts">
+                        <label class="form-check-label" for="enable_dont_comment_sametag_accounts">Don't Comment user that was already Commented by the same tagged account</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== STORY TAB ========== -->
+        <div class="tab-pane fade" id="story" role="tabpanel">
+            <!-- Master Toggle -->
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-play-circle me-2 text-warning"></i>STORY VIEWER</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_story_viewer" data-setting="enable_story_viewer">
+                    </div>
+                    <span class="master-toggle-label" id="storyStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <!-- View Story Method -->
+            <div class="settings-section">
+                <h6><i class="fas fa-sliders-h me-2"></i>View Story Method</h6>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="view_followers" data-setting="view_method.view_followers">
+                        <label class="form-check-label" for="view_followers">View Stories of User's Followers</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="view_likers" data-setting="view_method.view_likers">
+                        <label class="form-check-label" for="view_likers">View Stories of User's Likers</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="view_specific_user" data-setting="view_method.view_specific_user">
+                        <label class="form-check-label" for="view_specific_user">View Stories of Specific Users</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="view_specific_user_highlight" data-setting="view_method.view_specific_user_highlight">
+                        <label class="form-check-label" for="view_specific_user_highlight">View Stories of Specific Users Highlights</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Story Action -->
+            <div class="settings-section">
+                <h6><i class="fas fa-running me-2"></i>Story Action</h6>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">View Story per Operation</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="story_viewer_min" data-setting="story_viewer_min" value="10">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="story_viewer_max" data-setting="story_viewer_max" value="20">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">Viewed Story per Account</label>
+                        <input type="number" class="form-control" id="story_view_peraccount_view" data-setting="story_view_peraccount_view" value="3">
+                        <p class="hint-text">Number of stories to view per account</p>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">Story Viewer Limit per day</label>
+                        <input type="number" class="form-control" id="story_viewer_daily_limit" data-setting="story_viewer_daily_limit" value="800">
+                        <p class="hint-text">Does not support "Default Action Limit per Day" in the Timer tab. 1 account is equal to 1 view</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Settings -->
+            <div class="settings-section">
+                <h6><i class="fas fa-cog me-2"></i>Additional Settings</h6>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="like_story_after_viewing" data-setting="like_story_after_viewing" onchange="toggleConditional('story_like_settings', this.checked)">
+                        <label class="form-check-label" for="like_story_after_viewing">Like Stories after Viewing</label>
+                    </div>
+                    <div class="conditional-settings" id="story_like_settings">
+                        <div class="row mt-2 mb-2">
+                            <div class="col-md-4">
+                                <label class="form-label text-light">Story Like Limit per day</label>
+                                <input type="number" class="form-control" id="story_like_daily_limit" data-setting="story_like_daily_limit" value="200">
+                                <p class="hint-text">Set the limit per day of the total likes made from all viewed stories. The count is per story like and not per account</p>
+                            </div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label text-light">Stories to Like per account</label>
+                                <div class="min-max-group">
+                                    <span>Min:</span>
+                                    <input type="number" class="form-control" id="min_story_like_peraccount_view" data-setting="min_story_like_peraccount_view" value="2">
+                                    <span>Max:</span>
+                                    <input type="number" class="form-control" id="max_story_like_peraccount_view" data-setting="max_story_like_peraccount_view" value="4">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="dont_view_same_account_twice" data-setting="dont_view_same_account_twice">
+                        <label class="form-check-label" for="dont_view_same_account_twice">Don't View the same Account twice</label>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="view_highlight_if_no_story_viceversa" data-setting="view_highlight_if_no_story_viceversa">
+                        <label class="form-check-label" for="view_highlight_if_no_story_viceversa">View Highlights if there's no Story and Viceversa</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== DM TAB ========== -->
+        <div class="tab-pane fade" id="dm" role="tabpanel">
+            <!-- Master Toggle -->
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-envelope me-2 text-primary"></i>DIRECT MESSAGE</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_directmessage" data-setting="enable_directmessage">
+                    </div>
+                    <span class="master-toggle-label" id="dmStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <!-- DM Methods -->
+            <div class="settings-section">
+                <h6><i class="fas fa-sliders-h me-2"></i>DM Methods</h6>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="directmessage_new_followers" data-setting="directmessage_method.directmessage_new_followers">
+                        <label class="form-check-label" for="directmessage_new_followers">Direct Message New Followers</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="directmessage_specificuser" data-setting="directmessage_method.directmessage_specificuser">
+                        <label class="form-check-label" for="directmessage_specificuser">Direct Message Specific Accounts</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="directmessage_reply" data-setting="directmessage_method.directmessage_reply">
+                        <label class="form-check-label" for="directmessage_reply">Reply To Direct Messages</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_dm_crm" data-setting="directmessage_method.enable_dm_crm">
+                        <label class="form-check-label" for="enable_dm_crm">Direct Message via Onimator CRM</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DM Action -->
+            <div class="settings-section">
+                <h6><i class="fas fa-running me-2"></i>DM Action</h6>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Direct message per Operation</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="directmessage_min" data-setting="directmessage_min" value="3">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="directmessage_max" data-setting="directmessage_max" value="5">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Delays after Direct Message (seconds)</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="directmessage_min_delay" data-setting="directmessage_min_delay" value="10">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="directmessage_max_delay" data-setting="directmessage_max_delay" value="20">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">Check New Message Delay (minutes)</label>
+                        <input type="number" class="form-control" id="message_check_delay" data-setting="message_check_delay" value="60">
+                        <p class="hint-text">Set how many minutes the bot will try to check for new messages again</p>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">DM Daily Limit</label>
+                        <input type="number" class="form-control" id="directmessage_daily_limit" data-setting="directmessage_daily_limit" value="25">
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Settings -->
+            <div class="settings-section">
+                <h6><i class="fas fa-robot me-2"></i>Additional Settings to all Direct Message</h6>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_send_message_every_new_line" data-setting="enable_send_message_every_new_line">
+                        <label class="form-check-label" for="enable_send_message_every_new_line">Enable Send Message Every New Line</label>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <label class="form-label text-light">Select AI to use for Direct Message:</label>
+
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="dm_ai_type" id="enable_openai_dm" data-setting="enable_openai_dm" checked>
+                            <label class="form-check-label" for="enable_openai_dm">Open AI (ChatGPT)</label>
+                        </div>
+                        <div class="conditional-settings show" style="margin-left: 1.5rem;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="enable_openai_assistant" data-setting="enable_openai_assistant">
+                                <label class="form-check-label" for="enable_openai_assistant">Enable Open AI Assistant</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="dm_ai_type" id="enable_cupidai_dm" data-setting="enable_cupidai_dm">
+                            <label class="form-check-label" for="enable_cupidai_dm">Cupid AI</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button class="btn btn-outline-primary btn-sm" onclick="editPrompt('dm_new_followers_prompt')">
+                        <i class="fas fa-robot me-2"></i>Edit New Followers DM Prompt
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm ms-2" onclick="editPrompt('dm_specific_users_prompt')">
+                        <i class="fas fa-robot me-2"></i>Edit Specific Users DM Prompt
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('dm_specific_sources', 'DM Specific Sources')">
+                        <i class="fas fa-list me-1"></i>Edit DM Sources
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== FOLLOW TAB ========== -->
+        <div class="tab-pane fade" id="follow" role="tabpanel">
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-user-plus me-2 text-success"></i>FOLLOW</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_follow" data-setting="enable_follow">
+                    </div>
+                    <span class="master-toggle-label" id="followStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h6><i class="fas fa-sliders-h me-2"></i>Follow Method</h6>
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('sources', 'Follow Sources')">
+                        <i class="fas fa-list me-1"></i>Edit Sources
+                        <span class="badge bg-danger ms-1" id="deadSourcesInlineBadge" style="display:none;" title="Dead sources found">0</span>
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('follow_likers_sources', 'Follow Likers Sources')">
+                        <i class="fas fa-list me-1"></i>Edit Likers Sources
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('follow_specific_sources', 'Follow Specific Sources')">
+                        <i class="fas fa-list me-1"></i>Edit Specific Sources
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('follow_keywords', 'Follow Keywords')">
+                        <i class="fas fa-list me-1"></i>Edit Keywords
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('name_must_include', 'Name Must Include')">
+                        <i class="fas fa-list me-1"></i>Name Include
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('name_must_not_include', 'Name Must NOT Include')">
+                        <i class="fas fa-list me-1"></i>Name Exclude
+                    </button>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="follow_followers" data-setting="follow_method.follow_followers">
+                        <label class="form-check-label" for="follow_followers">Follow User's Followers</label>
+                    </div>
+                    <!-- Conditional sub-option for follow_followers -->
+                    <div class="conditional-settings ms-4 mt-2" id="follow_followers_options">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="visit_profile_when_following_using_followfollowers" data-setting="visit_profile_when_following_using_followfollowers">
+                            <label class="form-check-label text-info" for="visit_profile_when_following_using_followfollowers">
+                                <i class="fas fa-user-circle me-1"></i>Visit Target Profile when Following Followers
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="follow_likers" data-setting="follow_method.follow_likers">
+                        <label class="form-check-label" for="follow_likers">Follow User's Likers</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="follow_hashtag" data-setting="follow_method.follow_hashtag">
+                        <label class="form-check-label" for="follow_hashtag">Follow via Hashtag</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="follow_specific_user" data-setting="follow_method.follow_specific_user">
+                        <label class="form-check-label" for="follow_specific_user">Follow Specific Users</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h6><i class="fas fa-running me-2"></i>Follow Action</h6>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">Default Action Limit per Day</label>
+                        <input type="number" class="form-control" id="default_action_limit_perday" data-setting="default_action_limit_perday" value="60">
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_auto_increment_follow_limit_perday" data-setting="enable_auto_increment_follow_limit_perday">
+                        <label class="form-check-label" for="enable_auto_increment_follow_limit_perday">Auto Increment Follow Limit per Day</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Follow Settings -->
+            <div class="settings-section">
+                <h6><i class="fas fa-cogs me-2"></i>Additional Settings</h6>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="mute_after_follow" data-setting="mute_after_follow">
+                        <label class="form-check-label" for="mute_after_follow">Mute Users after Follow</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_filter_seach_followers_follow" data-setting="enable_filter_seach_followers_follow">
+                        <label class="form-check-label text-primary" for="enable_filter_seach_followers_follow">Filter Word Search in Followers Tab</label>
+                    </div>
+                    <small class="text-muted ms-4">Filtered words list are shared with Follow, Like and Stories</small>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_name_must_include" data-setting="enable_name_must_include">
+                        <label class="form-check-label text-primary" for="enable_name_must_include">Follow only if Account's Name includes these list of Names</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_name_must_not_include" data-setting="enable_name_must_not_include">
+                        <label class="form-check-label text-danger" for="enable_name_must_not_include">Do not Follow if Account's Name includes these list of Names</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_complete_follow_first_before_unfollowing" data-setting="enable_complete_follow_first_before_unfollowing">
+                        <label class="form-check-label" for="enable_complete_follow_first_before_unfollowing">Complete Follow daily limit first before Unfollowing</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_dont_follow_if_post_like" data-setting="enable_dont_follow_if_post_like">
+                        <label class="form-check-label" for="enable_dont_follow_if_post_like">Don't Follow user if it was already liked using like action</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_dont_follow_sametag_accounts" data-setting="enable_dont_follow_sametag_accounts">
+                        <label class="form-check-label" for="enable_dont_follow_sametag_accounts">Don't Follow user that was already followed by the same tagged account</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_follow_only_if_story_exist" data-setting="enable_follow_only_if_story_exist">
+                        <label class="form-check-label" for="enable_follow_only_if_story_exist">Only Follow user that has active stories</label>
+                    </div>
+                    <small class="text-muted ms-4">Bot will skip users without stories. This does not use API requests</small>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_prioritize_follow_action" data-setting="enable_prioritize_follow_action">
+                        <label class="form-check-label" for="enable_prioritize_follow_action">Prioritize Follow Action</label>
+                    </div>
+                    <small class="text-muted ms-4">Other actions will only start after the Follow action reaches its daily limit.</small>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="like_story_after_follow" data-setting="like_story_after_follow">
+                        <label class="form-check-label" for="like_story_after_follow">Like Stories after Following</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_followings_limit" data-setting="enable_followings_limit">
+                        <label class="form-check-label" for="enable_followings_limit">Enable Limit the number of your Followings Count</label>
+                    </div>
+                </div>
+                <div class="conditional-settings" id="followings_limit_settings">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Followings Limit</label>
+                            <input type="number" class="form-control" id="followings_limit" data-setting="followings_limit" value="7500">
+                        </div>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="dont_follow_private_accounts_using_followfollowers" data-setting="dont_follow_private_accounts_using_followfollowers">
+                        <label class="form-check-label" for="dont_follow_private_accounts_using_followfollowers">Don't Follow Private Accounts</label>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('close_friends', 'Close Friends List')">
+                        <i class="fas fa-star me-1"></i>Edit Close Friends
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm ms-2" onclick="editPrompt('gpt_prompt')">
+                        <i class="fas fa-robot me-1"></i>Custom Follow GPT Prompt
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dead Sources Section -->
+            <div class="settings-section" id="deadSourcesSection">
+                <h6 class="d-flex justify-content-between align-items-center">
+                    <span>
+                        <i class="fas fa-skull-crossbones me-2 text-danger"></i>Dead Sources
+                        <span class="badge bg-danger ms-2" id="deadSourcesBadge" style="display:none;">0</span>
+                    </span>
+                    <div>
+                        <button class="btn btn-outline-warning btn-sm me-2" onclick="cleanupDeadSources()" id="cleanupDeadBtn" style="display:none;">
+                            <i class="fas fa-broom me-1"></i>Remove All Dead from Lists
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#deadSourcesCollapse">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </h6>
+                <p class="hint-text">Sources that couldn't be found (deleted/renamed). After 3 failed searches, sources are marked dead and skipped automatically. Dead sources auto-retry after 7 days.</p>
+                <div class="collapse" id="deadSourcesCollapse">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-dark table-hover mb-0" id="deadSourcesTable">
+                            <thead>
+                                <tr>
+                                    <th>Source</th>
+                                    <th>Fails</th>
+                                    <th>Status</th>
+                                    <th>First Failed</th>
+                                    <th>Last Failed</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deadSourcesBody">
+                                <tr><td colspan="6" class="text-center text-muted py-3">Select an account to see dead sources</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== UNFOLLOW TAB ========== -->
+        <div class="tab-pane fade" id="unfollow" role="tabpanel">
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-user-minus me-2 text-danger"></i>UNFOLLOW</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_unfollow" data-setting="enable_unfollow">
+                    </div>
+                    <span class="master-toggle-label" id="unfollowStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h6><i class="fas fa-sliders-h me-2"></i>Unfollow Method</h6>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="unfollow_using_profile" data-setting="unfollow_method.unfollow_using_profile">
+                        <label class="form-check-label" for="unfollow_using_profile">Unfollow Using Profile</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="unfollow_using_feed" data-setting="unfollow_method.unfollow_using_feed">
+                        <label class="form-check-label" for="unfollow_using_feed">Unfollow Using Feed</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h6><i class="fas fa-running me-2"></i>Unfollow Action</h6>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">Unfollow Limit per Day</label>
+                        <input type="number" class="form-control" id="unfollow_limit_perday" data-setting="unfollow_limit_perday" value="60">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-light">Unfollow Delay Days</label>
+                        <input type="number" class="form-control" id="unfollow_delay_day" data-setting="unfollow_delay_day" value="3">
+                        <p class="hint-text">Days to wait before unfollowing a user after following them</p>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_auto_increment_unfollow_limit_perday" data-setting="enable_auto_increment_unfollow_limit_perday">
+                        <label class="form-check-label" for="enable_auto_increment_unfollow_limit_perday">Auto Increment Unfollow Limit per Day</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Unfollow Settings -->
+            <div class="settings-section">
+                <h6><i class="fas fa-cogs me-2"></i>Additional Settings</h6>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="dont_unfollow_followers" data-setting="dont_unfollow_followers">
+                        <label class="form-check-label" for="dont_unfollow_followers">Don't Unfollow Followers</label>
+                    </div>
+                    <small class="text-muted ms-4">Skip users who are following you back</small>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_prioritize_unfollow_action" data-setting="enable_prioritize_unfollow_action">
+                        <label class="form-check-label" for="enable_prioritize_unfollow_action">Prioritize Unfollow Action</label>
+                    </div>
+                    <small class="text-muted ms-4">Other actions will only start after the Unfollow action reaches its daily limit.</small>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_unfollow_specific_accounts" data-setting="enable_unfollow_specific_accounts">
+                        <label class="form-check-label" for="enable_unfollow_specific_accounts">Unfollow Specific Accounts</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_follow_if_no_users_to_unfollow" data-setting="enable_follow_if_no_users_to_unfollow">
+                        <label class="form-check-label" for="enable_follow_if_no_users_to_unfollow">Follow if No Users to Unfollow</label>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('whitelist', 'Whitelist (Never Unfollow)')">
+                        <i class="fas fa-shield-alt me-1"></i>Edit Whitelist
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== REELS TAB ========== -->
+        <div class="tab-pane fade" id="reels" role="tabpanel">
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-film me-2 text-primary"></i>WATCHING REELS</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_watch_reels" data-setting="enable_watch_reels">
+                    </div>
+                    <span class="master-toggle-label" id="reelsStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <!-- Reels Method -->
+            <div class="settings-section">
+                <h6><i class="fas fa-sliders-h me-2"></i>Reels Method</h6>
+                <div class="mb-3">
+                    <label class="form-label">Watch Reels Using Keyword Search</label>
+                    <p class="text-muted small">Configure keywords in the "watch_reels_sources.txt" file</p>
+                    <button class="btn btn-outline-primary btn-sm" onclick="openListModal('watch_reels_sources', 'Watch Reels Sources')">
+                        <i class="fas fa-list me-1"></i>Edit Reels Sources
+                    </button>
+                </div>
+            </div>
+
+            <!-- Reels Action -->
+            <div class="settings-section">
+                <h6><i class="fas fa-cogs me-2"></i>Reels Action</h6>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Watch Reels per Operation</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_reels_to_watch" data-setting="min_reels_to_watch">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_reels_to_watch" data-setting="max_reels_to_watch">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Time Watch Reel per Reel (seconds)</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_sec_reel_watch" data-setting="min_sec_reel_watch">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_sec_reel_watch" data-setting="max_sec_reel_watch">
+                        </div>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_save_reels_after_watching" data-setting="enable_save_reels_after_watching">
+                        <label class="form-check-label" for="enable_save_reels_after_watching">Save Reel after watching</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_like_reel" data-setting="enable_like_reel">
+                        <label class="form-check-label" for="enable_like_reel">Like Reel while watching</label>
+                    </div>
+                </div>
+                <div class="conditional-settings" id="like_reel_settings">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Chance to Like (%)</label>
+                            <input type="number" class="form-control" id="like_reel_percent" data-setting="like_reel_percent" placeholder="40">
+                            <small class="text-muted">Percent chance to like a reel per watch</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Watch Reel Limit per Day</label>
+                        <input type="number" class="form-control" id="watch_reel_limit_perday" data-setting="watch_reel_limit_perday">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== SHARE TAB ========== -->
+        <div class="tab-pane fade" id="share" role="tabpanel">
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-share me-2 text-success"></i>SHARED POST</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_shared_post" data-setting="enable_shared_post">
+                    </div>
+                    <span class="master-toggle-label" id="shareStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <!-- Shared Posts Source -->
+            <div class="settings-section">
+                <h6><i class="fas fa-sliders-h me-2"></i>Shared Posts Source</h6>
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-outline-info btn-sm" onclick="openListModal('share_sources', 'Share Sources')">
+                        <i class="fas fa-list me-1"></i>Edit Share Sources
+                    </button>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_share_post_to_story" data-setting="enable_share_post_to_story">
+                        <label class="form-check-label" for="enable_share_post_to_story">Share Post or Reels To Story</label>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_repost_post" data-setting="enable_repost_post">
+                        <label class="form-check-label" for="enable_repost_post">Repost Post or Reels</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shared Posts Action -->
+            <div class="settings-section">
+                <h6><i class="fas fa-cogs me-2"></i>Shared Posts Action</h6>
+                <div class="mb-3">
+                    <label class="form-label">Select which to share</label>
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="post_type_to_share" id="share_posts" value="posts" data-setting="post_type_to_share">
+                            <label class="form-check-label" for="share_posts">Share Posts</label>
+                        </div>
+                    </div>
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="post_type_to_share" id="share_reels" value="reels" data-setting="post_type_to_share">
+                            <label class="form-check-label" for="share_reels">Share Reels</label>
+                        </div>
+                    </div>
+                    <div class="checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="post_type_to_share" id="share_both" value="both" data-setting="post_type_to_share">
+                            <label class="form-check-label" for="share_both">Share Posts or Reels</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Watch Time per Reel (seconds)</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_sec_share_reel_watch" data-setting="min_sec_share_reel_watch">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_sec_share_reel_watch" data-setting="max_sec_share_reel_watch">
+                        </div>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_add_link_to_story" data-setting="enable_add_link_to_story">
+                        <label class="form-check-label" for="enable_add_link_to_story">Enable Add Link</label>
+                    </div>
+                </div>
+                <div class="conditional-settings" id="add_link_settings">
+                    <div class="mb-3">
+                        <label class="form-label">Custom Link Text</label>
+                        <input type="text" class="form-control" id="custom_link_text" data-setting="custom_link_text" placeholder="Enter link">
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_mention_to_story" data-setting="enable_mention_to_story">
+                        <label class="form-check-label" for="enable_mention_to_story">Enable Mention</label>
+                    </div>
+                </div>
+                <div class="conditional-settings" id="mention_settings">
+                    <div class="mb-3">
+                        <label class="form-label">Mention Username</label>
+                        <input type="text" class="form-control" id="sharepost_mention" data-setting="sharepost_mention" placeholder="username">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Shared Limit per Source per Day</label>
+                        <input type="number" class="form-control" id="shared_post_limit_persource_perday" data-setting="shared_post_limit_persource_perday">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Shared Limit per Day</label>
+                        <input type="number" class="form-control" id="shared_post_limit_perday" data-setting="shared_post_limit_perday">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== POST TAB ========== -->
+        <div class="tab-pane fade" id="post" role="tabpanel">
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-image me-2 text-info"></i>SCHEDULED POST</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_scheduled_post" data-setting="enable_scheduled_post">
+                    </div>
+                    <span class="master-toggle-label" id="postStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <!-- Scheduled Post Info -->
+            <div class="settings-section">
+                <h6><i class="fas fa-info-circle me-2"></i>Scheduled Post Information</h6>
+                <p class="text-muted mb-3">
+                    Enable this setting to allow the bot to automatically post scheduled content.
+                    Scheduled posts are managed via the <a href="/content-schedule" class="text-primary">Content Schedule</a> page
+                    or through the <a href="/media-library" class="text-primary">Media Library</a>.
+                </p>
+                <div class="alert alert-info">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <strong>How it works:</strong> When enabled, the bot will check for scheduled posts during its operation
+                    and publish them at the designated time. Make sure the bot is running during scheduled times.
+                </div>
+            </div>
+
+            <!-- Scheduled Content for This Account -->
+            <div class="settings-section">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Upcoming Scheduled Content</h6>
+                    <a href="#" id="viewAllScheduledLink" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <i class="fas fa-external-link-alt me-1"></i>View All
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-dark mb-0" id="accountScheduledTable">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Caption</th>
+                                <th>Scheduled</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accountScheduledBody">
+                            <tr><td colspan="4" class="text-center text-muted py-3">Select an account to see scheduled content</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== HBE TAB ========== -->
+        <div class="tab-pane fade" id="hbe" role="tabpanel">
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-robot me-2 text-warning"></i>HUMAN BEHAVIOUR EMULATION</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_human_behaviour_emulation" data-setting="enable_human_behaviour_emulation">
+                    </div>
+                    <span class="master-toggle-label" id="hbeStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <!-- Watch Home Feed Stories -->
+            <div class="settings-section">
+                <h6><i class="fas fa-play-circle me-2"></i>Watch Home Feed Stories</h6>
+                <div class="checkbox-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_viewhomefeedstory" data-setting="enable_viewhomefeedstory">
+                        <label class="form-check-label" for="enable_viewhomefeedstory">Enable Watch Home Feed Stories</label>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Stories to Watch per Operation</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_viewhomefeedstory" data-setting="min_viewhomefeedstory">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_viewhomefeedstory" data-setting="max_viewhomefeedstory">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Watch Seconds per Story</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_viewhomefeedstory_delay" data-setting="min_viewhomefeedstory_delay">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_viewhomefeedstory_delay" data-setting="max_viewhomefeedstory_delay">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Percent to Like Story (%)</label>
+                        <input type="number" class="form-control" id="percent_to_like_homefeedstory" data-setting="percent_to_like_homefeedstory">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scroll Home Feed -->
+            <div class="settings-section">
+                <h6><i class="fas fa-scroll me-2"></i>Scroll Home Feed</h6>
+                <div class="checkbox-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_scrollhomefeed" data-setting="enable_scrollhomefeed">
+                        <label class="form-check-label" for="enable_scrollhomefeed">Enable Scroll Home Feed</label>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Scroll Feed per Operation</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_scrollhomefeed" data-setting="min_scrollhomefeed">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_scrollhomefeed" data-setting="max_scrollhomefeed">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Delays after Scroll (seconds)</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_scrollhomefeed_delay" data-setting="min_scrollhomefeed_delay">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_scrollhomefeed_delay" data-setting="max_scrollhomefeed_delay">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Percent to Like Post (%)</label>
+                        <input type="number" class="form-control" id="percent_to_like_homefeed" data-setting="percent_to_like_homefeed">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scroll Explore Page -->
+            <div class="settings-section">
+                <h6><i class="fas fa-compass me-2"></i>Scroll Explore Page</h6>
+                <div class="checkbox-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enable_scrollexplorepage" data-setting="enable_scrollexplorepage">
+                        <label class="form-check-label" for="enable_scrollexplorepage">Enable Scroll Explore Page</label>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Scroll Explore Page Post per Operation</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_scrollexplorepage" data-setting="min_scrollexplorepage">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_scrollexplorepage" data-setting="max_scrollexplorepage">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Delays after Post (seconds)</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="min_scrollexplorepage_delay" data-setting="min_scrollexplorepage_delay">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="max_scrollexplorepage_delay" data-setting="max_scrollexplorepage_delay">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Percent to Like Post (%)</label>
+                        <input type="number" class="form-control" id="percent_to_like_explorepagepost" data-setting="percent_to_like_explorepagepost">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== FILTERS TAB ========== -->
+        <div class="tab-pane fade" id="filters" role="tabpanel">
+            <div class="master-toggle">
+                <div>
+                    <h5><i class="fas fa-filter me-2 text-info"></i>FILTERS</h5>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_filters" data-setting="enable_filters">
+                    </div>
+                    <span class="master-toggle-label" id="filtersStatusLabel">OFF</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h6><i class="fas fa-users me-2"></i>Account Filters</h6>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Followers Range</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="filters_min_followers" data-setting="filters.min_followers" value="50">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="filters_max_followers" data-setting="filters.max_followers" value="1000000">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Following Range</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="filters_min_followings" data-setting="filters.min_followings" value="50">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="filters_max_followings" data-setting="filters.max_followings" value="1000000">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-light">Posts Range</label>
+                        <div class="min-max-group">
+                            <span>Min:</span>
+                            <input type="number" class="form-control" id="filters_min_posts" data-setting="filters.min_posts" value="0">
+                            <span>Max:</span>
+                            <input type="number" class="form-control" id="filters_max_posts" data-setting="filters.max_posts" value="50">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="filters_only_has_profile_pict" data-setting="filters.only_has_profile_pict">
+                        <label class="form-check-label" for="filters_only_has_profile_pict">Only accounts with profile picture</label>
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="filters_only_public_accounts" data-setting="filters.only_public_accounts">
+                        <label class="form-check-label" for="filters_only_public_accounts">Only public accounts</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    </div><!-- End settingsContainer -->
+</div>
+
+<!-- Bulk Select Modal -->
+<div class="modal fade" id="bulkSelectModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-light">
+                    <i class="fas fa-users me-2"></i>Select Accounts for Bulk Update
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <button class="btn btn-sm btn-outline-primary" onclick="selectAllAccounts()">Select All</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="deselectAllAccounts()">Deselect All</button>
+                </div>
+                <div id="accountsTree" class="accounts-tree">
+                    <p class="text-muted">Loading accounts...</p>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <span class="text-light me-auto"><span id="selectedCount">0</span> accounts selected</span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmBulkSelection()">Confirm Selection</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Prompt Editor Modal -->
+<div class="modal fade" id="promptModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-light">
+                    <i class="fas fa-robot me-2"></i>Edit GPT Prompt
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <textarea class="form-control" id="promptContent" rows="10" placeholder="Enter your GPT prompt..."></textarea>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="savePrompt()">Save Prompt</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- List Editor Modal -->
+<div class="modal fade" id="listEditorModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-light">
+                    <i class="fas fa-list me-2"></i><span id="listModalTitle">Edit List</span>
+                    <span class="badge bg-info ms-2" id="listModalCount">0 items</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="listModalLoading" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <textarea class="form-control" id="listModalContent" rows="15"
+                    placeholder="Enter items, one per line..."></textarea>
+                <small class="text-muted mt-2 d-block">One item per line. Empty lines will be ignored.</small>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveListModal()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Global state
+let currentSettings = {};
+let selectedBulkAccounts = [];
+let currentPromptType = '';
+let currentListType = '';
+let currentListTitle = '';
+
+// Mapping: checkbox ID → { key: list_type for API, title: display name }
+const listTypeMap = {
+    'follow_followers': { key: 'sources', title: "Follow User's Followers — Sources" },
+    'follow_likers': { key: 'follow_likers_sources', title: "Follow User's Likers — Sources" },
+    'follow_hashtag': { key: 'follow_keywords', title: "Follow via Hashtag — Keywords" },
+    'follow_specific_user': { key: 'follow_specific_sources', title: "Follow Specific Users" },
+    'enable_likepost_sources_followers': { key: 'sources', title: "Like Source's Followers — Sources" },
+    'enable_likepost_via_keywords': { key: 'like_keywords', title: "Like via Keywords" },
+    'enable_likepost_specific_accounts': { key: 'like_specific_accounts', title: "Like Specific Accounts" },
+    'comment_using_keyword_search': { key: 'comment_keywords', title: "Comment via Keywords" },
+    'view_specific_user': { key: 'view_specific_users', title: "View Specific Users (Stories)" },
+    'view_specific_user_highlight': { key: 'view_specific_highlights', title: "View Specific Highlights" },
+    'view_followers': { key: 'story_followers_sources', title: "Story Followers Sources" },
+    'view_likers': { key: 'story_likers_sources', title: "Story Likers Sources" },
+    'directmessage_specificuser': { key: 'dm_specific_users', title: "DM Specific Users" },
+    'enable_unfollow_specific_accounts': { key: 'unfollow_specific', title: "Unfollow Specific Accounts" },
+    'enable_name_must_include': { key: 'name_must_include', title: "Name Must Include" },
+    'enable_name_must_not_include': { key: 'name_must_not_include', title: "Name Must Not Include" },
+};
+
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
+
+$(document).ready(function() {
+    loadDevices();
+    loadAccountsTree();
+
+    // Setup master toggle listeners
+    setupMasterToggleListeners();
+
+    // Setup conditional field listeners
+    setupConditionalListeners();
+
+    // Inject list edit buttons next to relevant checkboxes
+    injectListButtons();
+
+    // Live count update in list modal textarea
+    $('#listModalContent').on('input', function() {
+        const items = $(this).val().split('\n').map(s => s.trim()).filter(s => s.length > 0);
+        $('#listModalCount').text(items.length + ' items');
+    });
+});
+
+function loadDevices() {
+    $.get('/api/devices', function(devices) {
+        const select = $('#deviceSelect');
+        select.empty().append('<option value="">Select Device...</option>');
+
+        devices.forEach(device => {
+            select.append(`<option value="${device.deviceid}">${device.devicename || device.deviceid}</option>`);
+        });
+    });
+}
+
+function loadAccountsForDevice() {
+    const deviceId = $('#deviceSelect').val();
+    const accountSelect = $('#accountSelect');
+
+    accountSelect.empty().append('<option value="">Select Account...</option>');
+
+    if (!deviceId) return;
+
+    $.get(`/api/accounts?device=${deviceId}`, function(accounts) {
+        accounts.forEach(account => {
+            accountSelect.append(`<option value="${account.account}">${account.account}</option>`);
+        });
+    });
+}
+
+// =============================================================================
+// SETTINGS LOAD/SAVE
+// =============================================================================
+
+function loadSettings() {
+    const device = $('#deviceSelect').val();
+    const account = $('#accountSelect').val();
+
+    if (!device || !account) {
+        showToast('Please select a device and account', 'warning');
+        return;
+    }
+
+    $.get(`/api/bot-settings/${device}/${account}`, function(response) {
+        if (response.success) {
+            currentSettings = response.settings;
+            populateForm(currentSettings);
+
+            // Show settings container, Save button, and hide placeholder
+            $('#noAccountPlaceholder').hide();
+            $('#settingsContainer').show();
+            $('#saveAllBtn').show();
+
+            // Populate Overview tab fields
+            $('#overview_username').val(account);
+            if (response.account_data) {
+                $('#overview_password').val(response.account_data.password || '');
+                // Timer tab: parse min,max values
+                if (response.account_data.start_time) {
+                    $('#starttime').val(response.account_data.start_time);
+                }
+                if (response.account_data.end_time) {
+                    $('#endtime').val(response.account_data.end_time);
+                }
+                // Random action (format: "min,max")
+                if (response.account_data.random_action) {
+                    const parts = response.account_data.random_action.split(',');
+                    if (parts.length === 2) {
+                        $('#randomaction_min').val(parts[0]);
+                        $('#randomaction_max').val(parts[1]);
+                    }
+                }
+                // Random delay (format: "min,max")
+                if (response.account_data.random_delay) {
+                    const parts = response.account_data.random_delay.split(',');
+                    if (parts.length === 2) {
+                        $('#randomdelay_min').val(parts[0]);
+                        $('#randomdelay_max').val(parts[1]);
+                    }
+                }
+            }
+
+            showToast(`Settings loaded for ${account}`, 'success');
+
+            // Load dead sources for badge + table
+            loadDeadSources();
+
+            // Load scheduled content for this account
+            loadAccountScheduledContent(device, account);
+        } else {
+            showToast('Failed to load settings: ' + response.error, 'danger');
+        }
+    }).fail(function() {
+        showToast('Failed to load settings', 'danger');
+    });
+}
+
+function loadAccountScheduledContent(device, account) {
+    // Update "View All" link
+    $('#viewAllScheduledLink').attr('href', '/content-schedule?account=' + encodeURIComponent(account) + '&device=' + encodeURIComponent(device));
+
+    $.get('/api/content-schedule', {
+        account: account,
+        device: device,
+        status: 'pending',
+        limit: 10
+    }, function(data) {
+        const items = data.items || [];
+        let html = '';
+        if (items.length === 0) {
+            html = '<tr><td colspan="4" class="text-center text-muted py-3">No upcoming scheduled content</td></tr>';
+        } else {
+            items.forEach(function(item) {
+                const typeIcons = { post: 'fa-image text-primary', reel: 'fa-film text-purple', story: 'fa-circle-notch text-warning' };
+                const icon = typeIcons[item.content_type] || 'fa-question';
+                const caption = item.caption ? (item.caption.length > 40 ? item.caption.substring(0, 40) + '...' : item.caption) : '-';
+                const time = item.scheduled_time ? new Date(item.scheduled_time).toLocaleString() : '-';
+                const statusClass = { pending: 'text-warning', posting: 'text-primary', completed: 'text-success', failed: 'text-danger' };
+                html += '<tr>' +
+                    '<td><i class="fas ' + icon + '"></i> ' + item.content_type + '</td>' +
+                    '<td class="text-truncate" style="max-width:200px">' + caption + '</td>' +
+                    '<td><small>' + time + '</small></td>' +
+                    '<td><span class="' + (statusClass[item.status] || '') + '">' + item.status + '</span></td>' +
+                    '</tr>';
+            });
+        }
+        $('#accountScheduledBody').html(html);
+    }).fail(function() {
+        $('#accountScheduledBody').html('<tr><td colspan="4" class="text-center text-muted py-3">Failed to load scheduled content</td></tr>');
+    });
+}
+
+// Toggle password visibility
+function togglePasswordVisibility() {
+    const passwordField = document.getElementById('overview_password');
+    const toggleIcon = document.getElementById('passwordToggleIcon');
+    if (passwordField.type === 'password') {
+        passwordField.type = 'text';
+        toggleIcon.classList.remove('fa-eye');
+        toggleIcon.classList.add('fa-eye-slash');
+    } else {
+        passwordField.type = 'password';
+        toggleIcon.classList.remove('fa-eye-slash');
+        toggleIcon.classList.add('fa-eye');
+    }
+}
+
+function populateForm(settings) {
+    // Iterate through all form elements with data-setting attribute
+    $('[data-setting]').each(function() {
+        const $el = $(this);
+        const settingPath = $el.data('setting');
+        const value = getNestedValue(settings, settingPath);
+
+        if (value !== undefined) {
+            if ($el.is(':checkbox')) {
+                $el.prop('checked', value === true || value === 'true');
+            } else if ($el.is(':radio')) {
+                // For radio buttons, check if this radio's value matches the setting value
+                const radioValue = $el.val();
+                $el.prop('checked', radioValue === value);
+            } else {
+                $el.val(value);
+            }
+        }
+    });
+
+    // Update master toggle labels
+    updateMasterToggleLabels();
+
+    // Update conditional fields visibility
+    updateConditionalFields();
+
+    // Update tab status indicators
+    updateTabIndicators();
+}
+
+function getNestedValue(obj, path) {
+    const keys = path.split('.');
+    let value = obj;
+
+    for (const key of keys) {
+        if (value && typeof value === 'object' && key in value) {
+            value = value[key];
+        } else {
+            return undefined;
+        }
+    }
+
+    return value;
+}
+
+function setNestedValue(obj, path, value) {
+    const keys = path.split('.');
+    let current = obj;
+
+    for (let i = 0; i < keys.length - 1; i++) {
+        const key = keys[i];
+        if (!(key in current) || typeof current[key] !== 'object') {
+            current[key] = {};
+        }
+        current = current[key];
+    }
+
+    current[keys[keys.length - 1]] = value;
+}
+
+function collectFormData() {
+    const settings = JSON.parse(JSON.stringify(currentSettings)); // Deep clone
+
+    $('[data-setting]').each(function() {
+        const $el = $(this);
+        const settingPath = $el.data('setting');
+        let value;
+
+        if ($el.is(':checkbox')) {
+            value = $el.is(':checked');
+        } else if ($el.is(':radio')) {
+            if ($el.is(':checked')) {
+                // For radio buttons, use the actual value attribute
+                value = $el.val();
+            } else {
+                return; // Skip unchecked radio buttons
+            }
+        } else {
+            value = $el.val();
+        }
+
+        setNestedValue(settings, settingPath, value);
+    });
+
+    return settings;
+}
+
+function saveSettings() {
+    const device = $('#deviceSelect').val();
+    const account = $('#accountSelect').val();
+
+    if (!device || !account) {
+        showToast('Please select a device and account first', 'warning');
+        return;
+    }
+
+    const settings = collectFormData();
+
+    // Also save Timer / accounts-table fields via the account update API
+    const accountFields = {};
+    $('[data-accounts-db]').each(function() {
+        const $el = $(this);
+        const dbField = $el.data('accounts-db');
+        accountFields[dbField] = $el.val();
+    });
+
+    // Build composite start/end times from the individual inputs
+    if ($('#starttime').val() !== undefined) {
+        accountFields['start_time'] = $('#starttime').val();
+    }
+    if ($('#endtime').val() !== undefined) {
+        accountFields['end_time'] = $('#endtime').val();
+    }
+
+    // Build random_action and random_delay from min/max
+    const raMin = $('#randomaction_min').val() || '0';
+    const raMax = $('#randomaction_max').val() || '0';
+    accountFields['random_action'] = raMin + ',' + raMax;
+
+    const rdMin = $('#randomdelay_min').val() || '0';
+    const rdMax = $('#randomdelay_max').val() || '0';
+    accountFields['random_delay'] = rdMin + ',' + rdMax;
+
+    // Save settings JSON blob + toggles
+    $.ajax({
+        url: `/api/bot-settings/${device}/${account}`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(settings),
+        success: function(response) {
+            if (response.success) {
+                currentSettings = response.settings || settings;
+
+                // Also save accounts-table fields (timer, etc.)
+                if (Object.keys(accountFields).length > 0) {
+                    $.ajax({
+                        url: `/api/account/update/${device}/${account}`,
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(accountFields),
+                        success: function() {
+                            showToast('All settings saved successfully!', 'success');
+                        },
+                        error: function() {
+                            showToast('Settings saved but timer update failed', 'warning');
+                        }
+                    });
+                } else {
+                    showToast('Settings saved successfully!', 'success');
+                }
+            } else {
+                showToast('Failed to save: ' + response.error, 'danger');
+            }
+        },
+        error: function() {
+            showToast('Failed to save settings', 'danger');
+        }
+    });
+}
+
+// =============================================================================
+// BULK OPERATIONS
+// =============================================================================
+
+function loadAccountsTree() {
+    $.get('/api/bot-settings/accounts-tree', function(response) {
+        if (response.success) {
+            renderAccountsTree(response.devices);
+        }
+    });
+}
+
+function renderAccountsTree(devices) {
+    const container = $('#accountsTree');
+    container.empty();
+
+    devices.forEach(device => {
+        const deviceDiv = $(`
+            <div class="device-group mb-3">
+                <div class="d-flex align-items-center mb-2">
+                    <input type="checkbox" class="form-check-input device-checkbox me-2"
+                           data-device="${device.device_serial}"
+                           onchange="toggleDeviceAccounts('${device.device_serial}', this.checked)">
+                    <strong class="text-light">${device.device_serial}</strong>
+                    <span class="badge bg-secondary ms-2">${device.accounts.length} accounts</span>
+                </div>
+                <div class="ms-4 account-list" id="accounts-${device.device_serial.replace(/\./g, '-')}">
+                    ${device.accounts.map(account => `
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input account-checkbox"
+                                   data-device="${device.device_serial}"
+                                   data-account="${account}"
+                                   onchange="updateBulkCount()">
+                            <label class="form-check-label text-light">${account}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `);
+        container.append(deviceDiv);
+    });
+}
+
+function toggleDeviceAccounts(deviceSerial, checked) {
+    $(`.account-checkbox[data-device="${deviceSerial}"]`).prop('checked', checked);
+    updateBulkCount();
+}
+
+function selectAllAccounts() {
+    $('.account-checkbox, .device-checkbox').prop('checked', true);
+    updateBulkCount();
+}
+
+function deselectAllAccounts() {
+    $('.account-checkbox, .device-checkbox').prop('checked', false);
+    updateBulkCount();
+}
+
+function updateBulkCount() {
+    const count = $('.account-checkbox:checked').length;
+    $('#selectedCount').text(count);
+    $('#bulkCount').text(count).toggle(count > 0);
+    $('#copyBtn').prop('disabled', count === 0);
+}
+
+function confirmBulkSelection() {
+    selectedBulkAccounts = [];
+
+    $('.account-checkbox:checked').each(function() {
+        selectedBulkAccounts.push({
+            device: $(this).data('device'),
+            account: $(this).data('account')
+        });
+    });
+
+    $('#bulkSelectModal').modal('hide');
+    updateBulkCount();
+
+    if (selectedBulkAccounts.length > 0) {
+        showToast(`${selectedBulkAccounts.length} accounts selected for bulk update`, 'info');
+    }
+}
+
+function copyToSelected() {
+    const sourceDevice = $('#deviceSelect').val();
+    const sourceAccount = $('#accountSelect').val();
+
+    if (!sourceDevice || !sourceAccount) {
+        showToast('Please load settings from an account first', 'warning');
+        return;
+    }
+
+    if (selectedBulkAccounts.length === 0) {
+        showToast('Please select target accounts first', 'warning');
+        return;
+    }
+
+    // IMPORTANT: Save current form settings FIRST before copying
+    // This ensures any changes made in the UI are saved to the source account
+    // before being copied to target accounts
+    const settings = collectFormData();
+
+    showToast('Saving settings before copying...', 'info');
+
+    $.ajax({
+        url: `/api/bot-settings/${sourceDevice}/${sourceAccount}`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(settings),
+        success: function(saveResponse) {
+            if (saveResponse.success) {
+                currentSettings = saveResponse.settings;
+
+                // Now proceed with bulk copy
+                const categories = 'all'; // Could be enhanced to copy only current tab's settings
+
+                const payload = {
+                    source: { device: sourceDevice, account: sourceAccount },
+                    targets: selectedBulkAccounts,
+                    categories: categories
+                };
+
+                $.ajax({
+                    url: '/api/bot-settings/bulk',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload),
+                    success: function(response) {
+                        if (response.success) {
+                            showToast(response.message, 'success');
+                        } else {
+                            showToast('Bulk copy failed: ' + response.error, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showToast('Bulk copy failed', 'danger');
+                    }
+                });
+            } else {
+                showToast('Failed to save settings before copying: ' + saveResponse.error, 'danger');
+            }
+        },
+        error: function() {
+            showToast('Failed to save settings before copying', 'danger');
+        }
+    });
+}
+
+// =============================================================================
+// PROMPT EDITING
+// =============================================================================
+
+function editPrompt(promptType) {
+    const device = $('#deviceSelect').val();
+    const account = $('#accountSelect').val();
+
+    if (!device || !account) {
+        showToast('Please select a device and account first', 'warning');
+        return;
+    }
+
+    currentPromptType = promptType;
+
+    $.get(`/api/bot-settings/${device}/${account}/prompts/${promptType}`, function(response) {
+        if (response.success) {
+            $('#promptContent').val(response.content);
+            $('#promptModal').modal('show');
+        } else {
+            showToast('Failed to load prompt', 'danger');
+        }
+    });
+}
+
+function savePrompt() {
+    const device = $('#deviceSelect').val();
+    const account = $('#accountSelect').val();
+    const content = $('#promptContent').val();
+
+    $.ajax({
+        url: `/api/bot-settings/${device}/${account}/prompts/${currentPromptType}`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ content: content }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Prompt saved successfully', 'success');
+                $('#promptModal').modal('hide');
+            } else {
+                showToast('Failed to save prompt', 'danger');
+            }
+        }
+    });
+}
+
+// =============================================================================
+// UI HELPERS
+// =============================================================================
+
+function setupMasterToggleListeners() {
+    $('#enable_likepost').on('change', function() {
+        $('#likeStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_comment').on('change', function() {
+        $('#commentStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_story_viewer').on('change', function() {
+        $('#storyStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_directmessage').on('change', function() {
+        $('#dmStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_follow').on('change', function() {
+        $('#followStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_unfollow').on('change', function() {
+        $('#unfollowStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_filters').on('change', function() {
+        $('#filtersStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    // New tabs
+    $('#enable_watch_reels').on('change', function() {
+        $('#reelsStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_shared_post').on('change', function() {
+        $('#shareStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_human_behaviour_emulation').on('change', function() {
+        $('#hbeStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+
+    $('#enable_scheduled_post').on('change', function() {
+        $('#postStatusLabel').text(this.checked ? 'ON' : 'OFF');
+        updateTabIndicators();
+    });
+}
+
+function updateMasterToggleLabels() {
+    $('#likeStatusLabel').text($('#enable_likepost').is(':checked') ? 'ON' : 'OFF');
+    $('#commentStatusLabel').text($('#enable_comment').is(':checked') ? 'ON' : 'OFF');
+    $('#storyStatusLabel').text($('#enable_story_viewer').is(':checked') ? 'ON' : 'OFF');
+    $('#dmStatusLabel').text($('#enable_directmessage').is(':checked') ? 'ON' : 'OFF');
+    $('#followStatusLabel').text($('#enable_follow').is(':checked') ? 'ON' : 'OFF');
+    $('#unfollowStatusLabel').text($('#enable_unfollow').is(':checked') ? 'ON' : 'OFF');
+    $('#filtersStatusLabel').text($('#enable_filters').is(':checked') ? 'ON' : 'OFF');
+    // New tabs
+    $('#reelsStatusLabel').text($('#enable_watch_reels').is(':checked') ? 'ON' : 'OFF');
+    $('#shareStatusLabel').text($('#enable_shared_post').is(':checked') ? 'ON' : 'OFF');
+    $('#hbeStatusLabel').text($('#enable_human_behaviour_emulation').is(':checked') ? 'ON' : 'OFF');
+    $('#postStatusLabel').text($('#enable_scheduled_post').is(':checked') ? 'ON' : 'OFF');
+}
+
+function setupConditionalListeners() {
+    $('#enable_auto_increment_like_limit_perday').on('change', function() {
+        toggleConditional('like_auto_increment_settings', this.checked);
+    });
+
+    $('#like_story_after_viewing').on('change', function() {
+        toggleConditional('story_like_settings', this.checked);
+    });
+
+    // New conditional listeners
+    $('#enable_like_reel').on('change', function() {
+        toggleConditional('like_reel_settings', this.checked);
+    });
+
+    $('#enable_add_link_to_story').on('change', function() {
+        toggleConditional('add_link_settings', this.checked);
+    });
+
+    $('#enable_mention_to_story').on('change', function() {
+        toggleConditional('mention_settings', this.checked);
+    });
+
+    $('#enable_participate_job_orders').on('change', function() {
+        toggleConditional('job_orders_settings', this.checked);
+    });
+
+    $('#enable_2fa').on('change', function() {
+        toggleConditional('2fa_settings', this.checked);
+    });
+
+    $('#enable_tags').on('change', function() {
+        toggleConditional('tags_settings', this.checked);
+    });
+
+    $('#enable_followings_limit').on('change', function() {
+        toggleConditional('followings_limit_settings', this.checked);
+    });
+
+    // Follow followers conditional option
+    $('#follow_followers').on('change', function() {
+        toggleConditional('follow_followers_options', this.checked);
+    });
+}
+
+function updateConditionalFields() {
+    toggleConditional('like_auto_increment_settings', $('#enable_auto_increment_like_limit_perday').is(':checked'));
+    toggleConditional('story_like_settings', $('#like_story_after_viewing').is(':checked'));
+    // New conditional fields
+    toggleConditional('like_reel_settings', $('#enable_like_reel').is(':checked'));
+    toggleConditional('add_link_settings', $('#enable_add_link_to_story').is(':checked'));
+    toggleConditional('mention_settings', $('#enable_mention_to_story').is(':checked'));
+    toggleConditional('job_orders_settings', $('#enable_participate_job_orders').is(':checked'));
+    toggleConditional('2fa_settings', $('#enable_2fa').is(':checked'));
+    toggleConditional('tags_settings', $('#enable_tags').is(':checked'));
+    toggleConditional('followings_limit_settings', $('#enable_followings_limit').is(':checked'));
+    // Follow followers conditional option
+    toggleConditional('follow_followers_options', $('#follow_followers').is(':checked'));
+}
+
+function updateTabIndicators() {
+    // Map of tab indicator ID to its master toggle checkbox ID
+    const tabToggleMap = {
+        'follow-indicator': 'enable_follow',
+        'unfollow-indicator': 'enable_unfollow',
+        'like-indicator': 'enable_likepost',
+        'comment-indicator': 'enable_comment',
+        'story-indicator': 'enable_story_viewer',
+        'dm-indicator': 'enable_directmessage',
+        'reels-indicator': 'enable_watch_reels',
+        'share-indicator': 'enable_shared_post',
+        'post-indicator': 'enable_scheduled_post',
+        'hbe-indicator': 'enable_human_behaviour_emulation',
+        'filters-indicator': 'enable_filters'
+    };
+
+    // Update each tab indicator
+    for (const [indicatorId, toggleId] of Object.entries(tabToggleMap)) {
+        const indicator = document.getElementById(indicatorId);
+        const toggle = document.getElementById(toggleId);
+
+        if (indicator && toggle) {
+            if (toggle.checked) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        }
+    }
+}
+
+function toggleConditional(elementId, show) {
+    const el = document.getElementById(elementId);
+    if (el) {
+        if (show) {
+            el.classList.add('show');
+        } else {
+            el.classList.remove('show');
+        }
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toastId = 'toast-' + Date.now();
+    const bgClass = {
+        'success': 'bg-success',
+        'danger': 'bg-danger',
+        'warning': 'bg-warning',
+        'info': 'bg-info'
+    }[type] || 'bg-info';
+
+    const toastHtml = `
+        <div id="${toastId}" class="toast ${bgClass} text-white" role="alert">
+            <div class="toast-body d-flex justify-content-between align-items-center">
+                <span>${message}</span>
+                <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+
+    $('.toast-container').append(toastHtml);
+    const toast = new bootstrap.Toast(document.getElementById(toastId), { delay: 3000 });
+    toast.show();
+
+    // Remove toast element after it hides
+    document.getElementById(toastId).addEventListener('hidden.bs.toast', function() {
+        this.remove();
+    });
+}
+
+// =============================================================================
+// LIST MANAGEMENT (Source Lists / Keyword Lists)
+// =============================================================================
+
+function injectListButtons() {
+    for (const [checkboxId, config] of Object.entries(listTypeMap)) {
+        const label = $(`label[for="${checkboxId}"]`);
+        if (label.length && !label.siblings('.list-edit-btn').length) {
+            const btn = $(`<button class="list-edit-btn" type="button" title="Edit ${config.title}">
+                <i class="fas fa-list"></i>
+            </button>`);
+            btn.on('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                openListModal(config.key, config.title);
+            });
+            label.after(btn);
+        }
+    }
+}
+
+function openListModal(listType, title) {
+    const device = $('#deviceSelect').val();
+    const account = $('#accountSelect').val();
+
+    if (!device || !account) {
+        showToast('Please select a device and account first', 'warning');
+        return;
+    }
+
+    currentListType = listType;
+    currentListTitle = title;
+
+    $('#listModalTitle').text(title);
+    $('#listModalContent').val('').hide();
+    $('#listModalCount').text('Loading...');
+    $('#listModalLoading').show();
+    $('#listEditorModal').modal('show');
+
+    $.get(`/api/bot-settings/${device}/${account}/lists/${listType}`, function(response) {
+        $('#listModalLoading').hide();
+        $('#listModalContent').show();
+
+        if (response.items && Array.isArray(response.items)) {
+            $('#listModalContent').val(response.items.join('\n'));
+            $('#listModalCount').text((response.count || response.items.length) + ' items');
+        } else {
+            $('#listModalContent').val('');
+            $('#listModalCount').text('0 items');
+        }
+    }).fail(function() {
+        $('#listModalLoading').hide();
+        $('#listModalContent').show();
+        $('#listModalContent').val('');
+        $('#listModalCount').text('0 items');
+        showToast('Could not load list — file may not exist yet', 'info');
+    });
+}
+
+function saveListModal() {
+    const device = $('#deviceSelect').val();
+    const account = $('#accountSelect').val();
+    const content = $('#listModalContent').val();
+    const items = content.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+
+    $.ajax({
+        url: `/api/bot-settings/${device}/${account}/lists/${currentListType}`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ items: items }),
+        success: function(response) {
+            if (response.success) {
+                showToast(`${currentListTitle} saved (${items.length} items)`, 'success');
+                $('#listEditorModal').modal('hide');
+            } else {
+                showToast('Failed to save: ' + (response.error || 'Unknown error'), 'danger');
+            }
+        },
+        error: function() {
+            showToast('Failed to save list', 'danger');
+        }
+    });
+}
+
+// =============================================================================
+// DEAD SOURCES
+// =============================================================================
+
+function loadDeadSources() {
+    const account = $('#accountSelect').val();
+    if (!account) return;
+
+    // Load count for badge
+    $.get('/api/dead-sources/count', function(response) {
+        if (response.success) {
+            const count = response.counts[account] || 0;
+            if (count > 0) {
+                $('#deadSourcesBadge').text(count + ' dead').show();
+                $('#deadSourcesInlineBadge').text(count).show();
+                $('#cleanupDeadBtn').show();
+            } else {
+                $('#deadSourcesBadge').hide();
+                $('#deadSourcesInlineBadge').hide();
+                $('#cleanupDeadBtn').hide();
+            }
+        }
+    });
+
+    // Load full list
+    $.get('/api/dead-sources?account=' + encodeURIComponent(account), function(response) {
+        if (response.success) {
+            renderDeadSourcesTable(response.dead_sources);
+        }
+    });
+}
+
+function renderDeadSourcesTable(sources) {
+    const tbody = $('#deadSourcesBody');
+    tbody.empty();
+
+    if (!sources || sources.length === 0) {
+        tbody.append('<tr><td colspan="6" class="text-center text-muted py-3">No dead sources — all sources are healthy!</td></tr>');
+        return;
+    }
+
+    sources.forEach(function(src) {
+        const statusClass = src.status === 'dead' ? 'text-danger' : 'text-warning';
+        const statusIcon = src.status === 'dead' ? 'fa-skull' : 'fa-exclamation-triangle';
+        const firstFailed = src.first_failed_at ? new Date(src.first_failed_at).toLocaleDateString() : '-';
+        const lastFailed = src.last_failed_at ? new Date(src.last_failed_at).toLocaleDateString() : '-';
+
+        tbody.append(`
+            <tr>
+                <td><span class="text-light">@${src.source_username}</span></td>
+                <td><span class="badge bg-secondary">${src.fail_count}</span></td>
+                <td><i class="fas ${statusIcon} ${statusClass} me-1"></i><span class="${statusClass}">${src.status}</span></td>
+                <td><small class="text-muted">${firstFailed}</small></td>
+                <td><small class="text-muted">${lastFailed}</small></td>
+                <td>
+                    <button class="btn btn-outline-info btn-sm py-0 px-2" onclick="retryDeadSource(${src.id})" title="Retry this source">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm py-0 px-2 ms-1" onclick="deleteDeadSource(${src.id})" title="Delete record">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `);
+    });
+}
+
+function retryDeadSource(sourceId) {
+    $.ajax({
+        url: '/api/dead-sources/' + sourceId + '/retry',
+        method: 'POST',
+        success: function(response) {
+            if (response.success) {
+                showToast('Source reset for retry — will be checked next cycle', 'success');
+                loadDeadSources();
+            } else {
+                showToast('Failed: ' + response.error, 'danger');
+            }
+        },
+        error: function() { showToast('Failed to retry source', 'danger'); }
+    });
+}
+
+function deleteDeadSource(sourceId) {
+    $.ajax({
+        url: '/api/dead-sources',
+        method: 'DELETE',
+        contentType: 'application/json',
+        data: JSON.stringify({ ids: [sourceId] }),
+        success: function(response) {
+            if (response.success) {
+                showToast('Dead source record deleted', 'success');
+                loadDeadSources();
+            }
+        },
+        error: function() { showToast('Failed to delete', 'danger'); }
+    });
+}
+
+function cleanupDeadSources() {
+    const account = $('#accountSelect').val();
+    if (!account) return;
+
+    if (!confirm('This will:\n1. Remove all dead sources from your source lists\n2. Delete the dead source records\n\nContinue?')) return;
+
+    $.ajax({
+        url: '/api/dead-sources/cleanup',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ account_username: account }),
+        success: function(response) {
+            if (response.success) {
+                const msg = `Cleaned up: ${response.sources_removed_from_lists} sources removed from lists, ${response.dead_records_deleted} dead records deleted`;
+                showToast(msg, 'success');
+                loadDeadSources();
+            } else {
+                showToast('Cleanup failed: ' + response.error, 'danger');
+            }
+        },
+        error: function() { showToast('Cleanup failed', 'danger'); }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Account Inventory{% endblock %}
+
+{% block extra_css %}
+<style>
+    .inv-card {
+        background: #1a1d23;
+        border: 1px solid #2d3139;
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+    .inv-card .inv-value { font-size: 2rem; font-weight: 700; }
+    .inv-card .inv-label { font-size: .85rem; color: #8b949e; text-transform: uppercase; letter-spacing: .5px; }
+
+    .badge-inv {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: .78rem;
+        font-weight: 600;
+    }
+    .badge-available { background: #28a74533; color: #28a745; }
+    .badge-assigned  { background: #0d6efd33; color: #5ba3ff; }
+    .badge-burned    { background: #dc354533; color: #dc3545; }
+    .badge-used      { background: #6c757d33; color: #adb5bd; }
+
+    .inv-table th { font-size: .8rem; text-transform: uppercase; color: #8b949e; letter-spacing: .5px; border-color: #2d3139; }
+    .inv-table td { border-color: #2d3139; vertical-align: middle; }
+    .inv-table tr:hover { background: #1e2128; }
+
+    .import-area {
+        background: #0d1117;
+        border: 2px dashed #2d3139;
+        border-radius: 12px;
+        padding: 1.5rem;
+        min-height: 180px;
+    }
+    .import-area textarea {
+        background: transparent;
+        border: none;
+        color: #8b949e;
+        font-family: 'Fira Code', 'Consolas', monospace;
+        font-size: .85rem;
+        resize: vertical;
+    }
+    .import-area textarea:focus { outline: none; color: #e0e0e0; box-shadow: none; }
+
+    .password-cell {
+        font-family: monospace;
+        color: #6c757d;
+        cursor: pointer;
+    }
+    .password-cell:hover { color: #e0e0e0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1 text-white">
+                        <i class="fas fa-warehouse me-2 text-info"></i>Account Inventory
+                    </h1>
+                    <p class="text-white-50 mb-0">Manage spare accounts for replacement & warmup</p>
+                </div>
+                <div>
+                    <button class="btn btn-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importModal">
+                        <i class="fas fa-file-import me-1"></i>Import Accounts
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="loadInventory()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Count Cards -->
+    <div class="row mb-4" id="countCards">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="inv-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="inv-value text-info" id="countTotal">0</div>
+                        <div class="inv-label">Total</div>
+                    </div>
+                    <i class="fas fa-database fa-2x text-info" style="opacity:.3"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="inv-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="inv-value text-success" id="countAvailable">0</div>
+                        <div class="inv-label">Available</div>
+                    </div>
+                    <i class="fas fa-check-circle fa-2x text-success" style="opacity:.3"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="inv-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="inv-value text-primary" id="countAssigned">0</div>
+                        <div class="inv-label">Assigned</div>
+                    </div>
+                    <i class="fas fa-link fa-2x text-primary" style="opacity:.3"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="inv-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="inv-value text-danger" id="countBurned">0</div>
+                        <div class="inv-label">Burned</div>
+                    </div>
+                    <i class="fas fa-fire fa-2x text-danger" style="opacity:.3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter tabs -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-light btn-sm active" data-filter="" onclick="filterInventory('', this)">All</button>
+                <button class="btn btn-outline-success btn-sm" data-filter="available" onclick="filterInventory('available', this)">Available</button>
+                <button class="btn btn-outline-primary btn-sm" data-filter="assigned" onclick="filterInventory('assigned', this)">Assigned</button>
+                <button class="btn btn-outline-danger btn-sm" data-filter="burned" onclick="filterInventory('burned', this)">Burned</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card bg-dark border-secondary">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark inv-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Username</th>
+                                    <th>Password</th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Assigned To</th>
+                                    <th>Added</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-center text-muted py-4 d-none" id="invEmpty">
+                        <i class="fas fa-box-open fa-3x mb-2" style="opacity:.4"></i>
+                        <p>No accounts in inventory. Import some!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-file-import me-2"></i>Bulk Import Accounts</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-2">
+                    Paste accounts, one per line. Format: <code>username:password[:email[:phone[:2fa_token]]]</code>
+                </p>
+                <div class="import-area">
+                    <textarea id="importText" class="form-control" rows="8"
+                        placeholder="user1:pass123:user1@gmail.com&#10;user2:pass456:user2@gmail.com&#10;user3:pass789"></textarea>
+                </div>
+                <div class="mt-3" id="importResult" style="display:none;">
+                    <div class="alert alert-info mb-0" id="importResultText"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info" id="btnImport" onclick="doImport()">
+                    <i class="fas fa-upload me-1"></i>Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allInvAccounts = [];
+let currentInvFilter = '';
+
+document.addEventListener('DOMContentLoaded', loadInventory);
+
+function loadInventory() {
+    fetch('/api/inventory/v2')
+        .then(r => r.json())
+        .then(data => {
+            allInvAccounts = data.accounts || [];
+            const counts = data.counts || {};
+
+            document.getElementById('countTotal').textContent = data.total || 0;
+            document.getElementById('countAvailable').textContent = counts.available || 0;
+            document.getElementById('countAssigned').textContent = counts.assigned || 0;
+            document.getElementById('countBurned').textContent = counts.burned || 0;
+
+            renderInventory(allInvAccounts);
+        })
+        .catch(err => console.error('Failed to load inventory:', err));
+}
+
+function filterInventory(status, btn) {
+    currentInvFilter = status;
+    document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    const filtered = status
+        ? allInvAccounts.filter(a => a.status === status)
+        : allInvAccounts;
+    renderInventory(filtered);
+}
+
+function renderInventory(accounts) {
+    const tbody = document.getElementById('invBody');
+    const empty = document.getElementById('invEmpty');
+
+    if (accounts.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('d-none');
+        return;
+    }
+    empty.classList.add('d-none');
+
+    tbody.innerHTML = accounts.map(a => `
+        <tr>
+            <td class="text-muted">${a.id}</td>
+            <td><strong class="text-white">@${esc(a.username)}</strong></td>
+            <td class="password-cell" onclick="togglePassword(this, '${esc(a.password)}')" title="Click to reveal">
+                ••••••••
+            </td>
+            <td class="text-muted">${esc(a.email || '-')}</td>
+            <td><span class="badge-inv badge-${a.status}">${esc(a.status)}</span></td>
+            <td class="text-muted">${esc(a.assigned_to_device_serial || a.device_assigned || '-')}</td>
+            <td class="text-muted">${a.date_added ? timeAgo(a.date_added) : '-'}</td>
+            <td>
+                ${a.status === 'available' ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="burnAccount(${a.id})" title="Mark as burned">
+                        <i class="fas fa-fire"></i>
+                    </button>
+                ` : ''}
+                <button class="btn btn-sm btn-outline-secondary" onclick="deleteAccount(${a.id})" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function doImport() {
+    const text = document.getElementById('importText').value;
+    const btn = document.getElementById('btnImport');
+    const result = document.getElementById('importResult');
+    const resultText = document.getElementById('importResultText');
+
+    if (!text.trim()) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Importing...';
+
+    fetch('/api/inventory/v2/import', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ text }),
+    }).then(r => r.json()).then(data => {
+        result.style.display = 'block';
+        if (data.success) {
+            resultText.className = 'alert alert-success mb-0';
+            resultText.textContent = `✓ Added ${data.added}, skipped ${data.skipped} duplicates`;
+            if (data.errors && data.errors.length > 0) {
+                resultText.textContent += '. Errors: ' + data.errors.join('; ');
+            }
+            loadInventory();
+        } else {
+            resultText.className = 'alert alert-danger mb-0';
+            resultText.textContent = '✗ ' + (data.error || 'Import failed');
+        }
+    }).catch(err => {
+        result.style.display = 'block';
+        resultText.className = 'alert alert-danger mb-0';
+        resultText.textContent = '✗ Network error: ' + err;
+    }).finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-upload me-1"></i>Import';
+    });
+}
+
+function burnAccount(id) {
+    if (!confirm('Mark this account as burned? This cannot be undone.')) return;
+    fetch(`/api/inventory/v2/${id}/burn`, { method: 'POST' })
+        .then(r => r.json())
+        .then(() => loadInventory());
+}
+
+function deleteAccount(id) {
+    if (!confirm('Delete this account from inventory?')) return;
+    fetch(`/api/inventory/v2/${id}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(() => loadInventory());
+}
+
+function togglePassword(el, pwd) {
+    if (el.textContent === '••••••••') {
+        el.textContent = pwd;
+        el.style.color = '#e0e0e0';
+        setTimeout(() => { el.textContent = '••••••••'; el.style.color = ''; }, 5000);
+    } else {
+        el.textContent = '••••••••';
+        el.style.color = '';
+    }
+}
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+}
+
+function timeAgo(dateStr) {
+    if (!dateStr) return '-';
+    const diff = (Date.now() - new Date(dateStr + 'Z').getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+}
+</script>
+{% endblock %}

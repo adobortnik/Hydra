@@ -1,0 +1,1330 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Job Orders - Hydra Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* â"€â"€â"€ Stats Cards â"€â"€â"€ */
+    .stat-card {
+        border-radius: 10px;
+        padding: 1.25rem;
+        background: #2c3034;
+        border-left: 4px solid;
+        transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
+    .stat-card .stat-label { font-size: 0.85rem; opacity: 0.7; }
+    .stat-yellow  { border-color: #ffc107; }
+    .stat-cyan    { border-color: #0dcaf0; }
+    .stat-green   { border-color: #198754; }
+    .stat-purple  { border-color: #6f42c1; }
+    .stat-yellow  .stat-value { color: #ffc107; }
+    .stat-cyan    .stat-value { color: #0dcaf0; }
+    .stat-green   .stat-value { color: #198754; }
+    .stat-purple  .stat-value { color: #6f42c1; }
+
+    /* â"€â"€â"€ Table â"€â"€â"€ */
+    .jobs-table th { cursor: pointer; user-select: none; white-space: nowrap; }
+    .jobs-table th:hover { color: #0dcaf0; }
+    .jobs-table tbody tr { cursor: pointer; transition: background 0.15s; }
+    .jobs-table tbody tr:hover { background: #343a40 !important; }
+
+    /* â"€â"€â"€ Progress Bar â"€â"€â"€ */
+    .progress { height: 22px; border-radius: 6px; background: #495057; }
+    .progress-bar { transition: width 0.6s ease; font-size: 0.75rem; line-height: 22px; }
+    .progress-big { height: 32px; border-radius: 8px; }
+    .progress-big .progress-bar { font-size: 0.9rem; line-height: 32px; }
+
+    /* â"€â"€â"€ Badges â"€â"€â"€ */
+    .badge-active    { background: #198754; }
+    .badge-paused    { background: #ffc107; color: #000; }
+    .badge-completed { background: #0d6efd; }
+    .badge-cancelled { background: #dc3545; }
+    .badge-success   { background: #198754; }
+    .badge-failed    { background: #dc3545; }
+    .badge-rate_limited { background: #fd7e14; }
+
+    /* â"€â"€â"€ Create Modal â"€â"€â"€ */
+    .wizard-step { display: none; }
+    .wizard-step.active { display: block; }
+
+    .job-type-card {
+        border: 2px solid #495057;
+        border-radius: 12px;
+        padding: 2rem 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        background: #2c3034;
+    }
+    .job-type-card:hover, .job-type-card.selected {
+        border-color: #0d6efd;
+        background: #343a40;
+        transform: translateY(-4px);
+    }
+    .job-type-card .type-icon { font-size: 2.5rem; display: block; margin-bottom: 0.5rem; }
+    .job-type-card .type-label { font-size: 1rem; font-weight: 600; color: #e0e0e0; }
+
+    /* â"€â"€â"€ Account Picker â"€â"€â"€ */
+    .account-picker { max-height: 350px; overflow-y: auto; }
+    .device-group { margin-bottom: 1rem; }
+    .device-group-header {
+        background: #343a40;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.25rem;
+    }
+    .account-row {
+        padding: 0.35rem 0.75rem 0.35rem 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border-radius: 4px;
+        transition: background 0.1s;
+    }
+    .account-row:hover { background: #3a3f44; }
+
+    /* â"€â"€â"€ Detail Modal Tabs â"€â"€â"€ */
+    .nav-tabs .nav-link { color: #adb5bd; border: none; }
+    .nav-tabs .nav-link.active { color: #fff; background: transparent; border-bottom: 2px solid #0d6efd; }
+
+    /* â"€â"€â"€ Review Summary â"€â"€â"€ */
+    .review-item { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #495057; }
+    .review-item:last-child { border-bottom: none; }
+    .review-label { color: #adb5bd; }
+    .review-value { font-weight: 600; }
+
+    /* â"€â"€â"€ Quick Report â"€â"€â"€ */
+    #quickReportCard { border-left: 4px solid #dc3545; }
+    #quickReportCard .card-header { background: rgba(220, 53, 69, 0.1); }
+    #quickReportCard .card-header:hover { background: rgba(220, 53, 69, 0.15); }
+    .form-range { accent-color: #dc3545; }
+
+    /* â"€â"€â"€ Misc â"€â"€â"€ */
+    .btn-icon { padding: 0.25rem 0.5rem; font-size: 0.85rem; }
+    .text-truncate-200 { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- â•â•â•â•â•â•â•â•â•â•â• STATS ROW â•â•â•â•â•â•â•â•â•â•â• -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-yellow">
+            <div class="stat-value" id="statActive">-</div>
+            <div class="stat-label"><i class="fas fa-bolt me-1"></i>Active Jobs</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-cyan">
+            <div class="stat-value" id="statAccounts">-</div>
+            <div class="stat-label"><i class="fas fa-users me-1"></i>Assigned Accounts</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-green">
+            <div class="stat-value" id="statActions">-</div>
+            <div class="stat-label"><i class="fas fa-check-circle me-1"></i>Actions Today</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-purple">
+            <div class="stat-value" id="statCompleted">-</div>
+            <div class="stat-label"><i class="fas fa-flag-checkered me-1"></i>Completed Jobs</div>
+        </div>
+    </div>
+</div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â• HEADER + CREATE BTN â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- ═══════════ QUICK REPORT SECTION ═══════════ -->
+<div class="card bg-dark border-secondary mb-4" id="quickReportCard">
+    <div class="card-header border-secondary d-flex justify-content-between align-items-center" style="cursor:pointer" onclick="document.getElementById('quickReportBody').classList.toggle('d-none')">
+        <h5 class="mb-0"><i class="fas fa-flag text-danger me-2"></i>Quick Mass Report</h5>
+        <i class="fas fa-chevron-down text-muted"></i>
+    </div>
+    <div class="card-body" id="quickReportBody">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Username to Report</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-dark text-white border-secondary">@</span>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="qrTarget" placeholder="username">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Reason</label>
+                <select class="form-select bg-dark text-white border-secondary" id="qrReason">
+                    <option value="nudity" selected>🔞 Nudity / Sexual</option>
+                    <option value="violence">💀 Violence / Hate</option>
+                    <option value="spam">🚫 Spam</option>
+                    <option value="bullying">😡 Bullying</option>
+                    <option value="scam">🎭 Scam / Fraud</option>
+                    <option value="fake">👤 Fake Account</option>
+                    <option value="underage">🔞 Under 13</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label"># of Accounts</label>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="range" class="form-range" id="qrAccountSlider" min="1" max="50" value="10"
+                           oninput="document.getElementById('qrAccountCount').value=this.value">
+                    <input type="number" class="form-control bg-dark text-white border-secondary" id="qrAccountCount"
+                           value="10" min="1" max="200" style="width:70px"
+                           oninput="document.getElementById('qrAccountSlider').value=Math.min(this.value,50)">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Selection</label>
+                <select class="form-select bg-dark text-white border-secondary" id="qrSelection">
+                    <option value="random">🎲 Random accounts</option>
+                    <option value="all">📋 All active accounts</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-danger w-100" onclick="launchQuickReport()">
+                    <i class="fas fa-flag me-1"></i>Launch Report
+                </button>
+            </div>
+        </div>
+        <!-- Active report jobs progress -->
+        <div class="mt-3" id="activeReportsContainer" style="display:none">
+            <h6 class="text-muted"><i class="fas fa-tasks me-1"></i>Active Report Jobs</h6>
+            <div id="activeReportsList"></div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="fas fa-briefcase me-2"></i>Job Orders</h4>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createJobModal">
+            <i class="fas fa-plus me-1"></i>Create Job
+        </button>
+    </div>
+</div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â• JOBS TABLE â•â•â•â•â•â•â•â•â•â•â• -->
+<div class="table-responsive">
+    <table class="table table-dark table-hover jobs-table mb-0">
+        <thead>
+            <tr>
+                <th data-sort="job_name">Name</th>
+                <th data-sort="job_type">Type</th>
+                <th data-sort="target">Target</th>
+                <th data-sort="progress" style="min-width:180px">Progress</th>
+                <th data-sort="assignment_count">Accounts</th>
+                <th>Limit/hr</th>
+                <th>Limit/day</th>
+                <th data-sort="status">Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="jobsTableBody">
+            <tr><td colspan="9" class="text-center text-muted py-4">Loading jobs…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!--            CREATE JOB MODAL                -->
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<div class="modal fade" id="createJobModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Create Job Order</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Step indicators -->
+                <div class="d-flex justify-content-center mb-4 gap-2" id="stepIndicators">
+                    <span class="badge bg-primary px-3 py-2 step-ind" data-step="1">1. Type</span>
+                    <span class="badge bg-secondary px-3 py-2 step-ind" data-step="2">2. Configure</span>
+                    <span class="badge bg-secondary px-3 py-2 step-ind" data-step="3">3. Accounts</span>
+                    <span class="badge bg-secondary px-3 py-2 step-ind" data-step="4">4. Review</span>
+                </div>
+
+                <!-- STEP 1: Select Type -->
+                <div class="wizard-step active" data-step="1">
+                    <h6 class="text-center mb-3">Select Job Type</h6>
+                    <div class="row g-3 justify-content-center">
+                        <div class="col-md-3 col-6">
+                            <div class="job-type-card" data-type="follow" onclick="selectJobType(this)">
+                                <span class="type-icon">👤</span>
+                                <span class="type-label">Follow</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="job-type-card" data-type="like" onclick="selectJobType(this)">
+                                <span class="type-icon">❤️</span>
+                                <span class="type-label">Like</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="job-type-card" data-type="comment" onclick="selectJobType(this)">
+                                <span class="type-icon">💬</span>
+                                <span class="type-label">Comment</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="job-type-card" data-type="share_to_story" onclick="selectJobType(this)">
+                                <span class="type-icon">📖</span>
+                                <span class="type-label">Share to Story</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="job-type-card" data-type="report" onclick="selectJobType(this)">
+                                <span class="type-icon">🚩</span>
+                                <span class="type-label">Report</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: Configure -->
+                <div class="wizard-step" data-step="2">
+                    <h6 class="mb-3">Configure Job</h6>
+                    <div class="mb-3">
+                        <label class="form-label">Job Name</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="cfgJobName" placeholder="Auto-generated…">
+                    </div>
+                    <div class="mb-3" id="cfgTargetGroup">
+                        <label class="form-label" id="cfgTargetLabel">Target Username</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="cfgTarget" placeholder="username">
+                    </div>
+                    <div class="mb-3 d-none" id="cfgCommentGroup">
+                        <label class="form-label">Comment Source</label>
+                        <!-- Comment List Picker -->
+                        <div class="mb-2">
+                            <select class="form-select bg-dark text-white border-secondary" id="cfgCommentListId">
+                                <option value="">- Custom comments (type below) -</option>
+                            </select>
+                            <small class="text-muted">Pick a saved comment list or type custom comments below</small>
+                        </div>
+                        <label class="form-label">Custom Comments <small class="text-muted">(one per line, supports {spintax|syntax})</small></label>
+                        <textarea class="form-control bg-dark text-white border-secondary" id="cfgCommentText" rows="3" placeholder="Enter comments, one per line…&#10;{Amazing|Incredible} post! {🔥|❤️}"></textarea>
+                        <!-- AI Options -->
+                        <div class="mt-2 d-flex gap-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="cfgAiMode" onchange="toggleAiOptions()">
+                                <label class="form-check-label" for="cfgAiMode">
+                                    <i class="fas fa-robot me-1 text-success"></i>AI Generate
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="cfgVisionAi">
+                                <label class="form-check-label" for="cfgVisionAi">
+                                    <i class="fas fa-eye me-1 text-info"></i>Vision AI
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mt-2 d-none" id="cfgAiOptionsGroup">
+                            <div class="row g-2">
+                                <div class="col-8">
+                                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="cfgAiStyle" placeholder="AI style: casual, emoji-heavy, short…">
+                                </div>
+                                <div class="col-4">
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="cfgAiCount" value="10" min="1" max="100" placeholder="Count">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3 d-none" id="cfgReportReasonGroup">
+                        <label class="form-label">Report Reason</label>
+                        <select class="form-select bg-dark text-white border-secondary" id="cfgReportReason">
+                            <option value="nudity" selected>🔞 Nudity / Sexual Activity</option>
+                            <option value="violence">💀 Violence / Hate / Exploitation</option>
+                            <option value="spam">🚫 Spam</option>
+                            <option value="bullying">😡 Bullying / Unwanted Contact</option>
+                            <option value="scam">🎭 Scam / Fraud</option>
+                            <option value="fake">👤 Fake Account / Impersonation</option>
+                            <option value="underage">🔞 Under 13</option>
+                        </select>
+                        <small class="text-muted mt-1 d-block">Each selected account will submit one report with this reason.</small>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Target Count</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="cfgTargetCount" value="1000" min="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Limit / Hour</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="cfgLimitHour" value="50" min="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Limit / Day</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="cfgLimitDay" value="200" min="1">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select bg-dark text-white border-secondary" id="cfgPriority">
+                            <option value="0">Low</option>
+                            <option value="1" selected>Medium</option>
+                            <option value="2">High</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- STEP 3: Select Accounts -->
+                <div class="wizard-step" data-step="3">
+                    <h6 class="mb-3">Select Accounts</h6>
+                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="deviceFilter" style="max-width:220px">
+                            <option value="">All Devices</option>
+                        </select>
+                        <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="accountSearch" placeholder="Search accounts…" style="max-width:220px">
+                        <span class="badge bg-info align-self-center" id="selectedCount">0 selected</span>
+                    </div>
+                    <div class="account-picker" id="accountPicker">
+                        <div class="text-center text-muted py-3">Loading accounts…</div>
+                    </div>
+                </div>
+
+                <!-- STEP 4: Review -->
+                <div class="wizard-step" data-step="4">
+                    <h6 class="mb-3">Review &amp; Create</h6>
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-body" id="reviewSummary">
+                            <!-- populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-secondary" id="wizardBack" style="display:none" onclick="wizardNav(-1)">
+                    <i class="fas fa-arrow-left me-1"></i>Back
+                </button>
+                <button class="btn btn-primary" id="wizardNext" onclick="wizardNav(1)">
+                    Next<i class="fas fa-arrow-right ms-1"></i>
+                </button>
+                <button class="btn btn-success d-none" id="wizardCreate" onclick="submitJob()">
+                    <i class="fas fa-check me-1"></i>Create Job
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!--           JOB DETAIL MODAL                 -->
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<div class="modal fade" id="jobDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="detailTitle">Job Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Job info row -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Type</small>
+                        <span id="detailType"></span>
+                    </div>
+                    <div class="col-md-5">
+                        <small class="text-muted d-block">Target</small>
+                        <span id="detailTarget" class="text-break"></span>
+                    </div>
+                    <div class="col-md-2">
+                        <small class="text-muted d-block">Status</small>
+                        <span id="detailStatus"></span>
+                    </div>
+                    <div class="col-md-2">
+                        <small class="text-muted d-block">Priority</small>
+                        <span id="detailPriority"></span>
+                    </div>
+                </div>
+                <!-- Big progress -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Progress</span>
+                        <span id="detailProgressText">0 / 0</span>
+                    </div>
+                    <div class="progress progress-big">
+                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" id="detailProgressBar" style="width:0%"></div>
+                    </div>
+                </div>
+                <!-- Limits -->
+                <div class="row g-2 mb-3">
+                    <div class="col-auto"><span class="badge bg-secondary"><i class="fas fa-clock me-1"></i><span id="detailLimitHr">0</span>/hr</span></div>
+                    <div class="col-auto"><span class="badge bg-secondary"><i class="fas fa-calendar-day me-1"></i><span id="detailLimitDay">0</span>/day</span></div>
+                    <div class="col-auto"><span class="badge bg-secondary"><i class="fas fa-calendar me-1"></i>Created: <span id="detailCreated"></span></span></div>
+                </div>
+                <!-- Comment text if applicable -->
+                <div class="mb-3 d-none" id="detailCommentBlock">
+                    <small class="text-muted d-block">Comment Text</small>
+                    <div class="bg-secondary bg-opacity-25 p-2 rounded" id="detailCommentText"></div>
+                </div>
+                <!-- Report reason if applicable -->
+                <div class="mb-3 d-none" id="detailReportBlock">
+                    <small class="text-muted d-block">Report Reason</small>
+                    <div class="bg-secondary bg-opacity-25 p-2 rounded" id="detailReportReason"></div>
+                </div>
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#tabAssignments">
+                            <i class="fas fa-users me-1"></i>Assigned Accounts <span class="badge bg-secondary" id="detailAssignCount">0</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tabHistory">
+                            <i class="fas fa-history me-1"></i>Action History
+                        </a>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <!-- Assignments Tab -->
+                    <div class="tab-pane fade show active" id="tabAssignments">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-sm mb-0">
+                                <thead><tr><th>Username</th><th>Device</th><th>Status</th><th>Progress</th><th>Last Action</th><th></th></tr></thead>
+                                <tbody id="detailAssignBody"><tr><td colspan="6" class="text-center text-muted">No assignments</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- History Tab -->
+                    <div class="tab-pane fade" id="tabHistory">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-sm mb-0">
+                                <thead><tr><th>Time</th><th>Account</th><th>Action</th><th>Target</th><th>Status</th></tr></thead>
+                                <tbody id="detailHistoryBody"><tr><td colspan="5" class="text-center text-muted">No history</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!--            EDIT JOB MODAL                  -->
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<div class="modal fade" id="editJobModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Job</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editJobId">
+                <div class="mb-3">
+                    <label class="form-label">Job Name</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="editJobName">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Target Count</label>
+                    <input type="number" class="form-control bg-dark text-white border-secondary" id="editTargetCount" min="1">
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Limit / Hour</label>
+                        <input type="number" class="form-control bg-dark text-white border-secondary" id="editLimitHour" min="1">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Limit / Day</label>
+                        <input type="number" class="form-control bg-dark text-white border-secondary" id="editLimitDay" min="1">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select bg-dark text-white border-secondary" id="editPriority">
+                        <option value="0">Low</option>
+                        <option value="1">Medium</option>
+                        <option value="2">High</option>
+                    </select>
+                </div>
+                <div class="mt-3 d-none" id="editCommentGroup">
+                    <label class="form-label">Comment List</label>
+                    <select class="form-select bg-dark text-white border-secondary mb-2" id="editCommentListId">
+                        <option value="">- Custom comments -</option>
+                    </select>
+                    <label class="form-label">Comment Text</label>
+                    <textarea class="form-control bg-dark text-white border-secondary" id="editCommentText" rows="2"></textarea>
+                    <div class="mt-2 d-flex gap-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editAiMode">
+                            <label class="form-check-label" for="editAiMode">
+                                <i class="fas fa-robot me-1 text-success"></i>AI Generate
+                            </label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editVisionAi">
+                            <label class="form-check-label" for="editVisionAi">
+                                <i class="fas fa-eye me-1 text-info"></i>Vision AI
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 d-none" id="editReportGroup">
+                    <label class="form-label">Report Reason</label>
+                    <select class="form-select bg-dark text-white border-secondary" id="editReportReason">
+                        <option value="spam">🚫 Spam</option>
+                        <option value="inappropriate">⚠️ Inappropriate Content</option>
+                        <option value="fake">🎭 Fake Account / Impersonation</option>
+                        <option value="harassment">😡 Bullying or Harassment</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" onclick="saveJobEdit()"><i class="fas fa-save me-1"></i>Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// STATE
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+let allJobs = [];
+let availableDevices = [];   // [{device_serial, device_name, accounts:[]}]
+let selectedAccounts = new Set();
+let wizardStep = 1;
+let chosenType = '';
+let currentDetailJobId = null;
+let sortField = 'created_at';
+let sortDir = -1;
+
+const TYPE_ICONS = {follow:'👤', like:'❤️', comment:'💬', share_to_story:'📖', report:'🚩', dm:'âœ‰ï¸'};
+const PRIORITY_LABELS = {0:'Low', 1:'Medium', 2:'High'};
+let commentLists = [];  // cached comment lists for dropdowns
+
+// Toggle AI options in create wizard
+function toggleAiOptions() {
+    const show = document.getElementById('cfgAiMode').checked;
+    document.getElementById('cfgAiOptionsGroup').classList.toggle('d-none', !show);
+}
+
+// Load comment lists for dropdowns
+async function loadCommentLists() {
+    try {
+        const r = await fetch('/api/comments/lists');
+        const d = await r.json();
+        commentLists = d.lists || [];
+        const cfgSel = document.getElementById('cfgCommentListId');
+        cfgSel.innerHTML = '<option value="">- Custom comments (type below) -</option>' +
+            commentLists.map(l => `<option value="${l.id}">${esc(l.name)} (${l.comment_count || 0} comments)</option>`).join('');
+        const editSel = document.getElementById('editCommentListId');
+        editSel.innerHTML = '<option value="">- Custom comments -</option>' +
+            commentLists.map(l => `<option value="${l.id}">${esc(l.name)} (${l.comment_count || 0} comments)</option>`).join('');
+    } catch(e) { console.error('Load comment lists error:', e); }
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// INIT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+document.addEventListener('DOMContentLoaded', () => {
+    loadStats();
+    loadJobs();
+    // Auto-refresh
+    setInterval(() => { loadStats(); loadJobs(); }, 30000);
+
+    // Sortable headers
+    document.querySelectorAll('.jobs-table th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const field = th.dataset.sort;
+            if (sortField === field) sortDir *= -1;
+            else { sortField = field; sortDir = 1; }
+            renderJobs();
+        });
+    });
+
+    // Reset wizard on modal close
+    document.getElementById('createJobModal').addEventListener('hidden.bs.modal', resetWizard);
+
+    // Account search & device filter
+    document.getElementById('accountSearch').addEventListener('input', renderAccountPicker);
+    document.getElementById('deviceFilter').addEventListener('change', renderAccountPicker);
+});
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// STATS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+async function loadStats() {
+    try {
+        const r = await fetch('/api/jobs-v2/stats');
+        const d = await r.json();
+        document.getElementById('statActive').textContent = d.active_jobs;
+        document.getElementById('statAccounts').textContent = d.assigned_accounts;
+        document.getElementById('statActions').textContent = d.actions_today;
+        document.getElementById('statCompleted').textContent = d.completed_jobs;
+    } catch(e) { console.error('Stats error', e); }
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// JOBS LIST
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+async function loadJobs() {
+    try {
+        const r = await fetch('/api/jobs-v2');
+        const d = await r.json();
+        allJobs = d.jobs || [];
+        renderJobs();
+    } catch(e) { console.error('Jobs error', e); }
+}
+
+function renderJobs() {
+    const tbody = document.getElementById('jobsTableBody');
+    if (!allJobs.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No jobs yet. Click <b>Create Job</b> to get started.</td></tr>';
+        return;
+    }
+
+    // Sort
+    const sorted = [...allJobs].sort((a, b) => {
+        let va = a[sortField], vb = b[sortField];
+        if (sortField === 'progress') {
+            va = a.target_count > 0 ? a.completed_count / a.target_count : 0;
+            vb = b.target_count > 0 ? b.completed_count / b.target_count : 0;
+        }
+        if (typeof va === 'string') return va.localeCompare(vb) * sortDir;
+        return ((va || 0) - (vb || 0)) * sortDir;
+    });
+
+    tbody.innerHTML = sorted.map(j => {
+        const pct = j.target_count > 0 ? Math.round(j.completed_count / j.target_count * 100) : 0;
+        const barColor = pct >= 100 ? 'bg-success' : pct > 50 ? 'bg-info' : 'bg-warning';
+        const statusClass = 'badge-' + j.status;
+        const icon = TYPE_ICONS[j.job_type] || '📋';
+
+        return `<tr onclick="openDetail(${j.id})">
+            <td class="fw-semibold">${esc(j.job_name)}</td>
+            <td>${icon} ${esc(j.job_type)}</td>
+            <td><span class="text-truncate-200" title="${esc(j.target)}">${esc(j.target)}</span></td>
+            <td>
+                <div class="progress">
+                    <div class="progress-bar ${barColor} progress-bar-striped ${j.status==='active'?'progress-bar-animated':''}" style="width:${pct}%">${j.completed_count}/${j.target_count} (${pct}%)</div>
+                </div>
+            </td>
+            <td class="text-center">${j.assignment_count}</td>
+            <td>${j.limit_per_hour}</td>
+            <td>${j.limit_per_day}</td>
+            <td><span class="badge ${statusClass}">${j.status}</span></td>
+            <td onclick="event.stopPropagation()">
+                ${j.status === 'active'
+                    ? `<button class="btn btn-sm btn-outline-warning btn-icon me-1" title="Pause" onclick="toggleJob(${j.id},'paused')"><i class="fas fa-pause"></i></button>`
+                    : j.status === 'paused'
+                    ? `<button class="btn btn-sm btn-outline-success btn-icon me-1" title="Resume" onclick="toggleJob(${j.id},'active')"><i class="fas fa-play"></i></button>`
+                    : ''}
+                <button class="btn btn-sm btn-outline-info btn-icon me-1" title="Edit" onclick="openEdit(${j.id})"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger btn-icon" title="Delete" onclick="deleteJob(${j.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// JOB ACTIONS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+async function toggleJob(id, newStatus) {
+    await fetch(`/api/jobs-v2/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({status: newStatus})
+    });
+    loadJobs(); loadStats();
+}
+
+async function deleteJob(id) {
+    if (!confirm('Delete this job and all its assignments/history?')) return;
+    await fetch(`/api/jobs-v2/${id}`, {method:'DELETE'});
+    loadJobs(); loadStats();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DETAIL MODAL
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+async function openDetail(id) {
+    currentDetailJobId = id;
+    try {
+        const r = await fetch(`/api/jobs-v2/${id}`);
+        const j = await r.json();
+        if (j.error) return;
+
+        document.getElementById('detailTitle').textContent = j.job_name;
+        document.getElementById('detailType').innerHTML = `${TYPE_ICONS[j.job_type]||''} ${esc(j.job_type)}`;
+        document.getElementById('detailTarget').textContent = j.target;
+        document.getElementById('detailStatus').innerHTML = `<span class="badge badge-${j.status}">${j.status}</span>`;
+        document.getElementById('detailPriority').textContent = PRIORITY_LABELS[j.priority] || j.priority;
+        document.getElementById('detailLimitHr').textContent = j.limit_per_hour;
+        document.getElementById('detailLimitDay').textContent = j.limit_per_day;
+        document.getElementById('detailCreated').textContent = fmtDate(j.created_at);
+
+        // Comment block
+        const cb = document.getElementById('detailCommentBlock');
+        if (j.job_type === 'comment' && (j.comment_text || j.comment_list_id)) {
+            cb.classList.remove('d-none');
+            let commentHtml = j.comment_text ? esc(j.comment_text) : '';
+            if (j.comment_list_id) {
+                const listName = commentLists.find(l => l.id === j.comment_list_id);
+                commentHtml = '<span class="badge bg-info me-2"><i class="fas fa-list me-1"></i>' + (listName ? esc(listName.name) : 'List #' + j.comment_list_id) + '</span>' + commentHtml;
+            }
+            if (j.ai_mode) commentHtml += ' <span class="badge bg-success bg-opacity-25 text-success"><i class="fas fa-robot me-1"></i>AI</span>';
+            if (j.vision_ai) commentHtml += ' <span class="badge bg-info bg-opacity-25 text-info"><i class="fas fa-eye me-1"></i>Vision</span>';
+            document.getElementById('detailCommentText').innerHTML = commentHtml;
+        } else {
+            cb.classList.add('d-none');
+        }
+
+        // Report reason block
+        const rb = document.getElementById('detailReportBlock');
+        if (j.job_type === 'report' && j.report_reason) {
+            rb.classList.remove('d-none');
+            const reasonLabels = {spam:'🚫 Spam', inappropriate:'⚠️ Inappropriate Content', fake:'🎭 Fake Account', harassment:'😡 Harassment'};
+            document.getElementById('detailReportReason').textContent = reasonLabels[j.report_reason] || j.report_reason;
+        } else {
+            rb.classList.add('d-none');
+        }
+
+        // Progress
+        const pct = j.target_count > 0 ? Math.round(j.completed_count / j.target_count * 100) : 0;
+        document.getElementById('detailProgressText').textContent = `${j.completed_count} / ${j.target_count} (${pct}%)`;
+        document.getElementById('detailProgressBar').style.width = pct + '%';
+
+        // Assignments
+        document.getElementById('detailAssignCount').textContent = (j.assignments || []).length;
+        const ab = document.getElementById('detailAssignBody');
+        if (j.assignments && j.assignments.length) {
+            ab.innerHTML = j.assignments.map(a => `<tr>
+                <td>${esc(a.username)}</td>
+                <td>${esc(a.device_name || a.device_serial)}</td>
+                <td><span class="badge badge-${a.status === 'completed' ? 'completed' : a.status === 'failed' ? 'failed' : 'active'}">${a.status}</span></td>
+                <td>${a.completed_count}</td>
+                <td>${a.last_action_at ? fmtDate(a.last_action_at) : '-'}</td>
+                <td><button class="btn btn-sm btn-outline-danger btn-icon" onclick="removeAssignment(${j.id},${a.account_id})"><i class="fas fa-times"></i></button></td>
+            </tr>`).join('');
+        } else {
+            ab.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No accounts assigned</td></tr>';
+        }
+
+        // History
+        const hb = document.getElementById('detailHistoryBody');
+        if (j.history && j.history.length) {
+            hb.innerHTML = j.history.map(h => `<tr>
+                <td>${fmtDate(h.created_at)}</td>
+                <td>${esc(h.username || '-')}</td>
+                <td>${esc(h.action_type)}</td>
+                <td><span class="text-truncate-200">${esc(h.target || '-')}</span></td>
+                <td><span class="badge badge-${h.status}">${h.status}</span></td>
+            </tr>`).join('');
+        } else {
+            hb.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No history yet</td></tr>';
+        }
+
+        new bootstrap.Modal(document.getElementById('jobDetailModal')).show();
+    } catch(e) { console.error('Detail error', e); }
+}
+
+async function removeAssignment(jobId, accountId) {
+    if (!confirm('Remove this account from the job?')) return;
+    await fetch(`/api/jobs-v2/${jobId}/assign/${accountId}`, {method:'DELETE'});
+    openDetail(jobId);
+    loadJobs(); loadStats();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// EDIT MODAL
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function openEdit(id) {
+    const j = allJobs.find(x => x.id === id);
+    if (!j) return;
+    document.getElementById('editJobId').value = j.id;
+    document.getElementById('editJobName').value = j.job_name;
+    document.getElementById('editTargetCount').value = j.target_count;
+    document.getElementById('editLimitHour').value = j.limit_per_hour;
+    document.getElementById('editLimitDay').value = j.limit_per_day;
+    document.getElementById('editPriority').value = j.priority;
+
+    const cg = document.getElementById('editCommentGroup');
+    if (j.job_type === 'comment') {
+        cg.classList.remove('d-none');
+        document.getElementById('editCommentText').value = j.comment_text || '';
+        // Load comment lists and set values
+        loadCommentLists().then(() => {
+            document.getElementById('editCommentListId').value = j.comment_list_id || '';
+        });
+        document.getElementById('editAiMode').checked = !!j.ai_mode;
+        document.getElementById('editVisionAi').checked = !!j.vision_ai;
+    } else {
+        cg.classList.add('d-none');
+    }
+
+    const rg = document.getElementById('editReportGroup');
+    if (j.job_type === 'report') {
+        rg.classList.remove('d-none');
+        document.getElementById('editReportReason').value = j.report_reason || 'spam';
+    } else {
+        rg.classList.add('d-none');
+    }
+
+    new bootstrap.Modal(document.getElementById('editJobModal')).show();
+}
+
+async function saveJobEdit() {
+    const id = document.getElementById('editJobId').value;
+    const body = {
+        job_name: document.getElementById('editJobName').value,
+        target_count: parseInt(document.getElementById('editTargetCount').value),
+        limit_per_hour: parseInt(document.getElementById('editLimitHour').value),
+        limit_per_day: parseInt(document.getElementById('editLimitDay').value),
+        priority: parseInt(document.getElementById('editPriority').value)
+    };
+    const cg2 = document.getElementById('editCommentGroup');
+    if (!cg2.classList.contains('d-none')) {
+        body.comment_text = document.getElementById('editCommentText').value;
+        const listId = document.getElementById('editCommentListId').value;
+        body.comment_list_id = listId ? parseInt(listId) : null;
+        body.ai_mode = document.getElementById('editAiMode').checked ? 1 : 0;
+        body.vision_ai = document.getElementById('editVisionAi').checked ? 1 : 0;
+    }
+    if (!document.getElementById('editReportGroup').classList.contains('d-none')) {
+        body.report_reason = document.getElementById('editReportReason').value;
+    }
+
+    await fetch(`/api/jobs-v2/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+    });
+    bootstrap.Modal.getInstance(document.getElementById('editJobModal')).hide();
+    loadJobs(); loadStats();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CREATE WIZARD
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function resetWizard() {
+    wizardStep = 1;
+    chosenType = '';
+    selectedAccounts.clear();
+    document.querySelectorAll('.job-type-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('cfgJobName').value = '';
+    document.getElementById('cfgTarget').value = '';
+    document.getElementById('cfgCommentText').value = '';
+    document.getElementById('cfgTargetCount').value = '1000';
+    document.getElementById('cfgLimitHour').value = '50';
+    document.getElementById('cfgLimitDay').value = '200';
+    document.getElementById('cfgPriority').value = '1';
+    // Reset report-specific fields
+    document.getElementById('cfgReportReason').value = 'nudity';
+    document.getElementById('cfgReportReasonGroup').classList.add('d-none');
+    // Reset comment-specific fields
+    document.getElementById('cfgCommentListId').value = '';
+    document.getElementById('cfgAiMode').checked = false;
+    document.getElementById('cfgVisionAi').checked = false;
+    document.getElementById('cfgAiOptionsGroup').classList.add('d-none');
+    if (document.getElementById('cfgAiStyle')) document.getElementById('cfgAiStyle').value = '';
+    if (document.getElementById('cfgAiCount')) document.getElementById('cfgAiCount').value = '10';
+    showWizardStep();
+}
+
+function selectJobType(el) {
+    document.querySelectorAll('.job-type-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    chosenType = el.dataset.type;
+    // Auto-advance
+    wizardNav(1);
+}
+
+function showWizardStep() {
+    document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.wizard-step[data-step="${wizardStep}"]`).classList.add('active');
+
+    document.querySelectorAll('.step-ind').forEach(s => {
+        s.classList.toggle('bg-primary', parseInt(s.dataset.step) <= wizardStep);
+        s.classList.toggle('bg-secondary', parseInt(s.dataset.step) > wizardStep);
+    });
+
+    document.getElementById('wizardBack').style.display = wizardStep > 1 ? '' : 'none';
+    document.getElementById('wizardNext').classList.toggle('d-none', wizardStep === 4);
+    document.getElementById('wizardCreate').classList.toggle('d-none', wizardStep !== 4);
+}
+
+function wizardNav(dir) {
+    const next = wizardStep + dir;
+    if (next < 1 || next > 4) return;
+
+    // Validate step 1
+    if (wizardStep === 1 && dir > 0 && !chosenType) {
+        alert('Please select a job type');
+        return;
+    }
+
+    // Entering step 2: configure form for chosen type, load comment lists
+    if (next === 2) {
+        if (chosenType === 'comment') loadCommentLists();
+        const isFollow = chosenType === 'follow';
+        const isComment = chosenType === 'comment';
+        const isReport = chosenType === 'report';
+
+        // Target label adapts to type
+        if (isReport || isFollow) {
+            document.getElementById('cfgTargetLabel').textContent = 'Target Username';
+            document.getElementById('cfgTarget').placeholder = '@username';
+        } else {
+            document.getElementById('cfgTargetLabel').textContent = 'Target Username / Post URL';
+            document.getElementById('cfgTarget').placeholder = 'https://instagram.com/p/…';
+        }
+
+        // Show/hide type-specific fields
+        document.getElementById('cfgCommentGroup').classList.toggle('d-none', !isComment);
+        document.getElementById('cfgReportReasonGroup').classList.toggle('d-none', !isReport);
+
+        // Report-specific defaults: 1 report per account, low limits
+        if (isReport) {
+            document.getElementById('cfgTargetCount').value = '1';
+            document.getElementById('cfgLimitHour').value = '1';
+            document.getElementById('cfgLimitDay').value = '1';
+        }
+
+        // Auto-generate name
+        if (!document.getElementById('cfgJobName').value) {
+            const target = document.getElementById('cfgTarget').value || 'target';
+            const dateStr = new Date().toISOString().slice(0,10);
+            document.getElementById('cfgJobName').value = `${chosenType.charAt(0).toUpperCase()+chosenType.slice(1)}_${target}_${dateStr}`;
+        }
+    }
+
+    // Validate step 2
+    if (wizardStep === 2 && dir > 0) {
+        if (!document.getElementById('cfgTarget').value.trim()) {
+            alert('Please enter a target');
+            return;
+        }
+        // Update name with actual target
+        const target = document.getElementById('cfgTarget').value.trim().replace(/^@/, '');
+        const dateStr = new Date().toISOString().slice(0,10);
+        const currentName = document.getElementById('cfgJobName').value;
+        if (!currentName || currentName.includes('_target_')) {
+            document.getElementById('cfgJobName').value = `${chosenType.charAt(0).toUpperCase()+chosenType.slice(1)}_${target}_${dateStr}`;
+        }
+    }
+
+    // Entering step 3: load accounts
+    if (next === 3) loadAvailableAccounts();
+
+    // Entering step 4: render review
+    if (next === 4) renderReview();
+
+    wizardStep = next;
+    showWizardStep();
+}
+
+async function loadAvailableAccounts() {
+    try {
+        const r = await fetch('/api/jobs-v2/available-accounts');
+        const d = await r.json();
+        availableDevices = d.devices || [];
+
+        // Populate device filter
+        const sel = document.getElementById('deviceFilter');
+        sel.innerHTML = '<option value="">All Devices</option>' +
+            availableDevices.map(dv => `<option value="${esc(dv.device_serial)}">${esc(dv.device_name)} (${dv.accounts.length})</option>`).join('');
+
+        renderAccountPicker();
+    } catch(e) { console.error('Load accounts error', e); }
+}
+
+function renderAccountPicker() {
+    const filter = document.getElementById('deviceFilter').value;
+    const search = document.getElementById('accountSearch').value.toLowerCase();
+    const container = document.getElementById('accountPicker');
+
+    let html = '';
+    let devices = availableDevices;
+    if (filter) devices = devices.filter(d => d.device_serial === filter);
+
+    devices.forEach(dv => {
+        let accts = dv.accounts;
+        if (search) accts = accts.filter(a => a.username.toLowerCase().includes(search));
+        if (!accts.length) return;
+
+        const allSelected = accts.every(a => selectedAccounts.has(a.id));
+        html += `<div class="device-group">
+            <div class="device-group-header">
+                <div>
+                    <input type="checkbox" class="form-check-input me-2" ${allSelected?'checked':''} onchange="toggleDevice('${dv.device_serial}', this.checked)">
+                    <strong>${esc(dv.device_name)}</strong>
+                    <span class="text-muted ms-2">(${accts.length} accounts)</span>
+                </div>
+            </div>`;
+        accts.forEach(a => {
+            const checked = selectedAccounts.has(a.id) ? 'checked' : '';
+            const statusBadge = a.status === 'active' ? 'text-success' : a.status === 'banned' ? 'text-danger' : 'text-warning';
+            html += `<div class="account-row">
+                <input type="checkbox" class="form-check-input" value="${a.id}" ${checked} onchange="toggleAccount(${a.id}, this.checked)">
+                <span>${esc(a.username)}</span>
+                <small class="${statusBadge}">${a.status}</small>
+            </div>`;
+        });
+        html += '</div>';
+    });
+
+    if (!html) html = '<div class="text-center text-muted py-3">No accounts found</div>';
+    container.innerHTML = html;
+    updateSelectedCount();
+}
+
+function toggleAccount(id, checked) {
+    if (checked) selectedAccounts.add(id); else selectedAccounts.delete(id);
+    updateSelectedCount();
+}
+
+function toggleDevice(serial, checked) {
+    const dv = availableDevices.find(d => d.device_serial === serial);
+    if (!dv) return;
+    dv.accounts.forEach(a => { if (checked) selectedAccounts.add(a.id); else selectedAccounts.delete(a.id); });
+    renderAccountPicker();
+}
+
+function updateSelectedCount() {
+    document.getElementById('selectedCount').textContent = selectedAccounts.size + ' selected';
+}
+
+function renderReview() {
+    const target = document.getElementById('cfgTarget').value.trim();
+    const html = `
+        <div class="review-item"><span class="review-label">Job Name</span><span class="review-value">${esc(document.getElementById('cfgJobName').value)}</span></div>
+        <div class="review-item"><span class="review-label">Type</span><span class="review-value">${TYPE_ICONS[chosenType]||''} ${chosenType}</span></div>
+        <div class="review-item"><span class="review-label">Target</span><span class="review-value">${esc(target)}</span></div>
+        ${chosenType === 'comment' ? `<div class="review-item"><span class="review-label">Comment</span><span class="review-value">${esc(document.getElementById('cfgCommentText').value)}</span></div>` : ''}
+        ${chosenType === 'comment' && document.getElementById('cfgCommentListId').value ? `<div class="review-item"><span class="review-label">Comment List</span><span class="review-value">${esc(document.getElementById('cfgCommentListId').selectedOptions[0].text)}</span></div>` : ''}
+        ${chosenType === 'comment' && document.getElementById('cfgAiMode').checked ? `<div class="review-item"><span class="review-label">AI Mode</span><span class="review-value">Enabled</span></div>` : ''}
+        ${chosenType === 'comment' && document.getElementById('cfgVisionAi').checked ? `<div class="review-item"><span class="review-label">Vision AI</span><span class="review-value">Enabled</span></div>` : ''}
+        ${chosenType === 'report' ? `<div class="review-item"><span class="review-label">Report Reason</span><span class="review-value">${esc(document.getElementById('cfgReportReason').selectedOptions[0].text)}</span></div>` : ''}
+        <div class="review-item"><span class="review-label">Target Count</span><span class="review-value">${document.getElementById('cfgTargetCount').value}</span></div>
+        <div class="review-item"><span class="review-label">Limit/Hour</span><span class="review-value">${document.getElementById('cfgLimitHour').value}</span></div>
+        <div class="review-item"><span class="review-label">Limit/Day</span><span class="review-value">${document.getElementById('cfgLimitDay').value}</span></div>
+        <div class="review-item"><span class="review-label">Priority</span><span class="review-value">${PRIORITY_LABELS[document.getElementById('cfgPriority').value] || 'Medium'}</span></div>
+        <div class="review-item"><span class="review-label">Accounts</span><span class="review-value">${selectedAccounts.size} accounts selected</span></div>
+    `;
+    document.getElementById('reviewSummary').innerHTML = html;
+}
+
+async function submitJob() {
+    const btn = document.getElementById('wizardCreate');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creating…';
+
+    const body = {
+        job_name: document.getElementById('cfgJobName').value.trim(),
+        job_type: chosenType,
+        target: document.getElementById('cfgTarget').value.trim(),
+        target_count: parseInt(document.getElementById('cfgTargetCount').value),
+        limit_per_hour: parseInt(document.getElementById('cfgLimitHour').value),
+        limit_per_day: parseInt(document.getElementById('cfgLimitDay').value),
+        priority: parseInt(document.getElementById('cfgPriority').value),
+        comment_text: chosenType === 'comment' ? document.getElementById('cfgCommentText').value : '',
+        report_reason: chosenType === 'report' ? document.getElementById('cfgReportReason').value : 'spam',
+        accounts: Array.from(selectedAccounts)
+    };
+
+    // Add comment-specific fields
+    if (chosenType === 'comment') {
+        const listId = document.getElementById('cfgCommentListId').value;
+        if (listId) body.comment_list_id = parseInt(listId);
+        body.ai_mode = document.getElementById('cfgAiMode').checked;
+        body.vision_ai = document.getElementById('cfgVisionAi').checked;
+    }
+
+    // For report jobs, auto-set target_count to number of selected accounts if user left it at 1
+    if (chosenType === 'report' && body.target_count <= 1 && selectedAccounts.size > 0) {
+        body.target_count = selectedAccounts.size;
+    }
+
+    try {
+        const r = await fetch('/api/jobs-v2', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        if (r.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('createJobModal')).hide();
+            loadJobs(); loadStats();
+        } else {
+            alert('Error: ' + (d.error || 'Unknown error'));
+        }
+    } catch(e) {
+        alert('Network error');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check me-1"></i>Create Job';
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// HELPERS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function esc(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+}
+
+function fmtDate(iso) {
+    if (!iso) return '-';
+    try {
+        const d = new Date(iso + (iso.includes('T') ? '' : 'T00:00:00') + 'Z');
+        return d.toLocaleString();
+    } catch(e) { return iso; }
+}
+
+// ═══════════════════════════════════════════════════
+// QUICK REPORT
+// ═══════════════════════════════════════════════════
+async function launchQuickReport() {
+    const target = document.getElementById('qrTarget').value.trim().replace(/^@/, '');
+    const reason = document.getElementById('qrReason').value;
+    const count = parseInt(document.getElementById('qrAccountCount').value) || 10;
+    const selection = document.getElementById('qrSelection').value;
+
+    if (!target) {
+        alert('Please enter a username to report');
+        document.getElementById('qrTarget').focus();
+        return;
+    }
+
+    // Fetch available accounts
+    let accounts;
+    try {
+        const r = await fetch('/api/jobs-v2/available-accounts');
+        const d = await r.json();
+        const allAccounts = [];
+        (d.devices || []).forEach(dv => {
+            dv.accounts.forEach(a => {
+                if (a.status === 'active') allAccounts.push(a);
+            });
+        });
+
+        if (allAccounts.length === 0) {
+            alert('No active accounts available');
+            return;
+        }
+
+        if (selection === 'random') {
+            // Shuffle and pick N
+            for (let i = allAccounts.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [allAccounts[i], allAccounts[j]] = [allAccounts[j], allAccounts[i]];
+            }
+            accounts = allAccounts.slice(0, count);
+        } else {
+            accounts = allAccounts.slice(0, count);
+        }
+    } catch(e) {
+        alert('Failed to load accounts: ' + e.message);
+        return;
+    }
+
+    if (!confirm(`Launch report job:\n\nTarget: @${target}\nReason: ${reason}\nAccounts: ${accounts.length}\n\nProceed?`)) return;
+
+    const dateStr = new Date().toISOString().slice(0,10);
+    const body = {
+        job_name: `Report_${target}_${reason}_${dateStr}`,
+        job_type: 'report',
+        target: target,
+        target_count: accounts.length,
+        limit_per_hour: 1,
+        limit_per_day: 1,
+        priority: 2,
+        report_reason: reason,
+        accounts: accounts.map(a => a.id)
+    };
+
+    try {
+        const r = await fetch('/api/jobs-v2', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        if (r.ok) {
+            document.getElementById('qrTarget').value = '';
+            loadJobs();
+            loadStats();
+            updateActiveReports();
+            alert(`Report job created! ${accounts.length} accounts assigned to report @${target}`);
+        } else {
+            alert('Error: ' + (d.error || 'Unknown'));
+        }
+    } catch(e) {
+        alert('Network error: ' + e.message);
+    }
+}
+
+async function updateActiveReports() {
+    // Show active report jobs with progress
+    const reportJobs = allJobs.filter(j => j.job_type === 'report' && j.status === 'active');
+    const container = document.getElementById('activeReportsContainer');
+    const list = document.getElementById('activeReportsList');
+
+    if (reportJobs.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    const reasonLabels = {spam:'🚫 Spam', inappropriate:'⚠️ Inappropriate', fake:'🎭 Fake', harassment:'😡 Harassment'};
+
+    list.innerHTML = reportJobs.map(j => {
+        const pct = j.target_count > 0 ? Math.round(j.completed_count / j.target_count * 100) : 0;
+        const reasonLabel = reasonLabels[j.report_reason] || j.report_reason || 'spam';
+        return `<div class="d-flex align-items-center gap-3 mb-2 p-2 rounded" style="background:#343a40">
+            <span class="text-danger fw-bold">🚩 @${esc(j.target)}</span>
+            <span class="badge bg-secondary">${reasonLabel}</span>
+            <div class="progress flex-grow-1" style="height:20px">
+                <div class="progress-bar bg-danger progress-bar-striped progress-bar-animated" style="width:${pct}%">
+                    ${j.completed_count}/${j.target_count} (${pct}%)
+                </div>
+            </div>
+            <span class="badge bg-dark">${j.assignment_count} accts</span>
+            <button class="btn btn-sm btn-outline-light" onclick="openDetail(${j.id})" title="Details"><i class="fas fa-eye"></i></button>
+        </div>`;
+    }).join('');
+}
+
+// Hook into loadJobs to also update active reports
+const _origLoadJobs = loadJobs;
+loadJobs = async function() {
+    await _origLoadJobs();
+    updateActiveReports();
+};
+
+// Update slider max based on available accounts
+async function updateQuickReportSliderMax() {
+    try {
+        const r = await fetch('/api/jobs-v2/available-accounts');
+        const d = await r.json();
+        let total = 0;
+        (d.devices || []).forEach(dv => {
+            dv.accounts.forEach(a => { if (a.status === 'active') total++; });
+        });
+        const slider = document.getElementById('qrAccountSlider');
+        slider.max = Math.min(total, 200);
+        if (parseInt(document.getElementById('qrAccountCount').value) > total) {
+            document.getElementById('qrAccountCount').value = total;
+            slider.value = Math.min(total, 50);
+        }
+    } catch(e) {}
+}
+
+// Initialize slider max on load
+setTimeout(updateQuickReportSliderMax, 2000);
+</script>
+{% endblock %}

@@ -1,0 +1,736 @@
+{% extends "base.html" %}
+{% block title %}Deploy Wizard - One-Click Onboarding{% endblock %}
+
+{% block extra_css %}
+<style>
+    .wizard-steps {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 1.5rem;
+    }
+    .wizard-step {
+        flex: 1;
+        text-align: center;
+        padding: 10px 8px;
+        border-radius: 8px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.85rem;
+    }
+    .wizard-step.active {
+        background: rgba(0, 210, 160, 0.15);
+        border-color: var(--green);
+        color: var(--green);
+    }
+    .wizard-step.done {
+        background: rgba(108, 92, 231, 0.12);
+        border-color: var(--accent);
+        color: var(--accent-light);
+    }
+    .wizard-step .step-num {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        line-height: 24px;
+        border-radius: 50%;
+        background: var(--border);
+        font-weight: 700;
+        font-size: 0.75rem;
+        margin-right: 4px;
+    }
+    .wizard-step.active .step-num { background: var(--green); color: #000; }
+    .wizard-step.done .step-num { background: var(--accent); color: #fff; }
+
+    .device-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .device-card:hover { border-color: var(--accent); }
+    .device-card.selected {
+        border-color: var(--green);
+        background: rgba(0, 210, 160, 0.08);
+    }
+    .device-card .slots-bar {
+        height: 6px;
+        background: var(--border);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 6px;
+    }
+    .device-card .slots-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s;
+    }
+
+    .preview-table th { position: sticky; top: 0; background: #12121a; z-index: 1; }
+    .stat-box {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+    }
+    .stat-box h2 { margin: 0; font-weight: 800; }
+    .stat-box small { color: var(--text-dim); }
+
+    .warmup-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #f0a040, #e74c6f);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="fas fa-rocket me-2 text-success"></i>Deploy Wizard</h2>
+    <span class="text-muted small">One-Click Onboarding System</span>
+</div>
+
+<!-- Wizard Steps -->
+<div class="wizard-steps" id="wizardSteps">
+    <div class="wizard-step active" data-step="1" onclick="goToStep(1)">
+        <span class="step-num">1</span> Devices
+    </div>
+    <div class="wizard-step" data-step="2" onclick="goToStep(2)">
+        <span class="step-num">2</span> Import
+    </div>
+    <div class="wizard-step" data-step="3" onclick="goToStep(3)">
+        <span class="step-num">3</span> Settings
+    </div>
+    <div class="wizard-step" data-step="4" onclick="goToStep(4)">
+        <span class="step-num">4</span> Review
+    </div>
+    <div class="wizard-step" data-step="5" onclick="goToStep(5)">
+        <span class="step-num">5</span> Deploy
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- STEP 1: Select Devices                    -->
+<!-- ══════════════════════════════════════════ -->
+<div id="step1" class="wizard-panel">
+    <div class="card bg-dark border-secondary">
+        <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-server me-2 text-warning"></i>Step 1: Select Devices</h5>
+            <div>
+                <button class="btn btn-sm btn-outline-info" onclick="refreshDevices()">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+                <button class="btn btn-sm btn-outline-success ms-1" onclick="selectAllDevices()">Select All</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3" id="deviceGrid">
+                <div class="col-12 text-center text-muted py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i>Loading devices...
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-4">
+                <div id="deviceSummary" class="text-muted">
+                    No devices selected
+                </div>
+                <button class="btn btn-primary" onclick="goToStep(2)">
+                    Next: Import Accounts <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- STEP 2: Import Accounts                   -->
+<!-- ══════════════════════════════════════════ -->
+<div id="step2" class="wizard-panel d-none">
+    <div class="card bg-dark border-secondary">
+        <div class="card-header bg-dark border-secondary">
+            <h5 class="mb-0"><i class="fas fa-file-import me-2"></i>Step 2: Import Accounts</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">
+                    Paste Accounts
+                    <small class="text-muted">(username:password:2fa_token — one per line)</small>
+                </label>
+                <textarea class="form-control bg-dark text-white border-secondary font-monospace"
+                    id="accountsText" rows="12"
+                    placeholder="username1:password1:2FA_SECRET&#10;username2:password2&#10;username3:password3:ANOTHER_SECRET"></textarea>
+                <div class="d-flex justify-content-between mt-1">
+                    <small class="text-muted">2FA token is optional. Duplicates auto-removed.</small>
+                    <small class="text-info" id="lineCount">0 accounts</small>
+                </div>
+            </div>
+
+            <div class="alert alert-info bg-dark border-info text-white py-2 mb-3" id="capacityAlert" style="display:none">
+                <!-- filled by JS -->
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-secondary" onclick="goToStep(1)">
+                    <i class="fas fa-arrow-left me-1"></i> Back
+                </button>
+                <button class="btn btn-primary" onclick="goToStep(3)">
+                    Next: Settings <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- STEP 3: Settings                          -->
+<!-- ══════════════════════════════════════════ -->
+<div id="step3" class="wizard-panel d-none">
+    <div class="card bg-dark border-secondary">
+        <div class="card-header bg-dark border-secondary">
+            <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Step 3: Configure Settings</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <!-- Warmup -->
+                <div class="col-md-6">
+                    <div class="card bg-dark border-secondary p-3">
+                        <h6><i class="fas fa-fire me-1" style="color:#f0a040"></i> Warmup Mode</h6>
+                        <p class="text-muted small mb-2">
+                            New accounts will only watch reels and browse explore — no follows, DMs, or comments.
+                        </p>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="enableWarmup" checked>
+                            <label class="form-check-label" for="enableWarmup">Enable warmup for all accounts</label>
+                        </div>
+                        <div id="warmupDaysGroup">
+                            <label class="form-label small">Warmup Duration</label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="warmupDays">
+                                <option value="3">3 days</option>
+                                <option value="5">5 days</option>
+                                <option value="7" selected>7 days (recommended)</option>
+                                <option value="10">10 days</option>
+                                <option value="14">14 days</option>
+                                <option value="21">21 days</option>
+                                <option value="30">30 days</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Time Slots -->
+                <div class="col-md-6">
+                    <div class="card bg-dark border-secondary p-3">
+                        <h6><i class="fas fa-clock me-1 text-info"></i> Time Slots</h6>
+                        <p class="text-muted small mb-2">
+                            Accounts on each device get staggered time windows (auto-assigned).
+                        </p>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small">Slot Duration</label>
+                                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="slotHours">
+                                    <option value="1">1 hour</option>
+                                    <option value="2" selected>2 hours</option>
+                                    <option value="3">3 hours</option>
+                                    <option value="4">4 hours</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Start Hour</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                    id="startHour" value="0" min="0" max="23">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Post-Warmup Settings -->
+                <div class="col-12">
+                    <div class="card bg-dark border-secondary p-3">
+                        <h6><i class="fas fa-sliders-h me-1 text-accent"></i> Account Settings (applied after warmup)</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="setFollow">
+                                    <label class="form-check-label" for="setFollow">Follow</label>
+                                </div>
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="setUnfollow">
+                                    <label class="form-check-label" for="setUnfollow">Unfollow</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="setLike">
+                                    <label class="form-check-label" for="setLike">Like</label>
+                                </div>
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="setStory">
+                                    <label class="form-check-label" for="setStory">Story View</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="setComment">
+                                    <label class="form-check-label" for="setComment">Comment</label>
+                                </div>
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="setMute">
+                                    <label class="form-check-label" for="setMute">Mute</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+                <button class="btn btn-secondary" onclick="goToStep(2)">
+                    <i class="fas fa-arrow-left me-1"></i> Back
+                </button>
+                <button class="btn btn-primary" onclick="generatePreview()">
+                    Generate Preview <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- STEP 4: Review                            -->
+<!-- ══════════════════════════════════════════ -->
+<div id="step4" class="wizard-panel d-none">
+    <div class="card bg-dark border-secondary">
+        <div class="card-header bg-dark border-secondary d-flex justify-content-between">
+            <h5 class="mb-0"><i class="fas fa-clipboard-check me-2 text-info"></i>Step 4: Review Deployment</h5>
+            <span class="badge bg-info" id="previewCountBadge">0 accounts</span>
+        </div>
+        <div class="card-body">
+            <!-- Stats row -->
+            <div class="row g-3 mb-4" id="reviewStats">
+            </div>
+
+            <!-- Preview table -->
+            <div class="table-responsive" style="max-height:400px;overflow-y:auto">
+                <table class="table table-dark table-sm table-hover preview-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Username</th>
+                            <th>2FA</th>
+                            <th>Device</th>
+                            <th>Clone</th>
+                            <th>Time Slot</th>
+                            <th>Warmup</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Errors -->
+            <div id="previewErrors" class="d-none mt-3"></div>
+
+            <div class="d-flex gap-2 mt-4">
+                <button class="btn btn-secondary" onclick="goToStep(3)">
+                    <i class="fas fa-arrow-left me-1"></i> Back
+                </button>
+                <button class="btn btn-success btn-lg" id="deployBtn" onclick="executeDeploy()">
+                    <i class="fas fa-rocket me-1"></i> Deploy <span id="deployCount">0</span> Accounts
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- STEP 5: Result                            -->
+<!-- ══════════════════════════════════════════ -->
+<div id="step5" class="wizard-panel d-none">
+    <div class="card bg-dark border-success">
+        <div class="card-header bg-dark border-success">
+            <h5 class="mb-0"><i class="fas fa-check-circle text-success me-2"></i>Deployment Complete</h5>
+        </div>
+        <div class="card-body" id="resultBody">
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── State ──
+let selectedDevices = [];  // array of serial strings
+let allDevices = [];
+let previewData = [];
+let currentStep = 1;
+
+// ── Init ──
+$(document).ready(function() {
+    loadDevices();
+
+    // Line counter
+    $('#accountsText').on('input', updateLineCount);
+
+    // Warmup toggle
+    $('#enableWarmup').on('change', function() {
+        $('#warmupDaysGroup').toggle(this.checked);
+    });
+});
+
+function updateLineCount() {
+    const text = $('#accountsText').val().trim();
+    const lines = text ? text.split('\n').filter(l => l.trim().length > 0 && l.includes(':')) : [];
+    $('#lineCount').text(lines.length + ' accounts');
+
+    // Capacity check
+    const totalSlots = selectedDevices.reduce((sum, ds) => {
+        const d = allDevices.find(x => x.device_serial === ds);
+        return sum + (d ? d.free_slots : 0);
+    }, 0);
+
+    if (lines.length > 0 && totalSlots > 0) {
+        if (lines.length > totalSlots) {
+            $('#capacityAlert').show().html(
+                `<i class="fas fa-exclamation-triangle text-warning me-1"></i>
+                 <strong>${lines.length}</strong> accounts but only <strong>${totalSlots}</strong> free slots.
+                 ${lines.length - totalSlots} accounts won't be assigned.`);
+        } else {
+            $('#capacityAlert').show().html(
+                `<i class="fas fa-check-circle text-success me-1"></i>
+                 <strong>${lines.length}</strong> accounts → <strong>${totalSlots}</strong> available slots. Looks good!`);
+        }
+    } else {
+        $('#capacityAlert').hide();
+    }
+}
+
+// ── Step Navigation ──
+function goToStep(n) {
+    // Validation
+    if (n >= 2 && selectedDevices.length === 0) {
+        alert('Select at least one device first.');
+        n = 1;
+    }
+    if (n >= 3) {
+        const text = $('#accountsText').val().trim();
+        const lines = text.split('\n').filter(l => l.trim() && l.includes(':'));
+        if (lines.length === 0) {
+            alert('Paste at least one account (format: username:password[:2fa])');
+            n = 2;
+        }
+    }
+    if (n === 4 && previewData.length === 0) {
+        // Auto-generate preview
+        generatePreview();
+        return;
+    }
+
+    currentStep = n;
+
+    // Show/hide panels
+    for (let i = 1; i <= 5; i++) {
+        $(`#step${i}`).toggleClass('d-none', i !== n);
+    }
+
+    // Update step indicators
+    $('#wizardSteps .wizard-step').each(function() {
+        const s = parseInt($(this).data('step'));
+        $(this).removeClass('active done');
+        if (s === n) $(this).addClass('active');
+        else if (s < n) $(this).addClass('done');
+    });
+
+    // Step-specific actions
+    if (n === 2) updateLineCount();
+}
+
+// ── Devices ──
+function loadDevices() {
+    $.get('/api/deploy/devices', function(data) {
+        if (data.status !== 'success') return;
+        allDevices = data.devices;
+        renderDeviceGrid();
+    });
+}
+
+function refreshDevices() {
+    loadDevices();
+}
+
+function renderDeviceGrid() {
+    let html = '';
+    allDevices.forEach(d => {
+        const isSelected = selectedDevices.includes(d.device_serial);
+        const pct = ((d.total_slots - d.free_slots) / d.total_slots * 100).toFixed(0);
+        const barColor = d.free_slots === 0 ? 'var(--red)' : d.free_slots <= 3 ? 'var(--orange)' : 'var(--green)';
+        const statusDot = d.status === 'connected'
+            ? '<span class="text-success">●</span>'
+            : '<span class="text-secondary">●</span>';
+
+        html += `
+        <div class="col-md-4 col-lg-3">
+            <div class="device-card ${isSelected ? 'selected' : ''}" data-serial="${d.device_serial}" onclick="toggleDevice('${d.device_serial}')">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>${d.device_name || d.device_serial}</strong>
+                        <div class="text-muted small">${d.device_serial}</div>
+                    </div>
+                    ${statusDot}
+                </div>
+                <div class="d-flex justify-content-between mt-2 small">
+                    <span>${d.account_count} accounts</span>
+                    <span class="${d.free_slots > 0 ? 'text-success' : 'text-danger'}">${d.free_slots} free</span>
+                </div>
+                <div class="slots-bar">
+                    <div class="slots-fill" style="width:${pct}%;background:${barColor}"></div>
+                </div>
+            </div>
+        </div>`;
+    });
+
+    if (!html) html = '<div class="col-12 text-center text-muted py-4">No devices found. Add devices in Device Manager first.</div>';
+    $('#deviceGrid').html(html);
+    updateDeviceSummary();
+}
+
+function toggleDevice(serial) {
+    const idx = selectedDevices.indexOf(serial);
+    if (idx >= 0) selectedDevices.splice(idx, 1);
+    else {
+        const d = allDevices.find(x => x.device_serial === serial);
+        if (d && d.free_slots === 0) {
+            alert('This device has no free clone slots.');
+            return;
+        }
+        selectedDevices.push(serial);
+    }
+    renderDeviceGrid();
+}
+
+function selectAllDevices() {
+    selectedDevices = allDevices.filter(d => d.free_slots > 0).map(d => d.device_serial);
+    renderDeviceGrid();
+}
+
+function updateDeviceSummary() {
+    if (selectedDevices.length === 0) {
+        $('#deviceSummary').html('No devices selected');
+        return;
+    }
+    const totalSlots = selectedDevices.reduce((sum, ds) => {
+        const d = allDevices.find(x => x.device_serial === ds);
+        return sum + (d ? d.free_slots : 0);
+    }, 0);
+    $('#deviceSummary').html(
+        `<span class="text-success"><strong>${selectedDevices.length}</strong> device(s)</span> selected — 
+         <strong>${totalSlots}</strong> total free slots 
+         (up to <strong>${totalSlots}</strong> accounts)`
+    );
+}
+
+// ── Preview ──
+function generatePreview() {
+    const payload = {
+        accounts_text: $('#accountsText').val(),
+        device_serials: selectedDevices,
+        slot_hours: parseInt($('#slotHours').val()) || 2,
+        start_hour: parseInt($('#startHour').val()) || 0,
+        warmup_days: $('#enableWarmup').is(':checked') ? parseInt($('#warmupDays').val()) : 0,
+    };
+
+    // Show loading
+    const btn = event ? event.target.closest('button') : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...'; }
+
+    $.ajax({
+        url: '/api/deploy/preview',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(data) {
+            if (btn) { btn.disabled = false; btn.innerHTML = 'Generate Preview <i class="fas fa-arrow-right ms-1"></i>'; }
+
+            if (data.status !== 'success') {
+                alert(data.message);
+                return;
+            }
+
+            previewData = data.preview;
+
+            // Stats
+            const deviceCount = Object.keys(data.device_counts).length;
+            const warmupUntil = data.warmup_until;
+            let statsHtml = `
+                <div class="col-md-3"><div class="stat-box"><h2 class="text-success">${data.total}</h2><small>Total Accounts</small></div></div>
+                <div class="col-md-3"><div class="stat-box"><h2 class="text-info">${deviceCount}</h2><small>Devices</small></div></div>
+                <div class="col-md-3"><div class="stat-box"><h2 class="text-warning">${Math.ceil(data.total / deviceCount)}</h2><small>Per Device (avg)</small></div></div>
+                <div class="col-md-3"><div class="stat-box"><h2 style="color:var(--orange)">${warmupUntil || 'Off'}</h2><small>Warmup Until</small></div></div>
+            `;
+            $('#reviewStats').html(statsHtml);
+            $('#previewCountBadge').text(data.total + ' accounts');
+            $('#deployCount').text(data.total);
+
+            // Table
+            let tableHtml = '';
+            data.preview.forEach((acc, i) => {
+                const twofa = acc.has_2fa
+                    ? '<span class="badge bg-success">✓</span>'
+                    : '<span class="badge bg-secondary">—</span>';
+                const device = acc.device_serial
+                    ? `<code class="small">${acc.device_serial}</code>`
+                    : '<span class="text-danger">—</span>';
+                const clone = acc.clone_letter
+                    ? `<span class="badge bg-info">${acc.clone_letter.toUpperCase()}</span> <small class="text-muted">${acc.instagram_package}</small>`
+                    : '—';
+                const timeSlot = `${acc.start_time || '0'}:00 – ${acc.end_time || '0'}:00`;
+                const warmup = acc.warmup
+                    ? `<span class="warmup-badge">🔥 ${acc.warmup_until}</span>`
+                    : '<span class="text-muted small">Off</span>';
+                const rowClass = acc.error ? 'table-danger' : '';
+
+                tableHtml += `<tr class="${rowClass}">
+                    <td>${i + 1}</td>
+                    <td><strong>${acc.username}</strong></td>
+                    <td>${twofa}</td>
+                    <td>${device}</td>
+                    <td>${clone}</td>
+                    <td>${timeSlot}</td>
+                    <td>${warmup}</td>
+                </tr>`;
+            });
+            $('#previewTableBody').html(tableHtml);
+
+            // Errors
+            if (data.errors && data.errors.length > 0) {
+                const unique = [...new Set(data.errors)];
+                $('#previewErrors').removeClass('d-none').html(
+                    '<div class="alert alert-warning bg-dark border-warning text-white py-2">' +
+                    '<strong><i class="fas fa-exclamation-triangle me-1"></i>Warnings:</strong><br>' +
+                    unique.map(e => `• ${e}`).join('<br>') +
+                    '</div>'
+                );
+            } else {
+                $('#previewErrors').addClass('d-none');
+            }
+
+            goToStep(4);
+        },
+        error: function(xhr) {
+            if (btn) { btn.disabled = false; btn.innerHTML = 'Generate Preview <i class="fas fa-arrow-right ms-1"></i>'; }
+            alert('Preview failed: ' + (xhr.responseJSON?.message || 'Server error'));
+        }
+    });
+}
+
+// ── Deploy ──
+function executeDeploy() {
+    if (!previewData.length) return;
+
+    const count = previewData.filter(a => a.device_serial).length;
+    if (!confirm(`Deploy ${count} accounts?\n\nThis will:\n• Create accounts in phone_farm.db with status "pending_login"\n• Set warmup mode if enabled\n• Assign clone packages and time slots\n\nYou can login them via Login Automation V2 after deploy.`)) {
+        return;
+    }
+
+    const btn = $('#deployBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Deploying...');
+
+    const settings = {
+        follow_enabled: $('#setFollow').is(':checked') ? 'True' : 'False',
+        unfollow_enabled: $('#setUnfollow').is(':checked') ? 'True' : 'False',
+        like_enabled: $('#setLike').is(':checked') ? 'True' : 'False',
+        story_enabled: $('#setStory').is(':checked') ? 'True' : 'False',
+        comment_enabled: $('#setComment').is(':checked') ? 'True' : 'False',
+        mute_enabled: $('#setMute').is(':checked') ? 'True' : 'False',
+    };
+
+    const warmup_days = $('#enableWarmup').is(':checked') ? parseInt($('#warmupDays').val()) : 0;
+
+    $.ajax({
+        url: '/api/deploy/execute',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            accounts: previewData,
+            warmup_days: warmup_days,
+            settings: settings,
+        }),
+        success: function(data) {
+            if (data.status !== 'success') {
+                btn.prop('disabled', false).html('<i class="fas fa-rocket me-1"></i> Deploy');
+                alert(data.message);
+                return;
+            }
+
+            let html = `
+                <div class="row text-center mb-4 g-3">
+                    <div class="col-md-3"><div class="stat-box"><h2 class="text-success">${data.imported}</h2><small>Deployed</small></div></div>
+                    <div class="col-md-3"><div class="stat-box"><h2 class="text-warning">${data.skipped}</h2><small>Skipped</small></div></div>
+                    <div class="col-md-3"><div class="stat-box"><h2 class="text-danger">${data.errors.length}</h2><small>Errors</small></div></div>
+                    <div class="col-md-3"><div class="stat-box"><h2 style="color:var(--orange)">${data.warmup_until || '—'}</h2><small>Warmup Until</small></div></div>
+                </div>`;
+
+            if (data.errors.length > 0) {
+                html += '<div class="alert alert-warning bg-dark border-warning text-white mb-3"><strong>Details:</strong><br>' +
+                    data.errors.map(e => `• ${e}`).join('<br>') + '</div>';
+            }
+
+            html += `
+                <div class="alert alert-success bg-dark border-success text-white mb-3">
+                    <i class="fas fa-check-circle me-1"></i>
+                    <strong>${data.imported}</strong> accounts deployed with status <code>pending_login</code>.
+                    ${data.warmup_until ? '<br><span class="warmup-badge ms-1">🔥 Warmup active until ' + data.warmup_until + '</span>' : ''}
+                </div>
+
+                <h6 class="mt-4 mb-3">Next Steps:</h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <a href="/login-automation-v2" class="btn btn-primary btn-lg w-100">
+                            <i class="fas fa-sign-in-alt me-2"></i>Login Accounts
+                        </a>
+                        <small class="text-muted d-block mt-1">Automate logging into each account on its assigned device</small>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="/device-manager" class="btn btn-outline-info btn-lg w-100">
+                            <i class="fas fa-server me-2"></i>Device Manager
+                        </a>
+                        <small class="text-muted d-block mt-1">Check device connections and account assignments</small>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-success btn-lg w-100" onclick="resetWizard()">
+                            <i class="fas fa-plus me-2"></i>Deploy More
+                        </button>
+                        <small class="text-muted d-block mt-1">Run the wizard again for additional accounts</small>
+                    </div>
+                </div>
+            `;
+
+            $('#resultBody').html(html);
+            goToStep(5);
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fas fa-rocket me-1"></i> Deploy');
+            alert('Deploy failed: ' + (xhr.responseJSON?.message || 'Server error'));
+        }
+    });
+}
+
+function resetWizard() {
+    previewData = [];
+    selectedDevices = [];
+    $('#accountsText').val('');
+    $('#lineCount').text('0 accounts');
+    loadDevices();
+    goToStep(1);
+}
+</script>
+{% endblock %}

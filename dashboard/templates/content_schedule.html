@@ -1,0 +1,1409 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Content Schedule - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Summary Cards */
+    .stat-card {
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
+    .stat-card .stat-label { font-size: 0.85rem; opacity: 0.8; }
+    .stat-card .stat-icon { font-size: 1.5rem; opacity: 0.6; }
+
+    /* Tabs */
+    .nav-tabs .nav-link { color: #adb5bd; border: none; padding: 0.75rem 1.25rem; font-weight: 500; }
+    .nav-tabs .nav-link:hover { color: #fff; border-bottom: 2px solid rgba(255,255,255,0.3); }
+    .nav-tabs .nav-link.active { color: #fff; background: transparent; border-bottom: 2px solid #0d6efd; }
+
+    /* Step Wizard */
+    .wizard-steps { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .wizard-step {
+        display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.5rem 1rem; border-radius: 20px;
+        font-size: 0.85rem; cursor: pointer;
+        background: rgba(255,255,255,0.05); color: #adb5bd;
+        border: 1px solid transparent; transition: all 0.2s;
+    }
+    .wizard-step.active { background: rgba(13,110,253,0.2); color: #fff; border-color: #0d6efd; }
+    .wizard-step.completed { background: rgba(25,135,84,0.2); color: #198754; border-color: #198754; }
+    .wizard-step .step-num {
+        width: 24px; height: 24px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.75rem; font-weight: 700;
+        background: rgba(255,255,255,0.1);
+    }
+    .wizard-step.active .step-num { background: #0d6efd; color: #fff; }
+    .wizard-step.completed .step-num { background: #198754; color: #fff; }
+
+    /* Content Type Cards */
+    .type-card {
+        cursor: pointer; padding: 1.5rem; border-radius: 12px;
+        border: 2px solid rgba(255,255,255,0.1); text-align: center;
+        transition: all 0.2s; background: rgba(255,255,255,0.03);
+    }
+    .type-card:hover { border-color: rgba(13,110,253,0.5); background: rgba(13,110,253,0.05); }
+    .type-card.selected { border-color: #0d6efd; background: rgba(13,110,253,0.15); }
+    .type-card i { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .type-card h5 { margin-bottom: 0.25rem; }
+    .type-card p { font-size: 0.85rem; color: #adb5bd; margin-bottom: 0; }
+
+    /* Media Grid */
+    .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.75rem; }
+    .media-thumb {
+        position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden;
+        cursor: pointer; border: 2px solid transparent; transition: all 0.2s;
+    }
+    .media-thumb.selected { border-color: #0d6efd; }
+    .media-thumb img, .media-thumb .video-placeholder {
+        width: 100%; height: 100%; object-fit: cover;
+    }
+    .video-placeholder {
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,0.05); color: #adb5bd;
+    }
+    .media-thumb .check-overlay {
+        position: absolute; top: 6px; right: 6px;
+        width: 22px; height: 22px; border-radius: 50%;
+        background: #0d6efd; color: #fff; display: none;
+        align-items: center; justify-content: center; font-size: 0.7rem;
+    }
+    .media-thumb.selected .check-overlay { display: flex; }
+    .media-thumb .media-name {
+        position: absolute; bottom: 0; left: 0; right: 0;
+        padding: 2px 4px; font-size: 0.65rem;
+        background: rgba(0,0,0,0.7); color: #fff;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* Calendar View */
+    .cal-day { border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.75rem; min-height: 100px; }
+    .cal-day-header { font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem; }
+    .cal-item {
+        font-size: 0.75rem; padding: 4px 8px; margin-bottom: 4px;
+        border-radius: 4px; cursor: pointer; transition: opacity 0.2s;
+    }
+    .cal-item:hover { opacity: 0.8; }
+    .cal-item.type-post { background: rgba(13,110,253,0.2); border-left: 3px solid #0d6efd; }
+    .cal-item.type-reel { background: rgba(111,66,193,0.2); border-left: 3px solid #6f42c1; }
+    .cal-item.type-story { background: rgba(253,126,20,0.2); border-left: 3px solid #fd7e14; }
+
+    /* Table styles */
+    .table-dark-custom { background: transparent; }
+    .table-dark-custom th { color: #adb5bd; font-weight: 600; font-size: 0.85rem; border-color: rgba(255,255,255,0.1); }
+    .table-dark-custom td { border-color: rgba(255,255,255,0.05); vertical-align: middle; }
+
+    /* Status badges */
+    .badge-pending { background: rgba(255,193,7,0.2); color: #ffc107; }
+    .badge-posting { background: rgba(13,110,253,0.2); color: #0d6efd; }
+    .badge-completed { background: rgba(25,135,84,0.2); color: #198754; }
+    .badge-failed { background: rgba(220,53,69,0.2); color: #dc3545; }
+    .badge-cancelled { background: rgba(108,117,125,0.2); color: #6c757d; }
+
+    /* Folder list */
+    .folder-item-cs {
+        padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.1); margin-bottom: 0.5rem;
+        transition: all 0.2s; display: flex; align-items: center; justify-content: space-between;
+    }
+    .folder-item-cs:hover { background: rgba(255,255,255,0.05); }
+    .folder-item-cs.selected { border-color: #0d6efd; background: rgba(13,110,253,0.1); }
+
+    /* Account checkbox list */
+    .account-checkbox-list { max-height: 300px; overflow-y: auto; }
+    .account-check-item {
+        padding: 0.5rem 0.75rem; border-radius: 6px;
+        border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0.25rem;
+    }
+    .account-check-item:hover { background: rgba(255,255,255,0.03); }
+
+    /* Schedule preview */
+    .schedule-preview-item {
+        display: flex; gap: 1rem; padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        font-size: 0.85rem;
+    }
+
+    /* Step panels */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    /* Edit modal */
+    .edit-modal .form-control, .edit-modal .form-select {
+        background: #1a1d21; color: #fff; border-color: rgba(255,255,255,0.15);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="fas fa-calendar-alt me-2 text-primary"></i>Content Schedule</h3>
+    <div>
+        <button class="btn btn-sm btn-outline-light me-2" onclick="loadStats()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4" id="statsRow">
+    <div class="col-md-3 col-6">
+        <div class="stat-card bg-dark border border-secondary">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-value text-warning" id="statPending">0</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+                <div class="stat-icon text-warning"><i class="fas fa-clock"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card bg-dark border border-secondary">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-value text-primary" id="statPosting">0</div>
+                    <div class="stat-label">Posting Now</div>
+                </div>
+                <div class="stat-icon text-primary"><i class="fas fa-spinner fa-pulse"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card bg-dark border border-secondary">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-value text-success" id="statCompleted">0</div>
+                    <div class="stat-label">Completed Today</div>
+                </div>
+                <div class="stat-icon text-success"><i class="fas fa-check-circle"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card bg-dark border border-secondary">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-value text-danger" id="statFailed">0</div>
+                    <div class="stat-label">Failed Today</div>
+                </div>
+                <div class="stat-icon text-danger"><i class="fas fa-exclamation-triangle"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Tabs -->
+<ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#tab-calendar" role="tab">
+            <i class="fas fa-calendar me-1"></i>Calendar
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-batch" role="tab">
+            <i class="fas fa-layer-group me-1"></i>Batch Schedule
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-pending" role="tab">
+            <i class="fas fa-list me-1"></i>Pending Queue
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-history" role="tab">
+            <i class="fas fa-history me-1"></i>History
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-batches" role="tab">
+            <i class="fas fa-boxes-stacked me-1"></i>Batches
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content" id="mainTabContent">
+
+    <!-- ============ CALENDAR TAB ============ -->
+    <div class="tab-pane fade show active" id="tab-calendar" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-light" onclick="calendarNav(-7)"><i class="fas fa-chevron-left"></i></button>
+                <h5 class="mb-0" id="calendarTitle">This Week</h5>
+                <button class="btn btn-sm btn-outline-light" onclick="calendarNav(7)"><i class="fas fa-chevron-right"></i></button>
+                <button class="btn btn-sm btn-outline-primary ms-2" onclick="calendarNav(0)">Today</button>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="badge rounded-pill" style="background:rgba(13,110,253,0.2);color:#0d6efd">Post</span>
+                <span class="badge rounded-pill" style="background:rgba(111,66,193,0.2);color:#6f42c1">Reel</span>
+                <span class="badge rounded-pill" style="background:rgba(253,126,20,0.2);color:#fd7e14">Story</span>
+            </div>
+        </div>
+        <div class="row g-2" id="calendarGrid">
+            <!-- Filled by JS -->
+        </div>
+    </div>
+
+    <!-- ============ BATCH SCHEDULE TAB ============ -->
+    <div class="tab-pane fade" id="tab-batch" role="tabpanel">
+        <!-- Wizard Steps -->
+        <div class="wizard-steps" id="wizardSteps">
+            <div class="wizard-step active" data-step="1" onclick="goToStep(1)">
+                <span class="step-num">1</span> Content Type
+            </div>
+            <div class="wizard-step" data-step="2" onclick="goToStep(2)">
+                <span class="step-num">2</span> Select Media
+            </div>
+            <div class="wizard-step" data-step="3" onclick="goToStep(3)">
+                <span class="step-num">3</span> Configure
+            </div>
+            <div class="wizard-step" data-step="4" onclick="goToStep(4)">
+                <span class="step-num">4</span> Select Targets
+            </div>
+            <div class="wizard-step" data-step="5" onclick="goToStep(5)">
+                <span class="step-num">5</span> Schedule Timing
+            </div>
+            <div class="wizard-step" data-step="6" onclick="goToStep(6)">
+                <span class="step-num">6</span> Review & Confirm
+            </div>
+        </div>
+
+        <!-- Step 1: Content Type -->
+        <div class="step-panel active" id="step1">
+            <h5 class="mb-3">What type of content?</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="type-card" data-type="post" onclick="selectContentType('post')">
+                        <i class="fas fa-image text-primary"></i>
+                        <h5>Post</h5>
+                        <p>Feed photo/video post with caption</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="type-card" data-type="reel" onclick="selectContentType('reel')">
+                        <i class="fas fa-film text-purple" style="color:#6f42c1"></i>
+                        <h5>Reel</h5>
+                        <p>Short-form video with music</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="type-card" data-type="story" onclick="selectContentType('story')">
+                        <i class="fas fa-circle-notch text-warning"></i>
+                        <h5>Story</h5>
+                        <p>24h story with mentions/links</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 text-end">
+                <button class="btn btn-primary" onclick="nextStep()" id="btnStep1Next" disabled>
+                    Next <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Select Media -->
+        <div class="step-panel" id="step2">
+            <h5 class="mb-3">Select media files</h5>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-dark border-secondary mb-3">
+                        <div class="card-header border-secondary">
+                            <i class="fas fa-folder me-2"></i>Media Folders
+                        </div>
+                        <div class="card-body p-0" style="max-height:400px; overflow-y:auto;">
+                            <div id="folderList" class="p-2">
+                                <div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted" id="mediaSelectionInfo">Select a folder</span>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="selectAllMedia()">Select All</button>
+                            <button class="btn btn-sm btn-outline-secondary ms-1" onclick="deselectAllMedia()">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="media-grid" id="mediaGrid">
+                        <div class="text-muted text-center py-5 w-100">
+                            <i class="fas fa-photo-video fa-3x mb-2 d-block"></i>
+                            Select a folder to browse media
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-primary" onclick="nextStep()" id="btnStep2Next" disabled>
+                    Next <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 3: Configure -->
+        <div class="step-panel" id="step3">
+            <h5 class="mb-3">Configure content</h5>
+            
+            <!-- Post config -->
+            <div id="configPost" class="config-section">
+                <div class="mb-3">
+                    <label class="form-label">Caption Template</label>
+                    <textarea class="form-control bg-dark text-white border-secondary" id="captionTemplate" rows="3"
+                              placeholder="Enter caption for all posts..."></textarea>
+                    <div class="form-text text-muted">Applied to every scheduled item</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Hashtags</label>
+                    <textarea class="form-control bg-dark text-white border-secondary" id="hashtagsInput" rows="2"
+                              placeholder="#hashtag1 #hashtag2 ..."></textarea>
+                </div>
+                <div class="mb-3" id="locationGroup">
+                    <label class="form-label">Location (optional)</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="locationInput"
+                           placeholder="e.g. New York, NY">
+                </div>
+            </div>
+
+            <!-- Reel config (additional) -->
+            <div id="configReel" class="config-section" style="display:none">
+                <div class="mb-3">
+                    <label class="form-label">Music Search Query (optional)</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="musicSearchInput"
+                           placeholder="e.g. trending audio 2025">
+                    <div class="form-text text-muted">Bot will search for this music on Instagram</div>
+                </div>
+            </div>
+
+            <!-- Story config (additional) -->
+            <div id="configStory" class="config-section" style="display:none">
+                <div class="mb-3">
+                    <label class="form-label">Mention Username (optional)</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="mentionInput"
+                           placeholder="@username">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Link URL (optional)</label>
+                    <input type="url" class="form-control bg-dark text-white border-secondary" id="linkUrlInput"
+                           placeholder="https://...">
+                </div>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right ms-1"></i></button>
+            </div>
+        </div>
+
+        <!-- Step 4: Select Targets -->
+        <div class="step-panel" id="step4">
+            <h5 class="mb-3">Select target accounts</h5>
+            <div class="row">
+                <div class="col-md-5">
+                    <div class="mb-3">
+                        <label class="form-label">Device</label>
+                        <select class="form-select bg-dark text-white border-secondary" id="targetDevice" onchange="loadTargetAccounts()">
+                            <option value="all">All Devices</option>
+                        </select>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="selectAllAccounts" onchange="toggleAllAccounts()">
+                        <label class="form-check-label" for="selectAllAccounts">
+                            <strong>Select all accounts</strong>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label">Accounts <span class="text-muted" id="accountCountLabel">(0 selected)</span></label>
+                    <div class="account-checkbox-list border border-secondary rounded p-2" id="accountCheckboxList">
+                        <div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-primary" onclick="nextStep()" id="btnStep4Next" disabled>
+                    Next <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 5: Schedule Timing -->
+        <div class="step-panel" id="step5">
+            <h5 class="mb-3">Schedule timing</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Start Time</label>
+                        <input type="datetime-local" class="form-control bg-dark text-white border-secondary" id="scheduleStartTime">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Interval Between Posts (hours)</label>
+                        <input type="number" class="form-control bg-dark text-white border-secondary" id="scheduleInterval"
+                               value="1" min="0.25" max="168" step="0.25">
+                        <div class="form-text text-muted">Time between each scheduled post</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Batch Name (optional)</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="batchNameInput"
+                               placeholder="e.g. Monday morning posts">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-header border-secondary"><i class="fas fa-eye me-2"></i>Schedule Preview</div>
+                        <div class="card-body p-2" style="max-height:300px; overflow-y:auto;" id="schedulePreview">
+                            <div class="text-muted text-center py-3">Set timing to preview</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right ms-1"></i></button>
+            </div>
+        </div>
+
+        <!-- Step 6: Review & Confirm -->
+        <div class="step-panel" id="step6">
+            <h5 class="mb-3">Review & Confirm</h5>
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted">Content Type</small>
+                            <div class="fw-bold" id="reviewType">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Media Files</small>
+                            <div class="fw-bold" id="reviewMedia">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Target Accounts</small>
+                            <div class="fw-bold" id="reviewAccounts">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Total Scheduled Items</small>
+                            <div class="fw-bold text-primary" id="reviewTotal">-</div>
+                        </div>
+                    </div>
+                    <hr class="border-secondary">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <small class="text-muted">Start Time</small>
+                            <div id="reviewStart">-</div>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">End Time (approx)</small>
+                            <div id="reviewEnd">-</div>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">Interval</small>
+                            <div id="reviewInterval">-</div>
+                        </div>
+                    </div>
+                    <hr class="border-secondary">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">Caption</small>
+                            <div class="text-truncate" id="reviewCaption" style="max-width:100%">-</div>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">Hashtags</small>
+                            <div class="text-truncate" id="reviewHashtags" style="max-width:100%">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-dark-custom" id="reviewTable">
+                    <thead><tr><th>#</th><th>Time</th><th>Account</th><th>Media</th></tr></thead>
+                    <tbody id="reviewTableBody"></tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-success btn-lg" onclick="submitBatch()" id="btnSubmitBatch">
+                    <i class="fas fa-calendar-check me-2"></i>Schedule All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ PENDING QUEUE TAB ============ -->
+    <div class="tab-pane fade" id="tab-pending" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Pending Queue</h5>
+            <div class="d-flex gap-2">
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="pendingTypeFilter" style="width:auto" onchange="loadPending()">
+                    <option value="">All Types</option>
+                    <option value="post">Posts</option>
+                    <option value="reel">Reels</option>
+                    <option value="story">Stories</option>
+                </select>
+                <button class="btn btn-sm btn-outline-light" onclick="loadPending()"><i class="fas fa-sync-alt"></i></button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Time</th><th>Type</th><th>Account</th><th>Device</th>
+                        <th>Caption</th><th>Status</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="pendingTableBody">
+                    <tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <nav id="pendingPagination"></nav>
+    </div>
+
+    <!-- ============ HISTORY TAB ============ -->
+    <div class="tab-pane fade" id="tab-history" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">History</h5>
+            <div class="d-flex gap-2">
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="historyTypeFilter" style="width:auto" onchange="loadHistory()">
+                    <option value="">All Types</option>
+                    <option value="post">Posts</option>
+                    <option value="reel">Reels</option>
+                    <option value="story">Stories</option>
+                </select>
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="historyStatusFilter" style="width:auto" onchange="loadHistory()">
+                    <option value="completed,failed">Completed + Failed</option>
+                    <option value="completed">Completed Only</option>
+                    <option value="failed">Failed Only</option>
+                </select>
+                <button class="btn btn-sm btn-outline-light" onclick="loadHistory()"><i class="fas fa-sync-alt"></i></button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Scheduled</th><th>Posted</th><th>Type</th><th>Account</th>
+                        <th>Caption</th><th>Status</th><th>Error</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ============ BATCHES TAB ============ -->
+    <div class="tab-pane fade" id="tab-batches" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Batch History</h5>
+            <button class="btn btn-sm btn-outline-light" onclick="loadBatches()"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Batch</th><th>Type</th><th>Total</th><th>Completed</th>
+                        <th>Failed</th><th>Status</th><th>Created</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="batchesTableBody">
+                    <tr><td colspan="8" class="text-center text-muted py-4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white edit-modal">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Scheduled Item</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editItemId">
+                <div class="mb-3">
+                    <label class="form-label">Caption</label>
+                    <textarea class="form-control" id="editCaption" rows="3"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Hashtags</label>
+                    <textarea class="form-control" id="editHashtags" rows="2"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Scheduled Time</label>
+                    <input type="datetime-local" class="form-control" id="editScheduledTime">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="editStatus">
+                        <option value="pending">Pending</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-danger me-auto" onclick="deleteItem()">
+                    <i class="fas fa-trash me-1"></i>Delete
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveEditItem()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API = '/api/content-schedule';
+
+// ============ STATE ============
+let wizardState = {
+    step: 1,
+    contentType: null,
+    selectedMedia: [],       // [{name, path, full_path}]
+    caption: '',
+    hashtags: '',
+    location: '',
+    musicSearch: '',
+    mentionUsername: '',
+    linkUrl: '',
+    selectedAccounts: [],    // [{account_id, device_serial, username}]
+    startTime: '',
+    intervalHours: 1,
+    batchName: ''
+};
+let calendarOffset = 0;  // weeks offset from current
+let allDevices = [];
+let allFolderFiles = [];
+
+// ============ INIT ============
+$(document).ready(function() {
+    loadStats();
+    loadCalendar();
+    loadDevicesForWizard();
+    loadFolders();
+
+    // Set default start time to 1 hour from now
+    const now = new Date();
+    now.setHours(now.getHours() + 1, 0, 0, 0);
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    $('#scheduleStartTime').val(local);
+
+    // Tab change handlers
+    $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        const target = $(e.target).attr('href');
+        if (target === '#tab-pending') loadPending();
+        if (target === '#tab-history') loadHistory();
+        if (target === '#tab-batches') loadBatches();
+        if (target === '#tab-calendar') loadCalendar();
+    });
+
+    // Preview update on timing change
+    $('#scheduleStartTime, #scheduleInterval').on('change input', updateSchedulePreview);
+});
+
+// ============ STATS ============
+function loadStats() {
+    $.get(API + '/stats', function(data) {
+        $('#statPending').text(data.pending || 0);
+        $('#statPosting').text(data.posting || 0);
+        $('#statCompleted').text(data.completed_today || 0);
+        $('#statFailed').text(data.failed_today || 0);
+    });
+}
+
+// ============ CALENDAR ============
+function calendarNav(days) {
+    if (days === 0) calendarOffset = 0;
+    else calendarOffset += days;
+    loadCalendar();
+}
+
+function loadCalendar() {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay() + 1 + calendarOffset);
+
+    const dateFrom = startOfWeek.toISOString().slice(0, 10);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+    const dateTo = endOfWeek.toISOString().slice(0, 10);
+
+    $('#calendarTitle').text(formatDateRange(startOfWeek, endOfWeek));
+
+    $.get(API + '?date_from=' + dateFrom + '&date_to=' + dateTo + '&limit=500', function(data) {
+        const items = data.items || [];
+        const grid = $('#calendarGrid');
+        grid.empty();
+
+        for (let d = 0; d < 7; d++) {
+            const date = new Date(startOfWeek);
+            date.setDate(startOfWeek.getDate() + d);
+            const dateStr = date.toISOString().slice(0, 10);
+            const isToday = dateStr === today.toISOString().slice(0, 10);
+
+            const dayItems = items.filter(i => i.scheduled_time && i.scheduled_time.startsWith(dateStr));
+
+            let itemsHtml = '';
+            dayItems.forEach(item => {
+                const time = item.scheduled_time ? item.scheduled_time.slice(11, 16) : '??:??';
+                const statusIcon = item.status === 'completed' ? 'âœ“' : item.status === 'failed' ? 'âœ—' : '';
+                itemsHtml += `
+                    <div class="cal-item type-${item.content_type}" onclick="openEditModal(${item.id})" title="${item.username} - ${item.content_type}">
+                        <strong>${time}</strong> ${statusIcon} ${item.username || 'Unknown'}
+                        <span class="text-muted ms-1">${item.content_type}</span>
+                    </div>`;
+            });
+
+            grid.append(`
+                <div class="col">
+                    <div class="cal-day ${isToday ? 'border-primary' : ''}">
+                        <div class="cal-day-header ${isToday ? 'text-primary' : ''}">${dayNames[date.getDay()]} ${date.getDate()}</div>
+                        ${itemsHtml || '<div class="text-muted" style="font-size:0.75rem">No items</div>'}
+                    </div>
+                </div>`);
+        }
+    });
+}
+
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function formatDateRange(start, end) {
+    const opts = { month: 'short', day: 'numeric' };
+    return start.toLocaleDateString('en-US', opts) + ' – ' + new Date(end.getTime() - 86400000).toLocaleDateString('en-US', opts);
+}
+
+// ============ WIZARD NAVIGATION ============
+function goToStep(n) {
+    if (n > wizardState.step + 1) return; // can't skip ahead
+    wizardState.step = n;
+    updateWizardUI();
+}
+
+function nextStep() {
+    if (wizardState.step < 6) {
+        // Collect data from current step before moving
+        collectStepData();
+        wizardState.step++;
+        updateWizardUI();
+        onStepEnter(wizardState.step);
+    }
+}
+
+function prevStep() {
+    if (wizardState.step > 1) {
+        collectStepData();
+        wizardState.step--;
+        updateWizardUI();
+    }
+}
+
+function updateWizardUI() {
+    // Update step indicators
+    $('.wizard-step').each(function() {
+        const s = parseInt($(this).data('step'));
+        $(this).removeClass('active completed');
+        if (s === wizardState.step) $(this).addClass('active');
+        else if (s < wizardState.step) $(this).addClass('completed');
+    });
+
+    // Show/hide panels
+    $('.step-panel').removeClass('active');
+    $(`#step${wizardState.step}`).addClass('active');
+}
+
+function onStepEnter(step) {
+    if (step === 2) loadFolders();
+    if (step === 3) showConfigForType();
+    if (step === 4) { loadDevicesForWizard(); loadTargetAccounts(); }
+    if (step === 5) updateSchedulePreview();
+    if (step === 6) buildReview();
+}
+
+function collectStepData() {
+    const s = wizardState.step;
+    if (s === 3) {
+        wizardState.caption = $('#captionTemplate').val();
+        wizardState.hashtags = $('#hashtagsInput').val();
+        wizardState.location = $('#locationInput').val();
+        wizardState.musicSearch = $('#musicSearchInput').val();
+        wizardState.mentionUsername = $('#mentionInput').val();
+        wizardState.linkUrl = $('#linkUrlInput').val();
+    }
+    if (s === 5) {
+        wizardState.startTime = $('#scheduleStartTime').val();
+        wizardState.intervalHours = parseFloat($('#scheduleInterval').val()) || 1;
+        wizardState.batchName = $('#batchNameInput').val();
+    }
+}
+
+// ============ STEP 1: CONTENT TYPE ============
+function selectContentType(type) {
+    wizardState.contentType = type;
+    $('.type-card').removeClass('selected');
+    $(`.type-card[data-type="${type}"]`).addClass('selected');
+    $('#btnStep1Next').prop('disabled', false);
+}
+
+// ============ STEP 2: MEDIA SELECTION ============
+function loadFolders() {
+    $.get(API + '/media-folders', function(data) {
+        const folders = data.folders || [];
+        let html = '';
+        if (folders.length === 0) {
+            html = '<div class="text-muted text-center py-3">No media folders found</div>';
+        } else {
+            folders.forEach(f => {
+                html += `<div class="folder-item-cs" onclick="loadFolderMedia('${f.path}')" data-path="${f.path}">
+                    <span><i class="fas fa-folder me-2 text-warning"></i>${f.name}</span>
+                    <span class="badge bg-secondary">${f.media_count}</span>
+                </div>`;
+            });
+        }
+        $('#folderList').html(html);
+    });
+}
+
+function loadFolderMedia(folderPath) {
+    $('.folder-item-cs').removeClass('selected');
+    $(`.folder-item-cs[data-path="${folderPath}"]`).addClass('selected');
+
+    $.get(API + '/media-folders/' + encodeURIComponent(folderPath), function(data) {
+        allFolderFiles = data.files || [];
+        renderMediaGrid();
+    });
+}
+
+function renderMediaGrid() {
+    const grid = $('#mediaGrid');
+    if (allFolderFiles.length === 0) {
+        grid.html('<div class="text-muted text-center py-5 w-100">No media files in this folder</div>');
+        return;
+    }
+
+    let html = '';
+    allFolderFiles.forEach(f => {
+        const isSelected = wizardState.selectedMedia.some(m => m.path === f.path);
+        const sel = isSelected ? 'selected' : '';
+        if (f.is_video) {
+            html += `<div class="media-thumb ${sel}" data-path="${f.path}" onclick="toggleMedia(this, '${f.path}')">
+                <div class="video-placeholder"><i class="fas fa-video fa-2x"></i></div>
+                <div class="check-overlay"><i class="fas fa-check"></i></div>
+                <div class="media-name">${f.name}</div>
+            </div>`;
+        } else {
+            html += `<div class="media-thumb ${sel}" data-path="${f.path}" onclick="toggleMedia(this, '${f.path}')">
+                <img src="${API}/media-file/${encodeURIComponent(f.path)}" alt="${f.name}" loading="lazy">
+                <div class="check-overlay"><i class="fas fa-check"></i></div>
+                <div class="media-name">${f.name}</div>
+            </div>`;
+        }
+    });
+    grid.html(html);
+    updateMediaInfo();
+}
+
+function toggleMedia(el, path) {
+    const idx = wizardState.selectedMedia.findIndex(m => m.path === path);
+    if (idx >= 0) {
+        wizardState.selectedMedia.splice(idx, 1);
+        $(el).removeClass('selected');
+    } else {
+        const file = allFolderFiles.find(f => f.path === path);
+        if (file) wizardState.selectedMedia.push(file);
+        $(el).addClass('selected');
+    }
+    updateMediaInfo();
+}
+
+function selectAllMedia() {
+    allFolderFiles.forEach(f => {
+        if (!wizardState.selectedMedia.some(m => m.path === f.path)) {
+            wizardState.selectedMedia.push(f);
+        }
+    });
+    renderMediaGrid();
+}
+
+function deselectAllMedia() {
+    const folderPaths = allFolderFiles.map(f => f.path);
+    wizardState.selectedMedia = wizardState.selectedMedia.filter(m => !folderPaths.includes(m.path));
+    renderMediaGrid();
+}
+
+function updateMediaInfo() {
+    const count = wizardState.selectedMedia.length;
+    $('#mediaSelectionInfo').text(`${count} file${count !== 1 ? 's' : ''} selected`);
+    $('#btnStep2Next').prop('disabled', count === 0);
+}
+
+// ============ STEP 3: CONFIGURE ============
+function showConfigForType() {
+    const t = wizardState.contentType;
+    $('#configReel, #configStory').hide();
+    $('#locationGroup').toggle(t === 'post');
+    if (t === 'reel') $('#configReel').show();
+    if (t === 'story') $('#configStory').show();
+
+    // Restore values
+    $('#captionTemplate').val(wizardState.caption);
+    $('#hashtagsInput').val(wizardState.hashtags);
+    $('#locationInput').val(wizardState.location);
+    $('#musicSearchInput').val(wizardState.musicSearch);
+    $('#mentionInput').val(wizardState.mentionUsername);
+    $('#linkUrlInput').val(wizardState.linkUrl);
+}
+
+// ============ STEP 4: TARGET ACCOUNTS ============
+function loadDevicesForWizard() {
+    $.get(API + '/devices', function(data) {
+        allDevices = data.devices || [];
+        const sel = $('#targetDevice');
+        sel.find('option:not(:first)').remove();
+        allDevices.forEach(d => {
+            sel.append(`<option value="${d.device_serial}">${d.device_name || d.device_serial} (${d.account_count} accounts)</option>`);
+        });
+    });
+}
+
+function loadTargetAccounts() {
+    const device = $('#targetDevice').val();
+    let url = API + '/accounts';
+    if (device && device !== 'all') url += '?device_serial=' + encodeURIComponent(device);
+
+    $.get(url, function(data) {
+        const accounts = data.accounts || [];
+        let html = '';
+        if (accounts.length === 0) {
+            html = '<div class="text-muted text-center py-3">No active accounts found</div>';
+        } else {
+            accounts.forEach(a => {
+                const checked = wizardState.selectedAccounts.some(
+                    sa => sa.username === a.username && sa.device_serial === a.device_serial
+                ) ? 'checked' : '';
+                html += `<div class="account-check-item">
+                    <div class="form-check">
+                        <input class="form-check-input acct-check" type="checkbox" ${checked}
+                               data-id="${a.id}" data-serial="${a.device_serial}" data-username="${a.username}"
+                               onchange="updateAccountSelection()">
+                        <label class="form-check-label">
+                            <strong>${a.username}</strong>
+                            <small class="text-muted ms-2">${a.device_serial}</small>
+                        </label>
+                    </div>
+                </div>`;
+            });
+        }
+        $('#accountCheckboxList').html(html);
+        updateAccountSelection();
+    });
+}
+
+function toggleAllAccounts() {
+    const checked = $('#selectAllAccounts').is(':checked');
+    $('.acct-check').prop('checked', checked);
+    updateAccountSelection();
+}
+
+function updateAccountSelection() {
+    wizardState.selectedAccounts = [];
+    $('.acct-check:checked').each(function() {
+        wizardState.selectedAccounts.push({
+            account_id: parseInt($(this).data('id')),
+            device_serial: $(this).data('serial'),
+            username: $(this).data('username')
+        });
+    });
+    const count = wizardState.selectedAccounts.length;
+    $('#accountCountLabel').text(`(${count} selected)`);
+    $('#btnStep4Next').prop('disabled', count === 0);
+}
+
+// ============ STEP 5: SCHEDULE TIMING ============
+function updateSchedulePreview() {
+    collectStepData();
+    const startStr = wizardState.startTime;
+    const interval = wizardState.intervalHours;
+    const mediaCount = wizardState.selectedMedia.length;
+    const acctCount = wizardState.selectedAccounts.length;
+
+    if (!startStr || !mediaCount || !acctCount) {
+        $('#schedulePreview').html('<div class="text-muted text-center py-3">Configure all steps to preview</div>');
+        return;
+    }
+
+    let start = new Date(startStr);
+    const total = mediaCount * acctCount;
+    let html = '';
+    let idx = 0;
+
+    for (let m = 0; m < mediaCount && idx < 20; m++) {
+        for (let a = 0; a < acctCount && idx < 20; a++) {
+            const time = new Date(start.getTime() + idx * interval * 3600000);
+            html += `<div class="schedule-preview-item">
+                <span class="text-muted" style="min-width:30px">${idx + 1}.</span>
+                <span style="min-width:130px">${formatDateTime(time)}</span>
+                <span class="text-primary">${wizardState.selectedAccounts[a].username}</span>
+                <span class="text-muted ms-auto text-truncate" style="max-width:150px">${wizardState.selectedMedia[m].name}</span>
+            </div>`;
+            idx++;
+        }
+    }
+
+    if (total > 20) {
+        html += `<div class="text-muted text-center py-2">... and ${total - 20} more items</div>`;
+    }
+
+    html = `<div class="text-muted mb-2">Total: <strong class="text-white">${total} items</strong></div>` + html;
+    $('#schedulePreview').html(html);
+}
+
+// ============ STEP 6: REVIEW ============
+function buildReview() {
+    collectStepData();
+
+    const mediaCount = wizardState.selectedMedia.length;
+    const acctCount = wizardState.selectedAccounts.length;
+    const total = mediaCount * acctCount;
+    const interval = wizardState.intervalHours;
+    const start = new Date(wizardState.startTime);
+    const endMs = start.getTime() + (total - 1) * interval * 3600000;
+    const end = new Date(endMs);
+
+    $('#reviewType').html(`<i class="fas fa-${wizardState.contentType === 'post' ? 'image' : wizardState.contentType === 'reel' ? 'film' : 'circle-notch'} me-1"></i>${wizardState.contentType.toUpperCase()}`);
+    $('#reviewMedia').text(mediaCount + ' files');
+    $('#reviewAccounts').text(acctCount + ' accounts');
+    $('#reviewTotal').text(total + ' items');
+    $('#reviewStart').text(formatDateTime(start));
+    $('#reviewEnd').text(formatDateTime(end));
+    $('#reviewInterval').text(interval + ' hours');
+    $('#reviewCaption').text(wizardState.caption || '(none)');
+    $('#reviewHashtags').text(wizardState.hashtags || '(none)');
+
+    // Build review table
+    let tbody = '';
+    let idx = 0;
+    for (let m = 0; m < mediaCount; m++) {
+        for (let a = 0; a < acctCount; a++) {
+            const time = new Date(start.getTime() + idx * interval * 3600000);
+            tbody += `<tr>
+                <td>${idx + 1}</td>
+                <td>${formatDateTime(time)}</td>
+                <td>${wizardState.selectedAccounts[a].username}</td>
+                <td class="text-truncate" style="max-width:200px">${wizardState.selectedMedia[m].name}</td>
+            </tr>`;
+            idx++;
+            if (idx > 50) break;
+        }
+        if (idx > 50) break;
+    }
+    if (total > 50) tbody += `<tr><td colspan="4" class="text-muted text-center">... ${total - 50} more</td></tr>`;
+    $('#reviewTableBody').html(tbody);
+}
+
+// ============ SUBMIT BATCH ============
+function submitBatch() {
+    const btn = $('#btnSubmitBatch');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Scheduling...');
+
+    const payload = {
+        content_type: wizardState.contentType,
+        media_paths: wizardState.selectedMedia.map(m => m.full_path),
+        accounts: wizardState.selectedAccounts,
+        caption_template: wizardState.caption,
+        hashtags: wizardState.hashtags,
+        location: wizardState.location,
+        music_search_query: wizardState.musicSearch,
+        mention_username: wizardState.mentionUsername,
+        link_url: wizardState.linkUrl,
+        start_time: wizardState.startTime,
+        interval_hours: wizardState.intervalHours,
+        batch_name: wizardState.batchName
+    };
+
+    $.ajax({
+        url: API + '/batch',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(data) {
+            btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
+            alert(`✅ Batch scheduled!\n\nBatch ID: ${data.batch_id}\nTotal items: ${data.total_items}\nAccounts: ${data.accounts}\nMedia files: ${data.media_files}`);
+            
+            // Reset wizard
+            resetWizard();
+            loadStats();
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
+            const err = xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error';
+            alert('âŒ Failed to schedule batch: ' + err);
+        }
+    });
+}
+
+function resetWizard() {
+    wizardState = {
+        step: 1, contentType: null, selectedMedia: [], caption: '', hashtags: '',
+        location: '', musicSearch: '', mentionUsername: '', linkUrl: '',
+        selectedAccounts: [], startTime: '', intervalHours: 1, batchName: ''
+    };
+    $('.type-card').removeClass('selected');
+    $('#btnStep1Next').prop('disabled', true);
+    goToStep(1);
+}
+
+// ============ PENDING QUEUE ============
+function loadPending() {
+    const type = $('#pendingTypeFilter').val();
+    let url = API + '?status=pending,posting&limit=100';
+    if (type) url += '&content_type=' + type;
+
+    $.get(url, function(data) {
+        const items = data.items || [];
+        let html = '';
+        if (items.length === 0) {
+            html = '<tr><td colspan="7" class="text-center text-muted py-4">No pending items</td></tr>';
+        } else {
+            items.forEach(item => {
+                html += `<tr>
+                    <td>${formatDateTime(new Date(item.scheduled_time))}</td>
+                    <td>${typeIcon(item.content_type)}</td>
+                    <td>${item.username || '-'}</td>
+                    <td><small class="text-muted">${item.device_serial || '-'}</small></td>
+                    <td class="text-truncate" style="max-width:200px">${item.caption || '-'}</td>
+                    <td>${statusBadge(item.status)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-light" onclick="openEditModal(${item.id})" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger ms-1" onclick="cancelItem(${item.id})" title="Cancel">
+                            <i class="fas fa-ban"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+        }
+        $('#pendingTableBody').html(html);
+    });
+}
+
+// ============ HISTORY ============
+function loadHistory() {
+    const type = $('#historyTypeFilter').val();
+    const status = $('#historyStatusFilter').val();
+    let url = API + '?status=' + status + '&limit=100';
+    if (type) url += '&content_type=' + type;
+
+    $.get(url, function(data) {
+        const items = data.items || [];
+        let html = '';
+        if (items.length === 0) {
+            html = '<tr><td colspan="7" class="text-center text-muted py-4">No history items</td></tr>';
+        } else {
+            items.forEach(item => {
+                html += `<tr>
+                    <td>${formatDateTime(new Date(item.scheduled_time))}</td>
+                    <td>${item.posted_at ? formatDateTime(new Date(item.posted_at)) : '-'}</td>
+                    <td>${typeIcon(item.content_type)}</td>
+                    <td>${item.username || '-'}</td>
+                    <td class="text-truncate" style="max-width:200px">${item.caption || '-'}</td>
+                    <td>${statusBadge(item.status)}</td>
+                    <td class="text-truncate text-danger" style="max-width:150px">${item.error_message || '-'}</td>
+                </tr>`;
+            });
+        }
+        $('#historyTableBody').html(html);
+    });
+}
+
+// ============ BATCHES ============
+function loadBatches() {
+    $.get(API + '/batches', function(data) {
+        const batches = data.batches || [];
+        let html = '';
+        if (batches.length === 0) {
+            html = '<tr><td colspan="8" class="text-center text-muted py-4">No batches yet</td></tr>';
+        } else {
+            batches.forEach(b => {
+                const progress = b.total_items > 0 
+                    ? Math.round((b.completed_items / b.total_items) * 100) 
+                    : 0;
+                html += `<tr>
+                    <td>
+                        <strong>${b.name || b.batch_id}</strong>
+                        <br><small class="text-muted">${b.batch_id}</small>
+                    </td>
+                    <td>${typeIcon(b.content_type)}</td>
+                    <td>${b.total_items}</td>
+                    <td class="text-success">${b.completed_items}</td>
+                    <td class="text-danger">${b.failed_items}</td>
+                    <td>${statusBadge(b.status)}
+                        <div class="progress mt-1" style="height:4px">
+                            <div class="progress-bar bg-success" style="width:${progress}%"></div>
+                        </div>
+                    </td>
+                    <td><small>${formatDateTime(new Date(b.created_at))}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-light" onclick="viewBatchDetail('${b.batch_id}')" title="View">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${b.status === 'active' ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="cancelBatch('${b.batch_id}')" title="Cancel">
+                            <i class="fas fa-ban"></i>
+                        </button>` : ''}
+                    </td>
+                </tr>`;
+            });
+        }
+        $('#batchesTableBody').html(html);
+    });
+}
+
+function viewBatchDetail(batchId) {
+    // Switch to pending tab filtered by batch
+    $('a[href="#tab-pending"]').tab('show');
+    $.get(API + '?batch_id=' + batchId + '&limit=500', function(data) {
+        const items = data.items || [];
+        let html = '';
+        items.forEach(item => {
+            html += `<tr>
+                <td>${formatDateTime(new Date(item.scheduled_time))}</td>
+                <td>${typeIcon(item.content_type)}</td>
+                <td>${item.username || '-'}</td>
+                <td><small class="text-muted">${item.device_serial || '-'}</small></td>
+                <td class="text-truncate" style="max-width:200px">${item.caption || '-'}</td>
+                <td>${statusBadge(item.status)}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-light" onclick="openEditModal(${item.id})"><i class="fas fa-edit"></i></button>
+                    ${item.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="cancelItem(${item.id})"><i class="fas fa-ban"></i></button>` : ''}
+                </td>
+            </tr>`;
+        });
+        if (!html) html = '<tr><td colspan="7" class="text-center text-muted py-4">No items in this batch</td></tr>';
+        $('#pendingTableBody').html(html);
+    });
+}
+
+function cancelBatch(batchId) {
+    if (!confirm('Cancel all pending items in this batch?')) return;
+    $.ajax({
+        url: API + '/batches/' + batchId,
+        method: 'DELETE',
+        success: function(data) {
+            alert('Batch cancelled: ' + (data.cancelled || 0) + ' items cancelled');
+            loadBatches();
+            loadStats();
+        },
+        error: function(xhr) {
+            alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown'));
+        }
+    });
+}
+
+// ============ EDIT MODAL ============
+function openEditModal(itemId) {
+    $.get(API + '/' + itemId, function(item) {
+        $('#editItemId').val(item.id);
+        $('#editCaption').val(item.caption || '');
+        $('#editHashtags').val(item.hashtags || '');
+        $('#editStatus').val(item.status);
+        if (item.scheduled_time) {
+            const dt = item.scheduled_time.replace(' ', 'T').slice(0, 16);
+            $('#editScheduledTime').val(dt);
+        }
+        new bootstrap.Modal('#editItemModal').show();
+    });
+}
+
+function saveEditItem() {
+    const id = $('#editItemId').val();
+    const payload = {
+        caption: $('#editCaption').val(),
+        hashtags: $('#editHashtags').val(),
+        scheduled_time: $('#editScheduledTime').val(),
+        status: $('#editStatus').val()
+    };
+    $.ajax({
+        url: API + '/' + id,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function() {
+            bootstrap.Modal.getInstance(document.getElementById('editItemModal')).hide();
+            loadPending();
+            loadCalendar();
+            loadStats();
+        },
+        error: function(xhr) {
+            alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown'));
+        }
+    });
+}
+
+function deleteItem() {
+    const id = $('#editItemId').val();
+    if (!confirm('Delete this scheduled item?')) return;
+    $.ajax({
+        url: API + '/' + id,
+        method: 'DELETE',
+        success: function() {
+            bootstrap.Modal.getInstance(document.getElementById('editItemModal')).hide();
+            loadPending();
+            loadCalendar();
+            loadStats();
+        }
+    });
+}
+
+function cancelItem(id) {
+    if (!confirm('Cancel this item?')) return;
+    $.ajax({
+        url: API + '/' + id,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({ status: 'cancelled' }),
+        success: function() { loadPending(); loadStats(); }
+    });
+}
+
+// ============ HELPERS ============
+function typeIcon(type) {
+    if (type === 'post') return '<span class="badge" style="background:rgba(13,110,253,0.2);color:#0d6efd"><i class="fas fa-image me-1"></i>Post</span>';
+    if (type === 'reel') return '<span class="badge" style="background:rgba(111,66,193,0.2);color:#6f42c1"><i class="fas fa-film me-1"></i>Reel</span>';
+    if (type === 'story') return '<span class="badge" style="background:rgba(253,126,20,0.2);color:#fd7e14"><i class="fas fa-circle-notch me-1"></i>Story</span>';
+    return type || '-';
+}
+
+function statusBadge(status) {
+    const map = {
+        pending: 'badge-pending', posting: 'badge-posting',
+        completed: 'badge-completed', failed: 'badge-failed',
+        cancelled: 'badge-cancelled', active: 'badge-pending',
+        completed_with_errors: 'badge-failed'
+    };
+    return `<span class="badge ${map[status] || 'bg-secondary'}">${status}</span>`;
+}
+
+function formatDateTime(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '-';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+           date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+</script>
+{% endblock %}

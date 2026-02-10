@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basic Media Library</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: white; padding: 20px; }
+        .media-item { margin-bottom: 20px; border: 1px solid #444; border-radius: 5px; overflow: hidden; }
+        .media-img { width: 100%; height: 200px; object-fit: cover; }
+        .media-info { padding: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Basic Media Library</h1>
+        <p>This is a basic version that should work on Windows</p>
+        
+        <div class="row mb-4">
+            <div class="col">
+                <button id="loadBtn" class="btn btn-primary">Load Media</button>
+            </div>
+        </div>
+        
+        <div id="mediaContainer" class="row">
+            <div class="col-12 text-center">
+                <p>Click "Load Media" to view your media files</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loadBtn').addEventListener('click', loadMedia);
+        
+        async function loadMedia() {
+            try {
+                // Show loading
+                document.getElementById('mediaContainer').innerHTML = 
+                    '<div class="col-12 text-center"><div class="spinner-border text-light" role="status"></div><p>Loading media...</p></div>';
+                
+                // Fetch media
+                const response = await fetch('/api/media');
+                if (!response.ok) throw new Error('Failed to load media');
+                
+                const media = await response.json();
+                displayMedia(media);
+            } catch (error) {
+                console.error('Error loading media:', error);
+                document.getElementById('mediaContainer').innerHTML = 
+                    '<div class="col-12 text-center"><div class="alert alert-danger">Error loading media</div></div>';
+            }
+        }
+        
+        function displayMedia(mediaItems) {
+            const container = document.getElementById('mediaContainer');
+            
+            if (!mediaItems || mediaItems.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center"><p>No media found</p></div>';
+                return;
+            }
+            
+            let html = '';
+            
+            mediaItems.forEach(media => {
+                // Get filename from path, handling both slash types
+                let filename;
+                let imgSrc;
+                
+                if (media.processed_path) {
+                    filename = media.processed_path.split(/[\\\/]/).pop();
+                    imgSrc = `/api/media/processed/${filename}`;
+                } else if (media.original_path) {
+                    filename = media.original_path.split(/[\\\/]/).pop();
+                    imgSrc = `/api/media/original/${filename}`;
+                } else {
+                    imgSrc = '/static/img/placeholder.jpg';
+                }
+                
+                html += `
+                <div class="col-md-4">
+                    <div class="media-item">
+                        <img src="${imgSrc}" class="media-img" alt="${media.filename || 'Media'}" 
+                             onerror="this.onerror=null; this.src='/static/img/placeholder.jpg';">
+                        <div class="media-info">
+                            <h5>${media.filename || 'Untitled'}</h5>
+                            <p class="text-muted">${media.media_type || 'Unknown type'}</p>
+                            <p>${media.description || ''}</p>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

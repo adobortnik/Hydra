@@ -1,0 +1,791 @@
+{% extends "base.html" %}
+
+{% block title %}Comment Management - Hydra Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ─── Stats Cards ─── */
+    .stat-card {
+        border-radius: 10px;
+        padding: 1.25rem;
+        background: #2c3034;
+        border-left: 4px solid;
+        transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
+    .stat-card .stat-label { font-size: 0.85rem; opacity: 0.7; }
+    .stat-teal    { border-color: #00d2a0; }
+    .stat-purple  { border-color: #6f42c1; }
+    .stat-blue    { border-color: #4fa8d5; }
+    .stat-orange  { border-color: #f0a040; }
+    .stat-teal   .stat-value { color: #00d2a0; }
+    .stat-purple .stat-value { color: #6f42c1; }
+    .stat-blue   .stat-value { color: #4fa8d5; }
+    .stat-orange .stat-value { color: #f0a040; }
+
+    /* ─── List Cards ─── */
+    .comment-list-card {
+        background: #1a1a2e;
+        border: 1px solid #2a2a4a;
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        height: 100%;
+    }
+    .comment-list-card:hover {
+        border-color: #00d2a0;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0, 210, 160, 0.1);
+    }
+    .comment-list-card .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #e0e0e8;
+        margin-bottom: 0.5rem;
+    }
+    .comment-list-card .card-desc {
+        font-size: 0.85rem;
+        color: #8888a0;
+        margin-bottom: 0.75rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .comment-list-card .card-meta {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .comment-list-card .badge-count {
+        background: #16213e;
+        color: #4fa8d5;
+        padding: 0.25rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+    }
+    .comment-list-card .badge-ai {
+        background: rgba(0, 210, 160, 0.15);
+        color: #00d2a0;
+        padding: 0.25rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+    }
+    .comment-list-card .card-date {
+        font-size: 0.75rem;
+        color: #666;
+        margin-left: auto;
+    }
+    .comment-list-card .card-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #2a2a4a;
+    }
+
+    /* ─── Modal Styles ─── */
+    .modal-content {
+        background: #12121a !important;
+        border: 1px solid #2a2a4a;
+    }
+    .modal-header { border-bottom-color: #2a2a4a; }
+    .modal-footer { border-top-color: #2a2a4a; }
+
+    .form-control, .form-select {
+        background: #1a1a2e !important;
+        border-color: #2a2a4a !important;
+        color: #e0e0e8 !important;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: #00d2a0 !important;
+        box-shadow: 0 0 0 0.15rem rgba(0, 210, 160, 0.25) !important;
+    }
+    .form-control::placeholder { color: #555 !important; }
+
+    /* ─── Preview Panel ─── */
+    .preview-panel {
+        background: #16213e;
+        border-radius: 10px;
+        padding: 1rem;
+        max-height: 350px;
+        overflow-y: auto;
+    }
+    .preview-item {
+        padding: 0.4rem 0.6rem;
+        border-radius: 6px;
+        margin-bottom: 0.35rem;
+        font-size: 0.85rem;
+        background: #1a1a2e;
+        border-left: 3px solid #00d2a0;
+    }
+    .preview-item .raw-text {
+        color: #8888a0;
+        font-size: 0.75rem;
+    }
+
+    /* ─── Comment Textarea ─── */
+    .comments-textarea {
+        font-family: 'Fira Code', 'Consolas', monospace;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        min-height: 200px;
+    }
+
+    /* ─── Generated Comments ─── */
+    .generated-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .generated-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.6rem;
+        border-radius: 6px;
+        margin-bottom: 0.25rem;
+        background: #1a1a2e;
+        font-size: 0.85rem;
+    }
+    .generated-item .form-check-input { flex-shrink: 0; }
+
+    /* ─── Toast Notification ─── */
+    .toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 9999;
+    }
+
+    /* ─── Empty State ─── */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #8888a0;
+    }
+    .empty-state i { font-size: 3rem; margin-bottom: 1rem; display: block; opacity: 0.5; }
+    .empty-state h5 { color: #aaa; margin-bottom: 0.5rem; }
+
+    /* ─── Btn Accent ─── */
+    .btn-accent {
+        background: #00d2a0;
+        color: #0a0a0f;
+        border: none;
+        font-weight: 600;
+    }
+    .btn-accent:hover {
+        background: #00b88a;
+        color: #0a0a0f;
+    }
+    .btn-outline-accent {
+        border: 1px solid #00d2a0;
+        color: #00d2a0;
+        background: transparent;
+    }
+    .btn-outline-accent:hover {
+        background: rgba(0, 210, 160, 0.1);
+        color: #00d2a0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══════ STATS ROW ═══════ -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-teal">
+            <div class="stat-value" id="statLists">—</div>
+            <div class="stat-label"><i class="fas fa-list me-1"></i>Comment Lists</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-purple">
+            <div class="stat-value" id="statComments">—</div>
+            <div class="stat-label"><i class="fas fa-comment me-1"></i>Total Comments</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-blue">
+            <div class="stat-value" id="statAiEnabled">—</div>
+            <div class="stat-label"><i class="fas fa-robot me-1"></i>AI-Enabled Lists</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-orange">
+            <div class="stat-value" id="statAvgSize">—</div>
+            <div class="stat-label"><i class="fas fa-chart-bar me-1"></i>Avg Comments/List</div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════ HEADER + CREATE BTN ═══════ -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="fas fa-comments me-2" style="color:#00d2a0"></i>Comment Lists</h4>
+    <button class="btn btn-accent" onclick="openCreateModal()">
+        <i class="fas fa-plus me-1"></i>New Comment List
+    </button>
+</div>
+
+<!-- ═══════ COMMENT LISTS GRID ═══════ -->
+<div class="row g-3" id="listsGrid">
+    <div class="col-12">
+        <div class="empty-state">
+            <i class="fas fa-spinner fa-spin"></i>
+            <h5>Loading comment lists…</h5>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!--       CREATE / EDIT MODAL              -->
+<!-- ═══════════════════════════════════════ -->
+<div class="modal fade" id="commentListModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content text-white">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle"><i class="fas fa-plus-circle me-2" style="color:#00d2a0"></i>New Comment List</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editListId" value="">
+
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">List Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="listName" placeholder="e.g. Fitness Comments, Food Lovers…">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">AI Sample Count</label>
+                        <input type="number" class="form-control" id="aiSampleCount" value="10" min="1" max="100">
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control" id="listDescription" placeholder="Optional description…">
+                </div>
+
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0">Comments <small class="text-muted">(one per line, supports {spintax|syntax})</small></label>
+                        <span class="badge bg-secondary" id="commentCountBadge">0 comments</span>
+                    </div>
+                    <textarea class="form-control comments-textarea" id="commentsText" rows="10"
+                        placeholder="Type comments here, one per line…&#10;&#10;Supports spintax: {Amazing|Incredible|Stunning} post! {🔥|❤️|😍}&#10;Love this {content|vibe|aesthetic}!"></textarea>
+                </div>
+
+                <div class="mt-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="aiEnabled" style="cursor:pointer">
+                        <label class="form-check-label" for="aiEnabled" style="cursor:pointer">
+                            <i class="fas fa-robot me-1" style="color:#00d2a0"></i>AI Generation Enabled
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mt-3" id="aiStyleGroup" style="display:none">
+                    <label class="form-label">AI Style Description</label>
+                    <input type="text" class="form-control" id="aiStyle"
+                        placeholder="e.g. Casual, emoji-heavy, short and enthusiastic…">
+                    <small class="text-muted">Describe the tone/style for AI-generated comments</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-accent" id="saveListBtn" onclick="saveCommentList()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!--         DETAIL / PREVIEW MODAL         -->
+<!-- ═══════════════════════════════════════ -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content text-white">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailTitle">Comment List</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Left: Comments -->
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="fas fa-list me-1"></i>Comments</h6>
+                            <span class="badge bg-secondary" id="detailCount">0</span>
+                        </div>
+                        <div class="preview-panel" id="detailCommentsList" style="max-height:450px">
+                            <!-- populated by JS -->
+                        </div>
+                    </div>
+                    <!-- Right: Preview + AI -->
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="fas fa-eye me-1"></i>Spintax Preview</h6>
+                            <button class="btn btn-sm btn-outline-accent" onclick="refreshPreview()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                        </div>
+                        <div class="preview-panel" id="detailPreviewList" style="max-height:200px">
+                            <div class="text-center text-muted py-3">Click refresh to generate previews</div>
+                        </div>
+
+                        <!-- AI Generation Section -->
+                        <div class="mt-3 p-3" style="background:#16213e; border-radius:10px;">
+                            <h6 class="mb-3"><i class="fas fa-robot me-1" style="color:#00d2a0"></i>AI Generate Comments</h6>
+                            <div class="row g-2 mb-2">
+                                <div class="col-8">
+                                    <input type="text" class="form-control form-control-sm" id="aiGenStyle"
+                                        placeholder="Style description (optional)…">
+                                </div>
+                                <div class="col-4">
+                                    <input type="number" class="form-control form-control-sm" id="aiGenCount"
+                                        value="10" min="1" max="100" placeholder="Count">
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-accent flex-grow-1" onclick="generateAiComments(false)">
+                                    <i class="fas fa-magic me-1"></i>Generate Preview
+                                </button>
+                                <button class="btn btn-sm btn-outline-accent" onclick="generateAiComments(true)">
+                                    <i class="fas fa-plus me-1"></i>Generate & Append
+                                </button>
+                            </div>
+
+                            <!-- Generated Results -->
+                            <div class="mt-2 generated-list d-none" id="generatedResults">
+                                <!-- populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-info btn-sm" onclick="editFromDetail()">
+                    <i class="fas fa-edit me-1"></i>Edit
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteFromDetail()">
+                    <i class="fas fa-trash me-1"></i>Delete
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let allLists = [];
+let currentDetailId = null;
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    loadLists();
+
+    // Toggle AI style field
+    document.getElementById('aiEnabled').addEventListener('change', function() {
+        document.getElementById('aiStyleGroup').style.display = this.checked ? 'block' : 'none';
+    });
+
+    // Live comment count
+    document.getElementById('commentsText').addEventListener('input', updateCommentCount);
+});
+
+function updateCommentCount() {
+    const text = document.getElementById('commentsText').value;
+    const lines = text.split('\n').filter(l => l.trim()).length;
+    document.getElementById('commentCountBadge').textContent = lines + ' comment' + (lines !== 1 ? 's' : '');
+}
+
+// ═══════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const id = 'toast-' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
+
+    container.insertAdjacentHTML('beforeend', `
+        <div id="${id}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body"><i class="fas ${icon} me-2"></i>${esc(message)}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `);
+
+    const toastEl = document.getElementById(id);
+    const bsToast = new bootstrap.Toast(toastEl, { delay: 3000 });
+    bsToast.show();
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
+// ═══════════════════════════════════════
+// LOAD LISTS
+// ═══════════════════════════════════════
+async function loadLists() {
+    try {
+        const r = await fetch('/api/comments/lists');
+        const d = await r.json();
+        allLists = d.lists || [];
+        renderStats();
+        renderGrid();
+    } catch(e) {
+        console.error('Load lists error:', e);
+        showToast('Failed to load comment lists', 'error');
+    }
+}
+
+function renderStats() {
+    const totalComments = allLists.reduce((s, l) => s + (l.comment_count || 0), 0);
+    const aiEnabled = allLists.filter(l => l.ai_enabled).length;
+    const avgSize = allLists.length > 0 ? Math.round(totalComments / allLists.length) : 0;
+
+    document.getElementById('statLists').textContent = allLists.length;
+    document.getElementById('statComments').textContent = totalComments;
+    document.getElementById('statAiEnabled').textContent = aiEnabled;
+    document.getElementById('statAvgSize').textContent = avgSize;
+}
+
+function renderGrid() {
+    const grid = document.getElementById('listsGrid');
+
+    if (!allLists.length) {
+        grid.innerHTML = `
+            <div class="col-12">
+                <div class="empty-state">
+                    <i class="fas fa-comments"></i>
+                    <h5>No Comment Lists Yet</h5>
+                    <p>Create your first comment list to get started with comment automation.</p>
+                    <button class="btn btn-accent" onclick="openCreateModal()">
+                        <i class="fas fa-plus me-1"></i>Create Comment List
+                    </button>
+                </div>
+            </div>`;
+        return;
+    }
+
+    grid.innerHTML = allLists.map(l => {
+        const dateStr = l.updated_at ? new Date(l.updated_at + 'Z').toLocaleDateString() : '';
+        return `
+        <div class="col-xl-4 col-md-6">
+            <div class="comment-list-card" onclick="openDetail(${l.id})">
+                <div class="card-title">${esc(l.name)}</div>
+                ${l.description ? `<div class="card-desc">${esc(l.description)}</div>` : ''}
+                <div class="card-meta">
+                    <span class="badge-count"><i class="fas fa-comment me-1"></i>${l.comment_count || 0}</span>
+                    ${l.ai_enabled ? '<span class="badge-ai"><i class="fas fa-robot me-1"></i>AI</span>' : ''}
+                    <span class="card-date">${dateStr}</span>
+                </div>
+                <div class="card-actions" onclick="event.stopPropagation()">
+                    <button class="btn btn-sm btn-outline-accent" title="Preview" onclick="openDetail(${l.id})">
+                        <i class="fas fa-eye me-1"></i>View
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" title="Edit" onclick="openEditModal(${l.id})">
+                        <i class="fas fa-edit me-1"></i>Edit
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger ms-auto" title="Delete" onclick="deleteList(${l.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════
+// CREATE / EDIT MODAL
+// ═══════════════════════════════════════
+function openCreateModal() {
+    document.getElementById('editListId').value = '';
+    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus-circle me-2" style="color:#00d2a0"></i>New Comment List';
+    document.getElementById('listName').value = '';
+    document.getElementById('listDescription').value = '';
+    document.getElementById('commentsText').value = '';
+    document.getElementById('aiEnabled').checked = false;
+    document.getElementById('aiStyle').value = '';
+    document.getElementById('aiSampleCount').value = '10';
+    document.getElementById('aiStyleGroup').style.display = 'none';
+    updateCommentCount();
+    new bootstrap.Modal(document.getElementById('commentListModal')).show();
+}
+
+async function openEditModal(id) {
+    try {
+        const r = await fetch(`/api/comments/lists/${id}`);
+        const cl = await r.json();
+        if (cl.error) { showToast(cl.error, 'error'); return; }
+
+        document.getElementById('editListId').value = cl.id;
+        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit me-2" style="color:#4fa8d5"></i>Edit Comment List';
+        document.getElementById('listName').value = cl.name || '';
+        document.getElementById('listDescription').value = cl.description || '';
+        document.getElementById('commentsText').value = (cl.comments || []).join('\n');
+        document.getElementById('aiEnabled').checked = !!cl.ai_enabled;
+        document.getElementById('aiStyle').value = cl.ai_style || '';
+        document.getElementById('aiSampleCount').value = cl.ai_sample_count || 10;
+        document.getElementById('aiStyleGroup').style.display = cl.ai_enabled ? 'block' : 'none';
+        updateCommentCount();
+
+        // Close detail modal if open
+        const detailModal = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
+        if (detailModal) detailModal.hide();
+
+        new bootstrap.Modal(document.getElementById('commentListModal')).show();
+    } catch(e) {
+        showToast('Failed to load list', 'error');
+    }
+}
+
+async function saveCommentList() {
+    const id = document.getElementById('editListId').value;
+    const name = document.getElementById('listName').value.trim();
+
+    if (!name) {
+        showToast('Please enter a list name', 'error');
+        return;
+    }
+
+    const commentsRaw = document.getElementById('commentsText').value;
+    const comments = commentsRaw.split('\n').filter(l => l.trim()).map(l => l.trim());
+
+    const body = {
+        name,
+        description: document.getElementById('listDescription').value.trim(),
+        comments,
+        ai_enabled: document.getElementById('aiEnabled').checked,
+        ai_style: document.getElementById('aiStyle').value.trim(),
+        ai_sample_count: parseInt(document.getElementById('aiSampleCount').value) || 10,
+    };
+
+    const btn = document.getElementById('saveListBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving…';
+
+    try {
+        const url = id ? `/api/comments/lists/${id}` : '/api/comments/lists';
+        const method = id ? 'PUT' : 'POST';
+
+        const r = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+
+        if (r.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('commentListModal')).hide();
+            showToast(id ? 'Comment list updated!' : 'Comment list created!');
+            loadLists();
+        } else {
+            showToast(d.error || 'Failed to save', 'error');
+        }
+    } catch(e) {
+        showToast('Network error', 'error');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save me-1"></i>Save';
+}
+
+// ═══════════════════════════════════════
+// DELETE
+// ═══════════════════════════════════════
+async function deleteList(id) {
+    if (!confirm('Delete this comment list? This cannot be undone.')) return;
+
+    try {
+        const r = await fetch(`/api/comments/lists/${id}`, { method: 'DELETE' });
+        if (r.ok) {
+            showToast('Comment list deleted');
+            loadLists();
+        } else {
+            showToast('Failed to delete', 'error');
+        }
+    } catch(e) {
+        showToast('Network error', 'error');
+    }
+}
+
+// ═══════════════════════════════════════
+// DETAIL / PREVIEW MODAL
+// ═══════════════════════════════════════
+async function openDetail(id) {
+    currentDetailId = id;
+    try {
+        const r = await fetch(`/api/comments/lists/${id}`);
+        const cl = await r.json();
+        if (cl.error) { showToast(cl.error, 'error'); return; }
+
+        document.getElementById('detailTitle').innerHTML =
+            `<i class="fas fa-comments me-2" style="color:#00d2a0"></i>${esc(cl.name)}` +
+            (cl.ai_enabled ? ' <span class="badge bg-success bg-opacity-25 text-success ms-2" style="font-size:0.7rem"><i class="fas fa-robot me-1"></i>AI</span>' : '');
+
+        document.getElementById('detailCount').textContent = (cl.comments || []).length;
+
+        // Populate comments list
+        const commentsDiv = document.getElementById('detailCommentsList');
+        if (cl.comments && cl.comments.length) {
+            commentsDiv.innerHTML = cl.comments.map((c, i) => `
+                <div class="preview-item">
+                    <div>${esc(c)}</div>
+                    ${c.includes('{') ? `<div class="raw-text">Spintax template</div>` : ''}
+                </div>
+            `).join('');
+        } else {
+            commentsDiv.innerHTML = '<div class="text-center text-muted py-3">No comments in this list</div>';
+        }
+
+        // Reset preview and AI sections
+        document.getElementById('detailPreviewList').innerHTML = '<div class="text-center text-muted py-3">Click refresh to generate previews</div>';
+        document.getElementById('generatedResults').classList.add('d-none');
+        document.getElementById('aiGenStyle').value = cl.ai_style || '';
+        document.getElementById('aiGenCount').value = cl.ai_sample_count || 10;
+
+        new bootstrap.Modal(document.getElementById('detailModal')).show();
+    } catch(e) {
+        showToast('Failed to load list details', 'error');
+    }
+}
+
+async function refreshPreview() {
+    if (!currentDetailId) return;
+
+    const container = document.getElementById('detailPreviewList');
+    container.innerHTML = '<div class="text-center py-2"><i class="fas fa-spinner fa-spin"></i> Generating…</div>';
+
+    try {
+        const r = await fetch(`/api/comments/lists/${currentDetailId}/preview?count=15`);
+        const d = await r.json();
+
+        if (d.previews && d.previews.length) {
+            container.innerHTML = d.previews.map(p => `
+                <div class="preview-item">
+                    <div>${esc(p.resolved)}</div>
+                    ${p.raw !== p.resolved ? `<div class="raw-text">from: ${esc(p.raw)}</div>` : ''}
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<div class="text-center text-muted py-3">No previews available</div>';
+        }
+    } catch(e) {
+        container.innerHTML = '<div class="text-center text-danger py-3">Failed to load previews</div>';
+    }
+}
+
+// ═══════════════════════════════════════
+// AI GENERATION
+// ═══════════════════════════════════════
+async function generateAiComments(append = false) {
+    if (!currentDetailId) return;
+
+    const style = document.getElementById('aiGenStyle').value.trim();
+    const count = parseInt(document.getElementById('aiGenCount').value) || 10;
+    const resultsDiv = document.getElementById('generatedResults');
+
+    resultsDiv.classList.remove('d-none');
+    resultsDiv.innerHTML = '<div class="text-center py-2"><i class="fas fa-spinner fa-spin me-1"></i>Generating comments…</div>';
+
+    try {
+        const r = await fetch(`/api/comments/lists/${currentDetailId}/generate-ai`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ style, count, append })
+        });
+        const d = await r.json();
+
+        if (d.generated && d.generated.length) {
+            if (append) {
+                showToast(`${d.generated.length} comments generated and appended!`);
+                // Refresh the detail view
+                openDetail(currentDetailId);
+                loadLists();
+            } else {
+                resultsDiv.innerHTML = `
+                    <div class="mb-2 text-muted" style="font-size:0.8rem">
+                        Generated ${d.generated.length} comments:
+                    </div>
+                    ${d.generated.map(c => `<div class="generated-item">${esc(c)}</div>`).join('')}
+                    <button class="btn btn-sm btn-accent w-100 mt-2" onclick="appendGeneratedComments()">
+                        <i class="fas fa-plus me-1"></i>Append All to List
+                    </button>
+                `;
+                // Store for append
+                window._lastGenerated = d.generated;
+            }
+        } else {
+            resultsDiv.innerHTML = '<div class="text-center text-muted py-2">No comments generated</div>';
+        }
+    } catch(e) {
+        resultsDiv.innerHTML = '<div class="text-center text-danger py-2">Generation failed</div>';
+    }
+}
+
+async function appendGeneratedComments() {
+    if (!currentDetailId || !window._lastGenerated) return;
+
+    try {
+        const r = await fetch(`/api/comments/lists/${currentDetailId}/generate-ai`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                style: document.getElementById('aiGenStyle').value.trim(),
+                count: window._lastGenerated.length,
+                append: true
+            })
+        });
+
+        if (r.ok) {
+            showToast('Comments appended to list!');
+            openDetail(currentDetailId);
+            loadLists();
+        }
+    } catch(e) {
+        showToast('Failed to append comments', 'error');
+    }
+}
+
+function editFromDetail() {
+    if (currentDetailId) openEditModal(currentDetailId);
+}
+
+function deleteFromDetail() {
+    if (!currentDetailId) return;
+    if (!confirm('Delete this comment list?')) return;
+
+    const detailModal = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
+    if (detailModal) detailModal.hide();
+
+    deleteList(currentDetailId);
+}
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function esc(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+}
+</script>
+{% endblock %}
