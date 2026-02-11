@@ -95,7 +95,12 @@
 <div class="card bg-dark border-info mb-4 d-none" id="progressPanel">
     <div class="card-header bg-dark border-info d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-tasks me-2 text-info"></i>Login Progress</h5>
-        <span id="progressBadge" class="badge bg-info">0 / 0</span>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-danger" id="stopBtn" onclick="stopBatch()">
+                <i class="fas fa-stop me-1"></i> Stop
+            </button>
+            <span id="progressBadge" class="badge bg-info">0 / 0</span>
+        </div>
     </div>
     <div class="card-body">
         <div class="progress mb-3" style="height:24px">
@@ -288,11 +293,34 @@ function loginSelected() {
     });
 }
 
+function stopBatch() {
+    if (!activeBatchId) return;
+    if (!confirm('Stop the current login batch? Remaining accounts will go back to pending.')) return;
+
+    const btn = $('#stopBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Stopping...');
+
+    $.ajax({
+        url: '/api/login-v2/stop',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ batch_id: activeBatchId }),
+        success: function(data) {
+            btn.html('<i class="fas fa-stop me-1"></i> Stopped').addClass('btn-secondary').removeClass('btn-danger');
+        },
+        error: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-stop me-1"></i> Stop');
+            alert('Failed to stop batch');
+        }
+    });
+}
+
 function showProgress(total) {
     $('#progressPanel').removeClass('d-none');
     $('#progressBadge').text(`0 / ${total}`);
     $('#progressLog').html('');
     $('#completionActions').addClass('d-none');
+    $('#stopBtn').prop('disabled', false).html('<i class="fas fa-stop me-1"></i> Stop').removeClass('btn-secondary').addClass('btn-danger');
     $('#progressSuccess').css('width', '0%').text('0');
     $('#progressFail').css('width', '0%').text('0');
     $('#progressRunning').css('width', '100%');
@@ -311,12 +339,14 @@ function pollProgress() {
 
         const p = data.progress;
         const total = p.total || 1;
-        const done = p.completed + p.failed;
+        const skipped = Object.values(p.results || {}).filter(r => r.status === 'skipped').length;
+        const done = p.completed + p.failed + skipped;
         const successPct = (p.completed / total * 100).toFixed(0);
         const failPct = (p.failed / total * 100).toFixed(0);
-        const runningPct = Math.max(0, 100 - parseFloat(successPct) - parseFloat(failPct));
+        const skippedPct = (skipped / total * 100).toFixed(0);
+        const runningPct = Math.max(0, 100 - parseFloat(successPct) - parseFloat(failPct) - parseFloat(skippedPct));
 
-        $('#progressBadge').text(`${done} / ${total}`);
+        $('#progressBadge').text(`${done} / ${total}${p.stopped ? ' (STOPPED)' : ''}`);
         $('#progressSuccess').css('width', successPct + '%').text(p.completed || '');
         $('#progressFail').css('width', failPct + '%').text(p.failed || '');
         $('#progressRunning').css('width', runningPct + '%');
@@ -324,11 +354,12 @@ function pollProgress() {
         // Update log
         let logHtml = '';
         Object.values(p.results || {}).forEach(r => {
-            const icon = r.status === 'completed' ? '✅' :
-                         r.status === 'failed' ? '❌' :
+            const icon = r.status === 'completed' ? '<span class="text-success">&#10004;</span>' :
+                         r.status === 'failed' ? '<span class="text-danger">&#10008;</span>' :
+                         r.status === 'skipped' ? '<span class="text-warning">&#9724;</span>' :
                          '<i class="fas fa-spinner fa-spin"></i>';
             const msg = r.message || r.error || '';
-            logHtml += `<div class="mb-1">${icon} <strong>${r.username}</strong> @ ${r.device} ${msg ? '— ' + msg : ''}</div>`;
+            logHtml += `<div class="mb-1">${icon} <strong>${r.username}</strong> @ ${r.device} ${msg ? '&mdash; ' + msg : ''}</div>`;
         });
         $('#progressLog').html(logHtml);
 
@@ -336,11 +367,12 @@ function pollProgress() {
         $('#statRunning').text(p.in_progress);
         $('#statDone').text(p.completed);
 
-        // All done?
-        if (done >= total) {
+        // All done or stopped?
+        if (done >= total || p.stopped) {
             clearInterval(pollInterval);
             pollInterval = null;
             $('#completionActions').removeClass('d-none');
+            $('#stopBtn').prop('disabled', true).html('<i class="fas fa-check me-1"></i> Done');
             loadAccounts(); // Refresh table
         }
     });

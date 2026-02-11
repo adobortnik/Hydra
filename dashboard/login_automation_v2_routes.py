@@ -42,8 +42,9 @@ except ImportError:
 login_v2_bp = Blueprint('login_v2', __name__)
 
 # In-memory task tracker for live progress
-_login_progress = {}  # task_id -> { status, message, ... }
+_login_progress = {}  # batch_id -> { status, message, ... }
 _login_lock = threading.Lock()
+_stop_requested = set()  # batch_ids that should stop
 
 
 # ─────────────────────────────────────────────
@@ -262,6 +263,32 @@ def api_reset_failed():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@login_v2_bp.route('/api/login-v2/stop', methods=['POST'])
+def api_stop_login():
+    """Stop a running login batch. Remaining tasks revert to pending."""
+    try:
+        data = request.get_json() or {}
+        batch_id = data.get('batch_id')
+
+        if not batch_id:
+            # Stop ALL active batches
+            with _login_lock:
+                for bid in list(_login_progress.keys()):
+                    _stop_requested.add(bid)
+                    _login_progress[bid]['stopped'] = True
+                stopped = len(_stop_requested)
+            return jsonify({'status': 'success', 'message': f'Stop requested for {stopped} batch(es)'})
+
+        _stop_requested.add(batch_id)
+        with _login_lock:
+            if batch_id in _login_progress:
+                _login_progress[batch_id]['stopped'] = True
+
+        return jsonify({'status': 'success', 'message': f'Stop requested for {batch_id}'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 # ─────────────────────────────────────────────
 # BACKGROUND LOGIN WORKER
 # ─────────────────────────────────────────────
@@ -272,6 +299,31 @@ def _run_device_logins(batch_id, device_serial, tasks):
     Runs in a background thread.
     """
     for task in tasks:
+        # Check if stop was requested before starting next account
+        if batch_id in _stop_requested:
+            # Mark remaining tasks back to pending
+            remaining = [t for t in tasks if t['id'] >= task['id']]
+            for rt in remaining:
+                rt_id = rt['id']
+                rt_params = json.loads(rt.get('params_json', '{}'))
+                rt_username = rt_params.get('username', '?')
+                update_task(rt_id, status='pending')
+                rt_account_id = rt.get('account_id')
+                if rt_account_id:
+                    update_account_status(rt_account_id, 'pending_login')
+                with _login_lock:
+                    if batch_id in _login_progress:
+                        _login_progress[batch_id]['results'][str(rt_id)] = {
+                            'status': 'skipped',
+                            'username': rt_username,
+                            'device': device_serial,
+                            'message': 'Stopped by user',
+                        }
+            with _login_lock:
+                if batch_id in _login_progress:
+                    _login_progress[batch_id]['stopped'] = True
+            return  # Exit the thread
+
         task_id = task['id']
         account_id = task.get('account_id')
         params = json.loads(task.get('params_json', '{}'))
