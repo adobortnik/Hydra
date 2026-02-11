@@ -15,6 +15,19 @@ Author: Claude Code
 Created: 2025-11-21
 """
 
+import sys
+import os
+import io
+
+# Fix Windows console encoding for Unicode characters
+if sys.stdout and hasattr(sys.stdout, 'encoding') and sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
+
 import uiautomator2 as u2
 import subprocess
 import time
@@ -91,17 +104,17 @@ class LoginAutomation:
                 ['adb', '-s', connection_serial, 'shell', 'pkill', '-9', '-f', 'androidx.test.runner'],
                 capture_output=True, timeout=5
             )
-            print("✓ Killed all UIAutomator-related processes")
+            print("[OK] Killed all UIAutomator-related processes")
             print("⏳ Waiting for complete shutdown...")
             time.sleep(5)  # CRITICAL: Wait for complete shutdown before connecting
         except Exception as e:
-            print(f"⚠ Warning during cleanup: {e}")
+            print(f"[!] Warning during cleanup: {e}")
 
         # STEP 2: Connect to device - u2.connect() will auto-start UIAutomator
         print("Connecting to device...")
         print("(uiautomator2 will automatically start UIAutomator service)")
         self.device = u2.connect(connection_serial)
-        print(f"✓ Connected (serial: {self.device.serial})")
+        print(f"[OK] Connected (serial: {self.device.serial})")
 
         # STEP 3: Wait for UIAutomator to be responsive
         print("⏳ Waiting for UIAutomator to be responsive...")
@@ -113,7 +126,7 @@ class LoginAutomation:
                 _ = self.device.info
                 _ = self.device.window_size()
                 elapsed = int(time.time() - start_time)
-                print(f"✓ SUCCESS! UIAutomator is responsive (took {elapsed}s)")
+                print(f"[OK] SUCCESS! UIAutomator is responsive (took {elapsed}s)")
                 return self.device
             except Exception as e:
                 elapsed = int(time.time() - start_time)
@@ -145,19 +158,19 @@ class LoginAutomation:
         try:
             # Use uiautomator2's app_start with monkey (most reliable)
             self.device.app_start(instagram_package, use_monkey=True)
-            print("✓ Instagram launched with monkey")
+            print("[OK] Instagram launched with monkey")
             time.sleep(5)  # Give app time to launch
 
             # Verify app is running
             current_app = self.device.app_current().get('package')
             if current_app == instagram_package:
-                print(f"✓ Instagram is running: {instagram_package}")
+                print(f"[OK] Instagram is running: {instagram_package}")
                 return True
 
             return True  # Still return True even if verification fails
 
         except Exception as e:
-            print(f"⚠ app_start failed: {e}, falling back to ADB monkey command")
+            print(f"[!] app_start failed: {e}, falling back to ADB monkey command")
             # Fallback to direct ADB
             connection_serial = self.device_serial.replace('_', ':')
             result = subprocess.run(
@@ -186,14 +199,14 @@ class LoginAutomation:
             # Check for already logged in (profile tab visible)
             if self.device(description="Profile").exists(timeout=2) or \
                self.device(resourceId="com.instagram.android:id/profile_tab").exists(timeout=2):
-                print("✓ Already logged in (profile tab visible)")
+                print("[OK] Already logged in (profile tab visible)")
                 return 'logged_in'
 
             # Check for challenge/verification screens
             challenge_keywords = ["verify", "security check", "unusual activity", "confirm", "suspicious"]
             for keyword in challenge_keywords:
                 if keyword in xml_lower:
-                    print(f"⚠ Challenge screen detected: {keyword}")
+                    print(f"[!] Challenge screen detected: {keyword}")
                     return 'challenge'
 
             # Check for signup/intro screen (has login-related button and signup/get started button)
@@ -213,7 +226,7 @@ class LoginAutomation:
 
             # If we have BOTH username and password fields, we're definitely on login screen
             if has_username_field and has_password_field:
-                print("✓ On login screen (has username AND password fields)")
+                print("[OK] On login screen (has username AND password fields)")
                 return 'login'
 
             # Check if it's just the intro screen with "I already have an account" or "Sign Up"
@@ -235,15 +248,15 @@ class LoginAutomation:
             # Only consider it signup screen if we have "already have account" or signup button
             # AND we DON'T have both username+password fields
             if has_already_account or has_signup_button:
-                print("✓ On signup/intro screen (has 'already have account' or signup button)")
+                print("[OK] On signup/intro screen (has 'already have account' or signup button)")
                 return 'signup'
 
             # Fallback: if we have at least one login field, assume login screen
             if has_username_field or has_password_field:
-                print("✓ On login screen (has at least one login field)")
+                print("[OK] On login screen (has at least one login field)")
                 return 'login'
 
-            print("⚠ Unknown screen state")
+            print("[!] Unknown screen state")
             return 'unknown'
 
         except Exception as e:
@@ -277,18 +290,18 @@ class LoginAutomation:
         for i, selector in enumerate(selectors, 1):
             try:
                 if selector.exists(timeout=3):
-                    print(f"✓ Found login link (selector #{i})")
+                    print(f"[OK] Found login link (selector #{i})")
                     selector.click()
-                    print("✓ Clicked login link")
+                    print("[OK] Clicked login link")
                     time.sleep(3)  # Wait for transition
                     return True
             except Exception as e:
-                print(f"⚠ Selector #{i} failed: {e}")
+                print(f"[!] Selector #{i} failed: {e}")
                 continue
 
         # Fallback: click bottom area where "Log In" link usually is
         try:
-            print("⚠ Trying coordinate-based click (bottom center)")
+            print("[!] Trying coordinate-based click (bottom center)")
             width, height = self.device.window_size()
             self.device.click(width // 2, int(height * 0.85))  # Bottom center area
             time.sleep(3)
@@ -326,7 +339,7 @@ class LoginAutomation:
             username_field = None
             for i, selector in enumerate(username_selectors, 1):
                 if selector.exists(timeout=3):
-                    print(f"✓ Found username field (selector #{i})")
+                    print(f"[OK] Found username field (selector #{i})")
                     username_field = selector
                     break
 
@@ -347,7 +360,7 @@ class LoginAutomation:
                 ['adb', '-s', connection_serial, 'shell', 'input', 'text', username],
                 capture_output=True, timeout=10
             )
-            print("✓ Username entered")
+            print("[OK] Username entered")
             time.sleep(1)
 
             # Find password field
@@ -361,7 +374,7 @@ class LoginAutomation:
             password_field = None
             for i, selector in enumerate(password_selectors, 1):
                 if selector.exists(timeout=3):
-                    print(f"✓ Found password field (selector #{i})")
+                    print(f"[OK] Found password field (selector #{i})")
                     password_field = selector
                     break
 
@@ -380,7 +393,7 @@ class LoginAutomation:
                 ['adb', '-s', connection_serial, 'shell', 'input', 'text', password],
                 capture_output=True, timeout=10
             )
-            print("✓ Password entered")
+            print("[OK] Password entered")
             time.sleep(1)
 
             # Click login button
@@ -396,9 +409,9 @@ class LoginAutomation:
 
             for i, selector in enumerate(login_button_selectors, 1):
                 if selector.exists(timeout=3):
-                    print(f"✓ Found login button (selector #{i})")
+                    print(f"[OK] Found login button (selector #{i})")
                     selector.click()
-                    print("✓ Clicked login button")
+                    print("[OK] Clicked login button")
                     time.sleep(5)  # Wait for login to process
                     return True
 
@@ -437,7 +450,7 @@ class LoginAutomation:
 
             for keyword in two_fa_keywords:
                 if keyword in xml_lower:
-                    print(f"✓ 2FA screen detected: keyword '{keyword}'")
+                    print(f"[OK] 2FA screen detected: keyword '{keyword}'")
                     return True
 
             # Check for EditText field with specific context
@@ -451,19 +464,19 @@ class LoginAutomation:
                 # If only 1 EditText and page mentions code/verify/security
                 if edit_text_count == 1:
                     if any(keyword in xml_lower for keyword in ["code", "security", "verify", "sent"]):
-                        print("✓ 2FA screen detected (single EditText + verification keywords)")
+                        print("[OK] 2FA screen detected (single EditText + verification keywords)")
                         return True
 
             # Also check for "Resend Code" or similar buttons (unique to 2FA)
             if self.device(textContains="Resend").exists(timeout=1):
-                print("✓ 2FA screen detected ('Resend' button found)")
+                print("[OK] 2FA screen detected ('Resend' button found)")
                 return True
 
             print("✗ No 2FA indicators found")
             return False
 
         except Exception as e:
-            print(f"⚠ Error detecting 2FA screen: {e}")
+            print(f"[!] Error detecting 2FA screen: {e}")
             return False
 
     def handle_two_factor(self, two_fa_token):
@@ -492,7 +505,7 @@ class LoginAutomation:
             print("✗ Could not retrieve 2FA code")
             return False
 
-        print(f"\n✓ Got 2FA code: {code}")
+        print(f"\n[OK] Got 2FA code: {code}")
 
         # Enter code
         print("Entering 2FA code...")
@@ -505,7 +518,7 @@ class LoginAutomation:
                 print("✗ Could not find code input field")
                 return False
 
-            print("✓ Found code input field")
+            print("[OK] Found code input field")
             code_field.click()
             time.sleep(1)
             code_field.clear_text()
@@ -518,7 +531,7 @@ class LoginAutomation:
                 capture_output=True, timeout=10
             )
 
-            print(f"✓ Entered code: {code}")
+            print(f"[OK] Entered code: {code}")
             time.sleep(2)
 
             # Scroll down slightly to reveal the Continue button
@@ -529,9 +542,9 @@ class LoginAutomation:
                 # Swipe up (scroll down) from bottom 60% to bottom 40%
                 self.device.swipe(width // 2, int(height * 0.6), width // 2, int(height * 0.4), duration=0.3)
                 time.sleep(1)
-                print("✓ Scrolled down")
+                print("[OK] Scrolled down")
             except Exception as e:
-                print(f"⚠ Could not scroll: {e}")
+                print(f"[!] Could not scroll: {e}")
 
             # Click confirm/next button (may auto-submit)
             # Be specific to avoid clicking "Trust this device" checkbox
@@ -547,25 +560,25 @@ class LoginAutomation:
             button_found = False
             for i, selector in enumerate(confirm_selectors, 1):
                 if selector.exists(timeout=2):
-                    print(f"✓ Found confirm button (selector #{i}: {selector})")
+                    print(f"[OK] Found confirm button (selector #{i}: {selector})")
 
                     # Get button info to make sure it's not a checkbox
                     try:
                         button_info = selector.info
                         if button_info.get('checkable', False):
-                            print(f"⚠ Selector #{i} is checkable (likely checkbox), skipping...")
+                            print(f"[!] Selector #{i} is checkable (likely checkbox), skipping...")
                             continue
                     except:
                         pass
 
                     selector.click()
-                    print("✓ Clicked confirm button")
+                    print("[OK] Clicked confirm button")
                     button_found = True
                     break
 
             # If no specific button found, try generic button but verify it's not a checkbox
             if not button_found:
-                print("⚠ No specific button found, trying generic button selector...")
+                print("[!] No specific button found, trying generic button selector...")
                 buttons = self.device(className="android.widget.Button")
                 if buttons.exists(timeout=2):
                     # Try to find a button that's not checkable
@@ -574,16 +587,16 @@ class LoginAutomation:
                             btn = self.device(className="android.widget.Button", instance=i)
                             btn_info = btn.info
                             if not btn_info.get('checkable', False):
-                                print(f"✓ Found non-checkable button (instance {i})")
+                                print(f"[OK] Found non-checkable button (instance {i})")
                                 btn.click()
-                                print("✓ Clicked button")
+                                print("[OK] Clicked button")
                                 button_found = True
                                 break
                         except:
                             continue
 
             if not button_found:
-                print("⚠ Could not find confirm button, continuing anyway...")
+                print("[!] Could not find confirm button, continuing anyway...")
 
             time.sleep(5)  # Wait for 2FA to process
             return True
@@ -609,10 +622,10 @@ class LoginAutomation:
             xml_lower = xml_dump.lower()
 
             if "save" not in xml_lower and "login info" not in xml_lower:
-                print("✓ No 'Save Login Info' prompt found")
+                print("[OK] No 'Save Login Info' prompt found")
                 return True
 
-            print("✓ 'Save Login Info' prompt detected")
+            print("[OK] 'Save Login Info' prompt detected")
 
             # Find Save button
             save_selectors = [
@@ -624,13 +637,13 @@ class LoginAutomation:
 
             for i, selector in enumerate(save_selectors, 1):
                 if selector.exists(timeout=3):
-                    print(f"✓ Found Save button (selector #{i})")
+                    print(f"[OK] Found Save button (selector #{i})")
                     selector.click()
-                    print("✓ Clicked Save")
+                    print("[OK] Clicked Save")
                     time.sleep(3)
                     return True
 
-            print("⚠ Could not find Save button, trying Not Now")
+            print("[!] Could not find Save button, trying Not Now")
 
             # Try "Not Now" as fallback
             not_now_selectors = [
@@ -641,16 +654,16 @@ class LoginAutomation:
 
             for selector in not_now_selectors:
                 if selector.exists(timeout=2):
-                    print("✓ Clicked 'Not Now'")
+                    print("[OK] Clicked 'Not Now'")
                     selector.click()
                     time.sleep(2)
                     return True
 
-            print("⚠ Could not interact with Save prompt, continuing anyway")
+            print("[!] Could not interact with Save prompt, continuing anyway")
             return True
 
         except Exception as e:
-            print(f"⚠ Error handling save prompt: {e}")
+            print(f"[!] Error handling save prompt: {e}")
             return True  # Continue anyway
 
     def dismiss_notification_prompt(self):
@@ -670,10 +683,10 @@ class LoginAutomation:
             xml_lower = xml_dump.lower()
 
             if "notification" not in xml_lower:
-                print("✓ No notification prompt found")
+                print("[OK] No notification prompt found")
                 return True
 
-            print("✓ Notification prompt detected")
+            print("[OK] Notification prompt detected")
 
             # Click "Not Now" or similar
             dismiss_selectors = [
@@ -686,17 +699,17 @@ class LoginAutomation:
 
             for i, selector in enumerate(dismiss_selectors, 1):
                 if selector.exists(timeout=3):
-                    print(f"✓ Found dismiss button (selector #{i})")
+                    print(f"[OK] Found dismiss button (selector #{i})")
                     selector.click()
-                    print("✓ Dismissed notification prompt")
+                    print("[OK] Dismissed notification prompt")
                     time.sleep(2)
                     return True
 
-            print("⚠ Could not dismiss notification prompt")
+            print("[!] Could not dismiss notification prompt")
             return True  # Continue anyway
 
         except Exception as e:
-            print(f"⚠ Error dismissing notification: {e}")
+            print(f"[!] Error dismissing notification: {e}")
             return True
 
     def dismiss_post_login_modals(self):
@@ -733,9 +746,9 @@ class LoginAutomation:
                 continue_found = False
                 for selector in continue_selectors:
                     if selector.exists(timeout=2):
-                        print("✓ Found 'Continue' button (likely location services)")
+                        print("[OK] Found 'Continue' button (likely location services)")
                         selector.click()
-                        print("✓ Clicked Continue")
+                        print("[OK] Clicked Continue")
                         time.sleep(2)
                         continue_found = True
 
@@ -749,9 +762,9 @@ class LoginAutomation:
 
                         for deny_selector in deny_selectors:
                             if deny_selector.exists(timeout=3):
-                                print("✓ Found 'Deny' button in permission dialog")
+                                print("[OK] Found 'Deny' button in permission dialog")
                                 deny_selector.click()
-                                print("✓ Clicked Deny")
+                                print("[OK] Clicked Deny")
                                 time.sleep(2)
                                 break
 
@@ -781,22 +794,22 @@ class LoginAutomation:
                 modal_found = False
                 for i, selector in enumerate(dismiss_selectors):
                     if selector.exists(timeout=2):
-                        print(f"✓ Found dismiss button (selector #{i}): {selector.info.get('text', 'unknown')}")
+                        print(f"[OK] Found dismiss button (selector #{i}): {selector.info.get('text', 'unknown')}")
                         selector.click()
-                        print("✓ Clicked dismiss button")
+                        print("[OK] Clicked dismiss button")
                         time.sleep(2)  # Wait for modal to dismiss
                         modal_found = True
                         break
 
                 if not modal_found:
-                    print("✓ No more modals found")
+                    print("[OK] No more modals found")
                     break
 
-            print("✓ Post-login modal check complete")
+            print("[OK] Post-login modal check complete")
             return True
 
         except Exception as e:
-            print(f"⚠ Error dismissing post-login modals: {e}")
+            print(f"[!] Error dismissing post-login modals: {e}")
             return True  # Continue anyway
 
     def verify_logged_in(self):
@@ -816,21 +829,21 @@ class LoginAutomation:
 
             # Check for profile tab
             if self.device(description="Profile").exists(timeout=5):
-                print("✓ Logged in (Profile tab visible)")
+                print("[OK] Logged in (Profile tab visible)")
                 return True
 
             if self.device(resourceId="com.instagram.android:id/profile_tab").exists(timeout=3):
-                print("✓ Logged in (Profile tab resource ID found)")
+                print("[OK] Logged in (Profile tab resource ID found)")
                 return True
 
             # Check for home feed tab
             if self.device(description="Home").exists(timeout=3):
-                print("✓ Logged in (Home tab visible)")
+                print("[OK] Logged in (Home tab visible)")
                 return True
 
             # Check for search/explore tab
             if self.device(description="Search and Explore").exists(timeout=3):
-                print("✓ Logged in (Search tab visible)")
+                print("[OK] Logged in (Search tab visible)")
                 return True
 
             # Check XML for common logged-in elements
@@ -841,14 +854,14 @@ class LoginAutomation:
             matches = sum(1 for keyword in logged_in_keywords if keyword in xml_lower)
 
             if matches >= 2:
-                print(f"✓ Logged in (found {matches} navigation elements)")
+                print(f"[OK] Logged in (found {matches} navigation elements)")
                 return True
 
-            print("⚠ Could not verify login (but may still be successful)")
+            print("[!] Could not verify login (but may still be successful)")
             return False
 
         except Exception as e:
-            print(f"⚠ Error verifying login: {e}")
+            print(f"[!] Error verifying login: {e}")
             return False
 
     def login_account(self, username, password, instagram_package, two_fa_token=None):
@@ -897,14 +910,14 @@ class LoginAutomation:
 
             # Handle already logged in
             if screen_state == 'logged_in':
-                print("\n✓ Account is already logged in!")
+                print("\n[OK] Account is already logged in!")
                 result['success'] = True
                 result['login_type'] = 'already_logged_in'
                 return result
 
             # Handle challenge screen
             if screen_state == 'challenge':
-                print("\n⚠ Challenge/verification screen detected")
+                print("\n[!] Challenge/verification screen detected")
                 result['error'] = "Challenge screen encountered - manual intervention required"
                 result['challenge_encountered'] = True
                 result['login_type'] = 'challenge'
@@ -931,7 +944,7 @@ class LoginAutomation:
             two_fa_detected = self.detect_two_factor_screen()
 
             if two_fa_detected:
-                print("\n✓ 2FA screen detected")
+                print("\n[OK] 2FA screen detected")
                 result['two_fa_used'] = True
 
                 if not two_fa_token:
@@ -948,7 +961,7 @@ class LoginAutomation:
                 print("⏳ Waiting for 2FA login to complete...")
                 time.sleep(6)  # Increased from 5 to 6
             else:
-                print("✓ No 2FA screen detected (normal login)")
+                print("[OK] No 2FA screen detected (normal login)")
                 result['login_type'] = 'normal'
                 # After normal login, wait a bit for any prompts
                 time.sleep(3)
@@ -960,7 +973,7 @@ class LoginAutomation:
 
             # Re-check for 2FA screen (in case detection missed it the first time)
             if self.detect_two_factor_screen():
-                print("\n⚠ WARNING: Still on 2FA screen after entering credentials!")
+                print("\n[!] WARNING: Still on 2FA screen after entering credentials!")
 
                 if two_fa_token and not two_fa_detected:
                     # We missed 2FA detection the first time, handle it now
@@ -990,7 +1003,7 @@ class LoginAutomation:
                 self.dismiss_post_login_modals()
 
                 print("\n" + "="*70)
-                print("✓ LOGIN SUCCESSFUL!")
+                print("[OK] LOGIN SUCCESSFUL!")
                 print("="*70)
                 result['success'] = True
                 return result
@@ -999,7 +1012,7 @@ class LoginAutomation:
                 self.dismiss_post_login_modals()
 
                 print("\n" + "="*70)
-                print("⚠ LOGIN VERIFICATION INCONCLUSIVE")
+                print("[!] LOGIN VERIFICATION INCONCLUSIVE")
                 print("="*70)
                 result['error'] = "Could not verify login success"
                 # Still mark as success since no errors occurred

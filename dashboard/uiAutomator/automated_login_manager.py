@@ -15,9 +15,20 @@ Created: 2025-11-21
 """
 
 import sys
+import os
+import io
 import time
 from pathlib import Path
 from datetime import datetime
+
+# Fix Windows console encoding for Unicode characters
+if sys.stdout and hasattr(sys.stdout, 'encoding') and sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent))
@@ -128,7 +139,7 @@ class AutomatedLoginManager:
 
                 self.current_device = device_serial
             else:
-                print(f"\n✓ Already connected to device: {device_serial}")
+                print(f"\n[OK] Already connected to device: {device_serial}")
 
             # Perform login
             result = self.login_automation.login_account(
@@ -140,7 +151,7 @@ class AutomatedLoginManager:
 
             # Handle result
             if result['success']:
-                print(f"\n✓ Task #{task_id} completed successfully!")
+                print(f"\n[OK] Task #{task_id} completed successfully!")
 
                 # Update 2FA token usage if used
                 if result['two_fa_used'] and two_fa_token:
@@ -165,7 +176,7 @@ class AutomatedLoginManager:
 
                 # Check if it's a challenge screen (needs manual intervention)
                 if result['challenge_encountered']:
-                    print("⚠ Challenge screen - marking as needs_manual")
+                    print("[!] Challenge screen - marking as needs_manual")
                     update_task_status(task_id, 'needs_manual', error_msg)
                     log_login_attempt(
                         device_serial, instagram_package, username,
@@ -180,7 +191,7 @@ class AutomatedLoginManager:
 
                 if retry_count < max_retries:
                     # Transient error, will retry
-                    print(f"⚠ Will retry (attempt {retry_count + 1}/{max_retries})")
+                    print(f"[!] Will retry (attempt {retry_count + 1}/{max_retries})")
                     update_task_status(task_id, 'pending', error_msg)
                     log_login_attempt(
                         device_serial, instagram_package, username,
@@ -208,7 +219,7 @@ class AutomatedLoginManager:
             max_retries = task['max_retries']
 
             if retry_count < max_retries:
-                print(f"⚠ Will retry (attempt {retry_count + 1}/{max_retries})")
+                print(f"[!] Will retry (attempt {retry_count + 1}/{max_retries})")
                 update_task_status(task_id, 'pending', error_msg)
             else:
                 print(f"✗ Max retries reached, marking as failed")
@@ -255,11 +266,11 @@ class AutomatedLoginManager:
             tasks = get_pending_login_tasks(device_serial=device_serial, limit=max_tasks)
 
             if not tasks:
-                print("\n✓ No pending login tasks found")
+                print("\n[OK] No pending login tasks found")
                 return stats
 
             stats['total_tasks'] = len(tasks)
-            print(f"\n✓ Found {len(tasks)} pending login task(s)")
+            print(f"\n[OK] Found {len(tasks)} pending login task(s)")
 
             # Group tasks by device (process one device at a time)
             tasks_by_device = {}
@@ -269,7 +280,7 @@ class AutomatedLoginManager:
                     tasks_by_device[dev] = []
                 tasks_by_device[dev].append(task)
 
-            print(f"\n✓ Tasks grouped across {len(tasks_by_device)} device(s)")
+            print(f"\n[OK] Tasks grouped across {len(tasks_by_device)} device(s)")
 
             # Process each device's tasks
             for dev_serial, dev_tasks in tasks_by_device.items():
@@ -301,7 +312,7 @@ class AutomatedLoginManager:
                 # Disconnect from device after all its tasks
                 self.current_device = None
                 self.login_automation = None
-                print(f"\n✓ Finished processing device: {dev_serial}")
+                print(f"\n[OK] Finished processing device: {dev_serial}")
 
             # Calculate final stats
             stats['end_time'] = time.time()
@@ -320,7 +331,7 @@ class AutomatedLoginManager:
             return stats
 
         except KeyboardInterrupt:
-            print("\n\n⚠ Interrupted by user (Ctrl+C)")
+            print("\n\n[!] Interrupted by user (Ctrl+C)")
             stats['interrupted'] = True
             return stats
 
@@ -350,7 +361,7 @@ class AutomatedLoginManager:
             return False
 
         if task['status'] not in ['pending', 'failed']:
-            print(f"⚠ Task #{task_id} status is '{task['status']}' (expected 'pending' or 'failed')")
+            print(f"[!] Task #{task_id} status is '{task['status']}' (expected 'pending' or 'failed')")
             print("Processing anyway...")
 
         return self.process_single_task(task)

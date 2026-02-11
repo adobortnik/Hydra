@@ -115,7 +115,7 @@ class ParallelLoginProcessor:
                         failed += 1
 
             except Exception as e:
-                print(f"❌ Exception processing task {task['id']}: {e}")
+                print(f"[X] Exception processing task {task['id']}: {e}")
                 failed += 1
 
             # Wait between tasks on same device
@@ -134,9 +134,9 @@ class ParallelLoginProcessor:
         print(f"\n{'='*70}")
         print(f"DEVICE {device_serial} COMPLETE")
         print(f"{'='*70}")
-        print(f"✅ Successful: {successful}")
-        print(f"❌ Failed: {failed}")
-        print(f"⚠️  Needs Manual: {needs_manual}")
+        print(f"[OK] Successful: {successful}")
+        print(f"[X] Failed: {failed}")
+        print(f"[!]️  Needs Manual: {needs_manual}")
         print(f"📊 Total: {len(tasks)}")
         print(f"{'='*70}\n")
 
@@ -232,9 +232,9 @@ class ParallelLoginProcessor:
         print(f"\n\n{'='*70}")
         print("🎉 BATCH PROCESSING COMPLETE")
         print(f"{'='*70}")
-        print(f"✅ Successful: {self.results['successful']}")
-        print(f"❌ Failed: {self.results['failed']}")
-        print(f"⚠️  Needs Manual: {self.results['needs_manual']}")
+        print(f"[OK] Successful: {self.results['successful']}")
+        print(f"[X] Failed: {self.results['failed']}")
+        print(f"[!]️  Needs Manual: {self.results['needs_manual']}")
         print(f"📊 Total: {self.results['total']}")
 
         if self.results['total'] > 0:
@@ -304,7 +304,7 @@ Examples:
     )
 
     if not pending_tasks:
-        print("\n✅ No pending tasks found.")
+        print("\n[OK] No pending tasks found.")
         return
 
     print(f"\n📋 Found {len(pending_tasks)} pending task(s)")

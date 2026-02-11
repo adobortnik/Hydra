@@ -100,9 +100,9 @@ def scan_devices():
                 devices.append(device_dir.name)
 
     if devices:
-        print(f"✓ Found {len(devices)} device(s)")
+        print(f"[OK] Found {len(devices)} device(s)")
     else:
-        print("⚠ No devices found")
+        print("[!] No devices found")
 
     return sorted(devices)
 
@@ -156,7 +156,7 @@ def get_device_accounts(device_serial):
 
                         settings_conn.close()
                     except Exception as e:
-                        print(f"⚠ Could not read settings for {username}: {e}")
+                        print(f"[!] Could not read settings for {username}: {e}")
 
                 accounts.append((username, password, instagram_package))
 
@@ -188,13 +188,13 @@ def create_task_interactive():
     )
     device_serial = devices[int(choice) - 1]
 
-    print(f"\n✓ Selected device: {device_serial}")
+    print(f"\n[OK] Selected device: {device_serial}")
 
     # Get accounts for this device
     accounts = get_device_accounts(device_serial)
 
     if not accounts:
-        print(f"\n⚠ No accounts found for device {device_serial}")
+        print(f"\n[!] No accounts found for device {device_serial}")
         print("You can still create a task by entering details manually.")
 
         username = input("\nEnter username: ").strip()
@@ -220,7 +220,7 @@ def create_task_interactive():
         else:
             # Use existing account
             username, password, instagram_package = accounts[int(choice) - 1]
-            print(f"\n✓ Selected account: {username}")
+            print(f"\n[OK] Selected account: {username}")
 
     # 2FA token
     has_2fa = get_user_choice("\nDoes this account use 2FA? (y/n)", ["y", "n", "Y", "N"])
@@ -247,7 +247,7 @@ def create_task_interactive():
         priority=int(priority)
     )
 
-    print(f"\n✓ Task created successfully! Task ID: {task_id}")
+    print(f"\n[OK] Task created successfully! Task ID: {task_id}")
 
 
 def view_tasks():
@@ -276,10 +276,10 @@ def view_tasks():
     tasks = get_all_login_tasks(status=status)
 
     if not tasks:
-        print(f"\n✓ No tasks found (filter: {status or 'all'})")
+        print(f"\n[OK] No tasks found (filter: {status or 'all'})")
         return
 
-    print(f"\n✓ Found {len(tasks)} task(s)")
+    print(f"\n[OK] Found {len(tasks)} task(s)")
     print("\n" + "-"*70)
 
     for task in tasks:
@@ -323,19 +323,19 @@ def test_2fa():
     print(f"\nResult: {result['message']}")
 
     if result['success']:
-        print("✓ Connection successful")
+        print("[OK] Connection successful")
 
         if result['code']:
-            print(f"✓ Code available: {result['code']}")
+            print(f"[OK] Code available: {result['code']}")
         else:
             # Try to fetch code
             print("\n2. Attempting to fetch code (will retry for up to 30s)...")
             code = client.get_code(max_retries=10, retry_interval=3)
 
             if code:
-                print(f"\n✓ Code retrieved: {code}")
+                print(f"\n[OK] Code retrieved: {code}")
             else:
-                print("\n⚠ Could not retrieve code")
+                print("\n[!] Could not retrieve code")
     else:
         print(f"✗ Connection failed: {result['message']}")
 
@@ -347,10 +347,10 @@ def process_tasks():
     pending = get_pending_login_tasks()
 
     if not pending:
-        print("\n✓ No pending tasks to process")
+        print("\n[OK] No pending tasks to process")
         return
 
-    print(f"\n✓ Found {len(pending)} pending task(s)")
+    print(f"\n[OK] Found {len(pending)} pending task(s)")
 
     # Show summary
     devices = set(task['device_serial'] for task in pending)
@@ -375,7 +375,7 @@ def process_tasks():
     manager = AutomatedLoginManager()
     stats = manager.run_batch_processor()
 
-    print("\n✓ Batch processing complete!")
+    print("\n[OK] Batch processing complete!")
 
 
 def manage_2fa_tokens():
@@ -399,7 +399,7 @@ def manage_2fa_tokens():
         notes = input("Enter notes (optional): ").strip() or None
 
         add_2fa_token(token, phone_number, username, device_serial, notes)
-        print("\n✓ Token added successfully!")
+        print("\n[OK] Token added successfully!")
 
     elif choice == "2":
         # View tokens
@@ -412,10 +412,10 @@ def manage_2fa_tokens():
         conn.close()
 
         if not tokens:
-            print("\n✓ No tokens saved")
+            print("\n[OK] No tokens saved")
             return
 
-        print(f"\n✓ Found {len(tokens)} token(s)")
+        print(f"\n[OK] Found {len(tokens)} token(s)")
         print("\n" + "-"*70)
 
         for token in tokens:
@@ -480,7 +480,7 @@ def delete_task_interactive():
         return
 
     if delete_task(int(task_id)):
-        print(f"\n✓ Task #{task_id} deleted")
+        print(f"\n[OK] Task #{task_id} deleted")
     else:
         print(f"\n✗ Task #{task_id} not found")
 
@@ -505,7 +505,7 @@ def main_menu():
         choice = get_user_choice("Select option", ["0", "1", "2", "3", "4", "5", "6", "7", "8"])
 
         if choice == "0":
-            print("\n✓ Goodbye!")
+            print("\n[OK] Goodbye!")
             break
         elif choice == "1":
             create_task_interactive()
