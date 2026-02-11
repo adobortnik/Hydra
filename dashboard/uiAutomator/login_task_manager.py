@@ -79,7 +79,7 @@ def get_user_choice(prompt, valid_choices):
         choice = input(f"\n{prompt}: ").strip()
         if choice in valid_choices:
             return choice
-        print(f"✗ Invalid choice. Please enter one of: {', '.join(valid_choices)}")
+        print(f"[X] Invalid choice. Please enter one of: {', '.join(valid_choices)}")
 
 
 def scan_devices():
@@ -122,7 +122,7 @@ def get_device_accounts(device_serial):
     device_path = BASE_DIR / device_serial
 
     if not device_path.exists():
-        print(f"✗ Device path not found: {device_path}")
+        print(f"[X] Device path not found: {device_path}")
         return accounts
 
     # Read from accounts.db if exists
@@ -162,7 +162,7 @@ def get_device_accounts(device_serial):
 
             conn.close()
         except Exception as e:
-            print(f"✗ Error reading accounts.db: {e}")
+            print(f"[X] Error reading accounts.db: {e}")
 
     return accounts
 
@@ -175,7 +175,7 @@ def create_task_interactive():
     devices = scan_devices()
 
     if not devices:
-        print("\n✗ No devices found. Make sure device folders exist.")
+        print("\n[X] No devices found. Make sure device folders exist.")
         return
 
     print("\nAvailable Devices:")
@@ -309,7 +309,7 @@ def test_2fa():
     token = input("\nEnter 2fa.live token: ").strip()
 
     if not token:
-        print("✗ No token provided")
+        print("[X] No token provided")
         return
 
     print(f"\nTesting token: {token}")
@@ -337,7 +337,7 @@ def test_2fa():
             else:
                 print("\n[!] Could not retrieve code")
     else:
-        print(f"✗ Connection failed: {result['message']}")
+        print(f"[X] Connection failed: {result['message']}")
 
 
 def process_tasks():
@@ -362,7 +362,7 @@ def process_tasks():
     confirm = get_user_choice("\nProcess all pending tasks? (y/n)", ["y", "n", "Y", "N"])
 
     if confirm.lower() != 'y':
-        print("✗ Cancelled")
+        print("[X] Cancelled")
         return
 
     print("\n" + "="*70)
@@ -470,19 +470,19 @@ def delete_task_interactive():
     task_id = input("\nEnter task ID to delete: ").strip()
 
     if not task_id.isdigit():
-        print("✗ Invalid task ID")
+        print("[X] Invalid task ID")
         return
 
     confirm = get_user_choice(f"Delete task #{task_id}? (y/n)", ["y", "n", "Y", "N"])
 
     if confirm.lower() != 'y':
-        print("✗ Cancelled")
+        print("[X] Cancelled")
         return
 
     if delete_task(int(task_id)):
         print(f"\n[OK] Task #{task_id} deleted")
     else:
-        print(f"\n✗ Task #{task_id} not found")
+        print(f"\n[X] Task #{task_id} not found")
 
 
 def main_menu():

@@ -76,7 +76,7 @@ class LoginAutomation:
             self.device_serial = device_serial
 
         if not self.device_serial:
-            print("✗ No device serial specified")
+            print("[X] No device serial specified")
             return None
 
         # Convert folder naming (underscore) to ADB format (colon)
@@ -105,7 +105,7 @@ class LoginAutomation:
                 capture_output=True, timeout=5
             )
             print("[OK] Killed all UIAutomator-related processes")
-            print("⏳ Waiting for complete shutdown...")
+            print("[...] Waiting for complete shutdown...")
             time.sleep(5)  # CRITICAL: Wait for complete shutdown before connecting
         except Exception as e:
             print(f"[!] Warning during cleanup: {e}")
@@ -117,7 +117,7 @@ class LoginAutomation:
         print(f"[OK] Connected (serial: {self.device.serial})")
 
         # STEP 3: Wait for UIAutomator to be responsive
-        print("⏳ Waiting for UIAutomator to be responsive...")
+        print("[...] Waiting for UIAutomator to be responsive...")
         max_wait = 45  # seconds
         start_time = time.time()
 
@@ -131,10 +131,10 @@ class LoginAutomation:
             except Exception as e:
                 elapsed = int(time.time() - start_time)
                 if elapsed % 5 == 0:  # Print every 5 seconds
-                    print(f"⏳ Waiting... {elapsed}s / {max_wait}s")
+                    print(f"[...] Waiting... {elapsed}s / {max_wait}s")
                 time.sleep(1)
 
-        print(f"✗ Failed to connect to device after {max_wait}s")
+        print(f"[X] Failed to connect to device after {max_wait}s")
         return None
 
     def open_instagram(self, instagram_package="com.instagram.android"):
@@ -148,7 +148,7 @@ class LoginAutomation:
             bool: True if successful
         """
         if not self.device:
-            print("✗ Device not connected")
+            print("[X] Device not connected")
             return False
 
         print(f"\n{'='*70}")
@@ -260,7 +260,7 @@ class LoginAutomation:
             return 'unknown'
 
         except Exception as e:
-            print(f"✗ Error detecting screen state: {e}")
+            print(f"[X] Error detecting screen state: {e}")
             return 'unknown'
 
     def handle_signup_screen(self):
@@ -307,7 +307,7 @@ class LoginAutomation:
             time.sleep(3)
             return True
         except Exception as e:
-            print(f"✗ Coordinate click failed: {e}")
+            print(f"[X] Coordinate click failed: {e}")
 
         return False
 
@@ -344,7 +344,7 @@ class LoginAutomation:
                     break
 
             if not username_field:
-                print("✗ Could not find username field")
+                print("[X] Could not find username field")
                 return False
 
             # Clear and enter username
@@ -379,7 +379,7 @@ class LoginAutomation:
                     break
 
             if not password_field:
-                print("✗ Could not find password field")
+                print("[X] Could not find password field")
                 return False
 
             # Clear and enter password
@@ -415,11 +415,11 @@ class LoginAutomation:
                     time.sleep(5)  # Wait for login to process
                     return True
 
-            print("✗ Could not find login button")
+            print("[X] Could not find login button")
             return False
 
         except Exception as e:
-            print(f"✗ Error entering credentials: {e}")
+            print(f"[X] Error entering credentials: {e}")
             return False
 
     def detect_two_factor_screen(self):
@@ -472,7 +472,7 @@ class LoginAutomation:
                 print("[OK] 2FA screen detected ('Resend' button found)")
                 return True
 
-            print("✗ No 2FA indicators found")
+            print("[X] No 2FA indicators found")
             return False
 
         except Exception as e:
@@ -494,7 +494,7 @@ class LoginAutomation:
         print("="*70)
 
         if not two_fa_token:
-            print("✗ No 2FA token provided")
+            print("[X] No 2FA token provided")
             return False
 
         # Fetch code from 2fa.live
@@ -502,7 +502,7 @@ class LoginAutomation:
         code = client.get_code(max_retries=20, retry_interval=3)
 
         if not code:
-            print("✗ Could not retrieve 2FA code")
+            print("[X] Could not retrieve 2FA code")
             return False
 
         print(f"\n[OK] Got 2FA code: {code}")
@@ -515,7 +515,7 @@ class LoginAutomation:
             code_field = self.device(className="android.widget.EditText")
 
             if not code_field.exists(timeout=3):
-                print("✗ Could not find code input field")
+                print("[X] Could not find code input field")
                 return False
 
             print("[OK] Found code input field")
@@ -602,7 +602,7 @@ class LoginAutomation:
             return True
 
         except Exception as e:
-            print(f"✗ Error entering 2FA code: {e}")
+            print(f"[X] Error entering 2FA code: {e}")
             return False
 
     def handle_save_login_info(self):
@@ -958,7 +958,7 @@ class LoginAutomation:
                 result['login_type'] = '2fa'
 
                 # After 2FA, wait for login to complete before handling prompts
-                print("⏳ Waiting for 2FA login to complete...")
+                print("[...] Waiting for 2FA login to complete...")
                 time.sleep(6)  # Increased from 5 to 6
             else:
                 print("[OK] No 2FA screen detected (normal login)")
@@ -985,7 +985,7 @@ class LoginAutomation:
                         return result
 
                     result['login_type'] = '2fa'
-                    print("⏳ Waiting for 2FA login to complete...")
+                    print("[...] Waiting for 2FA login to complete...")
                     time.sleep(6)
                 else:
                     result['error'] = "Stuck on 2FA screen but no token provided or already tried"
@@ -1020,7 +1020,7 @@ class LoginAutomation:
                 return result
 
         except Exception as e:
-            print(f"\n✗ Login failed with exception: {e}")
+            print(f"\n[X] Login failed with exception: {e}")
             result['error'] = str(e)
             return result
 
@@ -1051,7 +1051,7 @@ if __name__ == '__main__':
 
     # Connect to device
     if not login.connect_device():
-        print("\n✗ Failed to connect to device")
+        print("\n[X] Failed to connect to device")
         sys.exit(1)
 
     # Perform login

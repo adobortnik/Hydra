@@ -121,7 +121,7 @@ class ParallelLoginProcessor:
             # Wait between tasks on same device
             if i < len(tasks):
                 wait_time = 10
-                print(f"\n⏳ Waiting {wait_time} seconds before next task on {device_serial}...")
+                print(f"\n[...] Waiting {wait_time} seconds before next task on {device_serial}...")
                 time.sleep(wait_time)
 
         # Update global results (thread-safe)
@@ -136,8 +136,8 @@ class ParallelLoginProcessor:
         print(f"{'='*70}")
         print(f"[OK] Successful: {successful}")
         print(f"[X] Failed: {failed}")
-        print(f"[!]️  Needs Manual: {needs_manual}")
-        print(f"📊 Total: {len(tasks)}")
+        print(f"[!]  Needs Manual: {needs_manual}")
+        print(f" Total: {len(tasks)}")
         print(f"{'='*70}\n")
 
     def run_sequential(self, tasks):
@@ -202,13 +202,13 @@ class ParallelLoginProcessor:
             threads.append(thread)
 
         # Start threads
-        print(f"\n🚀 Starting {len(threads)} device thread(s)...")
+        print(f"\n[>] Starting {len(threads)} device thread(s)...")
 
         if max_parallel_devices:
             # Start threads in batches
             for i in range(0, len(threads), max_parallel_devices):
                 batch = threads[i:i+max_parallel_devices]
-                print(f"\n📦 Starting batch of {len(batch)} device(s)...")
+                print(f"\n[>] Starting batch of {len(batch)} device(s)...")
 
                 for thread in batch:
                     thread.start()
@@ -230,16 +230,16 @@ class ParallelLoginProcessor:
     def _print_summary(self):
         """Print final summary"""
         print(f"\n\n{'='*70}")
-        print("🎉 BATCH PROCESSING COMPLETE")
+        print("[OK] BATCH PROCESSING COMPLETE")
         print(f"{'='*70}")
         print(f"[OK] Successful: {self.results['successful']}")
         print(f"[X] Failed: {self.results['failed']}")
-        print(f"[!]️  Needs Manual: {self.results['needs_manual']}")
-        print(f"📊 Total: {self.results['total']}")
+        print(f"[!]  Needs Manual: {self.results['needs_manual']}")
+        print(f" Total: {self.results['total']}")
 
         if self.results['total'] > 0:
             success_rate = (self.results['successful'] / self.results['total']) * 100
-            print(f"📈 Success Rate: {success_rate:.1f}%")
+            print(f" Success Rate: {success_rate:.1f}%")
 
         print(f"{'='*70}\n")
 
@@ -307,7 +307,7 @@ Examples:
         print("\n[OK] No pending tasks found.")
         return
 
-    print(f"\n📋 Found {len(pending_tasks)} pending task(s)")
+    print(f"\n Found {len(pending_tasks)} pending task(s)")
 
     # Show task breakdown by device
     tasks_by_device = defaultdict(list)
@@ -332,7 +332,7 @@ Examples:
     end_time = time.time()
     duration = int(end_time - start_time)
 
-    print(f"\n⏱️  Total execution time: {duration} seconds ({duration // 60}m {duration % 60}s)")
+    print(f"\n[T]  Total execution time: {duration} seconds ({duration // 60}m {duration % 60}s)")
 
 
 if __name__ == "__main__":

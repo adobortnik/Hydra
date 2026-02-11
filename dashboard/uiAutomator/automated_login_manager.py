@@ -61,7 +61,7 @@ class AutomatedLoginManager:
 
     def login_account(self, device_serial, instagram_package, username, password, two_fa_token=None):
         """
-        Direct login method — wraps process_single_task with a synthetic task dict.
+        Direct login method -- wraps process_single_task with a synthetic task dict.
         Called by login_automation_v2_routes.py.
         
         Returns:
@@ -129,7 +129,7 @@ class AutomatedLoginManager:
 
                 if not self.login_automation.connect_device():
                     error_msg = "Failed to connect to device"
-                    print(f"\n✗ {error_msg}")
+                    print(f"\n[X] {error_msg}")
                     update_task_status(task_id, 'failed', error_msg)
                     log_login_attempt(
                         device_serial, instagram_package, username,
@@ -172,7 +172,7 @@ class AutomatedLoginManager:
 
             else:
                 error_msg = result.get('error', 'Unknown error')
-                print(f"\n✗ Task #{task_id} failed: {error_msg}")
+                print(f"\n[X] Task #{task_id} failed: {error_msg}")
 
                 # Check if it's a challenge screen (needs manual intervention)
                 if result['challenge_encountered']:
@@ -201,7 +201,7 @@ class AutomatedLoginManager:
                     return False
                 else:
                     # Max retries reached
-                    print(f"✗ Max retries reached ({max_retries}), marking as failed")
+                    print(f"[X] Max retries reached ({max_retries}), marking as failed")
                     update_task_status(task_id, 'failed', error_msg)
                     log_login_attempt(
                         device_serial, instagram_package, username,
@@ -212,7 +212,7 @@ class AutomatedLoginManager:
 
         except Exception as e:
             error_msg = f"Exception during login: {str(e)}"
-            print(f"\n✗ {error_msg}")
+            print(f"\n[X] {error_msg}")
 
             # Increment retry count
             retry_count = increment_retry_count(task_id)
@@ -222,7 +222,7 @@ class AutomatedLoginManager:
                 print(f"[!] Will retry (attempt {retry_count + 1}/{max_retries})")
                 update_task_status(task_id, 'pending', error_msg)
             else:
-                print(f"✗ Max retries reached, marking as failed")
+                print(f"[X] Max retries reached, marking as failed")
                 update_task_status(task_id, 'failed', error_msg)
 
             log_login_attempt(
@@ -306,7 +306,7 @@ class AutomatedLoginManager:
 
                     # Brief delay between tasks on same device
                     if i < len(dev_tasks):
-                        print("\n⏳ Waiting 10 seconds before next task...")
+                        print("\n[...] Waiting 10 seconds before next task...")
                         time.sleep(10)
 
                 # Disconnect from device after all its tasks
@@ -336,7 +336,7 @@ class AutomatedLoginManager:
             return stats
 
         except Exception as e:
-            print(f"\n✗ Batch processor error: {e}")
+            print(f"\n[X] Batch processor error: {e}")
             stats['error'] = str(e)
             return stats
 
@@ -357,7 +357,7 @@ class AutomatedLoginManager:
         task = get_task_by_id(task_id)
 
         if not task:
-            print(f"✗ Task #{task_id} not found")
+            print(f"[X] Task #{task_id} not found")
             return False
 
         if task['status'] not in ['pending', 'failed']:
