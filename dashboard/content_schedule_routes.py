@@ -11,10 +11,12 @@ import uuid
 import subprocess
 import threading
 import logging
+import sqlite3
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, render_template
 from phone_farm_db import get_conn, row_to_dict, rows_to_dicts, get_account_by_id
 from adb_helper import serial_db_to_adb, check_device_reachable
+from werkzeug.utils import secure_filename
 
 log = logging.getLogger(__name__)
 
@@ -406,22 +408,17 @@ def delete_scheduled_item(item_id):
 @content_schedule_bp.route('/api/content-schedule/batch', methods=['POST'])
 def create_batch_schedule():
     """
-    Bulk schedule: create one content_schedule row per account per media file.
+    Bulk schedule: supports two modes:
     
-    Accepts:
-        content_type: post/reel/story
-        media_paths: list of media file paths
-        device_serial: device serial (or "all" for all devices)
-        accounts: list of {device_serial, username, account_id} or "all"
-        caption_template: caption text
-        hashtags: hashtags text
-        start_time: ISO datetime string
-        interval_hours: hours between posts (float)
-        mention_username: (for stories)
-        music_search_query: (for reels)
-        link_url: (for stories)
-        location: (for posts)
-        batch_name: optional name for the batch
+    1. Smart mode (schedule_items): Pre-computed schedule from frontend strategies.
+       Each item has: media_path, account_id, device_serial, username, scheduled_time
+    
+    2. Legacy mode (media_paths + accounts + start_time + interval_hours):
+       Creates one row per account per media file with fixed intervals.
+    
+    Common fields:
+        content_type, caption_template, hashtags, location,
+        mention_username, music_search_query, link_url, batch_name
     """
     try:
         data = request.json
@@ -432,95 +429,52 @@ def create_batch_schedule():
         if content_type not in ('post', 'reel', 'story'):
             return jsonify({'error': 'content_type must be post, reel, or story'}), 400
 
-        media_paths = data.get('media_paths', [])
-        if not media_paths:
-            return jsonify({'error': 'media_paths is required and must not be empty'}), 400
+        caption_template = data.get('caption_template', '')
+        hashtags = data.get('hashtags', '')
+        location = data.get('location', '')
+        mention_username = data.get('mention_username', '')
+        music_search_query = data.get('music_search_query', '')
+        link_url = data.get('link_url', '')
+        now = datetime.utcnow().isoformat()
+        batch_id = str(uuid.uuid4())[:12]
+        batch_name = data.get('batch_name', f"{content_type.title()} batch - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}")
 
-        # Validate all media files before creating anything
-        validation_errors = []
-        for mp in media_paths:
-            ok, err = validate_media(mp, content_type)
-            if not ok:
-                validation_errors.append(err)
-        if validation_errors:
-            return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
-
-        start_time_str = data.get('start_time')
-        if not start_time_str:
-            return jsonify({'error': 'start_time is required'}), 400
-
-        interval_hours = float(data.get('interval_hours', 24))
-        if interval_hours <= 0:
-            return jsonify({'error': 'interval_hours must be positive'}), 400
-
-        # Parse start time
-        try:
-            start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00').replace('T', ' ').split('+')[0])
-        except ValueError:
-            return jsonify({'error': 'Invalid start_time format'}), 400
-
-        # Resolve accounts
-        accounts = data.get('accounts', [])
-        device_serial = data.get('device_serial')
+        # Check for smart mode (schedule_items from frontend)
+        schedule_items = data.get('schedule_items')
         
         conn = get_conn()
         try:
-            if accounts == 'all' or (isinstance(accounts, str) and accounts.lower() == 'all'):
-                # Get all accounts (optionally filtered by device)
-                if device_serial and device_serial != 'all':
-                    acct_rows = conn.execute(
-                        "SELECT id, device_serial, username FROM accounts WHERE device_serial = ? AND status = 'active'",
-                        (device_serial,)
-                    ).fetchall()
-                else:
-                    acct_rows = conn.execute(
-                        "SELECT id, device_serial, username FROM accounts WHERE status = 'active'"
-                    ).fetchall()
-                accounts = [{'account_id': r['id'], 'device_serial': r['device_serial'], 'username': r['username']} for r in acct_rows]
-            elif isinstance(accounts, list):
-                # Accounts should be list of {device_serial, username} or {account_id}
-                resolved = []
-                for acct in accounts:
-                    if isinstance(acct, dict):
-                        if acct.get('account_id'):
-                            resolved.append(acct)
-                        elif acct.get('device_serial') and acct.get('username'):
-                            row = conn.execute(
-                                "SELECT id FROM accounts WHERE device_serial = ? AND username = ?",
-                                (acct['device_serial'], acct['username'])
-                            ).fetchone()
-                            acct['account_id'] = row['id'] if row else None
-                            resolved.append(acct)
-                    elif isinstance(acct, str):
-                        # Could be username - try to find it
-                        row = conn.execute(
-                            "SELECT id, device_serial, username FROM accounts WHERE username = ?",
-                            (acct,)
-                        ).fetchone()
-                        if row:
-                            resolved.append({'account_id': row['id'], 'device_serial': row['device_serial'], 'username': row['username']})
-                accounts = resolved
-
-            if not accounts:
-                return jsonify({'error': 'No valid accounts found'}), 400
-
-            # Generate batch
-            batch_id = str(uuid.uuid4())[:12]
-            batch_name = data.get('batch_name', f"{content_type.title()} batch - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}")
-            caption_template = data.get('caption_template', '')
-            hashtags = data.get('hashtags', '')
-            location = data.get('location', '')
-            mention_username = data.get('mention_username', '')
-            music_search_query = data.get('music_search_query', '')
-            link_url = data.get('link_url', '')
-            now = datetime.utcnow().isoformat()
-
-            # Create schedule items: one per account per media file
-            current_time = start_time
             total_items = 0
-            
-            for media_path in media_paths:
-                for acct in accounts:
+            unique_accounts = set()
+            unique_media = set()
+            first_time = None
+            last_time = None
+
+            if schedule_items and isinstance(schedule_items, list) and len(schedule_items) > 0:
+                # ---- SMART MODE: Pre-computed schedule ----
+                # Validate media
+                validation_errors = []
+                for si in schedule_items:
+                    mp = si.get('media_path', '')
+                    if mp:
+                        ok, err = validate_media(mp, content_type)
+                        if not ok:
+                            validation_errors.append(err)
+                if validation_errors:
+                    return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
+
+                for si in schedule_items:
+                    mp = si.get('media_path', '')
+                    scheduled_time_str = si.get('scheduled_time', '')
+                    
+                    # Parse time
+                    try:
+                        st = datetime.fromisoformat(
+                            scheduled_time_str.replace('Z', '+00:00').replace('T', ' ').split('+')[0]
+                        )
+                    except (ValueError, AttributeError):
+                        st = datetime.utcnow()
+
                     conn.execute("""
                         INSERT INTO content_schedule
                         (account_id, device_serial, username, content_type, media_path,
@@ -529,24 +483,132 @@ def create_batch_schedule():
                          created_at, updated_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
                     """, (
-                        acct.get('account_id'),
-                        acct.get('device_serial', device_serial),
-                        acct.get('username'),
+                        si.get('account_id'),
+                        si.get('device_serial'),
+                        si.get('username'),
                         content_type,
-                        media_path,
+                        mp,
                         caption_template,
                         hashtags,
                         location,
-                        None,  # music_name
+                        None,
                         music_search_query,
                         mention_username,
                         link_url,
-                        current_time.isoformat(),
+                        st.isoformat(),
                         batch_id,
                         now, now
                     ))
                     total_items += 1
-                    current_time += timedelta(hours=interval_hours)
+                    unique_accounts.add(si.get('username', ''))
+                    unique_media.add(mp)
+                    if first_time is None or st < first_time:
+                        first_time = st
+                    if last_time is None or st > last_time:
+                        last_time = st
+
+            else:
+                # ---- LEGACY MODE: media_paths + accounts + interval ----
+                media_paths = data.get('media_paths', [])
+                if not media_paths:
+                    return jsonify({'error': 'media_paths is required and must not be empty'}), 400
+
+                validation_errors = []
+                for mp in media_paths:
+                    ok, err = validate_media(mp, content_type)
+                    if not ok:
+                        validation_errors.append(err)
+                if validation_errors:
+                    return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
+
+                start_time_str = data.get('start_time')
+                if not start_time_str:
+                    return jsonify({'error': 'start_time is required'}), 400
+
+                interval_hours = float(data.get('interval_hours', 24))
+                if interval_hours <= 0:
+                    return jsonify({'error': 'interval_hours must be positive'}), 400
+
+                try:
+                    start_time = datetime.fromisoformat(
+                        start_time_str.replace('Z', '+00:00').replace('T', ' ').split('+')[0]
+                    )
+                except ValueError:
+                    return jsonify({'error': 'Invalid start_time format'}), 400
+
+                accounts = data.get('accounts', [])
+                device_serial = data.get('device_serial')
+                
+                if accounts == 'all' or (isinstance(accounts, str) and accounts.lower() == 'all'):
+                    if device_serial and device_serial != 'all':
+                        acct_rows = conn.execute(
+                            "SELECT id, device_serial, username FROM accounts WHERE device_serial = ? AND status = 'active'",
+                            (device_serial,)
+                        ).fetchall()
+                    else:
+                        acct_rows = conn.execute(
+                            "SELECT id, device_serial, username FROM accounts WHERE status = 'active'"
+                        ).fetchall()
+                    accounts = [{'account_id': r['id'], 'device_serial': r['device_serial'], 'username': r['username']} for r in acct_rows]
+                elif isinstance(accounts, list):
+                    resolved = []
+                    for acct in accounts:
+                        if isinstance(acct, dict):
+                            if acct.get('account_id'):
+                                resolved.append(acct)
+                            elif acct.get('device_serial') and acct.get('username'):
+                                row = conn.execute(
+                                    "SELECT id FROM accounts WHERE device_serial = ? AND username = ?",
+                                    (acct['device_serial'], acct['username'])
+                                ).fetchone()
+                                acct['account_id'] = row['id'] if row else None
+                                resolved.append(acct)
+                        elif isinstance(acct, str):
+                            row = conn.execute(
+                                "SELECT id, device_serial, username FROM accounts WHERE username = ?",
+                                (acct,)
+                            ).fetchone()
+                            if row:
+                                resolved.append({'account_id': row['id'], 'device_serial': row['device_serial'], 'username': row['username']})
+                    accounts = resolved
+
+                if not accounts:
+                    return jsonify({'error': 'No valid accounts found'}), 400
+
+                current_time = start_time
+                first_time = start_time
+                for media_path in media_paths:
+                    for acct in accounts:
+                        conn.execute("""
+                            INSERT INTO content_schedule
+                            (account_id, device_serial, username, content_type, media_path,
+                             caption, hashtags, location, music_name, music_search_query,
+                             mention_username, link_url, scheduled_time, status, batch_id,
+                             created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+                        """, (
+                            acct.get('account_id'),
+                            acct.get('device_serial', device_serial),
+                            acct.get('username'),
+                            content_type,
+                            media_path,
+                            caption_template,
+                            hashtags,
+                            location,
+                            None,
+                            music_search_query,
+                            mention_username,
+                            link_url,
+                            current_time.isoformat(),
+                            batch_id,
+                            now, now
+                        ))
+                        total_items += 1
+                        unique_accounts.add(acct.get('username', ''))
+                        current_time += timedelta(hours=interval_hours)
+
+                last_time = current_time
+                unique_media = set(media_paths)
 
             # Create batch record
             conn.execute("""
@@ -560,10 +622,10 @@ def create_batch_schedule():
                 'batch_id': batch_id,
                 'name': batch_name,
                 'total_items': total_items,
-                'accounts': len(accounts),
-                'media_files': len(media_paths),
-                'start_time': start_time.isoformat(),
-                'end_time': current_time.isoformat()
+                'accounts': len(unique_accounts),
+                'media_files': len(unique_media),
+                'start_time': first_time.isoformat() if first_time else now,
+                'end_time': last_time.isoformat() if last_time else now
             }), 201
 
         finally:
@@ -730,48 +792,220 @@ def get_upcoming():
 # MEDIA FOLDERS
 # =============================================================================
 
+def _get_media_library_db():
+    """Get connection to the media library database."""
+    db_path = os.path.join(MEDIA_LIBRARY_DIR, 'media_library.db')
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 @content_schedule_bp.route('/api/content-schedule/media-folders', methods=['GET'])
 def list_media_folders():
-    """List folders from media_library directory."""
+    """List user-created folders from the media library database."""
     try:
         folders = []
-        
-        # Check both 'original' subfolder and root-level folders
-        for search_dir in [MEDIA_LIBRARY_DIR, os.path.join(MEDIA_LIBRARY_DIR, 'original')]:
-            if not os.path.exists(search_dir):
-                continue
-            for entry in sorted(os.listdir(search_dir)):
-                full_path = os.path.join(search_dir, entry)
-                if os.path.isdir(full_path):
-                    # Count media files
-                    media_count = 0
-                    for f in os.listdir(full_path):
-                        ext = os.path.splitext(f)[1].lower()
-                        if ext in MEDIA_EXTENSIONS:
-                            media_count += 1
-                    
-                    rel_path = os.path.relpath(full_path, MEDIA_LIBRARY_DIR)
-                    folders.append({
-                        'name': entry,
-                        'path': rel_path,
-                        'full_path': full_path,
-                        'media_count': media_count
-                    })
+        try:
+            mlconn = _get_media_library_db()
+            cursor = mlconn.cursor()
+            cursor.execute('SELECT * FROM folders ORDER BY name')
+            rows = cursor.fetchall()
+            for row in rows:
+                folder_id = row['id']
+                name = row['name']
+                cursor.execute(
+                    'SELECT COUNT(*) as cnt FROM media_folders WHERE folder_id = ?',
+                    (folder_id,)
+                )
+                cnt_row = cursor.fetchone()
+                media_count = cnt_row['cnt'] if cnt_row else 0
+                folders.append({
+                    'id': folder_id,
+                    'name': name,
+                    'path': folder_id,  # use id as path key
+                    'description': row['description'] or '',
+                    'media_count': media_count
+                })
+            mlconn.close()
+        except Exception as db_err:
+            log.warning("Could not read media library DB, falling back to filesystem: %s", db_err)
+            # Fallback: scan filesystem but skip processed/original
+            skip_dirs = {'processed', 'original', '__pycache__'}
+            for search_dir in [MEDIA_LIBRARY_DIR]:
+                if not os.path.exists(search_dir):
+                    continue
+                for entry in sorted(os.listdir(search_dir)):
+                    if entry in skip_dirs or entry.startswith('.'):
+                        continue
+                    full_path = os.path.join(search_dir, entry)
+                    if os.path.isdir(full_path):
+                        media_count = sum(
+                            1 for f in os.listdir(full_path)
+                            if os.path.splitext(f)[1].lower() in MEDIA_EXTENSIONS
+                        )
+                        rel_path = os.path.relpath(full_path, MEDIA_LIBRARY_DIR)
+                        folders.append({
+                            'id': rel_path,
+                            'name': entry,
+                            'path': rel_path,
+                            'description': '',
+                            'media_count': media_count
+                        })
+
+        # Also add an "All Media" virtual folder
+        try:
+            mlconn2 = _get_media_library_db()
+            c2 = mlconn2.cursor()
+            c2.execute('SELECT COUNT(*) as cnt FROM media')
+            total = c2.fetchone()['cnt']
+            mlconn2.close()
+            folders.insert(0, {
+                'id': '__all__',
+                'name': 'All Media',
+                'path': '__all__',
+                'description': 'All media files',
+                'media_count': total,
+                'is_virtual': True
+            })
+        except Exception:
+            pass
 
         return jsonify({'folders': folders})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
+@content_schedule_bp.route('/api/content-schedule/media-folders', methods=['POST'])
+def create_media_folder_cs():
+    """Create a new folder in the media library from the content schedule wizard."""
+    try:
+        data = request.json
+        folder_name = (data or {}).get('name', '').strip()
+        if not folder_name:
+            return jsonify({'error': 'Folder name is required'}), 400
+
+        description = (data or {}).get('description', '')
+
+        mlconn = _get_media_library_db()
+        cursor = mlconn.cursor()
+        folder_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
+        cursor.execute(
+            'INSERT INTO folders (id, name, description, created_at, parent_id) VALUES (?, ?, ?, ?, ?)',
+            (folder_id, folder_name, description, now, None)
+        )
+        mlconn.commit()
+        mlconn.close()
+
+        return jsonify({'id': folder_id, 'name': folder_name, 'path': folder_id, 'media_count': 0}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @content_schedule_bp.route('/api/content-schedule/media-folders/<path:folder>', methods=['GET'])
 def list_folder_files(folder):
-    """List media files in a folder."""
+    """List media files in a folder. Supports both DB folder IDs and filesystem paths."""
     try:
+        files = []
+
+        # Check if this is the virtual "all" folder
+        if folder == '__all__':
+            try:
+                mlconn = _get_media_library_db()
+                cursor = mlconn.cursor()
+                cursor.execute('SELECT * FROM media ORDER BY upload_date DESC')
+                rows = cursor.fetchall()
+                for row in rows:
+                    original_path = row['original_path'] or ''
+                    filename = row['filename']
+                    ext = os.path.splitext(filename)[1].lower()
+                    is_video = ext in {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
+                    media_type = row['media_type'] or ('video' if is_video else 'image')
+
+                    # Build full path for scheduler
+                    full_path = os.path.join(MEDIA_LIBRARY_DIR, 'original', original_path) if original_path else ''
+                    if not os.path.isabs(original_path or ''):
+                        full_path = os.path.join(MEDIA_LIBRARY_DIR, 'original', original_path)
+                    else:
+                        full_path = original_path
+
+                    # Thumbnail path
+                    processed_path = row['processed_path'] or ''
+                    if processed_path:
+                        thumb_url = '/api/media/processed/' + processed_path.replace('\\', '/').split('/')[-1]
+                    else:
+                        thumb_url = '/api/media/original/' + (original_path or filename).replace('\\', '/').split('/')[-1]
+
+                    files.append({
+                        'name': filename,
+                        'path': original_path or filename,
+                        'full_path': full_path,
+                        'size': row['file_size'] or 0,
+                        'is_video': is_video,
+                        'media_type': media_type,
+                        'extension': ext,
+                        'thumb_url': thumb_url,
+                        'media_id': row['id']
+                    })
+                mlconn.close()
+                return jsonify({'folder': folder, 'files': files, 'total': len(files)})
+            except Exception as e:
+                log.warning("Error reading all media from DB: %s", e)
+                return jsonify({'folder': folder, 'files': [], 'total': 0})
+
+        # Try DB folder first (folder is a UUID)
+        try:
+            mlconn = _get_media_library_db()
+            cursor = mlconn.cursor()
+            cursor.execute('SELECT id FROM folders WHERE id = ?', (folder,))
+            if cursor.fetchone():
+                # It's a DB folder — get media via media_folders join
+                cursor.execute('''
+                    SELECT m.* FROM media m
+                    JOIN media_folders mf ON m.id = mf.media_id
+                    WHERE mf.folder_id = ?
+                    ORDER BY m.upload_date DESC
+                ''', (folder,))
+                rows = cursor.fetchall()
+                for row in rows:
+                    original_path = row['original_path'] or ''
+                    filename = row['filename']
+                    ext = os.path.splitext(filename)[1].lower()
+                    is_video = ext in {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
+                    media_type = row['media_type'] or ('video' if is_video else 'image')
+
+                    full_path = os.path.join(MEDIA_LIBRARY_DIR, 'original', original_path) if original_path else ''
+                    if original_path and os.path.isabs(original_path):
+                        full_path = original_path
+
+                    processed_path = row['processed_path'] or ''
+                    if processed_path:
+                        thumb_url = '/api/media/processed/' + processed_path.replace('\\', '/').split('/')[-1]
+                    else:
+                        thumb_url = '/api/media/original/' + (original_path or filename).replace('\\', '/').split('/')[-1]
+
+                    files.append({
+                        'name': filename,
+                        'path': original_path or filename,
+                        'full_path': full_path,
+                        'size': row['file_size'] or 0,
+                        'is_video': is_video,
+                        'media_type': media_type,
+                        'extension': ext,
+                        'thumb_url': thumb_url,
+                        'media_id': row['id']
+                    })
+                mlconn.close()
+                return jsonify({'folder': folder, 'files': files, 'total': len(files)})
+            mlconn.close()
+        except Exception as db_err:
+            log.warning("DB folder lookup failed: %s", db_err)
+
+        # Fallback: filesystem path
         folder_path = os.path.join(MEDIA_LIBRARY_DIR, folder)
         if not os.path.exists(folder_path):
             return jsonify({'error': 'Folder not found'}), 404
 
-        files = []
         for f in sorted(os.listdir(folder_path)):
             ext = os.path.splitext(f)[1].lower()
             if ext in MEDIA_EXTENSIONS:
@@ -784,10 +1018,89 @@ def list_folder_files(folder):
                     'full_path': full_path,
                     'size': os.path.getsize(full_path),
                     'is_video': is_video,
-                    'extension': ext
+                    'media_type': 'video' if is_video else 'image',
+                    'extension': ext,
+                    'thumb_url': '/api/content-schedule/media-file/' + rel_path.replace('\\', '/'),
+                    'media_id': None
                 })
 
         return jsonify({'folder': folder, 'files': files, 'total': len(files)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@content_schedule_bp.route('/api/content-schedule/upload', methods=['POST'])
+def upload_media_cs():
+    """Upload media files from the content schedule wizard. Saves to media library."""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+
+        uploaded_files = request.files.getlist('file')
+        folder_id = request.form.get('folder_id', '')
+        results = []
+
+        for file in uploaded_files:
+            if not file or file.filename == '':
+                continue
+
+            filename = secure_filename(file.filename)
+            ext = os.path.splitext(filename)[1].lower()
+            if ext not in MEDIA_EXTENSIONS:
+                results.append({'name': filename, 'error': 'Unsupported file type'})
+                continue
+
+            # Generate unique filename
+            unique_name = str(uuid.uuid4())[:8] + '_' + filename
+
+            # Save to original directory
+            original_dir = os.path.join(MEDIA_LIBRARY_DIR, 'original')
+            os.makedirs(original_dir, exist_ok=True)
+            save_path = os.path.join(original_dir, unique_name)
+            file.save(save_path)
+
+            file_size = os.path.getsize(save_path)
+            is_video = ext in {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
+            media_type = 'video' if is_video else 'image'
+
+            # Register in media library DB
+            media_id = str(uuid.uuid4())
+            now = datetime.utcnow().isoformat()
+
+            try:
+                mlconn = _get_media_library_db()
+                cursor = mlconn.cursor()
+                cursor.execute('''
+                    INSERT INTO media (id, filename, original_path, media_type, file_size, upload_date, times_used)
+                    VALUES (?, ?, ?, ?, ?, ?, 0)
+                ''', (media_id, filename, unique_name, media_type, file_size, now))
+
+                # Add to folder if specified
+                if folder_id and folder_id != '__all__':
+                    cursor.execute(
+                        'INSERT OR IGNORE INTO media_folders (media_id, folder_id) VALUES (?, ?)',
+                        (media_id, folder_id)
+                    )
+
+                mlconn.commit()
+                mlconn.close()
+            except Exception as db_err:
+                log.warning("Failed to register uploaded file in DB: %s", db_err)
+
+            results.append({
+                'name': filename,
+                'path': unique_name,
+                'full_path': save_path,
+                'size': file_size,
+                'is_video': is_video,
+                'media_type': media_type,
+                'extension': ext,
+                'thumb_url': '/api/media/original/' + unique_name,
+                'media_id': media_id,
+                'success': True
+            })
+
+        return jsonify({'files': results, 'uploaded': len([r for r in results if r.get('success')])}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

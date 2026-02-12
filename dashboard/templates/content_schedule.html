@@ -136,6 +136,67 @@
     .edit-modal .form-control, .edit-modal .form-select {
         background: #1a1d21; color: #fff; border-color: rgba(255,255,255,0.15);
     }
+
+    /* Content type badges */
+    .badge-post { background: rgba(13,110,253,0.2); color: #0d6efd; }
+    .badge-reel { background: rgba(111,66,193,0.2); color: #6f42c1; }
+    .badge-story { background: rgba(253,126,20,0.2); color: #fd7e14; }
+
+    /* Media type overlay badge */
+    .media-thumb .media-type-badge {
+        position: absolute; top: 6px; left: 6px;
+        padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600;
+        pointer-events: none;
+    }
+    .media-type-badge.type-image { background: rgba(13,110,253,0.85); color: #fff; }
+    .media-type-badge.type-video { background: rgba(111,66,193,0.85); color: #fff; }
+
+    /* Dropzone */
+    .upload-dropzone {
+        border: 2px dashed rgba(255,255,255,0.15); border-radius: 12px;
+        padding: 1.25rem; text-align: center; cursor: pointer;
+        transition: all 0.25s; background: rgba(255,255,255,0.02);
+        margin-bottom: 1rem;
+    }
+    .upload-dropzone:hover, .upload-dropzone.dragover {
+        border-color: #0d6efd; background: rgba(13,110,253,0.08);
+    }
+    .upload-dropzone i { font-size: 1.5rem; color: #6c757d; }
+    .upload-dropzone.dragover i { color: #0d6efd; }
+    .upload-dropzone p { margin: 0.5rem 0 0; font-size: 0.85rem; color: #adb5bd; }
+    .upload-progress-bar { height: 3px; border-radius: 2px; overflow: hidden; margin-top: 0.5rem; display:none; }
+    .upload-progress-bar .bar { height: 100%; width: 0; background: #0d6efd; transition: width 0.3s; }
+
+    /* Strategy cards */
+    .strategy-card {
+        cursor: pointer; padding: 1rem; border-radius: 10px;
+        border: 2px solid rgba(255,255,255,0.08); transition: all 0.2s;
+        background: rgba(255,255,255,0.02); margin-bottom: 0.5rem;
+    }
+    .strategy-card:hover { border-color: rgba(13,110,253,0.4); background: rgba(13,110,253,0.04); }
+    .strategy-card.selected { border-color: #0d6efd; background: rgba(13,110,253,0.12); }
+    .strategy-card .strategy-icon { font-size: 1.25rem; margin-right: 0.75rem; }
+    .strategy-card h6 { margin-bottom: 0.15rem; }
+    .strategy-card small { color: #adb5bd; }
+
+    /* New folder inline */
+    .new-folder-inline {
+        display: flex; gap: 0.5rem; align-items: center;
+        padding: 0.5rem; margin-bottom: 0.5rem;
+    }
+    .new-folder-inline input {
+        flex: 1; font-size: 0.85rem;
+    }
+
+    /* Media filter tabs */
+    .media-filter-tabs { display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .media-filter-tab {
+        padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem;
+        cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+        color: #adb5bd; transition: all 0.2s; background: transparent;
+    }
+    .media-filter-tab:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
+    .media-filter-tab.active { background: rgba(13,110,253,0.2); border-color: #0d6efd; color: #0d6efd; }
 </style>
 {% endblock %}
 
@@ -314,20 +375,54 @@
             <div class="row">
                 <div class="col-md-4">
                     <div class="card bg-dark border-secondary mb-3">
-                        <div class="card-header border-secondary">
-                            <i class="fas fa-folder me-2"></i>Media Folders
+                        <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-folder me-2"></i>Media Folders</span>
+                            <button class="btn btn-sm btn-outline-success py-0 px-2" onclick="toggleNewFolderInput()" title="New Folder">
+                                <i class="fas fa-plus me-1"></i>New
+                            </button>
                         </div>
                         <div class="card-body p-0" style="max-height:400px; overflow-y:auto;">
+                            <div id="newFolderArea" class="p-2" style="display:none">
+                                <div class="new-folder-inline">
+                                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                           id="newFolderName" placeholder="Folder name..." onkeydown="if(event.key==='Enter')createNewFolder()">
+                                    <button class="btn btn-sm btn-success" onclick="createNewFolder()"><i class="fas fa-check"></i></button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleNewFolderInput()"><i class="fas fa-times"></i></button>
+                                </div>
+                            </div>
                             <div id="folderList" class="p-2">
                                 <div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
                             </div>
                         </div>
                     </div>
+                    <!-- Content type filter hint -->
+                    <div id="mediaTypeFilterHint" class="alert alert-info py-2 px-3 mb-0" style="font-size:0.8rem; display:none;">
+                        <i class="fas fa-filter me-1"></i>Filtering: <strong id="mediaTypeFilterLabel">all files</strong>
+                    </div>
                 </div>
                 <div class="col-md-8">
+                    <!-- Upload dropzone -->
+                    <div class="upload-dropzone" id="uploadDropzone"
+                         ondragover="event.preventDefault(); this.classList.add('dragover')"
+                         ondragleave="this.classList.remove('dragover')"
+                         ondrop="handleDropzoneUpload(event)"
+                         onclick="document.getElementById('dropzoneFileInput').click()">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drag & drop files here or <strong class="text-primary">click to upload</strong></p>
+                        <input type="file" id="dropzoneFileInput" multiple accept="image/*,video/*" style="display:none"
+                               onchange="handleFileInputUpload(this.files)">
+                        <div class="upload-progress-bar" id="uploadProgressBar"><div class="bar" id="uploadProgressFill"></div></div>
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span class="text-muted" id="mediaSelectionInfo">Select a folder</span>
                         <div>
+                            <!-- Media type filter tabs -->
+                            <div class="media-filter-tabs d-inline-flex me-2" id="mediaFilterTabs">
+                                <span class="media-filter-tab active" data-filter="all" onclick="setMediaFilter('all')">All</span>
+                                <span class="media-filter-tab" data-filter="image" onclick="setMediaFilter('image')">📷 Images</span>
+                                <span class="media-filter-tab" data-filter="video" onclick="setMediaFilter('video')">🎬 Videos</span>
+                            </div>
                             <button class="btn btn-sm btn-outline-primary" onclick="selectAllMedia()">Select All</button>
                             <button class="btn btn-sm btn-outline-secondary ms-1" onclick="deselectAllMedia()">Deselect All</button>
                         </div>
@@ -351,7 +446,7 @@
         <!-- Step 3: Configure -->
         <div class="step-panel" id="step3">
             <h5 class="mb-3">Configure content</h5>
-            
+
             <!-- Post config -->
             <div id="configPost" class="config-section">
                 <div class="mb-3">
@@ -440,26 +535,156 @@
             <h5 class="mb-3">Schedule timing</h5>
             <div class="row">
                 <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">Start Time</label>
-                        <input type="datetime-local" class="form-control bg-dark text-white border-secondary" id="scheduleStartTime">
+                    <!-- Strategy selection -->
+                    <label class="form-label fw-bold mb-2">Distribution Strategy</label>
+                    <div class="strategy-card selected" data-strategy="even_spread" onclick="selectStrategy('even_spread')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-primary"><i class="fas fa-arrows-alt-h"></i></span>
+                            <div>
+                                <h6 class="mb-0">Even Spread</h6>
+                                <small>Distribute evenly across a date range</small>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Interval Between Posts (hours)</label>
-                        <input type="number" class="form-control bg-dark text-white border-secondary" id="scheduleInterval"
-                               value="1" min="0.25" max="168" step="0.25">
-                        <div class="form-text text-muted">Time between each scheduled post</div>
+                    <div class="strategy-card" data-strategy="fill_week" onclick="selectStrategy('fill_week')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-success"><i class="fas fa-calendar-week"></i></span>
+                            <div>
+                                <h6 class="mb-0">Fill Week</h6>
+                                <small>Auto-fill next 7 days with staggered times</small>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
+                    <div class="strategy-card" data-strategy="custom_interval" onclick="selectStrategy('custom_interval')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-warning"><i class="fas fa-stopwatch"></i></span>
+                            <div>
+                                <h6 class="mb-0">Custom Interval</h6>
+                                <small>Start time + fixed hours between posts</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="strategy-card" data-strategy="random_times" onclick="selectStrategy('random_times')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-info"><i class="fas fa-random"></i></span>
+                            <div>
+                                <h6 class="mb-0">Random Times</h6>
+                                <small>Random posting times within a daily window</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary my-3">
+
+                    <!-- Strategy-specific options -->
+                    <!-- Even Spread options -->
+                    <div id="strategyEvenSpread">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenStartDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenEndDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Posts Per Day</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenPostsPerDay" value="2" min="1" max="10">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Active Window</label>
+                                <div class="d-flex gap-1 align-items-center">
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenWindowStart" value="9" min="0" max="23" style="width:60px">
+                                    <span class="text-muted">-</span>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenWindowEnd" value="21" min="0" max="23" style="width:60px">
+                                    <span class="text-muted" style="font-size:0.75rem">h</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fill Week options -->
+                    <div id="strategyFillWeek" style="display:none">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Posts Per Day</label>
+                                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="fillWeekPostsPerDay">
+                                    <option value="1">1 per day</option>
+                                    <option value="2" selected>2 per day</option>
+                                    <option value="3">3 per day</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Starting</label>
+                                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="fillWeekStartDay">
+                                    <option value="today">Today</option>
+                                    <option value="tomorrow">Tomorrow</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-text text-muted mt-2">
+                            Times auto-stagger: morning (9am), afternoon (1pm), evening (6pm)
+                        </div>
+                    </div>
+
+                    <!-- Custom Interval options (original) -->
+                    <div id="strategyCustomInterval" style="display:none">
+                        <div class="mb-2">
+                            <label class="form-label">Start Time</label>
+                            <input type="datetime-local" class="form-control form-control-sm bg-dark text-white border-secondary" id="scheduleStartTime">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Interval (hours)</label>
+                            <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="scheduleInterval"
+                                   value="1" min="0.25" max="168" step="0.25">
+                        </div>
+                    </div>
+
+                    <!-- Random Times options -->
+                    <div id="strategyRandomTimes" style="display:none">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomStartDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomEndDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Posts Per Day</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomPostsPerDay" value="2" min="1" max="10">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Time Window</label>
+                                <div class="d-flex gap-1 align-items-center">
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomWindowStart" value="9" min="0" max="23" style="width:60px">
+                                    <span class="text-muted">-</span>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomWindowEnd" value="21" min="0" max="23" style="width:60px">
+                                    <span class="text-muted" style="font-size:0.75rem">h</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 mb-3">
                         <label class="form-label">Batch Name (optional)</label>
-                        <input type="text" class="form-control bg-dark text-white border-secondary" id="batchNameInput"
+                        <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="batchNameInput"
                                placeholder="e.g. Monday morning posts">
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="roundRobinCheck" checked>
+                        <label class="form-check-label" for="roundRobinCheck">
+                            <small>Round-robin media across accounts</small>
+                        </label>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card bg-dark border-secondary">
                         <div class="card-header border-secondary"><i class="fas fa-eye me-2"></i>Schedule Preview</div>
-                        <div class="card-body p-2" style="max-height:300px; overflow-y:auto;" id="schedulePreview">
+                        <div class="card-body p-2" style="max-height:400px; overflow-y:auto;" id="schedulePreview">
                             <div class="text-muted text-center py-3">Set timing to preview</div>
                         </div>
                     </div>
@@ -505,7 +730,7 @@
                             <div id="reviewEnd">-</div>
                         </div>
                         <div class="col-md-4">
-                            <small class="text-muted">Interval</small>
+                            <small class="text-muted">Strategy</small>
                             <div id="reviewInterval">-</div>
                         </div>
                     </div>
@@ -783,11 +1008,30 @@ let wizardState = {
     selectedAccounts: [],    // [{account_id, device_serial, username}]
     startTime: '',
     intervalHours: 1,
-    batchName: ''
+    batchName: '',
+    strategy: 'even_spread',
+    // Strategy-specific state
+    evenStartDate: '',
+    evenEndDate: '',
+    evenPostsPerDay: 2,
+    evenWindowStart: 9,
+    evenWindowEnd: 21,
+    fillWeekPostsPerDay: 2,
+    fillWeekStartDay: 'today',
+    randomStartDate: '',
+    randomEndDate: '',
+    randomPostsPerDay: 2,
+    randomWindowStart: 9,
+    randomWindowEnd: 21,
+    roundRobin: true,
+    // Generated schedule
+    generatedSchedule: []  // [{time, accountIdx, mediaIdx}]
 };
 let calendarOffset = 0;  // weeks offset from current
 let allDevices = [];
 let allFolderFiles = [];
+let currentFolderId = '';
+let mediaTypeFilter = 'all';  // 'all', 'image', 'video'
 
 // ============ INIT ============
 $(document).ready(function() {
@@ -796,11 +1040,17 @@ $(document).ready(function() {
     loadDevicesForWizard();
     loadFolders();
 
-    // Set default start time to 1 hour from now
+    // Set default dates
     const now = new Date();
     now.setHours(now.getHours() + 1, 0, 0, 0);
     const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     $('#scheduleStartTime').val(local);
+
+    // Set default date range for strategies
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const weekLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    $('#evenStartDate, #randomStartDate').val(todayStr);
+    $('#evenEndDate, #randomEndDate').val(weekLater);
 
     // Tab change handlers
     $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
@@ -811,8 +1061,12 @@ $(document).ready(function() {
         if (target === '#tab-calendar') loadCalendar();
     });
 
-    // Preview update on timing change
+    // Preview update on timing change (bind all strategy inputs)
     $('#scheduleStartTime, #scheduleInterval').on('change input', updateSchedulePreview);
+    $('#evenStartDate, #evenEndDate, #evenPostsPerDay, #evenWindowStart, #evenWindowEnd').on('change input', updateSchedulePreview);
+    $('#fillWeekPostsPerDay, #fillWeekStartDay').on('change', updateSchedulePreview);
+    $('#randomStartDate, #randomEndDate, #randomPostsPerDay, #randomWindowStart, #randomWindowEnd').on('change input', updateSchedulePreview);
+    $('#roundRobinCheck').on('change', updateSchedulePreview);
 });
 
 // ============ STATS ============
@@ -860,11 +1114,11 @@ function loadCalendar() {
             let itemsHtml = '';
             dayItems.forEach(item => {
                 const time = item.scheduled_time ? item.scheduled_time.slice(11, 16) : '??:??';
-                const statusIcon = item.status === 'completed' ? 'âœ“' : item.status === 'failed' ? 'âœ—' : '';
+                const statusIcon = item.status === 'completed' ? '<i class="fas fa-check text-success"></i>' : item.status === 'failed' ? '<i class="fas fa-times text-danger"></i>' : '';
+                const ctBadge = calTypeIcon(item.content_type);
                 itemsHtml += `
                     <div class="cal-item type-${item.content_type}" onclick="openEditModal(${item.id})" title="${item.username} - ${item.content_type}">
-                        <strong>${time}</strong> ${statusIcon} ${item.username || 'Unknown'}
-                        <span class="text-muted ms-1">${item.content_type}</span>
+                        <strong>${time}</strong> ${statusIcon} ${ctBadge} ${item.username || 'Unknown'}
                     </div>`;
             });
 
@@ -883,7 +1137,7 @@ const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatDateRange(start, end) {
     const opts = { month: 'short', day: 'numeric' };
-    return start.toLocaleDateString('en-US', opts) + ' – ' + new Date(end.getTime() - 86400000).toLocaleDateString('en-US', opts);
+    return start.toLocaleDateString('en-US', opts) + ' - ' + new Date(end.getTime() - 86400000).toLocaleDateString('en-US', opts);
 }
 
 // ============ WIZARD NAVIGATION ============
@@ -926,7 +1180,7 @@ function updateWizardUI() {
 }
 
 function onStepEnter(step) {
-    if (step === 2) loadFolders();
+    if (step === 2) { applyAutoMediaFilter(); loadFolders(); }
     if (step === 3) showConfigForType();
     if (step === 4) { loadDevicesForWizard(); loadTargetAccounts(); }
     if (step === 5) updateSchedulePreview();
@@ -944,10 +1198,46 @@ function collectStepData() {
         wizardState.linkUrl = $('#linkUrlInput').val();
     }
     if (s === 5) {
-        wizardState.startTime = $('#scheduleStartTime').val();
-        wizardState.intervalHours = parseFloat($('#scheduleInterval').val()) || 1;
         wizardState.batchName = $('#batchNameInput').val();
+        wizardState.roundRobin = $('#roundRobinCheck').is(':checked');
+        // Collect strategy-specific data
+        const strat = wizardState.strategy;
+        if (strat === 'even_spread') {
+            wizardState.evenStartDate = $('#evenStartDate').val();
+            wizardState.evenEndDate = $('#evenEndDate').val();
+            wizardState.evenPostsPerDay = parseInt($('#evenPostsPerDay').val()) || 2;
+            wizardState.evenWindowStart = parseInt($('#evenWindowStart').val()) || 9;
+            wizardState.evenWindowEnd = parseInt($('#evenWindowEnd').val()) || 21;
+        } else if (strat === 'fill_week') {
+            wizardState.fillWeekPostsPerDay = parseInt($('#fillWeekPostsPerDay').val()) || 2;
+            wizardState.fillWeekStartDay = $('#fillWeekStartDay').val();
+        } else if (strat === 'custom_interval') {
+            wizardState.startTime = $('#scheduleStartTime').val();
+            wizardState.intervalHours = parseFloat($('#scheduleInterval').val()) || 1;
+        } else if (strat === 'random_times') {
+            wizardState.randomStartDate = $('#randomStartDate').val();
+            wizardState.randomEndDate = $('#randomEndDate').val();
+            wizardState.randomPostsPerDay = parseInt($('#randomPostsPerDay').val()) || 2;
+            wizardState.randomWindowStart = parseInt($('#randomWindowStart').val()) || 9;
+            wizardState.randomWindowEnd = parseInt($('#randomWindowEnd').val()) || 21;
+        }
     }
+}
+
+// ============ STRATEGY SELECTION ============
+function selectStrategy(strategy) {
+    wizardState.strategy = strategy;
+    $('.strategy-card').removeClass('selected');
+    $(`.strategy-card[data-strategy="${strategy}"]`).addClass('selected');
+
+    // Show/hide strategy panels
+    $('#strategyEvenSpread, #strategyFillWeek, #strategyCustomInterval, #strategyRandomTimes').hide();
+    if (strategy === 'even_spread') $('#strategyEvenSpread').show();
+    else if (strategy === 'fill_week') $('#strategyFillWeek').show();
+    else if (strategy === 'custom_interval') $('#strategyCustomInterval').show();
+    else if (strategy === 'random_times') $('#strategyRandomTimes').show();
+
+    updateSchedulePreview();
 }
 
 // ============ STEP 1: CONTENT TYPE ============
@@ -964,11 +1254,14 @@ function loadFolders() {
         const folders = data.folders || [];
         let html = '';
         if (folders.length === 0) {
-            html = '<div class="text-muted text-center py-3">No media folders found</div>';
+            html = '<div class="text-muted text-center py-3">No media folders found. Create one!</div>';
         } else {
             folders.forEach(f => {
-                html += `<div class="folder-item-cs" onclick="loadFolderMedia('${f.path}')" data-path="${f.path}">
-                    <span><i class="fas fa-folder me-2 text-warning"></i>${f.name}</span>
+                const icon = f.is_virtual ? 'fa-photo-video text-info' : 'fa-folder text-warning';
+                const sel = currentFolderId === f.id ? 'selected' : '';
+                const escapedId = (f.id || f.path || '').replace(/'/g, "\\'");
+                html += `<div class="folder-item-cs ${sel}" onclick="loadFolderMedia('${escapedId}')" data-path="${escapedId}">
+                    <span><i class="fas ${icon} me-2"></i>${f.name}</span>
                     <span class="badge bg-secondary">${f.media_count}</span>
                 </div>`;
             });
@@ -977,40 +1270,116 @@ function loadFolders() {
     });
 }
 
-function loadFolderMedia(folderPath) {
-    $('.folder-item-cs').removeClass('selected');
-    $(`.folder-item-cs[data-path="${folderPath}"]`).addClass('selected');
+function toggleNewFolderInput() {
+    const area = $('#newFolderArea');
+    area.toggle();
+    if (area.is(':visible')) $('#newFolderName').focus();
+}
 
-    $.get(API + '/media-folders/' + encodeURIComponent(folderPath), function(data) {
+function createNewFolder() {
+    const name = $('#newFolderName').val().trim();
+    if (!name) return;
+    $.ajax({
+        url: API + '/media-folders',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ name: name }),
+        success: function(data) {
+            $('#newFolderName').val('');
+            $('#newFolderArea').hide();
+            loadFolders();
+            // Auto-select the new folder
+            if (data.id) setTimeout(() => loadFolderMedia(data.id), 300);
+        },
+        error: function(xhr) {
+            alert('Error creating folder: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown'));
+        }
+    });
+}
+
+function loadFolderMedia(folderId) {
+    currentFolderId = folderId;
+    $('.folder-item-cs').removeClass('selected');
+    $(`.folder-item-cs[data-path="${folderId}"]`).addClass('selected');
+
+    $('#mediaGrid').html('<div class="text-muted text-center py-5 w-100"><i class="fas fa-spinner fa-spin fa-2x"></i></div>');
+
+    $.get(API + '/media-folders/' + encodeURIComponent(folderId), function(data) {
         allFolderFiles = data.files || [];
+        // Apply content type auto-filter
+        applyAutoMediaFilter();
         renderMediaGrid();
     });
 }
 
+function applyAutoMediaFilter() {
+    // Auto-filter based on content type if reel selected (only videos)
+    const ct = wizardState.contentType;
+    if (ct === 'reel') {
+        mediaTypeFilter = 'video';
+        $('#mediaTypeFilterHint').show();
+        $('#mediaTypeFilterLabel').text('videos only (Reel)');
+        $('.media-filter-tab').removeClass('active');
+        $('.media-filter-tab[data-filter="video"]').addClass('active');
+    } else {
+        if (mediaTypeFilter === 'video' && ct !== 'reel') {
+            // Reset to all when switching away from reel
+        }
+        $('#mediaTypeFilterHint').hide();
+    }
+}
+
+function setMediaFilter(filter) {
+    mediaTypeFilter = filter;
+    $('.media-filter-tab').removeClass('active');
+    $(`.media-filter-tab[data-filter="${filter}"]`).addClass('active');
+    renderMediaGrid();
+}
+
+function getFilteredFiles() {
+    if (mediaTypeFilter === 'all') return allFolderFiles;
+    if (mediaTypeFilter === 'image') return allFolderFiles.filter(f => !f.is_video);
+    if (mediaTypeFilter === 'video') return allFolderFiles.filter(f => f.is_video);
+    return allFolderFiles;
+}
+
 function renderMediaGrid() {
     const grid = $('#mediaGrid');
-    if (allFolderFiles.length === 0) {
-        grid.html('<div class="text-muted text-center py-5 w-100">No media files in this folder</div>');
+    const filteredFiles = getFilteredFiles();
+    if (filteredFiles.length === 0) {
+        const msg = allFolderFiles.length > 0
+            ? 'No matching files for current filter'
+            : 'No media files in this folder';
+        grid.html(`<div class="text-muted text-center py-5 w-100">${msg}</div>`);
+        updateMediaInfo();
         return;
     }
 
     let html = '';
-    allFolderFiles.forEach(f => {
+    filteredFiles.forEach(f => {
         const isSelected = wizardState.selectedMedia.some(m => m.path === f.path);
         const sel = isSelected ? 'selected' : '';
+        const typeBadge = f.is_video
+            ? '<span class="media-type-badge type-video"><i class="fas fa-film me-1"></i>Video</span>'
+            : '<span class="media-type-badge type-image"><i class="fas fa-image me-1"></i>Img</span>';
+        const escapedPath = (f.path || '').replace(/'/g, "\\'");
+
+        // Determine thumbnail URL
+        let thumbContent;
         if (f.is_video) {
-            html += `<div class="media-thumb ${sel}" data-path="${f.path}" onclick="toggleMedia(this, '${f.path}')">
-                <div class="video-placeholder"><i class="fas fa-video fa-2x"></i></div>
-                <div class="check-overlay"><i class="fas fa-check"></i></div>
-                <div class="media-name">${f.name}</div>
-            </div>`;
+            thumbContent = `<div class="video-placeholder"><i class="fas fa-video fa-2x"></i></div>`;
+        } else if (f.thumb_url) {
+            thumbContent = `<img src="${f.thumb_url}" alt="${f.name}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'video-placeholder\\'><i class=\\'fas fa-image fa-2x\\'></i></div>'">`;
         } else {
-            html += `<div class="media-thumb ${sel}" data-path="${f.path}" onclick="toggleMedia(this, '${f.path}')">
-                <img src="${API}/media-file/${encodeURIComponent(f.path)}" alt="${f.name}" loading="lazy">
-                <div class="check-overlay"><i class="fas fa-check"></i></div>
-                <div class="media-name">${f.name}</div>
-            </div>`;
+            thumbContent = `<img src="${API}/media-file/${encodeURIComponent(f.path)}" alt="${f.name}" loading="lazy">`;
         }
+
+        html += `<div class="media-thumb ${sel}" data-path="${escapedPath}" onclick="toggleMedia(this, '${escapedPath}')">
+            ${thumbContent}
+            ${typeBadge}
+            <div class="check-overlay"><i class="fas fa-check"></i></div>
+            <div class="media-name">${f.name}</div>
+        </div>`;
     });
     grid.html(html);
     updateMediaInfo();
@@ -1030,7 +1399,8 @@ function toggleMedia(el, path) {
 }
 
 function selectAllMedia() {
-    allFolderFiles.forEach(f => {
+    const filtered = getFilteredFiles();
+    filtered.forEach(f => {
         if (!wizardState.selectedMedia.some(m => m.path === f.path)) {
             wizardState.selectedMedia.push(f);
         }
@@ -1039,15 +1409,92 @@ function selectAllMedia() {
 }
 
 function deselectAllMedia() {
-    const folderPaths = allFolderFiles.map(f => f.path);
-    wizardState.selectedMedia = wizardState.selectedMedia.filter(m => !folderPaths.includes(m.path));
+    const filtered = getFilteredFiles();
+    const filteredPaths = filtered.map(f => f.path);
+    wizardState.selectedMedia = wizardState.selectedMedia.filter(m => !filteredPaths.includes(m.path));
     renderMediaGrid();
 }
 
 function updateMediaInfo() {
     const count = wizardState.selectedMedia.length;
-    $('#mediaSelectionInfo').text(`${count} file${count !== 1 ? 's' : ''} selected`);
+    const total = allFolderFiles.length;
+    const filtered = getFilteredFiles().length;
+    let infoText = `${count} file${count !== 1 ? 's' : ''} selected`;
+    if (filtered < total) infoText += ` (showing ${filtered}/${total})`;
+    $('#mediaSelectionInfo').text(infoText);
     $('#btnStep2Next').prop('disabled', count === 0);
+}
+
+// ============ DRAG & DROP UPLOAD ============
+function handleDropzoneUpload(e) {
+    e.preventDefault();
+    document.getElementById('uploadDropzone').classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length) uploadFiles(files);
+}
+
+function handleFileInputUpload(files) {
+    if (files.length) uploadFiles(files);
+    // Reset file input so same file can be re-selected
+    document.getElementById('dropzoneFileInput').value = '';
+}
+
+function uploadFiles(files) {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+        formData.append('file', files[i]);
+    }
+    formData.append('folder_id', currentFolderId || '');
+
+    // Show progress
+    const progressBar = $('#uploadProgressBar');
+    const progressFill = $('#uploadProgressFill');
+    progressBar.show();
+    progressFill.css('width', '10%');
+
+    $.ajax({
+        url: API + '/upload',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        xhr: function() {
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    progressFill.css('width', pct + '%');
+                }
+            });
+            return xhr;
+        },
+        success: function(data) {
+            progressFill.css('width', '100%');
+            setTimeout(() => { progressBar.hide(); progressFill.css('width', '0'); }, 1000);
+
+            // Refresh current folder view
+            if (currentFolderId) {
+                loadFolderMedia(currentFolderId);
+            }
+            // Refresh folder list (counts may have changed)
+            loadFolders();
+
+            const count = (data.files || []).filter(f => f.success).length;
+            if (count > 0) {
+                // Auto-select uploaded files
+                (data.files || []).forEach(f => {
+                    if (f.success && !wizardState.selectedMedia.some(m => m.path === f.path)) {
+                        wizardState.selectedMedia.push(f);
+                    }
+                });
+                updateMediaInfo();
+            }
+        },
+        error: function(xhr) {
+            progressBar.hide(); progressFill.css('width', '0');
+            alert('Upload failed: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'));
+        }
+    });
 }
 
 // ============ STEP 3: CONFIGURE ============
@@ -1133,84 +1580,208 @@ function updateAccountSelection() {
 }
 
 // ============ STEP 5: SCHEDULE TIMING ============
-function updateSchedulePreview() {
+function generateScheduleTimes() {
+    /**
+     * Generate an array of Date objects based on the selected strategy.
+     * Returns enough times for all media x accounts (round-robin or duplicate).
+     */
     collectStepData();
-    const startStr = wizardState.startTime;
-    const interval = wizardState.intervalHours;
     const mediaCount = wizardState.selectedMedia.length;
     const acctCount = wizardState.selectedAccounts.length;
+    if (!mediaCount || !acctCount) return [];
 
-    if (!startStr || !mediaCount || !acctCount) {
-        $('#schedulePreview').html('<div class="text-muted text-center py-3">Configure all steps to preview</div>');
-        return;
+    const roundRobin = wizardState.roundRobin;
+    // In round-robin: total = mediaCount, each media goes to one account cyclically
+    // Non round-robin: total = mediaCount * acctCount, each media to every account
+    const totalItems = roundRobin ? mediaCount : mediaCount * acctCount;
+
+    const strat = wizardState.strategy;
+    let times = [];
+
+    if (strat === 'even_spread') {
+        const startDate = wizardState.evenStartDate ? new Date(wizardState.evenStartDate) : new Date();
+        const endDate = wizardState.evenEndDate ? new Date(wizardState.evenEndDate) : new Date(Date.now() + 7*86400000);
+        const ppd = wizardState.evenPostsPerDay || 2;
+        const wStart = wizardState.evenWindowStart || 9;
+        const wEnd = wizardState.evenWindowEnd || 21;
+        const windowHours = Math.max(wEnd - wStart, 1);
+
+        let d = new Date(startDate);
+        while (times.length < totalItems && d <= endDate) {
+            for (let p = 0; p < ppd && times.length < totalItems; p++) {
+                const hourOffset = ppd > 1 ? (windowHours / ppd) * p + (windowHours / ppd / 2) : windowHours / 2;
+                const t = new Date(d);
+                t.setHours(wStart + Math.floor(hourOffset), Math.round((hourOffset % 1) * 60), 0, 0);
+                times.push(t);
+            }
+            d.setDate(d.getDate() + 1);
+        }
+    } else if (strat === 'fill_week') {
+        const ppd = parseInt(wizardState.fillWeekPostsPerDay) || 2;
+        const slotHours = [9, 13, 18]; // morning, afternoon, evening
+        const startDay = wizardState.fillWeekStartDay === 'tomorrow' ? 1 : 0;
+        for (let dayOff = startDay; dayOff < startDay + 7 && times.length < totalItems; dayOff++) {
+            const d = new Date();
+            d.setDate(d.getDate() + dayOff);
+            for (let p = 0; p < ppd && p < 3 && times.length < totalItems; p++) {
+                const t = new Date(d);
+                t.setHours(slotHours[p], Math.floor(Math.random() * 30), 0, 0);
+                times.push(t);
+            }
+        }
+    } else if (strat === 'custom_interval') {
+        const startStr = wizardState.startTime;
+        const interval = wizardState.intervalHours || 1;
+        if (!startStr) return [];
+        const start = new Date(startStr);
+        for (let i = 0; i < totalItems; i++) {
+            times.push(new Date(start.getTime() + i * interval * 3600000));
+        }
+    } else if (strat === 'random_times') {
+        const startDate = wizardState.randomStartDate ? new Date(wizardState.randomStartDate) : new Date();
+        const endDate = wizardState.randomEndDate ? new Date(wizardState.randomEndDate) : new Date(Date.now() + 7*86400000);
+        const ppd = wizardState.randomPostsPerDay || 2;
+        const wStart = wizardState.randomWindowStart || 9;
+        const wEnd = wizardState.randomWindowEnd || 21;
+        const windowMinutes = Math.max((wEnd - wStart) * 60, 60);
+
+        let d = new Date(startDate);
+        while (times.length < totalItems && d <= endDate) {
+            for (let p = 0; p < ppd && times.length < totalItems; p++) {
+                const randomMinutes = Math.floor(Math.random() * windowMinutes);
+                const t = new Date(d);
+                t.setHours(wStart, 0, 0, 0);
+                t.setMinutes(t.getMinutes() + randomMinutes);
+                times.push(t);
+            }
+            d.setDate(d.getDate() + 1);
+        }
+        // Sort random times
+        times.sort((a, b) => a - b);
     }
 
-    let start = new Date(startStr);
-    const total = mediaCount * acctCount;
-    let html = '';
-    let idx = 0;
+    return times;
+}
 
-    for (let m = 0; m < mediaCount && idx < 20; m++) {
-        for (let a = 0; a < acctCount && idx < 20; a++) {
-            const time = new Date(start.getTime() + idx * interval * 3600000);
-            html += `<div class="schedule-preview-item">
-                <span class="text-muted" style="min-width:30px">${idx + 1}.</span>
-                <span style="min-width:130px">${formatDateTime(time)}</span>
-                <span class="text-primary">${wizardState.selectedAccounts[a].username}</span>
-                <span class="text-muted ms-auto text-truncate" style="max-width:150px">${wizardState.selectedMedia[m].name}</span>
-            </div>`;
-            idx++;
+function buildScheduleItems() {
+    /**
+     * Build the full schedule: [{time, accountIdx, mediaIdx, account, media}]
+     */
+    const times = generateScheduleTimes();
+    const mediaCount = wizardState.selectedMedia.length;
+    const acctCount = wizardState.selectedAccounts.length;
+    if (!times.length || !mediaCount || !acctCount) return [];
+
+    const roundRobin = wizardState.roundRobin;
+    let items = [];
+
+    if (roundRobin) {
+        // Each media file goes to one account, cycling through accounts
+        for (let i = 0; i < times.length && i < mediaCount; i++) {
+            const acctIdx = i % acctCount;
+            items.push({
+                time: times[i],
+                accountIdx: acctIdx,
+                mediaIdx: i,
+                account: wizardState.selectedAccounts[acctIdx],
+                media: wizardState.selectedMedia[i]
+            });
+        }
+    } else {
+        // Each media to every account
+        let idx = 0;
+        for (let m = 0; m < mediaCount; m++) {
+            for (let a = 0; a < acctCount; a++) {
+                if (idx < times.length) {
+                    items.push({
+                        time: times[idx],
+                        accountIdx: a,
+                        mediaIdx: m,
+                        account: wizardState.selectedAccounts[a],
+                        media: wizardState.selectedMedia[m]
+                    });
+                }
+                idx++;
+            }
         }
     }
 
-    if (total > 20) {
-        html += `<div class="text-muted text-center py-2">... and ${total - 20} more items</div>`;
+    wizardState.generatedSchedule = items;
+    return items;
+}
+
+function updateSchedulePreview() {
+    const items = buildScheduleItems();
+    const preview = $('#schedulePreview');
+
+    if (!items.length) {
+        preview.html('<div class="text-muted text-center py-3">Configure media & accounts first</div>');
+        return;
     }
 
-    html = `<div class="text-muted mb-2">Total: <strong class="text-white">${total} items</strong></div>` + html;
-    $('#schedulePreview').html(html);
+    let html = `<div class="text-muted mb-2">Total: <strong class="text-white">${items.length} items</strong>
+        ${wizardState.roundRobin ? '<span class="badge bg-info bg-opacity-25 text-info ms-2">Round-robin</span>' : ''}
+    </div>`;
+
+    const showCount = Math.min(items.length, 25);
+    for (let i = 0; i < showCount; i++) {
+        const item = items[i];
+        html += `<div class="schedule-preview-item">
+            <span class="text-muted" style="min-width:30px">${i + 1}.</span>
+            <span style="min-width:130px">${formatDateTime(item.time)}</span>
+            <span class="text-primary">${item.account.username}</span>
+            <span class="text-muted ms-auto text-truncate" style="max-width:150px">${item.media.name}</span>
+        </div>`;
+    }
+    if (items.length > showCount) {
+        html += `<div class="text-muted text-center py-2">... and ${items.length - showCount} more items</div>`;
+    }
+    preview.html(html);
 }
 
 // ============ STEP 6: REVIEW ============
 function buildReview() {
     collectStepData();
+    const items = buildScheduleItems();
 
     const mediaCount = wizardState.selectedMedia.length;
     const acctCount = wizardState.selectedAccounts.length;
-    const total = mediaCount * acctCount;
-    const interval = wizardState.intervalHours;
-    const start = new Date(wizardState.startTime);
-    const endMs = start.getTime() + (total - 1) * interval * 3600000;
-    const end = new Date(endMs);
+    const total = items.length;
 
-    $('#reviewType').html(`<i class="fas fa-${wizardState.contentType === 'post' ? 'image' : wizardState.contentType === 'reel' ? 'film' : 'circle-notch'} me-1"></i>${wizardState.contentType.toUpperCase()}`);
+    const start = items.length ? items[0].time : new Date();
+    const end = items.length ? items[items.length - 1].time : new Date();
+
+    // Strategy label
+    const stratLabels = {
+        'even_spread': 'Even Spread',
+        'fill_week': 'Fill Week',
+        'custom_interval': 'Custom Interval',
+        'random_times': 'Random Times'
+    };
+
+    $('#reviewType').html(typeIcon(wizardState.contentType));
     $('#reviewMedia').text(mediaCount + ' files');
     $('#reviewAccounts').text(acctCount + ' accounts');
     $('#reviewTotal').text(total + ' items');
     $('#reviewStart').text(formatDateTime(start));
     $('#reviewEnd').text(formatDateTime(end));
-    $('#reviewInterval').text(interval + ' hours');
+    $('#reviewInterval').text(stratLabels[wizardState.strategy] || wizardState.strategy);
     $('#reviewCaption').text(wizardState.caption || '(none)');
     $('#reviewHashtags').text(wizardState.hashtags || '(none)');
 
     // Build review table
     let tbody = '';
-    let idx = 0;
-    for (let m = 0; m < mediaCount; m++) {
-        for (let a = 0; a < acctCount; a++) {
-            const time = new Date(start.getTime() + idx * interval * 3600000);
-            tbody += `<tr>
-                <td>${idx + 1}</td>
-                <td>${formatDateTime(time)}</td>
-                <td>${wizardState.selectedAccounts[a].username}</td>
-                <td class="text-truncate" style="max-width:200px">${wizardState.selectedMedia[m].name}</td>
-            </tr>`;
-            idx++;
-            if (idx > 50) break;
-        }
-        if (idx > 50) break;
+    const showMax = 50;
+    for (let i = 0; i < Math.min(items.length, showMax); i++) {
+        const item = items[i];
+        tbody += `<tr>
+            <td>${i + 1}</td>
+            <td>${formatDateTime(item.time)}</td>
+            <td>${item.account.username}</td>
+            <td class="text-truncate" style="max-width:200px">${item.media.name}</td>
+        </tr>`;
     }
-    if (total > 50) tbody += `<tr><td colspan="4" class="text-muted text-center">... ${total - 50} more</td></tr>`;
+    if (total > showMax) tbody += `<tr><td colspan="4" class="text-muted text-center">... ${total - showMax} more</td></tr>`;
     $('#reviewTableBody').html(tbody);
 }
 
@@ -1219,19 +1790,38 @@ function submitBatch() {
     const btn = $('#btnSubmitBatch');
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Scheduling...');
 
+    const items = wizardState.generatedSchedule;
+    if (!items || !items.length) {
+        btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
+        alert('No schedule items generated. Go back and configure timing.');
+        return;
+    }
+
+    // Build schedule_items array for smart batch endpoint
+    const scheduleItems = items.map(item => ({
+        media_path: item.media.full_path,
+        account_id: item.account.account_id,
+        device_serial: item.account.device_serial,
+        username: item.account.username,
+        scheduled_time: item.time.toISOString()
+    }));
+
     const payload = {
         content_type: wizardState.contentType,
-        media_paths: wizardState.selectedMedia.map(m => m.full_path),
-        accounts: wizardState.selectedAccounts,
+        schedule_items: scheduleItems,
         caption_template: wizardState.caption,
         hashtags: wizardState.hashtags,
         location: wizardState.location,
         music_search_query: wizardState.musicSearch,
         mention_username: wizardState.mentionUsername,
         link_url: wizardState.linkUrl,
-        start_time: wizardState.startTime,
-        interval_hours: wizardState.intervalHours,
-        batch_name: wizardState.batchName
+        batch_name: wizardState.batchName,
+        strategy: wizardState.strategy,
+        // Fallback fields for legacy compat
+        media_paths: wizardState.selectedMedia.map(m => m.full_path),
+        accounts: wizardState.selectedAccounts,
+        start_time: items[0].time.toISOString(),
+        interval_hours: wizardState.intervalHours || 1
     };
 
     $.ajax({
@@ -1241,8 +1831,8 @@ function submitBatch() {
         data: JSON.stringify(payload),
         success: function(data) {
             btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
-            alert(`✅ Batch scheduled!\n\nBatch ID: ${data.batch_id}\nTotal items: ${data.total_items}\nAccounts: ${data.accounts}\nMedia files: ${data.media_files}`);
-            
+            alert(`Batch scheduled!\n\nBatch ID: ${data.batch_id}\nTotal items: ${data.total_items}\nAccounts: ${data.accounts}\nMedia files: ${data.media_files}`);
+
             // Reset wizard
             resetWizard();
             loadStats();
@@ -1259,10 +1849,19 @@ function resetWizard() {
     wizardState = {
         step: 1, contentType: null, selectedMedia: [], caption: '', hashtags: '',
         location: '', musicSearch: '', mentionUsername: '', linkUrl: '',
-        selectedAccounts: [], startTime: '', intervalHours: 1, batchName: ''
+        selectedAccounts: [], startTime: '', intervalHours: 1, batchName: '',
+        strategy: 'even_spread', evenStartDate: '', evenEndDate: '',
+        evenPostsPerDay: 2, evenWindowStart: 9, evenWindowEnd: 21,
+        fillWeekPostsPerDay: 2, fillWeekStartDay: 'today',
+        randomStartDate: '', randomEndDate: '', randomPostsPerDay: 2,
+        randomWindowStart: 9, randomWindowEnd: 21, roundRobin: true,
+        generatedSchedule: []
     };
     $('.type-card').removeClass('selected');
     $('#btnStep1Next').prop('disabled', true);
+    mediaTypeFilter = 'all';
+    currentFolderId = '';
+    selectStrategy('even_spread');
     goToStep(1);
 }
 
@@ -1339,8 +1938,8 @@ function loadBatches() {
             html = '<tr><td colspan="8" class="text-center text-muted py-4">No batches yet</td></tr>';
         } else {
             batches.forEach(b => {
-                const progress = b.total_items > 0 
-                    ? Math.round((b.completed_items / b.total_items) * 100) 
+                const progress = b.total_items > 0
+                    ? Math.round((b.completed_items / b.total_items) * 100)
                     : 0;
                 html += `<tr>
                     <td>
@@ -1481,10 +2080,17 @@ function cancelItem(id) {
 
 // ============ HELPERS ============
 function typeIcon(type) {
-    if (type === 'post') return '<span class="badge" style="background:rgba(13,110,253,0.2);color:#0d6efd"><i class="fas fa-image me-1"></i>Post</span>';
-    if (type === 'reel') return '<span class="badge" style="background:rgba(111,66,193,0.2);color:#6f42c1"><i class="fas fa-film me-1"></i>Reel</span>';
-    if (type === 'story') return '<span class="badge" style="background:rgba(253,126,20,0.2);color:#fd7e14"><i class="fas fa-circle-notch me-1"></i>Story</span>';
+    if (type === 'post') return '<span class="badge badge-post"><i class="fas fa-image me-1"></i>Post</span>';
+    if (type === 'reel') return '<span class="badge badge-reel"><i class="fas fa-film me-1"></i>Reel</span>';
+    if (type === 'story') return '<span class="badge badge-story"><i class="fas fa-circle-notch me-1"></i>Story</span>';
     return type || '-';
+}
+
+function calTypeIcon(type) {
+    if (type === 'post') return '<i class="fas fa-image" style="color:#0d6efd;font-size:0.7rem" title="Post"></i>';
+    if (type === 'reel') return '<i class="fas fa-film" style="color:#6f42c1;font-size:0.7rem" title="Reel"></i>';
+    if (type === 'story') return '<i class="fas fa-circle-notch" style="color:#fd7e14;font-size:0.7rem" title="Story"></i>';
+    return '';
 }
 
 function statusBadge(status) {
@@ -1581,7 +2187,8 @@ function loadTpFolderFiles() {
         }
         var file = tpAllFolderFiles.find(function(f) { return f.path === path; });
         if (file && !file.is_video) {
-            $('#tpMediaPreview').html('<img src="' + API + '/media-file/' + encodeURIComponent(path) + '" style="max-height:180px; border-radius:8px;">').show();
+            var imgUrl = file.thumb_url || (API + '/media-file/' + encodeURIComponent(path));
+            $('#tpMediaPreview').html('<img src="' + imgUrl + '" style="max-height:180px; border-radius:8px;">').show();
         } else if (file && file.is_video) {
             $('#tpMediaPreview').html('<div class="py-4 text-muted"><i class="fas fa-video fa-3x mb-2 d-block"></i>' + file.name + '</div>').show();
         } else {
