@@ -269,6 +269,27 @@
 <!-- Toast Container -->
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- Auto-Fix Confirmation Modal -->
+<div class="modal fade" id="autofixModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-wrench me-2 text-warning"></i>Auto-Fix Account</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="autofixModalBody">
+                <div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirmAutofixBtn" onclick="confirmAutoFix()" disabled>
+                    <i class="fas fa-wrench me-1"></i>Replace Account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Replace Confirmation Modal -->
 <div class="modal fade" id="replaceModal" tabindex="-1">
     <div class="modal-dialog">
@@ -407,8 +428,16 @@ function renderEvents(events) {
     }
 
     emptyState.classList.add('d-none');
-    tbody.innerHTML = events.map(e => `
-        <tr>
+    tbody.innerHTML = events.map(e => {
+        // Check if this event's account is auto-fixable
+        const isFixable = isAutoFixable(e.event_type);
+        const fixBtn = isFixable && e.account_id
+            ? `<button class="btn-autofix me-1" onclick="showAutoFixModal(${e.account_id}, '${escHtml(e.username || '')}', '${escHtml(e.event_type)}', '${escHtml(e.device_name || e.device_serial || '')}')" title="Auto-Fix: Replace from inventory">
+                <i class="fas fa-wrench me-1"></i>Auto-Fix
+               </button>`
+            : '';
+
+        return `<tr>
             <td>
                 <strong class="text-white">@${escHtml(e.username || '?')}</strong>
             </td>
@@ -423,7 +452,8 @@ function renderEvents(events) {
             </td>
             <td class="text-muted">${timeAgo(e.detected_at)}</td>
             <td>
-                <button class="btn btn-sm btn-outline-warning me-1" onclick="showReplaceModal(${e.id})" title="Replace Account">
+                ${fixBtn}
+                <button class="btn btn-sm btn-outline-warning me-1" onclick="showReplaceModal(${e.id})" title="Replace Account (via health event)">
                     <i class="fas fa-exchange-alt"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-success me-1" onclick="resolveEvent(${e.id})" title="Resolve">
@@ -433,8 +463,12 @@ function renderEvents(events) {
                     <i class="fas fa-eye"></i>
                 </button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
+}
+
+function isAutoFixable(eventType) {
+    return ['banned', 'suspended', 'challenge', 'login_failed', 'verification_required'].indexOf(eventType) !== -1;
 }
 
 function resolveEvent(eventId) {
@@ -655,10 +689,167 @@ function confirmReplace() {
 function showToast(message, type) {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
-    toast.className = 'toast-msg' + (type === 'error' ? ' error' : '');
+    toast.className = 'toast-msg' + (type === 'error' ? ' error' : type === 'warning' ? ' warning' : '');
     toast.textContent = message;
     container.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 5000);
+}
+
+// ── Auto-Fix Flow ──
+let pendingAutoFixAccountId = null;
+
+function showAutoFixModal(accountId, username, status, device) {
+    pendingAutoFixAccountId = accountId;
+    const body = document.getElementById('autofixModalBody');
+    const confirmBtn = document.getElementById('confirmAutofixBtn');
+    confirmBtn.disabled = true;
+
+    body.innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    new bootstrap.Modal(document.getElementById('autofixModal')).show();
+
+    // Fetch the next available inventory account for preview
+    fetch('/api/account-health/inventory-available')
+        .then(r => r.json())
+        .then(data => {
+            if (data.available <= 0) {
+                body.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        No available accounts in inventory.
+                        <br>Import more accounts in the <a href="/inventory" class="text-warning">Inventory page</a>.
+                    </div>`;
+                return;
+            }
+
+            confirmBtn.disabled = false;
+
+            const statusBadge = `<span class="badge-health badge-${escHtml(status)}">${statusIcon(status)} ${formatStatus(status)}</span>`;
+
+            body.innerHTML = `
+                <div class="replace-detail">
+                    <div class="label">Broken Account</div>
+                    <div class="value text-danger">@${escHtml(username)}</div>
+                    <div class="mt-1">
+                        ${statusBadge}
+                        <span class="text-muted ms-2" style="font-size:.82rem;">on <strong>${escHtml(device)}</strong></span>
+                    </div>
+                </div>
+
+                <div class="replace-arrow">
+                    <i class="fas fa-arrow-down"></i>
+                </div>
+
+                <div class="replace-detail">
+                    <div class="label">Fresh Account from Inventory</div>
+                    <div class="value text-success"><i class="fas fa-user-plus me-1"></i>Next available</div>
+                    <div class="mt-1 text-muted" style="font-size:.82rem;">
+                        ${data.available} account(s) available in inventory
+                    </div>
+                </div>
+
+                <div class="replace-warning mt-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>What will happen:</strong>
+                    <ul class="mb-0 mt-1" style="padding-left:1.2rem;">
+                        <li>IG clone app data will be cleared via ADB</li>
+                        <li>New account inherits device, package &amp; schedule</li>
+                        <li>Warmup mode: <strong>Reels only for 7 days</strong></li>
+                        <li>Login task queued automatically</li>
+                        <li>Old account marked as <code>replaced</code></li>
+                    </ul>
+                </div>
+            `;
+        })
+        .catch(err => {
+            body.innerHTML = '<div class="alert alert-danger">Failed to load: ' + escHtml(err.message) + '</div>';
+        });
+}
+
+function confirmAutoFix() {
+    if (!pendingAutoFixAccountId) return;
+
+    const confirmBtn = document.getElementById('confirmAutofixBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Replacing...';
+
+    fetch('/api/account-health/auto-fix', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ account_id: pendingAutoFixAccountId }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        bootstrap.Modal.getInstance(document.getElementById('autofixModal')).hide();
+
+        if (data.success) {
+            let msg = 'Replaced @' + data.old_account.username + ' -> @' + data.new_account.username + '. Login queued.';
+            if (!data.adb_clear_ok) {
+                msg += ' (ADB clear failed - may need manual clear)';
+                showToast(msg, 'warning');
+            } else {
+                showToast(msg, 'success');
+            }
+        } else {
+            showToast(data.error || 'Auto-fix failed', 'error');
+        }
+        loadData();
+    })
+    .catch(err => {
+        bootstrap.Modal.getInstance(document.getElementById('autofixModal')).hide();
+        showToast('Auto-fix error: ' + err.message, 'error');
+    })
+    .finally(() => {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="fas fa-wrench me-1"></i>Replace Account';
+        pendingAutoFixAccountId = null;
+    });
+}
+
+function fixAllAccounts() {
+    const fixable = replaceableAccounts.length;
+    const available = inventoryAvailable;
+    const canFix = Math.min(fixable, available);
+
+    if (canFix === 0) {
+        showToast('Nothing to fix or no inventory available', 'warning');
+        return;
+    }
+
+    if (!confirm('Replace ' + canFix + ' broken account(s) with fresh accounts from inventory?\n\nThis will:\n- Clear app data on each device\n- Create new accounts with warmup mode\n- Queue login tasks\n\nContinue?')) {
+        return;
+    }
+
+    const btn = document.getElementById('btnFixAll');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Fixing...';
+
+    fetch('/api/account-health/auto-fix-all', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            let msg = 'Bulk fix complete: ' + data.replaced + ' replaced';
+            if (data.errors_count > 0) {
+                msg += ', ' + data.errors_count + ' errors';
+                showToast(msg, 'warning');
+            } else {
+                showToast(msg, 'success');
+            }
+        } else {
+            showToast(data.error || 'Bulk fix failed', 'error');
+        }
+        loadData();
+    })
+    .catch(err => {
+        showToast('Bulk fix error: ' + err.message, 'error');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-magic me-1"></i>Fix All';
+    });
 }
 </script>
 {% endblock %}
