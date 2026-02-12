@@ -963,6 +963,10 @@ class BotEngine:
                 self.settings.get('enable_shared_post', False)):
             actions.append(('share_to_story', self._action_share_to_story))
 
+        # Save post (bookmark)
+        if self.settings.get('enable_save_post', False):
+            actions.append(('save_post', self._action_save_post))
+
         # If no specific actions enabled, at least do engagement
         if not actions:
             actions.append(('engage', self._action_engage))
@@ -1079,6 +1083,13 @@ class BotEngine:
                              self.account, self.session_id)
         # Force story viewing only
         return action._do_story_viewing()
+
+    def _action_save_post(self):
+        """Run save/bookmark post action."""
+        from automation.actions.save_post import SavePostAction
+        action = SavePostAction(self._device, self.device_serial,
+                                self.account, self.session_id)
+        return action.execute()
 
     def _action_share_to_story(self):
         """Run share-to-story action."""

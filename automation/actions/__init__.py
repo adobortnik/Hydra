@@ -12,6 +12,7 @@ Modules:
     reels    - Watch Instagram Reels with human-like behavior
     dm       - Send direct messages
     comment  - Post comments on posts
+    save_post - Save/bookmark posts from feed or profiles
 """
 
 __version__ = "1.1.0"

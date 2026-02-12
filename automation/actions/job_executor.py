@@ -14,6 +14,7 @@ Supported job_types:
   like            — like posts from target account's profile or feed
   comment         — comment on posts (uses job_orders.comment_text)
   share_to_story  — share target account's posts to story
+  save_post       — save/bookmark target account's posts
 """
 
 import datetime
@@ -197,6 +198,7 @@ class JobExecutor:
             'like': self._execute_like,
             'comment': self._execute_comment,
             'share_to_story': self._execute_share_to_story,
+            'save_post': self._execute_save_post,
             'report': self._execute_report,
         }.get(self.job_type)
 
@@ -621,6 +623,54 @@ class JobExecutor:
                  result['actions_done'], result['skipped'], result['errors'])
         return result
 
+
+    # ------------------------------------------------------------------
+    # Save post job
+    # ------------------------------------------------------------------
+    def _execute_save_post(self, budget, done_today):
+        """
+        Save/bookmark posts from target account's profile.
+        Navigates to target profile, opens posts, saves them.
+        """
+        from automation.actions.save_post import SavePostAction
+        from automation.ig_controller import IGController
+
+        result = {'actions_done': 0, 'errors': 0, 'skipped': 0}
+        pkg = self.account.get('package', 'com.instagram.androie')
+
+        target = self.target.lstrip('@')
+        session_target = min(budget, random.randint(3, 8))
+
+        log.info("[%s] JOB #%d (save_post): Saving posts from @%s "
+                 "(%d/%d today, %d/%s total)",
+                 self.device_serial, self.job_id, target,
+                 done_today, self.daily_limit,
+                 self.job.get('completed_count', 0),
+                 str(self.target_count) if self.target_count > 0 else 'unlimited')
+
+        # Create a SavePostAction and use its source-saving logic
+        save_action = SavePostAction(
+            self.device, self.device_serial,
+            self.account, self.session_id, pkg
+        )
+
+        save_action.ctrl.ensure_app()
+        save_action.ctrl.dismiss_popups()
+
+        # Use _save_from_source for targeted saving
+        save_result = save_action._save_from_source(target, session_target)
+
+        for i in range(save_result['saved']):
+            record_job_action(self.job_id, self.account_id,
+                              'save_post', target, success=True)
+
+        result['actions_done'] = save_result['saved']
+        result['errors'] = save_result['errors']
+
+        log.info("[%s] JOB #%d (save_post): Done. Saved %d, errors %d",
+                 self.device_serial, self.job_id,
+                 result['actions_done'], result['errors'])
+        return result
 
     # ------------------------------------------------------------------
     # Report job
