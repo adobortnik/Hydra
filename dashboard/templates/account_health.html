@@ -61,6 +61,47 @@
     .replace-arrow { font-size: 2rem; text-align: center; color: #0d6efd; margin: .5rem 0; }
     .replace-warning { background: #ffc10715; border: 1px solid #ffc10733; border-radius: 8px; padding: .75rem 1rem; font-size: .85rem; color: #ffc107; }
 
+    /* Auto-fix summary card */
+    .autofix-summary {
+        background: linear-gradient(135deg, #1a1d23 0%, #12151a 100%);
+        border: 1px solid #2d3139;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+    }
+    .autofix-summary .stat-number { font-size: 1.8rem; font-weight: 700; }
+    .autofix-summary .stat-label { font-size: .82rem; color: #8b949e; }
+    .autofix-summary .divider { width: 1px; background: #2d3139; margin: 0 1.5rem; }
+
+    /* Status badge colors */
+    .badge-banned            { background: #dc354544; color: #ff6b7a; }
+    .badge-suspended         { background: #dc354533; color: #dc3545; }
+    .badge-challenge         { background: #fd7e1433; color: #fd7e14; }
+    .badge-login_failed      { background: #ffc10733; color: #ffc107; }
+    .badge-verification_required { background: #ffc10733; color: #ffc107; }
+    .badge-replaced          { background: #6c757d22; color: #6c757d; }
+    .badge-pending_login     { background: #0d6efd22; color: #6ea8fe; }
+
+    .btn-autofix {
+        background: linear-gradient(135deg, #fd7e14, #e85d04);
+        border: none;
+        color: white;
+        font-weight: 600;
+        font-size: .78rem;
+        padding: 4px 12px;
+        border-radius: 6px;
+        transition: all .2s;
+    }
+    .btn-autofix:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(253,126,20,.4); color: white; }
+    .btn-autofix:disabled { opacity: .5; transform: none; }
+
+    .btn-fix-all {
+        background: linear-gradient(135deg, #e85d04, #dc3545);
+        border: none;
+        color: white;
+        font-weight: 600;
+    }
+    .btn-fix-all:hover { box-shadow: 0 2px 12px rgba(220,53,69,.4); color: white; }
+
     /* Toast */
     .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
     .toast-msg {
@@ -69,6 +110,7 @@
         animation: slideIn .3s ease-out;
     }
     .toast-msg.error { background: #dc3545; }
+    .toast-msg.warning { background: #fd7e14; }
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 </style>
 {% endblock %}
@@ -91,6 +133,35 @@
                     </button>
                     <button class="btn btn-primary btn-sm" onclick="loadData()">
                         <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-Fix Summary Banner -->
+    <div class="row mb-4" id="autofixBanner" style="display:none;">
+        <div class="col-12">
+            <div class="autofix-summary d-flex align-items-center flex-wrap">
+                <div class="me-3">
+                    <i class="fas fa-wrench fa-2x text-warning" style="opacity:.7"></i>
+                </div>
+                <div>
+                    <div class="d-flex align-items-baseline gap-2">
+                        <span class="stat-number text-warning" id="fixableCount">0</span>
+                        <span class="stat-label">accounts need fixing</span>
+                    </div>
+                </div>
+                <div class="divider align-self-stretch d-none d-md-block"></div>
+                <div class="mx-md-0 mx-2">
+                    <div class="d-flex align-items-baseline gap-2">
+                        <span class="stat-number text-success" id="inventoryAvailCount">0</span>
+                        <span class="stat-label">replacements available</span>
+                    </div>
+                </div>
+                <div class="ms-auto d-flex gap-2">
+                    <button class="btn btn-fix-all btn-sm px-3" id="btnFixAll" onclick="fixAllAccounts()" disabled>
+                        <i class="fas fa-magic me-1"></i>Fix All
                     </button>
                 </div>
             </div>
@@ -246,6 +317,8 @@
 let allEvents = [];
 let currentFilter = '';
 let currentModalEventId = null;
+let replaceableAccounts = [];
+let inventoryAvailable = 0;
 
 document.addEventListener('DOMContentLoaded', loadData);
 
@@ -253,9 +326,14 @@ function loadData() {
     Promise.all([
         fetch('/api/account-health').then(r => r.json()),
         fetch('/api/account-health/summary').then(r => r.json()),
-    ]).then(([events, summary]) => {
+        fetch('/api/account-health/replaceable').then(r => r.json()),
+        fetch('/api/account-health/inventory-available').then(r => r.json()),
+    ]).then(([events, summary, replaceable, invAvail]) => {
         allEvents = events;
+        replaceableAccounts = replaceable.accounts || [];
+        inventoryAvailable = invAvail.available || 0;
         updateSummaryCards(summary);
+        updateAutofixBanner(replaceable, invAvail);
         renderEvents(allEvents);
     }).catch(err => {
         console.error('Failed to load health data:', err);
@@ -272,6 +350,32 @@ function updateSummaryCards(summary) {
     document.getElementById('countSuspended').textContent =
         (e.suspended || 0) + (e.action_blocked || 0);
     document.getElementById('countLoggedOut').textContent = e.logged_out || 0;
+}
+
+function updateAutofixBanner(replaceable, invAvail) {
+    const banner = document.getElementById('autofixBanner');
+    const fixableCount = replaceable.total || 0;
+    const available = invAvail.available || 0;
+
+    document.getElementById('fixableCount').textContent = fixableCount;
+    document.getElementById('inventoryAvailCount').textContent = available;
+
+    const btnFixAll = document.getElementById('btnFixAll');
+    if (fixableCount > 0 && available > 0) {
+        const canFix = Math.min(fixableCount, available);
+        btnFixAll.disabled = false;
+        btnFixAll.innerHTML = '<i class="fas fa-magic me-1"></i>Fix All (' + canFix + ')';
+    } else {
+        btnFixAll.disabled = true;
+        btnFixAll.innerHTML = '<i class="fas fa-magic me-1"></i>Fix All';
+    }
+
+    // Show banner if there are fixable accounts OR available inventory
+    if (fixableCount > 0 || available > 0) {
+        banner.style.display = '';
+    } else {
+        banner.style.display = 'none';
+    }
 }
 
 function filterByType(type, btn) {

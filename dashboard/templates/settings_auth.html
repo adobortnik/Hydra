@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Settings - Hydra Dashboard{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-key me-2"></i>Change Dashboard Password</h5>
+            </div>
+            <div class="card-body">
+                <div id="alertBox" class="d-none"></div>
+                <form id="changePasswordForm">
+                    <div class="mb-3">
+                        <label for="currentPassword" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="currentPassword" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="newPassword" required minlength="6">
+                        <div class="form-text">Minimum 6 characters.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirmPassword" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                        <i class="fas fa-save me-1"></i> Change Password
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div class="card shadow-sm mt-3">
+            <div class="card-body text-muted small">
+                <p class="mb-1"><strong>Note:</strong> After changing the password, you will need to log in again with the new credentials.</p>
+                <p class="mb-0">Default username: <code>admin</code></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('changePasswordForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const alertBox = document.getElementById('alertBox');
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+
+    if (newPassword !== confirmPassword) {
+        alertBox.className = 'alert alert-danger';
+        alertBox.textContent = 'New passwords do not match.';
+        alertBox.classList.remove('d-none');
+        return;
+    }
+
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+
+    try {
+        const resp = await fetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword
+            })
+        });
+        const result = await resp.json();
+        if (resp.ok) {
+            alertBox.className = 'alert alert-success';
+            alertBox.textContent = result.message + ' You will be prompted to log in again.';
+            alertBox.classList.remove('d-none');
+            document.getElementById('changePasswordForm').reset();
+            // Force re-auth by reloading after a short delay
+            setTimeout(function() {
+                // Clear cached credentials by navigating to a URL with wrong creds
+                window.location.reload();
+            }, 2000);
+        } else {
+            alertBox.className = 'alert alert-danger';
+            alertBox.textContent = result.error || 'Failed to change password.';
+            alertBox.classList.remove('d-none');
+        }
+    } catch (err) {
+        alertBox.className = 'alert alert-danger';
+        alertBox.textContent = 'Network error: ' + err.message;
+        alertBox.classList.remove('d-none');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save me-1"></i> Change Password';
+    }
+});
+</script>
+{% endblock %}

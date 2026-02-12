@@ -57,7 +57,9 @@ _logger.info("Dashboard starting up (PID: %d)", os.getpid())
 import zipfile
 
 # Media folder sync functionality is now in a separate script
-from flask import Flask, render_template, jsonify, request, send_from_directory, redirect, make_response
+from flask import Flask, render_template, jsonify, request, send_from_directory, redirect, make_response, Response
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 from jap_api_utils import JAP_API_KEY, save_jap_api_key, load_jap_api_key
 from manage_sources import sources_bp
 from profile_automation_routes import profile_automation_bp
@@ -2437,6 +2439,52 @@ def debug_caption_template(template_id):
         traceback.print_exc()
         return False
 
+# =============================================================================
+# BASIC AUTH SYSTEM
+# =============================================================================
+
+AUTH_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'auth_config.json')
+
+
+def _load_auth_config():
+    """Load auth config from JSON file, creating defaults if missing."""
+    if not os.path.exists(AUTH_CONFIG_PATH):
+        default_config = {
+            'username': 'admin',
+            'password_hash': generate_password_hash('hydra2026')
+        }
+        with open(AUTH_CONFIG_PATH, 'w') as f:
+            json.dump(default_config, f, indent=2)
+        _logger.info("Created default auth_config.json (admin/hydra2026)")
+        return default_config
+    with open(AUTH_CONFIG_PATH, 'r') as f:
+        return json.load(f)
+
+
+def _save_auth_config(config):
+    """Save auth config to JSON file."""
+    with open(AUTH_CONFIG_PATH, 'w') as f:
+        json.dump(config, f, indent=2)
+
+
+def _check_auth(username, password):
+    """Verify username/password against stored config."""
+    config = _load_auth_config()
+    return (username == config.get('username')
+            and check_password_hash(config.get('password_hash', ''), password))
+
+
+def _auth_required_response():
+    """Return a 401 response that triggers the browser Basic Auth dialog."""
+    return Response(
+        'Authentication required.\n', 401,
+        {'WWW-Authenticate': 'Basic realm="Hydra Dashboard"'}
+    )
+
+
+# Ensure config exists at import time
+_load_auth_config()
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024  # 512 MB per request
@@ -2452,8 +2500,59 @@ def _handle_exception(e):
 def _log_errors(response):
     """Log 5xx responses."""
     if response.status_code >= 500:
-        _logger.warning("5xx response: %s %s → %s", request.method, request.path, response.status_code)
+        _logger.warning("5xx response: %s %s -> %s", request.method, request.path, response.status_code)
     return response
+
+
+# ---- Basic Auth before_request hook ----
+@app.before_request
+def _require_basic_auth():
+    """Enforce HTTP Basic Auth on all routes except /api/auth/change-password (handled separately)."""
+    # Allow the change-password endpoint through (it checks auth in its own body)
+    if request.path == '/api/auth/change-password' and request.method == 'POST':
+        return None
+    auth = request.authorization
+    if not auth or not _check_auth(auth.username, auth.password):
+        return _auth_required_response()
+    return None
+
+
+@app.route('/api/auth/change-password', methods=['POST'])
+def change_password():
+    """Change the dashboard password. Requires current credentials."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        current_password = data.get('current_password', '')
+        new_password = data.get('new_password', '')
+
+        if not current_password or not new_password:
+            return jsonify({'error': 'current_password and new_password are required'}), 400
+
+        if len(new_password) < 6:
+            return jsonify({'error': 'New password must be at least 6 characters'}), 400
+
+        config = _load_auth_config()
+        if not check_password_hash(config.get('password_hash', ''), current_password):
+            return jsonify({'error': 'Current password is incorrect'}), 403
+
+        config['password_hash'] = generate_password_hash(new_password)
+        _save_auth_config(config)
+        _logger.info("Dashboard password changed successfully")
+
+        return jsonify({'message': 'Password changed successfully'})
+    except Exception as e:
+        _logger.error("Error changing password: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/settings')
+def settings_page():
+    """Settings page for changing dashboard password."""
+    return render_template('settings_auth.html')
+
 
 # Media folder watcher is in a separate script
 

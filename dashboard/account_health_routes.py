@@ -238,7 +238,510 @@ def api_health_resolve_all():
 
 
 # =====================================================================
-#  ACCOUNT REPLACEMENT - API Endpoints
+#  ACCOUNT AUTO-FIX - Direct account replacement (no health event needed)
+# =====================================================================
+
+# Statuses considered "broken" and eligible for auto-fix
+BROKEN_STATUSES = ('banned', 'suspended', 'challenge', 'login_failed', 'verification_required')
+
+
+@account_health_bp.route('/api/account-health/replaceable')
+def api_replaceable_accounts():
+    """
+    GET /api/account-health/replaceable
+    Returns accounts with broken statuses that can be replaced from inventory.
+    """
+    conn = get_conn()
+    try:
+        placeholders = ','.join('?' * len(BROKEN_STATUSES))
+        rows = conn.execute("""
+            SELECT a.id, a.username, a.password, a.device_id, a.device_serial,
+                   a.instagram_package, a.status, a.updated_at,
+                   d.device_name
+            FROM accounts a
+            LEFT JOIN devices d ON d.id = a.device_id
+            WHERE a.status IN ({})
+            ORDER BY a.updated_at ASC
+        """.format(placeholders), BROKEN_STATUSES).fetchall()
+
+        accounts = rows_to_dicts(rows)
+
+        # Check inventory availability
+        avail_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM account_inventory WHERE status = 'available'"
+        ).fetchone()['cnt']
+
+        # Calculate how long each has been in bad state
+        now = datetime.utcnow()
+        for acct in accounts:
+            updated = acct.get('updated_at')
+            if updated:
+                try:
+                    dt = datetime.fromisoformat(updated)
+                    delta = now - dt
+                    acct['bad_since_hours'] = round(delta.total_seconds() / 3600, 1)
+                    acct['bad_since_text'] = _format_duration(delta)
+                except Exception:
+                    acct['bad_since_hours'] = None
+                    acct['bad_since_text'] = 'unknown'
+            else:
+                acct['bad_since_hours'] = None
+                acct['bad_since_text'] = 'unknown'
+            acct['replacement_available'] = avail_count > 0
+
+        return jsonify({
+            'accounts': accounts,
+            'total': len(accounts),
+            'replacements_available': avail_count,
+        })
+    finally:
+        conn.close()
+
+
+@account_health_bp.route('/api/account-health/inventory-available')
+def api_inventory_available_count():
+    """
+    GET /api/account-health/inventory-available
+    Returns count of available accounts in inventory ready for replacement.
+    """
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM account_inventory WHERE status = 'available'"
+        ).fetchone()
+        return jsonify({'available': row['cnt']})
+    finally:
+        conn.close()
+
+
+@account_health_bp.route('/api/account-health/auto-fix', methods=['POST'])
+def api_auto_fix():
+    """
+    POST /api/account-health/auto-fix
+    Body: { "account_id": int }
+
+    Replaces a broken account with a fresh one from inventory.
+    Preserves device_id, device_serial, instagram_package, position, schedule.
+    """
+    data = request.get_json() or {}
+    account_id = data.get('account_id')
+
+    if not account_id:
+        return jsonify({'error': 'account_id required'}), 400
+
+    conn = get_conn()
+    try:
+        now = datetime.utcnow().isoformat()
+
+        # a) Load the broken account
+        old_account = conn.execute(
+            "SELECT * FROM accounts WHERE id = ?", (account_id,)
+        ).fetchone()
+        if not old_account:
+            return jsonify({'error': 'Account not found'}), 404
+        old_account = dict(old_account)
+
+        # Verify it is actually in a broken state
+        if old_account['status'] not in BROKEN_STATUSES:
+            return jsonify({
+                'error': 'Account status is "%s" - not eligible for auto-fix. Must be one of: %s'
+                         % (old_account['status'], ', '.join(BROKEN_STATUSES))
+            }), 400
+
+        # b) Load old account settings (for app_cloner etc.)
+        old_settings_row = conn.execute(
+            "SELECT settings_json FROM account_settings WHERE account_id = ?",
+            (old_account['id'],)
+        ).fetchone()
+        old_settings_json = json.loads(old_settings_row['settings_json']) if old_settings_row else {}
+        app_cloner = old_settings_json.get('app_cloner', 'None')
+
+        # c) Pick next available inventory account
+        inv = conn.execute(
+            "SELECT * FROM account_inventory WHERE status = 'available' ORDER BY id ASC LIMIT 1"
+        ).fetchone()
+        if not inv:
+            return jsonify({'error': 'No available accounts in inventory'}), 404
+        inv = dict(inv)
+
+        # d) Preserve device assignment from old account
+        device_id = old_account.get('device_id')
+        device_serial = old_account['device_serial']
+        instagram_package = old_account['instagram_package']
+        start_time = old_account.get('start_time', '0')
+        end_time = old_account.get('end_time', '0')
+
+        # e) Clear IG clone app data via ADB
+        adb_clear_ok = False
+        adb_error = None
+        try:
+            adb_serial = device_serial.replace('_', ':')
+            clear_result = subprocess.run(
+                ['adb', '-s', adb_serial, 'shell', 'pm', 'clear', instagram_package],
+                capture_output=True, timeout=15, text=True
+            )
+            adb_clear_ok = clear_result.returncode == 0
+            if not adb_clear_ok:
+                adb_error = clear_result.stderr or clear_result.stdout
+                log.warning("ADB clear failed for %s on %s: %s",
+                            instagram_package, adb_serial, adb_error)
+        except Exception as e:
+            adb_error = str(e)
+            log.warning("ADB clear exception for %s on %s: %s",
+                        instagram_package, device_serial, e)
+
+        # f) Create new account record (inherits device + package + schedule)
+        cursor = conn.execute("""
+            INSERT INTO accounts (
+                device_id, device_serial, username, password, email,
+                instagram_package, two_fa_token, status,
+                follow_enabled, unfollow_enabled, mute_enabled, like_enabled,
+                comment_enabled, story_enabled, switchmode,
+                start_time, end_time,
+                follow_action, unfollow_action, random_action, random_delay,
+                follow_delay, unfollow_delay, like_delay,
+                follow_limit_perday, unfollow_limit_perday, like_limit_perday,
+                created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, ?, 'pending_login',
+                'False', 'False', 'False', 'False',
+                'False', 'False', 'False',
+                ?, ?,
+                '0', '0', '30,60', '30,60',
+                '30', '30', '0',
+                '0', '0', '0',
+                ?, ?
+            )
+        """, (
+            device_id, device_serial, inv['username'], inv['password'], inv.get('email'),
+            instagram_package, inv.get('two_factor_auth'),
+            start_time, end_time,
+            now, now
+        ))
+        new_account_id = cursor.lastrowid
+
+        # g) Create account_settings with warmup config (reels only for 7 days)
+        warmup_end = (datetime.utcnow() + timedelta(days=7)).isoformat()
+        warmup_settings = {
+            "enable_likepost": False,
+            "enable_comment": False,
+            "enable_directmessage": False,
+            "enable_story_viewer": False,
+            "enable_human_behaviour_emulation": False,
+            "enable_viewhomefeedstory": False,
+            "enable_scrollhomefeed": False,
+            "enable_share_post_to_story": False,
+            "enable_follow_from_list": False,
+            "enable_watch_reels": True,
+            "min_reels_to_watch": "10",
+            "max_reels_to_watch": "20",
+            "watch_reels_duration_min": "5",
+            "watch_reels_duration_max": "15",
+            "watch_reels_daily_limit": "100",
+            "enable_save_reels_while_watching": False,
+            "enable_like_reels_while_watching": False,
+            "enable_comment_reels_while_watching": False,
+            "app_cloner": app_cloner,
+            "_warmup_mode": True,
+            "_warmup_start": now,
+            "_warmup_end": warmup_end,
+            "_replaced_account_id": old_account['id'],
+            "_replaced_username": old_account['username'],
+        }
+
+        conn.execute(
+            "INSERT INTO account_settings (account_id, settings_json, updated_at) VALUES (?, ?, ?)",
+            (new_account_id, json.dumps(warmup_settings), now)
+        )
+
+        # h) Queue login task
+        conn.execute("""
+            INSERT INTO login_tasks (
+                device_serial, instagram_package, username, password,
+                two_fa_token, status, priority, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, 'pending', 10, ?, ?)
+        """, (
+            device_serial, instagram_package, inv['username'], inv['password'],
+            inv.get('two_factor_auth'), now, now
+        ))
+
+        # i) Mark old account as replaced
+        conn.execute(
+            "UPDATE accounts SET status = 'replaced', updated_at = ? WHERE id = ?",
+            (now, old_account['id'])
+        )
+
+        # j) Resolve any open health events for this account
+        conn.execute("""
+            UPDATE account_health_events
+            SET resolved_at = ?, resolved_by = 'auto_fix', replacement_account_id = ?
+            WHERE account_id = ? AND resolved_at IS NULL
+        """, (now, new_account_id, old_account['id']))
+
+        # k) Update inventory account status
+        conn.execute("""
+            UPDATE account_inventory
+            SET status = 'used',
+                device_assigned = ?,
+                assigned_to_device_serial = ?,
+                assigned_to_account_id = ?,
+                assigned_at = ?,
+                date_used = ?
+            WHERE id = ?
+        """, (device_serial, device_serial, new_account_id, now, now, inv['id']))
+
+        conn.commit()
+
+        log.info("Auto-fix: @%s -> @%s on %s (%s)",
+                 old_account['username'], inv['username'], device_serial, instagram_package)
+
+        return jsonify({
+            'success': True,
+            'old_account': {
+                'id': old_account['id'],
+                'username': old_account['username'],
+                'status': old_account['status'],
+            },
+            'new_account': {
+                'id': new_account_id,
+                'username': inv['username'],
+            },
+            'device_serial': device_serial,
+            'instagram_package': instagram_package,
+            'login_task_queued': True,
+            'warmup_days': 7,
+            'adb_clear_ok': adb_clear_ok,
+            'adb_error': adb_error,
+        })
+
+    except Exception as e:
+        log.error("Auto-fix error: %s", e, exc_info=True)
+        return jsonify({'error': 'Auto-fix failed: %s' % str(e)}), 500
+    finally:
+        conn.close()
+
+
+@account_health_bp.route('/api/account-health/auto-fix-all', methods=['POST'])
+def api_auto_fix_all():
+    """
+    POST /api/account-health/auto-fix-all
+    Bulk replace all broken accounts from inventory (up to available count).
+    Returns summary of replacements made.
+    """
+    conn = get_conn()
+    results = []
+    errors = []
+    try:
+        placeholders = ','.join('?' * len(BROKEN_STATUSES))
+        broken_rows = conn.execute("""
+            SELECT id, username, status FROM accounts
+            WHERE status IN ({})
+            ORDER BY updated_at ASC
+        """.format(placeholders), BROKEN_STATUSES).fetchall()
+        conn.close()  # Close - each fix will get its own conn via the endpoint
+
+        for row in broken_rows:
+            acct = dict(row)
+            # Call auto-fix for each account by simulating the request internally
+            try:
+                inner_conn = get_conn()
+                now = datetime.utcnow().isoformat()
+
+                old_account = inner_conn.execute(
+                    "SELECT * FROM accounts WHERE id = ?", (acct['id'],)
+                ).fetchone()
+                if not old_account:
+                    errors.append({'account_id': acct['id'], 'error': 'Not found'})
+                    inner_conn.close()
+                    continue
+                old_account = dict(old_account)
+
+                if old_account['status'] not in BROKEN_STATUSES:
+                    # Status changed since query - skip
+                    inner_conn.close()
+                    continue
+
+                # Pick next available inventory account
+                inv = inner_conn.execute(
+                    "SELECT * FROM account_inventory WHERE status = 'available' ORDER BY id ASC LIMIT 1"
+                ).fetchone()
+                if not inv:
+                    errors.append({
+                        'account_id': acct['id'],
+                        'username': acct['username'],
+                        'error': 'No more inventory accounts available'
+                    })
+                    inner_conn.close()
+                    break  # No point continuing
+
+                inv = dict(inv)
+
+                # Load old settings
+                old_settings_row = inner_conn.execute(
+                    "SELECT settings_json FROM account_settings WHERE account_id = ?",
+                    (old_account['id'],)
+                ).fetchone()
+                old_settings_json = json.loads(old_settings_row['settings_json']) if old_settings_row else {}
+                app_cloner = old_settings_json.get('app_cloner', 'None')
+
+                device_id = old_account.get('device_id')
+                device_serial = old_account['device_serial']
+                instagram_package = old_account['instagram_package']
+                start_time = old_account.get('start_time', '0')
+                end_time = old_account.get('end_time', '0')
+
+                # ADB clear
+                adb_clear_ok = False
+                try:
+                    adb_serial = device_serial.replace('_', ':')
+                    clear_result = subprocess.run(
+                        ['adb', '-s', adb_serial, 'shell', 'pm', 'clear', instagram_package],
+                        capture_output=True, timeout=15, text=True
+                    )
+                    adb_clear_ok = clear_result.returncode == 0
+                except Exception:
+                    pass
+
+                # Create new account
+                cursor = inner_conn.execute("""
+                    INSERT INTO accounts (
+                        device_id, device_serial, username, password, email,
+                        instagram_package, two_fa_token, status,
+                        follow_enabled, unfollow_enabled, mute_enabled, like_enabled,
+                        comment_enabled, story_enabled, switchmode,
+                        start_time, end_time,
+                        follow_action, unfollow_action, random_action, random_delay,
+                        follow_delay, unfollow_delay, like_delay,
+                        follow_limit_perday, unfollow_limit_perday, like_limit_perday,
+                        created_at, updated_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?,
+                        ?, ?, 'pending_login',
+                        'False', 'False', 'False', 'False',
+                        'False', 'False', 'False',
+                        ?, ?,
+                        '0', '0', '30,60', '30,60',
+                        '30', '30', '0',
+                        '0', '0', '0',
+                        ?, ?
+                    )
+                """, (
+                    device_id, device_serial, inv['username'], inv['password'], inv.get('email'),
+                    instagram_package, inv.get('two_factor_auth'),
+                    start_time, end_time, now, now
+                ))
+                new_account_id = cursor.lastrowid
+
+                # Warmup settings
+                warmup_end = (datetime.utcnow() + timedelta(days=7)).isoformat()
+                warmup_settings = {
+                    "enable_watch_reels": True,
+                    "min_reels_to_watch": "10",
+                    "max_reels_to_watch": "20",
+                    "watch_reels_duration_min": "5",
+                    "watch_reels_duration_max": "15",
+                    "watch_reels_daily_limit": "100",
+                    "app_cloner": app_cloner,
+                    "_warmup_mode": True,
+                    "_warmup_start": now,
+                    "_warmup_end": warmup_end,
+                    "_replaced_account_id": old_account['id'],
+                    "_replaced_username": old_account['username'],
+                }
+                inner_conn.execute(
+                    "INSERT INTO account_settings (account_id, settings_json, updated_at) VALUES (?, ?, ?)",
+                    (new_account_id, json.dumps(warmup_settings), now)
+                )
+
+                # Login task
+                inner_conn.execute("""
+                    INSERT INTO login_tasks (
+                        device_serial, instagram_package, username, password,
+                        two_fa_token, status, priority, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, 'pending', 10, ?, ?)
+                """, (
+                    device_serial, instagram_package, inv['username'], inv['password'],
+                    inv.get('two_factor_auth'), now, now
+                ))
+
+                # Mark old as replaced
+                inner_conn.execute(
+                    "UPDATE accounts SET status = 'replaced', updated_at = ? WHERE id = ?",
+                    (now, old_account['id'])
+                )
+
+                # Resolve health events
+                inner_conn.execute("""
+                    UPDATE account_health_events
+                    SET resolved_at = ?, resolved_by = 'auto_fix_bulk', replacement_account_id = ?
+                    WHERE account_id = ? AND resolved_at IS NULL
+                """, (now, new_account_id, old_account['id']))
+
+                # Update inventory
+                inner_conn.execute("""
+                    UPDATE account_inventory
+                    SET status = 'used',
+                        device_assigned = ?,
+                        assigned_to_device_serial = ?,
+                        assigned_to_account_id = ?,
+                        assigned_at = ?,
+                        date_used = ?
+                    WHERE id = ?
+                """, (device_serial, device_serial, new_account_id, now, now, inv['id']))
+
+                inner_conn.commit()
+                inner_conn.close()
+
+                results.append({
+                    'old_username': old_account['username'],
+                    'old_status': old_account['status'],
+                    'new_username': inv['username'],
+                    'new_account_id': new_account_id,
+                    'device_serial': device_serial,
+                    'adb_clear_ok': adb_clear_ok,
+                })
+
+                log.info("Auto-fix bulk: @%s -> @%s on %s",
+                         old_account['username'], inv['username'], device_serial)
+
+            except Exception as e:
+                errors.append({
+                    'account_id': acct['id'],
+                    'username': acct['username'],
+                    'error': str(e),
+                })
+                log.error("Auto-fix bulk error for #%d: %s", acct['id'], e)
+
+        return jsonify({
+            'success': True,
+            'replaced': len(results),
+            'errors_count': len(errors),
+            'results': results,
+            'errors': errors[:20],
+        })
+
+    except Exception as e:
+        log.error("Auto-fix-all error: %s", e, exc_info=True)
+        return jsonify({'error': 'Bulk auto-fix failed: %s' % str(e)}), 500
+
+
+def _format_duration(delta):
+    """Format a timedelta into a human-readable string (ASCII only)."""
+    total_seconds = int(delta.total_seconds())
+    if total_seconds < 60:
+        return '%ds' % total_seconds
+    if total_seconds < 3600:
+        return '%dm' % (total_seconds // 60)
+    if total_seconds < 86400:
+        return '%dh %dm' % (total_seconds // 3600, (total_seconds % 3600) // 60)
+    days = total_seconds // 86400
+    hours = (total_seconds % 86400) // 3600
+    return '%dd %dh' % (days, hours)
+
+
+# =====================================================================
+#  ACCOUNT REPLACEMENT - API Endpoints (Health Event based)
 # =====================================================================
 
 @account_health_bp.route('/api/account-health/replace-preview/<int:event_id>')

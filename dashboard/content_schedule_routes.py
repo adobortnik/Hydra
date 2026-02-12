@@ -8,6 +8,7 @@ Tables: content_schedule, content_batches
 
 import os
 import uuid
+import subprocess
 import threading
 import logging
 from datetime import datetime, timedelta
@@ -25,6 +26,93 @@ MEDIA_LIBRARY_DIR = os.path.join(BASE_DIR, 'media_library')
 
 # Supported media extensions
 MEDIA_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi', '.mkv', '.webm'}
+
+
+# =============================================================================
+# MEDIA VALIDATION
+# =============================================================================
+
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
+VIDEO_EXTENSIONS = {'.mp4', '.mov'}
+MAX_FILE_SIZE_MB = 100
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
+# Duration limits in seconds
+REEL_MAX_DURATION = 90
+STORY_MAX_DURATION = 60
+
+
+def _get_video_duration(filepath):
+    """Return video duration in seconds using ffprobe, or None if unavailable."""
+    try:
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'default=noprint_wrappers=1:nokey=1', filepath],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        # ffprobe not installed or timed out -- skip duration check
+        pass
+    return None
+
+
+def validate_media(media_path, content_type):
+    """
+    Validate a media file for the given content_type (post/reel/story).
+
+    Returns (ok: bool, error_message: str or None).
+    """
+    if not media_path:
+        return True, None  # no media supplied -- let the caller decide if that's ok
+
+    # Resolve full path if relative
+    full_path = media_path
+    if not os.path.isabs(media_path):
+        full_path = os.path.join(MEDIA_LIBRARY_DIR, media_path)
+
+    # 1. File exists?
+    if not os.path.exists(full_path):
+        return False, "Media file not found: %s" % media_path
+
+    # 2. File size
+    file_size = os.path.getsize(full_path)
+    if file_size > MAX_FILE_SIZE_BYTES:
+        size_mb = round(file_size / (1024 * 1024), 1)
+        return False, "File too large: %sMB (max %sMB)" % (size_mb, MAX_FILE_SIZE_MB)
+
+    ext = os.path.splitext(media_path)[1].lower()
+    is_image = ext in IMAGE_EXTENSIONS
+    is_video = ext in VIDEO_EXTENSIONS
+
+    if not is_image and not is_video:
+        return False, "Unsupported media type: %s. Allowed: %s" % (
+            ext, ', '.join(sorted(IMAGE_EXTENSIONS | VIDEO_EXTENSIONS)))
+
+    # 3. Type-specific checks
+    if content_type == 'reel':
+        if not is_video:
+            return False, ("Reels require video files (%s). Got: %s"
+                           % (', '.join(sorted(VIDEO_EXTENSIONS)), os.path.basename(media_path)))
+        duration = _get_video_duration(full_path)
+        if duration is not None and duration > REEL_MAX_DURATION:
+            return False, ("Reel video too long: %.1fs (max %ds)"
+                           % (duration, REEL_MAX_DURATION))
+
+    elif content_type == 'story':
+        # stories accept images or videos
+        if is_video:
+            duration = _get_video_duration(full_path)
+            if duration is not None and duration > STORY_MAX_DURATION:
+                return False, ("Story video too long: %.1fs (max %ds)"
+                               % (duration, STORY_MAX_DURATION))
+
+    elif content_type == 'post':
+        # posts accept images or videos -- no extra duration constraint
+        pass
+
+    return True, None
 
 
 # =============================================================================
@@ -198,6 +286,13 @@ def create_scheduled_item():
         if data['content_type'] not in ('post', 'reel', 'story'):
             return jsonify({'error': 'content_type must be post, reel, or story'}), 400
 
+        # Validate media if provided
+        media_path = data.get('media_path')
+        if media_path:
+            ok, err = validate_media(media_path, data['content_type'])
+            if not ok:
+                return jsonify({'error': err}), 400
+
         now = datetime.utcnow().isoformat()
         conn = get_conn()
         try:
@@ -340,6 +435,15 @@ def create_batch_schedule():
         media_paths = data.get('media_paths', [])
         if not media_paths:
             return jsonify({'error': 'media_paths is required and must not be empty'}), 400
+
+        # Validate all media files before creating anything
+        validation_errors = []
+        for mp in media_paths:
+            ok, err = validate_media(mp, content_type)
+            if not ok:
+                validation_errors.append(err)
+        if validation_errors:
+            return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
 
         start_time_str = data.get('start_time')
         if not start_time_str:
@@ -801,6 +905,11 @@ def test_post_now():
             full_media_path = os.path.join(MEDIA_LIBRARY_DIR, media_path)
         if not os.path.exists(full_media_path):
             return jsonify({'status': 'error', 'message': 'Media file not found: %s' % media_path}), 400
+
+        # Validate media for content type
+        ok, validation_err = validate_media(media_path, content_type)
+        if not ok:
+            return jsonify({'status': 'error', 'message': validation_err}), 400
 
         # Get account info
         account = get_account_by_id(int(account_id))
