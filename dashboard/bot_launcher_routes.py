@@ -29,6 +29,7 @@ bot_launcher_bp = Blueprint('bot_launcher', __name__, url_prefix='/api/bot')
 FARM_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(FARM_DIR, 'db', 'phone_farm.db')
 LOG_DIR = os.path.join(FARM_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
 RUN_DEVICE_SCRIPT = os.path.join(FARM_DIR, 'run_device.py')
 
 # Use venv python if available, else sys.executable

@@ -1343,23 +1343,97 @@ class IGController:
     def swipe_to_next_reel(self) -> bool:
         """
         Swipe up to advance to the next reel.
-        Uses a safe vertical range well above the bottom nav bar.
-        Returns True if swipe succeeded.
+        Uses a tight vertical strip in the left-center to avoid ad CTAs
+        (Shop Now / Learn More buttons are typically right-center or bottom).
+        Returns True if swipe succeeded and we're still in reels.
         """
         try:
             w, h = self.window_size
             import random as _rand
-            # Keep swipe in the center column, well above nav bar (which sits at ~85% height)
-            start_x = w // 2 + _rand.randint(-20, 20)
-            start_y = int(h * 0.70) + _rand.randint(-10, 10)
-            end_y = int(h * 0.30) + _rand.randint(-10, 10)
-            duration = _rand.uniform(0.25, 0.45)
+            # Use left-of-center X to dodge ad CTA buttons (usually right side)
+            start_x = int(w * 0.35) + _rand.randint(-15, 15)
+            # Swipe from 55% to 20% height — stays ABOVE the ad CTA zone
+            # (Visit Instagram profile / Shop Now buttons sit at ~70-80% height)
+            # Bottom nav is at ~85%+, so we keep the entire swipe in the safe middle
+            start_y = int(h * 0.55) + _rand.randint(-10, 10)
+            end_y = int(h * 0.20) + _rand.randint(-10, 10)
+            duration = _rand.uniform(0.20, 0.35)
             self.device.swipe(start_x, start_y, start_x, end_y, duration=duration)
             time.sleep(1.5)
+
+            # Verify we didn't accidentally tap into an ad profile/webview
+            if not self._recover_from_ad_tap():
+                return False
             return True
         except Exception as e:
             log.error("[%s] Swipe to next reel failed: %s", self.device_serial, e)
             return False
+
+    def is_reel_ad(self, xml: str = None) -> bool:
+        """
+        Detect if the current reel is a sponsored/ad reel.
+        Checks for 'Sponsored' label and ad-specific UI elements.
+        """
+        if xml is None:
+            xml = self.dump_xml("reel_ad_check")
+        if not xml:
+            return False
+        # Instagram shows "Sponsored" text on ad reels + CTA buttons
+        ad_indicators = [
+            'text="Sponsored"',
+            'content-desc="Sponsored"',
+            'text="Visit Instagram profile"',
+            'text="Shop Now"',
+            'text="Shop now"',
+            'text="Learn More"',
+            'text="Learn more"',
+            'text="Install Now"',
+            'text="Install now"',
+            'text="Sign Up"',
+            'text="Download"',
+            'text="Book Now"',
+            'text="Book now"',
+            'text="Get Offer"',
+            'text="Apply Now"',
+            'text="Apply now"',
+            'text="Contact Us"',
+            'text="Watch More"',
+            'text="Subscribe"',
+            'text="Send Message"',
+        ]
+        return any(ind in xml for ind in ad_indicators)
+
+    def _recover_from_ad_tap(self, max_back=3) -> bool:
+        """
+        Check if we accidentally left reels (e.g. tapped an ad).
+        If so, press back repeatedly until we're back in reels.
+        Returns True if we recovered (or never left), False if stuck.
+        """
+        for attempt in range(max_back):
+            try:
+                screen = self.detect_screen()
+                if screen == Screen.REELS:
+                    return True
+                if screen == Screen.POPUP:
+                    self.dismiss_popups()
+                    time.sleep(0.5)
+                    continue
+                # We're on a profile, webview, or unknown — press back
+                log.warning("[%s] Reel ad recovery: landed on %s, pressing back (attempt %d/%d)",
+                            self.device_serial, screen.value, attempt + 1, max_back)
+                self.press_back()
+                time.sleep(1.5)
+            except Exception as e:
+                log.error("[%s] Ad recovery error: %s", self.device_serial, e)
+                self.press_back()
+                time.sleep(1)
+        # Final check
+        screen = self.detect_screen()
+        if screen == Screen.REELS:
+            return True
+        log.error("[%s] Could not recover to reels after ad tap (screen=%s)",
+                  self.device_serial, screen.value)
+        return False
 
     # -----------------------------------------------------------------------
     # Follow/Unfollow Operations

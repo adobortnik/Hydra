@@ -165,35 +165,34 @@ class ReelsAction:
                         self.session_id, self.device_serial, self.username,
                         'reel_watch', success=True)
 
-                    # Maybe like the reel
-                    if self.like_enabled and random.randint(1, 100) <= self.like_percent:
+                    # Only like/save non-ad reels
+                    is_ad = self.ctrl.is_reel_ad()
+
+                    if not is_ad and self.like_enabled and random.randint(1, 100) <= self.like_percent:
                         if self.ctrl.like_reel():
                             result['reels_liked'] += 1
                             log_action(
                                 self.session_id, self.device_serial, self.username,
                                 'reel_like', success=True)
 
-                    # Maybe save the reel
-                    if self.save_enabled and random.randint(1, 100) <= 20:
+                    if not is_ad and self.save_enabled and random.randint(1, 100) <= 20:
                         if self._save_current_reel():
                             result['reels_saved'] += 1
 
                     # Swipe to next reel using IGController
                     if i < target - 1:
-                        self.ctrl.swipe_to_next_reel()
+                        swipe_ok = self.ctrl.swipe_to_next_reel()
                         random_sleep(1, 3, label="reel_transition")
 
-                        # Verify we're still in reels view
-                        screen = self.ctrl.detect_screen()
-                        if screen == Screen.POPUP:
-                            self.ctrl.dismiss_popups()
-                            time.sleep(1)
-                        elif screen != Screen.REELS:
-                            log.warning("[%s] Left reels view after swipe (screen=%s), recovering",
-                                        self.device_serial, screen.value)
+                        if not swipe_ok:
+                            # swipe_to_next_reel already tried recovery;
+                            # if it still failed, try full re-navigation
+                            log.warning("[%s] Swipe+recovery failed, re-navigating to reels",
+                                        self.device_serial)
                             if not self.ctrl.navigate_to(Screen.REELS):
                                 log.error("[%s] Could not recover to reels", self.device_serial)
                                 break
+                            time.sleep(2)
 
                 except Exception as e:
                     log.error("[%s] Reel #%d error: %s",
@@ -227,8 +226,16 @@ class ReelsAction:
     def _watch_current_reel(self, reel_num, total):
         """
         Watch the current reel for a random duration.
+        If the reel is an ad, skip it quickly to avoid accidental taps.
         Returns True if successfully watched.
         """
+        # Check if current reel is an ad — if so, skip fast
+        if self.ctrl.is_reel_ad():
+            log.info("[%s] Reel %d/%d is an AD — skipping quickly",
+                     self.device_serial, reel_num, total)
+            time.sleep(random.uniform(1.0, 2.5))
+            return True  # counted as "watched" but we'll swipe away fast
+
         watch_time = random.uniform(self.min_watch_sec, self.max_watch_sec)
 
         # Occasionally watch longer (simulates being hooked)
@@ -245,18 +252,26 @@ class ReelsAction:
         time.sleep(watch_time)
 
         # Small random touch during viewing (simulates natural behavior)
-        if random.random() < 0.2:
+        # ONLY on non-ad reels (ad reels have clickable overlays)
+        if random.random() < 0.15:
             self._random_screen_touch()
 
         return True
 
     def _random_screen_touch(self):
-        """Simulate a random natural touch (e.g., tapping to pause/unpause)."""
+        """
+        Simulate a random natural touch (e.g., tapping to pause/unpause).
+        Uses left side of screen to avoid ad CTAs on right side.
+        """
         try:
             w, h = self.ctrl.window_size
-            self.device.click(w // 2, h // 2)
+            # Tap left-of-center in the safe zone (no ad buttons here)
+            tap_x = int(w * 0.30) + random.randint(-20, 20)
+            tap_y = int(h * 0.45) + random.randint(-30, 30)
+            self.device.click(tap_x, tap_y)
             time.sleep(random.uniform(0.5, 2.0))
-            self.device.click(w // 2, h // 2)
+            # Tap again to unpause
+            self.device.click(tap_x, tap_y)
         except Exception:
             pass
 

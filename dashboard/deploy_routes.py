@@ -322,6 +322,40 @@ def api_deploy_execute():
                         ext_settings['storyviewer_limit_perday'] = '0'
                         ext_settings['follow_limit_perday'] = '0'
                         ext_settings['directmessage_daily_limit'] = '0'
+
+                        # ── Reels defaults ──
+                        ext_settings['min_reels_to_watch'] = 10
+                        ext_settings['max_reels_to_watch'] = 20
+                        ext_settings['min_sec_reel_watch'] = 10
+                        ext_settings['max_sec_reel_watch'] = 20
+                        ext_settings['enable_save_reels_after_watching'] = False
+                        ext_settings['enable_like_reel'] = True
+                        ext_settings['like_reel_percent'] = 40
+                        ext_settings['watch_reel_limit_perday'] = 50
+
+                        # ── HBE defaults ──
+                        # Watch Home Feed Stories
+                        ext_settings['enable_viewhomefeedstory'] = True
+                        ext_settings['min_viewhomefeedstory'] = 5
+                        ext_settings['max_viewhomefeedstory'] = 10
+                        ext_settings['min_viewhomefeedstory_delay'] = 3
+                        ext_settings['max_viewhomefeedstory_delay'] = 5
+                        ext_settings['percent_to_like_homefeedstory'] = 50
+
+                        # Scroll Home Feed
+                        ext_settings['min_scrollhomefeed'] = 5
+                        ext_settings['max_scrollhomefeed'] = 10
+                        ext_settings['min_scrollhomefeed_delay'] = 3
+                        ext_settings['max_scrollhomefeed_delay'] = 5
+                        ext_settings['percent_to_like_homefeed'] = 50
+
+                        # Scroll Explore Page
+                        ext_settings['enable_scrollexplorepage'] = True
+                        ext_settings['min_scrollexplorepage'] = 5
+                        ext_settings['max_scrollexplorepage'] = 10
+                        ext_settings['min_scrollexplorepage_delay'] = 5
+                        ext_settings['max_scrollexplorepage_delay'] = 7
+                        ext_settings['percent_to_like_explorepagepost'] = 50
                     upsert_account_settings(new_acc['id'], ext_settings)
 
                 imported += 1
