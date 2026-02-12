@@ -203,15 +203,17 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
         ORDER BY CAST(COALESCE(a.start_time, '0') AS INTEGER), a.username
     """, (today, yesterday, device_serial)).fetchall()
 
-    # Get today's action counts from action_history (the actual source of truth)
+    # Get action counts for the target date from action_history
+    next_day = (datetime.strptime(today, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
     action_counts = conn.execute("""
         SELECT username, action_type, COUNT(*) as cnt
         FROM action_history
         WHERE device_serial = ?
           AND timestamp >= ?
+          AND timestamp < ?
           AND success = 1
         GROUP BY username, action_type
-    """, (device_serial, today)).fetchall()
+    """, (device_serial, today, next_day)).fetchall()
     
     # Build lookup: username -> {action_type: count}
     counts_by_user = {}
