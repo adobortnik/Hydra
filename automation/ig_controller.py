@@ -1340,25 +1340,47 @@ class IGController:
             log.error("[%s] Like reel failed: %s", self.device_serial, e)
             return False
 
-    def swipe_to_next_reel(self) -> bool:
+    def swipe_to_next_reel(self, is_ad: bool = False) -> bool:
         """
         Swipe up to advance to the next reel.
-        Uses a tight vertical strip in the left-center to avoid ad CTAs
-        (Shop Now / Learn More buttons are typically right-center or bottom).
+        If is_ad=True, uses a more aggressive swipe in a guaranteed-safe zone.
         Returns True if swipe succeeded and we're still in reels.
         """
         try:
             w, h = self.window_size
             import random as _rand
-            # Use left-of-center X to dodge ad CTA buttons (usually right side)
-            start_x = int(w * 0.35) + _rand.randint(-15, 15)
-            # Swipe from 55% to 20% height — stays ABOVE the ad CTA zone
-            # (Visit Instagram profile / Shop Now buttons sit at ~70-80% height)
-            # Bottom nav is at ~85%+, so we keep the entire swipe in the safe middle
-            start_y = int(h * 0.55) + _rand.randint(-10, 10)
-            end_y = int(h * 0.20) + _rand.randint(-10, 10)
-            duration = _rand.uniform(0.20, 0.35)
-            self.device.swipe(start_x, start_y, start_x, end_y, duration=duration)
+
+            if is_ad:
+                # AD REEL: use ADB shell input swipe for reliable gesture
+                # that can't be intercepted by overlay buttons.
+                # Swipe in the far-left edge (x=5-10% width) from 40% to 10% height
+                # This area has NO clickable ad elements — just the video.
+                sx = int(w * 0.08)
+                sy = int(h * 0.40)
+                ey = int(h * 0.08)
+                dur_ms = _rand.randint(150, 250)
+                log.debug("[%s] Ad-safe ADB swipe: (%d,%d)->(%d,%d) %dms",
+                          self.device_serial, sx, sy, sx, ey, dur_ms)
+                try:
+                    adb_serial = self.device_serial.replace('_', ':')
+                    subprocess.run(
+                        ['adb', '-s', adb_serial, 'shell', 'input', 'swipe',
+                         str(sx), str(sy), str(sx), str(ey), str(dur_ms)],
+                        timeout=10, capture_output=True
+                    )
+                except Exception as e:
+                    log.warning("[%s] ADB swipe failed, falling back to u2: %s",
+                                self.device_serial, e)
+                    self.device.swipe(sx, sy, sx, ey, duration=dur_ms / 1000.0)
+            else:
+                # Normal reel: swipe in the upper-center area
+                # Start at 45% height, end at 15% — well above ad CTA zone
+                start_x = int(w * 0.35) + _rand.randint(-15, 15)
+                start_y = int(h * 0.45) + _rand.randint(-10, 10)
+                end_y = int(h * 0.15) + _rand.randint(-10, 10)
+                duration = _rand.uniform(0.20, 0.35)
+                self.device.swipe(start_x, start_y, start_x, end_y, duration=duration)
+
             time.sleep(1.5)
 
             # Verify we didn't accidentally tap into an ad profile/webview

@@ -181,7 +181,7 @@ class ReelsAction:
 
                     # Swipe to next reel using IGController
                     if i < target - 1:
-                        swipe_ok = self.ctrl.swipe_to_next_reel()
+                        swipe_ok = self.ctrl.swipe_to_next_reel(is_ad=is_ad)
                         random_sleep(1, 3, label="reel_transition")
 
                         if not swipe_ok:
