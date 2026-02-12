@@ -59,7 +59,7 @@
                 <i class="fas fa-times me-1"></i> Deselect
             </button>
             <button class="btn btn-sm btn-outline-warning" onclick="resetFailed()">
-                <i class="fas fa-redo me-1"></i> Reset Failed → Pending
+                <i class="fas fa-redo me-1"></i> Reset Stuck/Failed
             </button>
             <button class="btn btn-success" id="loginBtn" onclick="loginSelected()">
                 <i class="fas fa-sign-in-alt me-1"></i> Login Selected (<span id="selectedCount">0</span>)
@@ -184,7 +184,7 @@ function loadAccounts() {
         let html = '';
 
         if (allAccounts.length === 0) {
-            html = '<tr><td colspan="6" class="text-center text-muted py-4">No accounts with pending_login or login_failed status.<br>Import accounts first → <a href="/import-accounts-v2" class="text-info">Import V2</a></td></tr>';
+            html = '<tr><td colspan="6" class="text-center text-muted py-4">No accounts with pending_login, login_failed, or logging_in status.<br>Import accounts first → <a href="/import-accounts-v2" class="text-info">Import V2</a></td></tr>';
         }
 
         allAccounts.forEach(acc => {
@@ -253,7 +253,7 @@ function getSelectedIds() {
 
 function resetFailed() {
     const ids = getSelectedIds().length > 0 ? getSelectedIds() :
-        allAccounts.filter(a => a.status === 'login_failed').map(a => a.id);
+        allAccounts.filter(a => a.status === 'login_failed' || a.status === 'logging_in').map(a => a.id);
 
     if (ids.length === 0) { alert('No failed accounts to reset'); return; }
     if (!confirm(`Reset ${ids.length} account(s) to pending_login?`)) return;

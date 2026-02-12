@@ -82,7 +82,7 @@ def api_pending_accounts():
     """
     try:
         device_serial = request.args.get('device_serial')
-        statuses = ['pending_login', 'login_failed']
+        statuses = ['pending_login', 'login_failed', 'logging_in']
 
         accounts = get_all_accounts(status_filter=statuses, device_serial=device_serial)
 
@@ -259,7 +259,7 @@ def api_login_status():
 
 @login_v2_bp.route('/api/login-v2/reset-failed', methods=['POST'])
 def api_reset_failed():
-    """Reset login_failed accounts back to pending_login."""
+    """Reset login_failed or logging_in accounts back to pending_login."""
     try:
         data = request.get_json()
         account_ids = data.get('account_ids', [])
