@@ -22,6 +22,7 @@ import time
 import glob
 
 from flask import Blueprint, jsonify, request
+from phone_farm_db import update_device_status
 
 bot_launcher_bp = Blueprint('bot_launcher', __name__, url_prefix='/api/bot')
 
@@ -304,6 +305,10 @@ def launch_all():
         success, info = _launch_device(serial)
         if success:
             launched.append(info)
+            try:
+                update_device_status(serial, 'connected')
+            except Exception:
+                pass
         else:
             failed.append({'serial': serial, 'error': info.get('error', 'unknown')})
 
@@ -361,6 +366,12 @@ def launch_single(serial):
         procs = _find_process_for_serial(serial_db)
         pid = procs[0]['pid'] if procs else None
 
+        # Mark device as connected/online
+        try:
+            update_device_status(serial_db, 'connected')
+        except Exception:
+            pass
+
         return jsonify({
             'success': True,
             'serial': serial_db,
@@ -399,6 +410,10 @@ def stop_all():
         if _kill_pid(p['pid']):
             stopped += 1
             details.append({'serial': p['serial'], 'pid': p['pid'], 'status': 'stopped'})
+            try:
+                update_device_status(p['serial'], 'disconnected')
+            except Exception:
+                pass
         else:
             failed += 1
             details.append({'serial': p['serial'], 'pid': p['pid'], 'status': 'failed'})
@@ -453,6 +468,12 @@ def stop_single(serial):
     for p in procs:
         if _kill_pid(p['pid']):
             stopped += 1
+
+    if stopped > 0:
+        try:
+            update_device_status(serial_db, 'disconnected')
+        except Exception:
+            pass
 
     return jsonify({
         'success': True,
