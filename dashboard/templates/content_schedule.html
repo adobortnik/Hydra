@@ -500,10 +500,11 @@
         <!-- Step 4: Select Targets -->
         <div class="step-panel" id="step4">
             <h5 class="mb-3">Select target accounts</h5>
+            <p class="text-muted small mb-3">Pick accounts from one or multiple devices. Use the filter to narrow down, selections persist across filter changes.</p>
             <div class="row">
                 <div class="col-md-5">
                     <div class="mb-3">
-                        <label class="form-label">Device</label>
+                        <label class="form-label">Filter by Device</label>
                         <select class="form-select bg-dark text-white border-secondary" id="targetDevice" onchange="loadTargetAccounts()">
                             <option value="all">All Devices</option>
                         </select>
@@ -511,13 +512,13 @@
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="selectAllAccounts" onchange="toggleAllAccounts()">
                         <label class="form-check-label" for="selectAllAccounts">
-                            <strong>Select all accounts</strong>
+                            <strong>Select all visible</strong>
                         </label>
                     </div>
                 </div>
                 <div class="col-md-7">
                     <label class="form-label">Accounts <span class="text-muted" id="accountCountLabel">(0 selected)</span></label>
-                    <div class="account-checkbox-list border border-secondary rounded p-2" id="accountCheckboxList">
+                    <div class="account-checkbox-list border border-secondary rounded p-2" id="accountCheckboxList" style="max-height:400px;overflow-y:auto">
                         <div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
                     </div>
                 </div>
@@ -1515,48 +1516,88 @@ function showConfigForType() {
 }
 
 // ============ STEP 4: TARGET ACCOUNTS ============
+var _allAccounts = [];  // cache all accounts across devices
+
 function loadDevicesForWizard() {
     $.get(API + '/devices', function(data) {
         allDevices = data.devices || [];
         const sel = $('#targetDevice');
         sel.find('option:not(:first)').remove();
         allDevices.forEach(d => {
-            sel.append(`<option value="${d.device_serial}">${d.device_name || d.device_serial} (${d.account_count} accounts)</option>`);
+            sel.append(`<option value="${d.device_serial}">${d.device_name || d.device_serial} (${d.account_count} accts)</option>`);
         });
+    });
+    // Pre-load all accounts
+    $.get(API + '/accounts', function(data) {
+        _allAccounts = data.accounts || [];
     });
 }
 
 function loadTargetAccounts() {
-    const device = $('#targetDevice').val();
-    let url = API + '/accounts';
-    if (device && device !== 'all') url += '?device_serial=' + encodeURIComponent(device);
+    const deviceFilter = $('#targetDevice').val();
 
-    $.get(url, function(data) {
-        const accounts = data.accounts || [];
+    // Use cached accounts or fetch fresh
+    function renderAccounts(accounts) {
+        _allAccounts = accounts;
+        const filtered = (!deviceFilter || deviceFilter === 'all')
+            ? accounts
+            : accounts.filter(a => a.device_serial === deviceFilter);
+
         let html = '';
-        if (accounts.length === 0) {
+        if (filtered.length === 0) {
             html = '<div class="text-muted text-center py-3">No active accounts found</div>';
         } else {
-            accounts.forEach(a => {
-                const checked = wizardState.selectedAccounts.some(
-                    sa => sa.username === a.username && sa.device_serial === a.device_serial
-                ) ? 'checked' : '';
-                html += `<div class="account-check-item">
-                    <div class="form-check">
-                        <input class="form-check-input acct-check" type="checkbox" ${checked}
-                               data-id="${a.id}" data-serial="${a.device_serial}" data-username="${a.username}"
-                               onchange="updateAccountSelection()">
-                        <label class="form-check-label">
-                            <strong>${a.username}</strong>
-                            <small class="text-muted ms-2">${a.device_serial}</small>
-                        </label>
-                    </div>
-                </div>`;
+            // Group by device for clarity
+            const byDevice = {};
+            filtered.forEach(a => {
+                const key = a.device_serial;
+                if (!byDevice[key]) byDevice[key] = [];
+                byDevice[key].push(a);
+            });
+
+            const deviceKeys = Object.keys(byDevice).sort();
+            const showHeaders = deviceKeys.length > 1;
+
+            deviceKeys.forEach(ds => {
+                const devName = (allDevices.find(d => d.device_serial === ds) || {}).device_name || ds;
+                if (showHeaders) {
+                    html += `<div class="px-2 py-1 mt-2 mb-1" style="font-size:0.75rem;color:#6c757d;border-bottom:1px solid rgba(255,255,255,0.05)">
+                        <i class="fas fa-mobile-alt me-1"></i>${devName}
+                    </div>`;
+                }
+                byDevice[ds].forEach(a => {
+                    const checked = wizardState.selectedAccounts.some(
+                        sa => sa.username === a.username && sa.device_serial === a.device_serial
+                    ) ? 'checked' : '';
+                    html += `<div class="account-check-item">
+                        <div class="form-check">
+                            <input class="form-check-input acct-check" type="checkbox" ${checked}
+                                   data-id="${a.id}" data-serial="${a.device_serial}" data-username="${a.username}"
+                                   onchange="updateAccountSelection()">
+                            <label class="form-check-label">
+                                <strong>${a.username}</strong>
+                                ${showHeaders ? '' : '<small class="text-muted ms-2">' + ds + '</small>'}
+                            </label>
+                        </div>
+                    </div>`;
+                });
             });
         }
         $('#accountCheckboxList').html(html);
-        updateAccountSelection();
-    });
+        // Don't call updateAccountSelection here — preserve existing selections
+        // Just update the count display
+        const count = wizardState.selectedAccounts.length;
+        $('#accountCountLabel').text(`(${count} selected)`);
+        $('#btnStep4Next').prop('disabled', count === 0);
+    }
+
+    if (_allAccounts.length > 0) {
+        renderAccounts(_allAccounts);
+    } else {
+        $.get(API + '/accounts', function(data) {
+            renderAccounts(data.accounts || []);
+        });
+    }
 }
 
 function toggleAllAccounts() {
