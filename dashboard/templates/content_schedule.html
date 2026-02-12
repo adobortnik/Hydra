@@ -143,6 +143,9 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3><i class="fas fa-calendar-alt me-2 text-primary"></i>Content Schedule</h3>
     <div>
+        <button class="btn btn-sm btn-success me-2" onclick="openTestPostModal()">
+            <i class="fas fa-paper-plane me-1"></i>Test Post Now
+        </button>
         <button class="btn btn-sm btn-outline-light me-2" onclick="loadStats()">
             <i class="fas fa-sync-alt me-1"></i>Refresh
         </button>
@@ -660,6 +663,100 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="saveEditItem()">
                     <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Post Now Modal -->
+<div class="modal fade" id="testPostModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-paper-plane me-2 text-success"></i>Test Post Now</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="testPostBody">
+                <!-- Form Section (hidden when posting) -->
+                <div id="testPostForm">
+                    <div class="row g-3">
+                        <!-- Account -->
+                        <div class="col-md-6">
+                            <label class="form-label">Account</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="tpAccount">
+                                <option value="">-- Select account --</option>
+                            </select>
+                        </div>
+                        <!-- Content Type -->
+                        <div class="col-md-6">
+                            <label class="form-label">Content Type</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="tpContentType" onchange="onTpContentTypeChange()">
+                                <option value="post">Post</option>
+                                <option value="reel">Reel</option>
+                                <option value="story">Story</option>
+                            </select>
+                        </div>
+                        <!-- Media Selection -->
+                        <div class="col-12">
+                            <label class="form-label">Media File</label>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="tpMediaFolder" onchange="loadTpFolderFiles()">
+                                        <option value="">-- Select folder --</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="tpMediaFile">
+                                        <option value="">-- Select file --</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="tpMediaPreview" class="text-center p-2 rounded border border-secondary" style="display:none; max-height:200px; overflow:hidden;">
+                            </div>
+                        </div>
+                        <!-- Caption -->
+                        <div class="col-12">
+                            <label class="form-label">Caption</label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="tpCaption" rows="2" placeholder="Enter caption..."></textarea>
+                        </div>
+                        <!-- Hashtags -->
+                        <div class="col-12">
+                            <label class="form-label">Hashtags</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="tpHashtags" placeholder="#hashtag1 #hashtag2 ...">
+                        </div>
+                        <!-- Music (Reel only) -->
+                        <div class="col-md-6" id="tpMusicGroup" style="display:none">
+                            <label class="form-label">Music Search Query</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="tpMusic" placeholder="e.g. trending audio 2025">
+                        </div>
+                        <!-- Location -->
+                        <div class="col-md-6" id="tpLocationGroup">
+                            <label class="form-label">Location (optional)</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="tpLocation" placeholder="e.g. New York, NY">
+                        </div>
+                    </div>
+                </div>
+                <!-- Progress Section (shown during posting) -->
+                <div id="testPostProgress" style="display:none">
+                    <div class="text-center mb-3">
+                        <div class="spinner-border text-success mb-2" role="status" id="tpSpinner">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5 id="tpProgressTitle">Starting test post...</h5>
+                        <p class="text-muted mb-0" id="tpProgressAccount"></p>
+                    </div>
+                    <div class="card bg-secondary bg-opacity-10 border-secondary">
+                        <div class="card-body p-2" style="max-height:250px; overflow-y:auto;" id="tpProgressLog">
+                        </div>
+                    </div>
+                    <div id="tpResultBanner" class="mt-3" style="display:none"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="btnTestPost" onclick="submitTestPost()">
+                    <i class="fas fa-play me-1"></i>Post Now
                 </button>
             </div>
         </div>
@@ -1405,5 +1502,204 @@ function formatDateTime(date) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
            date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
+
+// ============ TEST POST NOW ============
+let tpPollTimer = null;
+let tpAllFolderFiles = [];
+
+function openTestPostModal() {
+    // Reset form
+    $('#testPostForm').show();
+    $('#testPostProgress').hide();
+    $('#tpResultBanner').hide();
+    $('#btnTestPost').prop('disabled', false).html('<i class="fas fa-play me-1"></i>Post Now');
+    $('#tpCaption').val('');
+    $('#tpHashtags').val('');
+    $('#tpMusic').val('');
+    $('#tpLocation').val('');
+    $('#tpMediaFile').html('<option value="">-- Select file --</option>');
+    $('#tpMediaPreview').hide();
+    tpAllFolderFiles = [];
+
+    // Load accounts
+    $.get(API + '/accounts', function(data) {
+        const accounts = data.accounts || [];
+        let opts = '<option value="">-- Select account --</option>';
+        accounts.forEach(function(a) {
+            opts += '<option value="' + a.id + '">' + a.username + ' (' + a.device_serial + ')</option>';
+        });
+        $('#tpAccount').html(opts);
+    });
+
+    // Load media folders
+    $.get(API + '/media-folders', function(data) {
+        const folders = data.folders || [];
+        let opts = '<option value="">-- Select folder --</option>';
+        folders.forEach(function(f) {
+            opts += '<option value="' + f.path + '">' + f.name + ' (' + f.media_count + ' files)</option>';
+        });
+        $('#tpMediaFolder').html(opts);
+    });
+
+    onTpContentTypeChange();
+    new bootstrap.Modal('#testPostModal').show();
+}
+
+function onTpContentTypeChange() {
+    var ct = $('#tpContentType').val();
+    if (ct === 'reel') {
+        $('#tpMusicGroup').show();
+    } else {
+        $('#tpMusicGroup').hide();
+    }
+}
+
+function loadTpFolderFiles() {
+    var folder = $('#tpMediaFolder').val();
+    if (!folder) {
+        $('#tpMediaFile').html('<option value="">-- Select file --</option>');
+        tpAllFolderFiles = [];
+        return;
+    }
+    $.get(API + '/media-folders/' + encodeURIComponent(folder), function(data) {
+        tpAllFolderFiles = data.files || [];
+        var opts = '<option value="">-- Select file --</option>';
+        tpAllFolderFiles.forEach(function(f) {
+            var sizeKB = Math.round(f.size / 1024);
+            var icon = f.is_video ? '[Video]' : '[Image]';
+            opts += '<option value="' + f.path + '" data-full="' + f.full_path + '">' + icon + ' ' + f.name + ' (' + sizeKB + ' KB)</option>';
+        });
+        $('#tpMediaFile').html(opts);
+    });
+
+    // Preview on change
+    $('#tpMediaFile').off('change').on('change', function() {
+        var path = $(this).val();
+        if (!path) {
+            $('#tpMediaPreview').hide();
+            return;
+        }
+        var file = tpAllFolderFiles.find(function(f) { return f.path === path; });
+        if (file && !file.is_video) {
+            $('#tpMediaPreview').html('<img src="' + API + '/media-file/' + encodeURIComponent(path) + '" style="max-height:180px; border-radius:8px;">').show();
+        } else if (file && file.is_video) {
+            $('#tpMediaPreview').html('<div class="py-4 text-muted"><i class="fas fa-video fa-3x mb-2 d-block"></i>' + file.name + '</div>').show();
+        } else {
+            $('#tpMediaPreview').hide();
+        }
+    });
+}
+
+function submitTestPost() {
+    var accountId = $('#tpAccount').val();
+    var contentType = $('#tpContentType').val();
+    var mediaPath = $('#tpMediaFile').val();
+    var caption = $('#tpCaption').val();
+    var hashtags = $('#tpHashtags').val();
+    var music = $('#tpMusic').val();
+    var location = $('#tpLocation').val();
+
+    if (!accountId) { alert('Please select an account'); return; }
+    if (!mediaPath) { alert('Please select a media file'); return; }
+
+    // Find full_path from the files list
+    var file = tpAllFolderFiles.find(function(f) { return f.path === mediaPath; });
+    var fullPath = file ? file.full_path : mediaPath;
+
+    var payload = {
+        account_id: parseInt(accountId),
+        content_type: contentType,
+        media_path: fullPath,
+        caption: caption,
+        hashtags: hashtags,
+        music_search_query: music,
+        location: location
+    };
+
+    $('#btnTestPost').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Starting...');
+
+    $.ajax({
+        url: API + '/test-post',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(resp) {
+            if (resp.status !== 'success') {
+                alert('Error: ' + (resp.message || 'Unknown'));
+                $('#btnTestPost').prop('disabled', false).html('<i class="fas fa-play me-1"></i>Post Now');
+                return;
+            }
+            // Switch to progress view
+            $('#testPostForm').hide();
+            $('#testPostProgress').show();
+            $('#tpProgressTitle').text('Starting test post...');
+            $('#tpProgressAccount').text('@' + ($('#tpAccount option:selected').text()));
+            $('#tpProgressLog').html('');
+            $('#tpSpinner').show();
+            $('#tpResultBanner').hide();
+            $('#btnTestPost').hide();
+
+            // Start polling
+            var testId = resp.test_id;
+            var lastStepCount = 0;
+            tpPollTimer = setInterval(function() {
+                $.get(API + '/test-post/status?test_id=' + testId, function(data) {
+                    if (data.status !== 'success' || !data.progress) return;
+                    var p = data.progress;
+
+                    $('#tpProgressTitle').text(p.message || p.status);
+
+                    // Append new steps
+                    var steps = p.steps || [];
+                    for (var i = lastStepCount; i < steps.length; i++) {
+                        var s = steps[i];
+                        var time = s.time ? s.time.split('T')[1].split('.')[0] : '';
+                        var cls = 'text-info';
+                        if (p.status === 'failed' && i === steps.length - 1) cls = 'text-danger';
+                        if (p.status === 'completed' && i === steps.length - 1) cls = 'text-success';
+                        $('#tpProgressLog').append(
+                            '<div class="' + cls + '" style="font-size:0.85rem;">' +
+                            '<small class="text-muted me-2">' + time + '</small>' + s.msg + '</div>'
+                        );
+                    }
+                    lastStepCount = steps.length;
+                    // Auto-scroll log
+                    var logEl = document.getElementById('tpProgressLog');
+                    if (logEl) logEl.scrollTop = logEl.scrollHeight;
+
+                    // Check completion
+                    if (p.status === 'completed' || p.status === 'failed') {
+                        clearInterval(tpPollTimer);
+                        tpPollTimer = null;
+                        $('#tpSpinner').hide();
+                        if (p.success) {
+                            $('#tpResultBanner').html(
+                                '<div class="alert alert-success mb-0"><i class="fas fa-check-circle me-2"></i>Test post completed successfully!</div>'
+                            ).show();
+                        } else {
+                            $('#tpResultBanner').html(
+                                '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>Test post failed: ' +
+                                (p.error || 'Unknown error') + '</div>'
+                            ).show();
+                        }
+                    }
+                });
+            }, 2000);
+        },
+        error: function(xhr) {
+            var err = xhr.responseJSON ? xhr.responseJSON.message : 'Request failed';
+            alert('Error: ' + err);
+            $('#btnTestPost').prop('disabled', false).html('<i class="fas fa-play me-1"></i>Post Now');
+        }
+    });
+}
+
+// Clean up poll timer when modal closes
+$(document).on('hidden.bs.modal', '#testPostModal', function() {
+    if (tpPollTimer) {
+        clearInterval(tpPollTimer);
+        tpPollTimer = null;
+    }
+});
 </script>
 {% endblock %}

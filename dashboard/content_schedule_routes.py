@@ -8,9 +8,14 @@ Tables: content_schedule, content_batches
 
 import os
 import uuid
+import threading
+import logging
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, render_template
-from phone_farm_db import get_conn, row_to_dict, rows_to_dicts
+from phone_farm_db import get_conn, row_to_dict, rows_to_dicts, get_account_by_id
+from adb_helper import serial_db_to_adb, check_device_reachable
+
+log = logging.getLogger(__name__)
 
 content_schedule_bp = Blueprint('content_schedule', __name__)
 
@@ -79,6 +84,14 @@ def init_content_schedule_tables():
 
 # Initialize tables on import
 init_content_schedule_tables()
+
+
+# =============================================================================
+# TEST POST NOW - Background thread state
+# =============================================================================
+
+_test_post_progress = {}  # test_id -> {status, message, steps, ...}
+_test_post_lock = threading.Lock()
 
 
 # =============================================================================
@@ -742,6 +755,200 @@ def serve_media_file(filepath):
         return send_from_directory(directory, filename)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# TEST POST NOW - Endpoints
+# =============================================================================
+
+@content_schedule_bp.route('/api/content-schedule/test-post', methods=['POST'])
+def test_post_now():
+    """
+    Launch a test post immediately on a real device.
+    Runs PostContentAction in a background thread.
+
+    Body: {
+        account_id, media_path, content_type (post/reel/story),
+        caption, hashtags,
+        music_search_query (optional), location (optional)
+    }
+    Returns: { test_id } for polling via /test-post/status
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+
+        account_id = data.get('account_id')
+        media_path = data.get('media_path', '')
+        content_type = data.get('content_type', '')
+        caption = data.get('caption', '')
+        hashtags = data.get('hashtags', '')
+        music_search_query = data.get('music_search_query', '')
+        location = data.get('location', '')
+
+        # --- Validation ---
+        if not account_id:
+            return jsonify({'status': 'error', 'message': 'account_id is required'}), 400
+        if content_type not in ('post', 'reel', 'story'):
+            return jsonify({'status': 'error', 'message': 'content_type must be post, reel, or story'}), 400
+        if not media_path:
+            return jsonify({'status': 'error', 'message': 'media_path is required'}), 400
+
+        # Resolve full media path if relative
+        full_media_path = media_path
+        if not os.path.isabs(media_path):
+            full_media_path = os.path.join(MEDIA_LIBRARY_DIR, media_path)
+        if not os.path.exists(full_media_path):
+            return jsonify({'status': 'error', 'message': 'Media file not found: %s' % media_path}), 400
+
+        # Get account info
+        account = get_account_by_id(int(account_id))
+        if not account:
+            return jsonify({'status': 'error', 'message': 'Account not found (id=%s)' % account_id}), 404
+
+        device_serial = account.get('device_serial')
+        if not device_serial:
+            return jsonify({'status': 'error', 'message': 'Account has no device assigned'}), 400
+
+        # Check device reachable
+        if not check_device_reachable(device_serial):
+            return jsonify({'status': 'error',
+                            'message': 'Device %s is not reachable via ADB' % device_serial}), 400
+
+        # Create test ID and initial progress
+        test_id = 'test_%s' % uuid.uuid4().hex[:10]
+
+        with _test_post_lock:
+            _test_post_progress[test_id] = {
+                'status': 'starting',
+                'message': 'Initializing...',
+                'steps': [],
+                'account': account.get('username', ''),
+                'device': device_serial,
+                'content_type': content_type,
+                'started_at': datetime.utcnow().isoformat(),
+                'completed_at': None,
+                'success': None,
+                'error': None,
+            }
+
+        # Launch background thread
+        t = threading.Thread(
+            target=_run_test_post,
+            args=(test_id, account, full_media_path, content_type,
+                  caption, hashtags, music_search_query, location),
+            daemon=True,
+        )
+        t.start()
+
+        return jsonify({
+            'status': 'success',
+            'test_id': test_id,
+            'message': 'Test post started for @%s on %s' % (account.get('username', '?'), device_serial),
+        })
+
+    except Exception as e:
+        log.exception("test_post_now error")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@content_schedule_bp.route('/api/content-schedule/test-post/status', methods=['GET'])
+def test_post_status():
+    """Poll status of a test post by test_id."""
+    test_id = request.args.get('test_id', '')
+    if not test_id:
+        return jsonify({'status': 'error', 'message': 'test_id is required'}), 400
+
+    with _test_post_lock:
+        progress = _test_post_progress.get(test_id)
+
+    if not progress:
+        return jsonify({'status': 'error', 'message': 'Unknown test_id'}), 404
+
+    return jsonify({'status': 'success', 'progress': progress})
+
+
+def _run_test_post(test_id, account, media_path, content_type,
+                   caption, hashtags, music_search_query, location):
+    """Background worker for a test post. Mirrors login_automation pattern."""
+
+    def _update(status, message, **extra):
+        with _test_post_lock:
+            p = _test_post_progress.get(test_id, {})
+            p['status'] = status
+            p['message'] = message
+            p['steps'].append({'time': datetime.utcnow().isoformat(), 'msg': message})
+            p.update(extra)
+            _test_post_progress[test_id] = p
+
+    device_serial = account['device_serial']
+    adb_serial = serial_db_to_adb(device_serial)
+
+    try:
+        # Step 1: Connect to device
+        _update('running', 'Connecting to device %s ...' % device_serial)
+
+        import uiautomator2 as u2
+        device = u2.connect(adb_serial)
+        _update('running', 'Connected to device. Preparing PostContentAction...')
+
+        # Step 2: Build schedule_item dict (matches content_schedule row shape)
+        schedule_item = {
+            'id': 0,
+            'content_type': content_type,
+            'media_path': media_path,
+            'caption': caption,
+            'hashtags': hashtags,
+            'location': location,
+            'music_search_query': music_search_query,
+            'music_name': '',
+            'mention_username': '',
+            'link_url': '',
+        }
+
+        # Step 3: Build account_info dict
+        account_info = {
+            'id': account['id'],
+            'username': account.get('username', ''),
+            'package': account.get('instagram_package', 'com.instagram.android'),
+        }
+
+        _update('running', 'Launching PostContentAction for %s ...' % content_type)
+
+        # Step 4: Import and run PostContentAction
+        from automation.actions.post_content import PostContentAction
+
+        action = PostContentAction(
+            device=device,
+            device_serial=device_serial,
+            account_info=account_info,
+            session_id='test_post_%s' % test_id,
+            schedule_item=schedule_item,
+            package=account_info['package'],
+        )
+
+        _update('running', 'Executing %s posting flow on device...' % content_type)
+
+        result = action.execute()
+
+        # Step 5: Record result
+        now = datetime.utcnow().isoformat()
+        if result.get('success'):
+            _update('completed', 'Post completed successfully!',
+                    success=True, completed_at=now)
+        else:
+            err = result.get('error_message', 'Unknown failure')
+            _update('failed', 'Post failed: %s' % err,
+                    success=False, error=err, completed_at=now)
+
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        log.error("Test post %s failed: %s\n%s", test_id, e, tb)
+        _update('failed', 'Error: %s' % str(e),
+                success=False, error=str(e),
+                completed_at=datetime.utcnow().isoformat())
 
 
 # =============================================================================
