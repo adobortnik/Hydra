@@ -108,7 +108,8 @@ def api_dm_devices():
 
 @device_manager_bp.route('/api/device-manager/devices/<path:serial>')
 def api_dm_device_detail(serial):
-    """Single device with all accounts + today's stats."""
+    """Single device with all accounts + stats for a given date (default: today)."""
+    target_date = request.args.get('date', None)  # YYYY-MM-DD or None
     conn = _get_conn()
     try:
         device = _row_to_dict(conn.execute(
@@ -119,7 +120,7 @@ def api_dm_device_detail(serial):
             return jsonify({'error': f'Device {serial} not found'}), 404
 
         # Get accounts with stats
-        accounts = _get_accounts_with_stats(conn, serial)
+        accounts = _get_accounts_with_stats(conn, serial, target_date=target_date)
 
         # Get bot status
         bs = conn.execute(
@@ -130,7 +131,8 @@ def api_dm_device_detail(serial):
         return jsonify({
             'device': device,
             'accounts': accounts,
-            'total_accounts': len(accounts)
+            'total_accounts': len(accounts),
+            'date': target_date or _today()
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -142,25 +144,45 @@ def api_dm_device_detail(serial):
 
 @device_manager_bp.route('/api/device-manager/accounts/<path:serial>')
 def api_dm_accounts(serial):
-    """Accounts for a device with today's stats + yesterday comparison."""
+    """Accounts for a device with stats + yesterday comparison for a given date."""
+    target_date = request.args.get('date', None)  # YYYY-MM-DD or None
     conn = _get_conn()
     try:
-        accounts = _get_accounts_with_stats(conn, serial)
-        return jsonify({'accounts': accounts, 'total': len(accounts)})
+        accounts = _get_accounts_with_stats(conn, serial, target_date=target_date)
+        return jsonify({
+            'accounts': accounts,
+            'total': len(accounts),
+            'date': target_date or _today()
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
 
 
-def _get_accounts_with_stats(conn, device_serial):
-    """Get accounts with today's stats from action_history (source of truth).
+def _get_accounts_with_stats(conn, device_serial, target_date=None):
+    """Get accounts with stats from action_history (source of truth).
     
     The account_stats table only has followers/following counts from syncs.
     Action counts (follows, unfollows, likes, etc.) come from action_history.
+    
+    Args:
+        target_date: YYYY-MM-DD string to query. Defaults to today (UTC).
+                     "Yesterday" comparison is always target_date - 1 day.
     """
-    today = _today()
-    yesterday = _yesterday()
+    if target_date:
+        # Validate format
+        try:
+            parsed = datetime.strptime(target_date, '%Y-%m-%d')
+            today = target_date
+            yesterday = (parsed - timedelta(days=1)).strftime('%Y-%m-%d')
+        except ValueError:
+            # Bad format -- fall back to actual today
+            today = _today()
+            yesterday = _yesterday()
+    else:
+        today = _today()
+        yesterday = _yesterday()
 
     # Get base account info + followers/following from account_stats
     rows = conn.execute("""

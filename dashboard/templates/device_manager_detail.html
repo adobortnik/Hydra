@@ -85,6 +85,96 @@
         font-size: 0.85rem;
     }
 
+    /* ── Date Navigation ── */
+    .date-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 12px 20px;
+        background: linear-gradient(145deg, #1a1d21, #22262b);
+        border: 1px solid #2d3238;
+        border-radius: 10px;
+        margin-bottom: 16px;
+    }
+    .date-nav-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        border: 1px solid #2d3238;
+        background: #1e2228;
+        color: #9ca3af;
+        font-size: 0.9rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    .date-nav-btn:hover:not(:disabled) {
+        background: #2d3238;
+        color: #fff;
+        border-color: #6366f1;
+    }
+    .date-nav-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+    .date-nav-display {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #f8f9fa;
+        min-width: 200px;
+        text-align: center;
+        user-select: none;
+    }
+    .date-nav-display .historical-tag {
+        font-size: 0.7rem;
+        color: #ffc107;
+        font-weight: 500;
+        margin-left: 6px;
+        opacity: 0.85;
+    }
+    .date-nav-today-btn {
+        padding: 6px 16px;
+        border-radius: 6px;
+        border: 1px solid #2d3238;
+        background: #1e2228;
+        color: #9ca3af;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .date-nav-today-btn:hover:not(:disabled) {
+        background: #6366f1;
+        color: #fff;
+        border-color: #6366f1;
+    }
+    .date-nav-today-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+    .date-nav-picker {
+        background: #1e2228;
+        border: 1px solid #2d3238;
+        border-radius: 6px;
+        color: #9ca3af;
+        padding: 5px 10px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .date-nav-picker:focus {
+        border-color: #6366f1;
+        outline: none;
+        color: #f8f9fa;
+    }
+    .date-nav-picker::-webkit-calendar-picker-indicator {
+        filter: invert(0.7);
+        cursor: pointer;
+    }
+
     .summary-cards .card {
         background: linear-gradient(145deg, #1a1d21, #22262b);
         border: 1px solid #2d3238;
@@ -307,6 +397,19 @@
     </div>
 </div>
 
+<!-- Date Navigation -->
+<div class="date-nav" id="dateNav">
+    <button class="date-nav-btn" id="datePrev" onclick="changeDate(-1)" title="Previous day">
+        <i class="fas fa-chevron-left"></i>
+    </button>
+    <div class="date-nav-display" id="dateDisplay">Today</div>
+    <button class="date-nav-btn" id="dateNext" onclick="changeDate(1)" title="Next day" disabled>
+        <i class="fas fa-chevron-right"></i>
+    </button>
+    <button class="date-nav-today-btn" id="dateTodayBtn" onclick="jumpToToday()" disabled>Today</button>
+    <input type="date" class="date-nav-picker" id="datePicker" onchange="jumpToDate(this.value)" title="Jump to date">
+</div>
+
 <!-- Summary Cards -->
 <div class="row summary-cards mb-4">
     <div class="col-md-2 col-sm-4 mb-2">
@@ -321,7 +424,7 @@
         <div class="card">
             <div class="card-body">
                 <div class="card-value text-success" id="sumFollowed">-</div>
-                <div class="card-label">Followed Today</div>
+                <div class="card-label" id="labelFollowed">Followed Today</div>
             </div>
         </div>
     </div>
@@ -329,7 +432,7 @@
         <div class="card">
             <div class="card-body">
                 <div class="card-value text-warning" id="sumUnfollowed">-</div>
-                <div class="card-label">Unfollowed Today</div>
+                <div class="card-label" id="labelUnfollowed">Unfollowed Today</div>
             </div>
         </div>
     </div>
@@ -337,7 +440,7 @@
         <div class="card">
             <div class="card-body">
                 <div class="card-value text-primary" id="sumLikes">-</div>
-                <div class="card-label">Likes Today</div>
+                <div class="card-label" id="labelLikes">Likes Today</div>
             </div>
         </div>
     </div>
@@ -345,7 +448,7 @@
         <div class="card">
             <div class="card-body">
                 <div class="card-value text-danger" id="sumStories">-</div>
-                <div class="card-label">Stories Today</div>
+                <div class="card-label" id="labelStories">Stories Today</div>
             </div>
         </div>
     </div>
@@ -353,7 +456,7 @@
         <div class="card">
             <div class="card-body">
                 <div class="card-value" style="color:#a78bfa" id="sumDMs">-</div>
-                <div class="card-label">DMs Today</div>
+                <div class="card-label" id="labelDMs">DMs Today</div>
             </div>
         </div>
     </div>
@@ -1136,8 +1239,88 @@
 const DEVICE_SERIAL = {{ device_serial | tojson }};
 let accountsData = [];
 
+// ── Date Navigation State ──
+// All dates are YYYY-MM-DD strings in UTC
+function getUTCTodayStr() {
+    const now = new Date();
+    return now.getUTCFullYear() + '-' +
+        String(now.getUTCMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getUTCDate()).padStart(2, '0');
+}
+
+let selectedDate = getUTCTodayStr(); // default to today
+
+function isToday(dateStr) {
+    return dateStr === getUTCTodayStr();
+}
+
+function formatDateDisplay(dateStr) {
+    // Parse as local date parts to avoid timezone shift
+    const parts = dateStr.split('-');
+    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
+function addDays(dateStr, n) {
+    const parts = dateStr.split('-');
+    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    d.setDate(d.getDate() + n);
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+}
+
+function updateDateUI() {
+    const today = isToday(selectedDate);
+    const display = document.getElementById('dateDisplay');
+    if (today) {
+        display.innerHTML = 'Today';
+    } else {
+        display.innerHTML = formatDateDisplay(selectedDate) +
+            '<span class="historical-tag">(Historical)</span>';
+    }
+    document.getElementById('dateNext').disabled = today;
+    document.getElementById('dateTodayBtn').disabled = today;
+    document.getElementById('datePicker').value = selectedDate;
+
+    // Update summary card labels
+    const label = today ? 'Today' : formatDateDisplay(selectedDate);
+    document.getElementById('labelFollowed').textContent = 'Followed ' + (today ? 'Today' : label);
+    document.getElementById('labelUnfollowed').textContent = 'Unfollowed ' + (today ? 'Today' : label);
+    document.getElementById('labelLikes').textContent = 'Likes ' + (today ? 'Today' : label);
+    document.getElementById('labelStories').textContent = 'Stories ' + (today ? 'Today' : label);
+    document.getElementById('labelDMs').textContent = 'DMs ' + (today ? 'Today' : label);
+}
+
+function changeDate(delta) {
+    selectedDate = addDays(selectedDate, delta);
+    updateDateUI();
+    refreshDetail();
+}
+
+function jumpToToday() {
+    selectedDate = getUTCTodayStr();
+    updateDateUI();
+    refreshDetail();
+}
+
+function jumpToDate(dateStr) {
+    if (!dateStr) return;
+    // Don't allow future dates
+    if (dateStr > getUTCTodayStr()) {
+        dateStr = getUTCTodayStr();
+    }
+    selectedDate = dateStr;
+    updateDateUI();
+    refreshDetail();
+}
+
 function refreshDetail() {
-    fetch(`/api/device-manager/devices/${encodeURIComponent(DEVICE_SERIAL)}`)
+    const dateParam = isToday(selectedDate) ? '' : `?date=${selectedDate}`;
+    fetch(`/api/device-manager/devices/${encodeURIComponent(DEVICE_SERIAL)}${dateParam}`)
         .then(r => r.json())
         .then(data => {
             if (data.error) {
@@ -1148,8 +1331,12 @@ function refreshDetail() {
             accountsData = data.accounts || [];
             renderAccounts(accountsData);
             updateSummary(accountsData);
-            document.getElementById('lastRefreshDetail').textContent =
-                'Updated: ' + new Date().toLocaleTimeString();
+
+            const timeStr = new Date().toLocaleTimeString();
+            const dateInfo = isToday(selectedDate)
+                ? 'Updated: ' + timeStr
+                : 'Viewing: ' + formatDateDisplay(selectedDate) + '  (fetched ' + timeStr + ')';
+            document.getElementById('lastRefreshDetail').textContent = dateInfo;
         })
         .catch(err => showError('Failed to load: ' + err));
 }
@@ -1278,7 +1465,9 @@ function escHtml(str) {
     return div.innerHTML;
 }
 
-// Initial load + auto-refresh every 30s
+// Initialize date UI + load + auto-refresh every 30s
+updateDateUI();
+document.getElementById('datePicker').max = getUTCTodayStr();
 refreshDetail();
 setInterval(refreshDetail, 30000);
 
