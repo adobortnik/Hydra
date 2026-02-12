@@ -13,7 +13,7 @@ import json
 import threading
 import traceback
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, render_template
 
 from phone_farm_db import (
@@ -53,6 +53,20 @@ _stop_requested = set()  # batch_ids that should stop
 
 @login_v2_bp.route('/login-automation-v2')
 def login_automation_v2_page():
+    # Clean up stale tasks stuck in 'running' for > 10 minutes
+    try:
+        stale_cutoff = (datetime.utcnow() - timedelta(minutes=10)).isoformat()
+        stale_tasks = get_tasks_by_type_and_status('login', ['running'])
+        for t in stale_tasks:
+            started = t.get('started_at', '')
+            if started and started < stale_cutoff:
+                update_task(t['id'], status='failed', completed_at=datetime.utcnow().isoformat(),
+                            result_json=json.dumps({'error': 'Task timed out (stale)'}))
+                account_id = t.get('account_id')
+                if account_id:
+                    update_account_status(account_id, 'login_failed')
+    except Exception:
+        pass  # Don't block page load
     return render_template('login_automation_v2.html')
 
 

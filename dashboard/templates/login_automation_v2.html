@@ -128,7 +128,38 @@ let pollInterval = null;
 $(document).ready(function() {
     loadDevices();
     loadAccounts();
+    recoverActiveBatch();
 });
+
+function recoverActiveBatch() {
+    // Check if there's an active batch running in the backend
+    $.get('/api/login-v2/status', function(data) {
+        if (data.status !== 'success') return;
+        if (data.active_batches && data.active_batches.length > 0) {
+            // Pick the most recent batch (last in list)
+            const batchId = data.active_batches[data.active_batches.length - 1];
+            // Check if it's still running (not all done)
+            $.get('/api/login-v2/status?batch_id=' + batchId, function(batchData) {
+                if (batchData.status !== 'success' || !batchData.progress) return;
+                const p = batchData.progress;
+                const total = p.total || 0;
+                if (total === 0) return;
+                const skipped = Object.values(p.results || {}).filter(r => r.status === 'skipped').length;
+                const done = (p.completed || 0) + (p.failed || 0) + skipped;
+
+                // Recover: show progress panel and resume polling
+                activeBatchId = batchId;
+                showProgress(total);
+                // Immediately render current state
+                pollProgress();
+                // If not finished yet, keep polling
+                if (done < total && !p.stopped) {
+                    startPolling();
+                }
+            });
+        }
+    });
+}
 
 function loadDevices() {
     $.get('/api/login-v2/devices', function(data) {
