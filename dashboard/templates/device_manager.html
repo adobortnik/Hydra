@@ -53,9 +53,9 @@
     .btn-delete:hover { background: #dc2626; color: #fff; }
     .btn-edit { background: #3b82f6; color: #fff; }
     .btn-edit:hover { background: #2563eb; color: #fff; }
-    .btn-mirror { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; }
-    .btn-mirror:hover { background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: #fff; }
-    .action-btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .btn-mirror { background: #8b5cf6; color: #fff; padding: 0.2rem 0.4rem !important; font-size: 0.7rem !important; min-width: unset !important; }
+    .btn-mirror:hover { background: #a78bfa; color: #fff; }
+    .action-btns { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; }
 
     .device-table th { 
         font-size: 0.8rem; 
@@ -390,7 +390,7 @@ function renderDevices(devices) {
                         <i class="fas fa-cogs fa-xs"></i> Manage
                     </a>
                     <button class="btn-action btn-mirror" onclick="mirrorDevice('${escAttr(dev.device_serial)}')" title="Mirror Screen">
-                        <i class="fas fa-desktop fa-xs"></i> Mirror
+                        <i class="fas fa-tv fa-xs"></i>
                     </button>
                     <button class="btn-action btn-edit" onclick="editDevice(${dev.id}, '${escAttr(dev.device_serial)}', '${escAttr(dev.device_name||'')}', '${escAttr(dev.notes||'')}')" title="Edit">
                         <i class="fas fa-edit fa-xs"></i>
