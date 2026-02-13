@@ -454,6 +454,20 @@ class BotEngine:
                      self.device_serial, self.account.get('username', '?'),
                      package, activity or '(default)')
 
+            # Force-kill the app first for a clean start
+            # Prevents white screen bugs and stale state from previous sessions
+            try:
+                import subprocess
+                adb_serial = self.device_serial.replace('_', ':')
+                subprocess.run(
+                    ['adb', '-s', adb_serial, 'shell', 'am', 'force-stop', package],
+                    capture_output=True, timeout=5
+                )
+                time.sleep(1)
+                log.debug("[%s] Force-stopped %s before launch", self.device_serial, package)
+            except Exception as e:
+                log.debug("[%s] Force-stop failed (non-critical): %s", self.device_serial, e)
+
             # Store the resolved package so action modules can use it via
             # account_info.get('package') — the DB column is 'instagram_package'
             # but all action modules look for 'package'
