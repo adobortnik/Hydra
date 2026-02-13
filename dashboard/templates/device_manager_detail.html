@@ -555,15 +555,18 @@
                             <label class="form-label">Status</label>
                             <input type="text" class="form-control" id="sp_status" readonly>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Instagram Package</label>
-                            <input type="text" class="form-control" id="sp_instagram_package" readonly>
+                        <div class="col-md-5">
+                            <label class="form-label">App ID</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="sp_instagram_package"
+                                    placeholder="com.instagram.android">
+                                <button class="btn btn-outline-info btn-sm" type="button"
+                                    onclick="detectAppId()" title="Detect foreground app on device">
+                                    <i class="fas fa-crosshairs me-1"></i>Detect
+                                </button>
+                            </div>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">App Cloner</label>
-                            <input type="text" class="form-control" id="sp_app_cloner" readonly>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label">Followers</label>
                             <input type="text" class="form-control" id="sp_followers" readonly>
                         </div>
@@ -1562,7 +1565,6 @@ function populateSettings(settings, accountData) {
     document.getElementById('sp_password').value = accountData.password || '';
     document.getElementById('sp_status').value = accountData.status || '';
     document.getElementById('sp_instagram_package').value = accountData.instagram_package || '';
-    document.getElementById('sp_app_cloner').value = accountData.app_cloner || '';
     document.getElementById('sp_followers').value = accountData.followers || '0';
 
     // Timer - from account data
@@ -1621,6 +1623,28 @@ function collectAccountSettings() {
     return acctSettings;
 }
 
+// ── Detect App ID (foreground app on device) ──
+function detectAppId() {
+    if (!spCurrentDevice) { showSpToast('No device selected', 'error'); return; }
+    const btn = event.currentTarget;
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting...';
+    btn.disabled = true;
+
+    fetch(`/api/device-manager/${encodeURIComponent(spCurrentDevice)}/detect-foreground-app`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.package) {
+                document.getElementById('sp_instagram_package').value = data.package;
+                showSpToast(`Detected: ${data.package}`, 'success');
+            } else {
+                showSpToast(data.error || 'Could not detect app', 'error');
+            }
+        })
+        .catch(err => showSpToast('Detection failed: ' + err, 'error'))
+        .finally(() => { btn.innerHTML = origHtml; btn.disabled = false; });
+}
+
 // ── Save All Settings ──
 function saveAllSettings() {
     const statusEl = document.getElementById('spSaveStatus');
@@ -1629,6 +1653,10 @@ function saveAllSettings() {
 
     const settings = collectSettings();
     const acctSettings = collectAccountSettings();
+
+    // Include App ID (instagram_package) — editable field
+    const appIdVal = document.getElementById('sp_instagram_package').value.trim();
+    if (appIdVal) acctSettings.instagram_package = appIdVal;
 
     // Merge account-level settings for the POST (they'll go into settings_json too)
     // But also update accounts table for start_time / end_time

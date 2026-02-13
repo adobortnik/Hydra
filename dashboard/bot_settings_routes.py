@@ -338,9 +338,9 @@ def update_settings(device_serial, account):
         if toggles_to_write:
             write_account_toggles(account_id, toggles_to_write)
 
-        # ── 1b. Sync start_time / end_time to accounts table ──
+        # ── 1b. Sync start_time / end_time / instagram_package to accounts table ──
         time_fields = {}
-        for field in ['start_time', 'end_time']:
+        for field in ['start_time', 'end_time', 'instagram_package']:
             if field in new_settings:
                 time_fields[field] = new_settings[field]
         if time_fields:

@@ -337,6 +337,17 @@ class DeviceRunner:
             self.log.error(f"{RED}Connection error: {e}{RESET}")
             return
 
+        # Lock screen to portrait mode (prevents UIAutomator from flipping to landscape)
+        try:
+            import subprocess as _sp
+            _sp.run(['adb', '-s', adb_serial, 'shell', 'settings', 'put', 'system',
+                     'accelerometer_rotation', '0'], capture_output=True, timeout=5)
+            _sp.run(['adb', '-s', adb_serial, 'shell', 'settings', 'put', 'system',
+                     'user_rotation', '0'], capture_output=True, timeout=5)
+            self.log.info(f"{GREEN}Screen locked to portrait mode{RESET}")
+        except Exception as e:
+            self.log.warning(f"{YELLOW}Could not lock portrait: {e}{RESET}")
+
         # Main loop
         cycle = 0
         while self._running:

@@ -205,12 +205,6 @@ class InstagramActions:
                                 self.device_serial, kw)
                     return 'verification_required'
 
-            # Check logged in (navigation tabs visible)
-            if (self.device(description="Profile").exists(timeout=2) or
-                self.device(description="Home").exists(timeout=2) or
-                self.device(descriptionContains="Search").exists(timeout=2)):
-                return 'logged_in'
-
             # Check challenge/verification (generic Instagram challenges)
             challenge_kw = ["verify", "security check", "unusual activity", "confirm", "suspicious"]
             for kw in challenge_kw:
@@ -223,6 +217,21 @@ class InstagramActions:
             for kw in twofa_kw:
                 if kw in xml_lower:
                     return '2fa'
+
+            # Check for login/signup BEFORE checking logged_in
+            # (prevents false 'logged_in' when app is on login screen or launcher)
+
+            # Check signup/intro — "I already have an account" / "Sign In" / "Log In"
+            signup_kw = [
+                "i already have an account", "already have an account",
+                "sign in", "log in", "log into",
+                "sign up", "get started", "create new account",
+            ]
+            for kw in signup_kw:
+                if kw in xml_lower:
+                    log.info("[%s] Login/signup screen detected: matched '%s'",
+                             self.device_serial, kw)
+                    return 'signup' if 'sign up' in kw or 'create' in kw or 'get started' in kw or 'already' in kw else 'login'
 
             # Check for login fields
             has_username = (
@@ -239,23 +248,29 @@ class InstagramActions:
             if has_username and has_password:
                 return 'login'
 
-            # Check signup/intro
-            has_already = (
-                self.device(textContains="I already have an account").exists(timeout=2) or
-                self.device(textContains="Already have an account").exists(timeout=2)
-            )
-            has_signup = (
-                self.device(textContains="Sign Up").exists(timeout=2) or
-                self.device(textContains="Sign up").exists(timeout=2) or
-                self.device(textContains="Get started").exists(timeout=2) or
-                self.device(textContains="Create").exists(timeout=2)
-            )
-
-            if has_already or has_signup:
-                return 'signup'
-
             if has_username or has_password:
                 return 'login'
+
+            # Check logged in — ONLY if correct IG app is in foreground
+            # Verify the expected package is running (not launcher or wrong clone)
+            try:
+                import subprocess
+                adb_serial = self.device_serial.replace('_', ':')
+                focus_result = subprocess.run(
+                    ['adb', '-s', adb_serial, 'shell', 'dumpsys', 'window', '|', 'grep', 'mCurrentFocus'],
+                    capture_output=True, text=True, timeout=5, shell=True
+                )
+                focus_text = focus_result.stdout.strip()
+                # Check if any IG package is in foreground
+                is_ig_foreground = 'com.instagram' in focus_text
+            except Exception:
+                is_ig_foreground = True  # assume yes if check fails
+
+            if is_ig_foreground and (
+                self.device(description="Profile").exists(timeout=2) or
+                self.device(description="Home").exists(timeout=2) or
+                self.device(descriptionContains="Search").exists(timeout=2)):
+                return 'logged_in'
 
             return 'unknown'
 

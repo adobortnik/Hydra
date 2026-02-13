@@ -263,6 +263,73 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
     return accounts
 
 
+# ── API: Detect Foreground App ──────────────────────────────────────
+
+@device_manager_bp.route('/api/device-manager/<path:serial>/detect-foreground-app')
+def api_detect_foreground_app(serial):
+    """Detect the currently running foreground app on a device via ADB."""
+    import subprocess
+    adb_serial = serial.replace('_', ':')
+    try:
+        result = subprocess.run(
+            ['adb', '-s', adb_serial, 'shell', 'dumpsys', 'window', 'windows'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            return jsonify(success=False, error=f'ADB error: {result.stderr[:200]}')
+
+        # Parse mCurrentFocus or mFocusedApp to get package name
+        package = None
+        for line in result.stdout.splitlines():
+            if 'mCurrentFocus' in line or 'mFocusedApp' in line:
+                # Format: mCurrentFocus=Window{... com.package.name/activity}
+                parts = line.split()
+                for part in parts:
+                    if '/' in part and '.' in part:
+                        pkg = part.split('/')[0]
+                        # Clean up any leading chars like {
+                        pkg = pkg.lstrip('{').strip()
+                        if pkg.startswith('com.') or pkg.startswith('org.') or pkg.startswith('net.'):
+                            package = pkg
+                            break
+                if package:
+                    break
+
+        if not package:
+            return jsonify(success=False, error='No foreground app detected. Open the app on the phone first.')
+
+        return jsonify(success=True, package=package)
+    except subprocess.TimeoutExpired:
+        return jsonify(success=False, error='ADB command timed out')
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+
+# ── API: Update Account App ID ─────────────────────────────────────
+
+@device_manager_bp.route('/api/device-manager/<path:serial>/update-app-id', methods=['POST'])
+def api_update_app_id(serial):
+    """Update instagram_package for an account."""
+    data = request.get_json() or {}
+    username = data.get('username')
+    package = data.get('package')
+    if not username or not package:
+        return jsonify(success=False, error='username and package required')
+
+    conn = _get_conn()
+    try:
+        conn.execute(
+            "UPDATE accounts SET instagram_package=? WHERE device_serial=? AND username=?",
+            (package, serial, username)
+        )
+        conn.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+    finally:
+        conn.close()
+
+
 # ── API: Watchdog Status ────────────────────────────────────────────
 
 @device_manager_bp.route('/api/watchdog/status')

@@ -1001,8 +1001,15 @@
                 <!-- Form Section (hidden when posting) -->
                 <div id="testPostForm">
                     <div class="row g-3">
+                        <!-- Device Filter -->
+                        <div class="col-md-4">
+                            <label class="form-label">Device</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="tpDevice" onchange="filterTpAccounts()">
+                                <option value="">-- All devices --</option>
+                            </select>
+                        </div>
                         <!-- Account -->
-                        <div class="col-md-6">
+                        <div class="col-md-8">
                             <label class="form-label">Account</label>
                             <select class="form-select bg-dark text-white border-secondary" id="tpAccount">
                                 <option value="">-- Select account --</option>
@@ -2681,6 +2688,7 @@ function formatDateTime(date) {
 // ============ TEST POST NOW ============
 let tpPollTimer = null;
 let tpAllFolderFiles = [];
+let tpAllAccounts = [];
 
 function openTestPostModal() {
     // Reset form
@@ -2695,15 +2703,24 @@ function openTestPostModal() {
     $('#tpMediaFile').html('<option value="">-- Select file --</option>');
     $('#tpMediaPreview').hide();
     tpAllFolderFiles = [];
+    $('#tpDevice').val('');
 
-    // Load accounts
+    // Load accounts + populate device filter
     $.get(API + '/accounts', function(data) {
-        const accounts = data.accounts || [];
-        let opts = '<option value="">-- Select account --</option>';
-        accounts.forEach(function(a) {
-            opts += '<option value="' + a.id + '">' + a.username + ' (' + a.device_serial + ')</option>';
+        tpAllAccounts = data.accounts || [];
+        // Build unique devices
+        const devices = {};
+        tpAllAccounts.forEach(function(a) {
+            const ds = a.device_serial || 'unknown';
+            const dn = a.device_name || ds;
+            if (!devices[ds]) devices[ds] = dn;
         });
-        $('#tpAccount').html(opts);
+        let devOpts = '<option value="">-- All devices --</option>';
+        Object.keys(devices).sort().forEach(function(ds) {
+            devOpts += '<option value="' + ds + '">' + devices[ds] + ' (' + ds + ')</option>';
+        });
+        $('#tpDevice').html(devOpts);
+        filterTpAccounts();
     });
 
     // Load media folders
@@ -2718,6 +2735,18 @@ function openTestPostModal() {
 
     onTpContentTypeChange();
     new bootstrap.Modal('#testPostModal').show();
+}
+
+function filterTpAccounts() {
+    const selectedDevice = $('#tpDevice').val();
+    const filtered = selectedDevice
+        ? tpAllAccounts.filter(a => a.device_serial === selectedDevice)
+        : tpAllAccounts;
+    let opts = '<option value="">-- Select account --</option>';
+    filtered.forEach(function(a) {
+        opts += '<option value="' + a.id + '">' + a.username + ' (' + (a.device_name || a.device_serial) + ')</option>';
+    });
+    $('#tpAccount').html(opts);
 }
 
 function onTpContentTypeChange() {

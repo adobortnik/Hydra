@@ -1347,12 +1347,18 @@ def list_accounts_for_schedule():
         try:
             if device_serial and device_serial != 'all':
                 rows = rows_to_dicts(conn.execute(
-                    "SELECT id, device_serial, username, status, start_time, end_time FROM accounts WHERE device_serial = ? AND status = 'active' ORDER BY username",
+                    "SELECT a.id, a.device_serial, a.username, a.status, a.start_time, a.end_time, "
+                    "COALESCE(d.device_name, a.device_serial) as device_name "
+                    "FROM accounts a LEFT JOIN devices d ON a.device_serial = d.device_serial "
+                    "WHERE a.device_serial = ? AND a.status = 'active' ORDER BY a.username",
                     (device_serial,)
                 ).fetchall())
             else:
                 rows = rows_to_dicts(conn.execute(
-                    "SELECT id, device_serial, username, status, start_time, end_time FROM accounts WHERE status = 'active' ORDER BY device_serial, username"
+                    "SELECT a.id, a.device_serial, a.username, a.status, a.start_time, a.end_time, "
+                    "COALESCE(d.device_name, a.device_serial) as device_name "
+                    "FROM accounts a LEFT JOIN devices d ON a.device_serial = d.device_serial "
+                    "WHERE a.status = 'active' ORDER BY a.device_serial, a.username"
                 ).fetchall())
             return jsonify({'accounts': rows})
         finally:

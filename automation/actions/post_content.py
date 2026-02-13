@@ -161,11 +161,24 @@ class PostContentAction:
     # ADB Media Push / Cleanup
     # ------------------------------------------------------------------
 
-    def _push_media_to_device(self, local_path, remote_dir="/sdcard/DCIM/PhoneFarm"):
-        """Push media file to device via ADB and trigger media scan."""
+    def _push_media_to_device(self, local_path, remote_dir="/sdcard/Pictures"):
+        """Push media file to device via ADB and register in MediaStore."""
         adb_serial = self.device_serial.replace('_', ':')
         filename = os.path.basename(local_path)
         remote_path = f"{remote_dir}/{filename}"
+        # MediaStore needs the real /storage/emulated/0 path, not /sdcard
+        real_remote_path = remote_path.replace('/sdcard/', '/storage/emulated/0/')
+
+        # Determine mime type
+        ext = os.path.splitext(filename)[1].lower()
+        mime_map = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+            '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
+        }
+        mime_type = mime_map.get(ext, 'image/jpeg')
+        is_video = mime_type.startswith('video/')
+        media_uri = 'content://media/external/video/media' if is_video else 'content://media/external/images/media'
 
         # Create remote directory
         subprocess.run(
@@ -182,15 +195,31 @@ class PostContentAction:
                       self.device_serial, result.stderr[:200])
             return None
 
-        # Trigger media scanner so gallery picks up the file
-        subprocess.run(
-            ['adb', '-s', adb_serial, 'shell',
-             'am', 'broadcast', '-a',
-             'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
-             '-d', f'file://{remote_path}'],
-            capture_output=True, timeout=10)
+        # Register in MediaStore via content insert (works on Android 10+)
+        # This is the reliable replacement for the deprecated MEDIA_SCANNER_SCAN_FILE broadcast
+        insert_result = subprocess.run(
+            ['adb', '-s', adb_serial, 'shell', 'content', 'insert',
+             '--uri', media_uri,
+             '--bind', f'_data:s:{real_remote_path}',
+             '--bind', f'_display_name:s:{filename}',
+             '--bind', f'mime_type:s:{mime_type}'],
+            capture_output=True, text=True, timeout=15)
 
-        # Give media scanner a moment
+        if insert_result.returncode != 0:
+            log.warning("[%s] CONTENT: MediaStore insert failed (%s), trying legacy broadcast",
+                        self.device_serial, insert_result.stderr[:100])
+            # Fallback: legacy broadcast (works on Android <10)
+            subprocess.run(
+                ['adb', '-s', adb_serial, 'shell',
+                 'am', 'broadcast', '-a',
+                 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+                 '-d', f'file://{remote_path}'],
+                capture_output=True, timeout=10)
+        else:
+            log.info("[%s] CONTENT: Registered %s in MediaStore",
+                     self.device_serial, filename)
+
+        # Give media system a moment to index
         time.sleep(2)
 
         return remote_path
@@ -277,7 +306,9 @@ class PostContentAction:
         # Step 6: Enter caption
         if self.full_caption:
             self._enter_caption(self.full_caption)
-            random_sleep(1, 2, label="after_caption")
+            # Dismiss keyboard so Share button is visible
+            self.device.press('back')
+            random_sleep(1, 2, label="after_caption_dismiss_keyboard")
 
         # Step 7: Optionally add location
         if self.location:
@@ -364,7 +395,9 @@ class PostContentAction:
         # Step 7: Enter caption
         if self.full_caption:
             self._enter_caption(self.full_caption)
-            random_sleep(1, 2, label="after_caption")
+            # Dismiss keyboard so Share button is visible
+            self.device.press('back')
+            random_sleep(1, 2, label="after_caption_dismiss_keyboard")
 
         # Step 8: Tap "Share"
         if not self._tap_share():
@@ -769,16 +802,17 @@ class PostContentAction:
     def _tap_next(self):
         """
         Tap the "Next" button (appears in gallery selection and filter screens).
+        Note: On filter/edit screen, button may show "Next →" — use textContains.
 
         Returns True if tapped.
         """
-        # Method 1: Text-based
-        for text in ["Next", "NEXT", "→"]:
-            el = self.device(text=text)
+        # Method 1: Text-based (textContains to catch "Next", "Next →", etc.)
+        for text in ["Next", "NEXT"]:
+            el = self.device(textContains=text)
             if el.exists(timeout=5):
                 el.click()
                 time.sleep(2)
-                log.debug("[%s] CONTENT: Tapped Next (text='%s')",
+                log.debug("[%s] CONTENT: Tapped Next (textContains='%s')",
                           self.device_serial, text)
                 return True
 
@@ -1310,9 +1344,9 @@ class PostContentAction:
                               self.device_serial, confirm_text)
                     return True
 
-            # Check for error states
-            for error_text in ["couldn't share", "failed", "try again",
-                               "error"]:
+            # Check for error states (use specific phrases to avoid false positives)
+            for error_text in ["couldn't share", "couldn't post", "failed to upload",
+                               "try again", "something went wrong", "unable to share"]:
                 if error_text.lower() in xml.lower():
                     log.warning("[%s] CONTENT: Upload error detected: '%s'",
                                 self.device_serial, error_text)
