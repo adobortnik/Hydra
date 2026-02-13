@@ -278,19 +278,22 @@ def api_detect_foreground_app(serial):
         if result.returncode != 0:
             return jsonify(success=False, error=f'ADB error: {result.stderr[:200]}')
 
-        # Parse mCurrentFocus or mFocusedApp to get package name
+        # Parse mCurrentFocus or mFocusedApp to get package/activity
         package = None
+        activity = None
         for line in result.stdout.splitlines():
             if 'mCurrentFocus' in line or 'mFocusedApp' in line:
-                # Format: mCurrentFocus=Window{... com.package.name/activity}
+                # Format: mCurrentFocus=Window{... com.package.name/com.activity.name}
                 parts = line.split()
                 for part in parts:
                     if '/' in part and '.' in part:
-                        pkg = part.split('/')[0]
-                        # Clean up any leading chars like {
-                        pkg = pkg.lstrip('{').strip()
+                        clean = part.lstrip('{').rstrip('}').strip()
+                        slash_parts = clean.split('/', 1)
+                        pkg = slash_parts[0]
+                        act = slash_parts[1] if len(slash_parts) > 1 else None
                         if pkg.startswith('com.') or pkg.startswith('org.') or pkg.startswith('net.'):
                             package = pkg
+                            activity = act
                             break
                 if package:
                     break
@@ -298,7 +301,9 @@ def api_detect_foreground_app(serial):
         if not package:
             return jsonify(success=False, error='No foreground app detected. Open the app on the phone first.')
 
-        return jsonify(success=True, package=package)
+        # Return full package/activity string
+        full_app_id = f"{package}/{activity}" if activity else package
+        return jsonify(success=True, package=full_app_id)
     except subprocess.TimeoutExpired:
         return jsonify(success=False, error='ADB command timed out')
     except Exception as e:
@@ -309,19 +314,55 @@ def api_detect_foreground_app(serial):
 
 @device_manager_bp.route('/api/device-manager/<path:serial>/update-app-id', methods=['POST'])
 def api_update_app_id(serial):
-    """Update instagram_package for an account."""
+    """Update instagram_package and app_cloner for an account."""
     data = request.get_json() or {}
     username = data.get('username')
-    package = data.get('package')
+    package = data.get('package')  # May be "com.instagram.androif/com.instagram.mainactivity.MainActivity"
     if not username or not package:
         return jsonify(success=False, error='username and package required')
 
+    # Split into package-only and full app_id
+    if '/' in package:
+        pkg_only = package.split('/')[0]
+        full_app_id = package
+    else:
+        pkg_only = package
+        full_app_id = f"{package}/com.instagram.mainactivity.MainActivity"
+
     conn = _get_conn()
     try:
+        # Update instagram_package column (package only)
         conn.execute(
             "UPDATE accounts SET instagram_package=? WHERE device_serial=? AND username=?",
-            (package, serial, username)
+            (pkg_only, serial, username)
         )
+
+        # Update app_cloner in account_settings (full package/activity)
+        row = conn.execute(
+            "SELECT id FROM accounts WHERE device_serial=? AND username=?",
+            (serial, username)
+        ).fetchone()
+        if row:
+            account_id = row[0] if isinstance(row, tuple) else row['id']
+            settings_row = conn.execute(
+                "SELECT settings_json FROM account_settings WHERE account_id=?",
+                (account_id,)
+            ).fetchone()
+            if settings_row:
+                import json
+                settings = json.loads(settings_row[0] if isinstance(settings_row, tuple) else settings_row['settings_json'] or '{}')
+                settings['app_cloner'] = full_app_id
+                conn.execute(
+                    "UPDATE account_settings SET settings_json=? WHERE account_id=?",
+                    (json.dumps(settings), account_id)
+                )
+            else:
+                import json
+                conn.execute(
+                    "INSERT INTO account_settings (account_id, settings_json) VALUES (?, ?)",
+                    (account_id, json.dumps({'app_cloner': full_app_id}))
+                )
+
         conn.commit()
         return jsonify(success=True)
     except Exception as e:
