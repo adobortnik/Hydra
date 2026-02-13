@@ -427,29 +427,28 @@ class BotEngine:
         try:
             from automation.instagram_actions import InstagramActions
 
-            # Get package from account table (fallback)
-            account_package = self.account.get('instagram_package', 'com.instagram.android')
-            activity = None
-
-            # Extract package + activity from app_cloner setting (format: "package/activity")
-            # app_cloner is the SOURCE OF TRUTH from Onimator — prefer it over accounts table
+            # Get package + activity from account table or app_cloner setting
+            # Both may contain full format: "com.instagram.androif/com.instagram.mainactivity.MainActivity"
+            account_package_raw = self.account.get('instagram_package', 'com.instagram.android')
             app_cloner = self.settings.get('app_cloner', '')
+
+            # Try app_cloner first (source of truth), then instagram_package column
+            raw = ''
             if app_cloner and '/' in str(app_cloner) and str(app_cloner) != 'None':
-                parts = str(app_cloner).split('/', 1)
-                cloner_pkg = parts[0]
-                cloner_activity = parts[1] if len(parts) > 1 else None
-
-                # Use app_cloner package (it's more reliable than accounts.instagram_package)
-                package = cloner_pkg
-                activity = cloner_activity
-
-                if cloner_pkg != account_package:
-                    log.info(
-                        "[%s] %s: Using app_cloner package (%s) instead of account table (%s).",
-                        self.device_serial, self.account.get('username', '?'),
-                        cloner_pkg, account_package)
+                raw = str(app_cloner)
+            elif account_package_raw and '/' in str(account_package_raw):
+                raw = str(account_package_raw)
             else:
-                package = account_package
+                raw = str(account_package_raw) if account_package_raw else 'com.instagram.android'
+
+            # Split into package + activity
+            if '/' in raw:
+                parts = raw.split('/', 1)
+                package = parts[0]
+                activity = parts[1] if len(parts) > 1 else None
+            else:
+                package = raw
+                activity = None
 
             log.info("[%s] %s: Opening Instagram package=%s activity=%s",
                      self.device_serial, self.account.get('username', '?'),
