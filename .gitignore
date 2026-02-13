@@ -42,3 +42,5 @@ dump_schema.py
 build_package.py
 zip_workspace.py
 jarvis-avatar.html
+
+dashboard/global_settings.json
