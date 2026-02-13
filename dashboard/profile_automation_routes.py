@@ -6,6 +6,7 @@ Add these routes to your simple_app.py
 
 import sys
 import os
+import sqlite3
 from pathlib import Path
 
 # Add uiAutomator to path (now inside dashboard folder)
@@ -967,6 +968,477 @@ def get_history():
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# V2 ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════
+
+@profile_automation_bp.route('/accounts-with-details', methods=['GET'])
+def get_accounts_with_details():
+    """
+    Get all accounts with details: current bio, pfp info, device name, tags, work hours.
+    Merges data from phone_farm.db accounts + account_settings.
+    """
+    try:
+        from pathlib import Path
+        import json
+
+        phone_farm_db = Path(__file__).parent.parent / "db" / "phone_farm.db"
+        conn = sqlite3.connect(str(phone_farm_db))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Get all accounts with settings and device info
+        cursor.execute("""
+            SELECT
+                a.id, a.device_serial, a.username, a.password, a.email,
+                a.status, a.instagram_package,
+                d.device_name, d.device_serial as d_serial,
+                s.settings_json
+            FROM accounts a
+            LEFT JOIN devices d ON a.device_serial = d.device_serial
+            LEFT JOIN account_settings s ON a.id = s.account_id
+            ORDER BY a.device_serial, a.username
+        """)
+
+        accounts = []
+        for row in cursor.fetchall():
+            account = dict(row)
+            tags = ''
+            enable_tags = False
+            work_hours = None
+            mother_mention = ''
+
+            if account.get('settings_json'):
+                try:
+                    settings = json.loads(account['settings_json'])
+                    tags = settings.get('tags', '')
+                    enable_tags = settings.get('enable_tags', False)
+                    mother_mention = settings.get('sharepost_mention', '')
+                    work_hours = {
+                        'start': settings.get('work_hours_start'),
+                        'end': settings.get('work_hours_end')
+                    }
+                except (json.JSONDecodeError, Exception):
+                    pass
+
+            # Clean up - don't send settings_json blob to frontend
+            account.pop('settings_json', None)
+            account.pop('d_serial', None)
+            account['app_package'] = account.pop('instagram_package', 'com.instagram.android')
+            account['tags'] = tags
+            account['enable_tags'] = enable_tags
+            account['mother_mention'] = mother_mention
+            account['work_hours'] = work_hours
+
+            accounts.append(account)
+
+        conn.close()
+
+        return jsonify({
+            'status': 'success',
+            'accounts': accounts,
+            'total': len(accounts)
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@profile_automation_bp.route('/preview-ai', methods=['POST'])
+def preview_ai_generation():
+    """
+    Preview AI-generated usernames/bios without creating tasks.
+    Returns samples for review before committing.
+    """
+    try:
+        data = request.get_json()
+        preview_type = data.get('type', 'username')  # 'username' or 'bio'
+        count = min(data.get('count', 5), 10)
+        mother_account = data.get('mother_account', '')
+        mother_bio = data.get('mother_bio', '')
+        name_shortcuts = data.get('name_shortcuts', [])
+        tone = data.get('tone', 'default')
+
+        # Get AI config
+        ai_config = get_ai_config()
+        api_key = data.get('ai_api_key') or ai_config.get('api_key', '')
+
+        samples = []
+
+        if preview_type == 'username':
+            if name_shortcuts:
+                # Use creative generation
+                tba = TagBasedAutomation()
+                for i in range(count):
+                    username = tba._generate_creative_username(name_shortcuts, i)
+                    samples.append(username)
+            elif api_key and mother_account:
+                # Use AI
+                generator = CampaignAIGenerator(api_key=api_key, provider='openai')
+                for i in range(count):
+                    username = generator.generator.generate_username(mother_account)
+                    samples.append(username)
+            else:
+                # Fallback
+                from ai_profile_generator import AIProfileGenerator
+                gen = AIProfileGenerator()
+                for i in range(count):
+                    samples.append(gen._generate_username_fallback(mother_account or 'user'))
+        elif preview_type == 'bio':
+            if api_key and mother_account:
+                generator = CampaignAIGenerator(api_key=api_key, provider='openai')
+                for i in range(count):
+                    bio = generator.generator.generate_bio(mother_account, mother_bio, account_number=i+1)
+                    samples.append(bio)
+            else:
+                from ai_profile_generator import AIProfileGenerator
+                gen = AIProfileGenerator()
+                for i in range(count):
+                    samples.append(gen._generate_bio_fallback(mother_bio))
+
+        return jsonify({
+            'status': 'success',
+            'preview_type': preview_type,
+            'samples': samples
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@profile_automation_bp.route('/execution-status', methods=['GET'])
+def get_execution_status():
+    """
+    Get enriched task status for live execution dashboard.
+    Returns all tasks (not just pending) with rich status info.
+    """
+    try:
+        from profile_automation_db import get_all_tasks
+        from collections import defaultdict
+
+        all_tasks = get_all_tasks()
+
+        stats = {
+            'pending': 0,
+            'processing': 0,
+            'completed': 0,
+            'failed': 0,
+            'total': len(all_tasks)
+        }
+
+        tasks_enriched = []
+        for task in all_tasks:
+            status = task.get('status', 'pending')
+            # Normalize status: 'in_progress' → 'processing'
+            if status == 'in_progress':
+                status = 'processing'
+            stats[status] = stats.get(status, 0) + 1
+
+            # Build actions list
+            actions = []
+            if task.get('new_username'):
+                actions.append('username')
+            if task.get('new_bio'):
+                actions.append('bio')
+            if task.get('profile_picture_id'):
+                actions.append('picture')
+
+            tasks_enriched.append({
+                'id': task['id'],
+                'device_serial': task['device_serial'],
+                'username': task.get('username', ''),
+                'instagram_package': task.get('instagram_package', ''),
+                'new_username': task.get('new_username'),
+                'new_bio': task.get('new_bio'),
+                'profile_picture_id': task.get('profile_picture_id'),
+                'picture_filename': task.get('filename'),
+                'status': status,
+                'error_message': task.get('error_message'),
+                'created_at': task.get('created_at'),
+                'updated_at': task.get('updated_at'),
+                'completed_at': task.get('completed_at'),
+                'mother_account': task.get('mother_account'),
+                'actions': actions
+            })
+
+        return jsonify({
+            'status': 'success',
+            'stats': stats,
+            'tasks': tasks_enriched
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@profile_automation_bp.route('/upload-picture', methods=['POST'])
+def upload_picture():
+    """
+    Upload profile picture via drag&drop.
+    Saves to uiAutomator/profile_pictures/uploaded/ and registers in DB.
+    """
+    try:
+        from profile_automation_db import add_profile_picture, PROFILE_PICTURES_DIR
+
+        if 'file' not in request.files:
+            return jsonify({'status': 'error', 'message': 'No file uploaded'}), 400
+
+        file = request.files['file']
+        if not file.filename:
+            return jsonify({'status': 'error', 'message': 'Empty filename'}), 400
+
+        # Validate extension
+        allowed_ext = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in allowed_ext:
+            return jsonify({'status': 'error', 'message': f'Invalid file type: {ext}'}), 400
+
+        # Save to uploaded folder
+        upload_dir = PROFILE_PICTURES_DIR / "uploaded"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        import time as _time
+        filename = f"{_time.time()}{ext}"
+        save_path = upload_dir / filename
+        file.save(str(save_path))
+
+        # Get gender from form data
+        gender = request.form.get('gender', 'neutral')
+
+        # Register in DB
+        pic_id = add_profile_picture(
+            filename=filename,
+            original_path=str(save_path),
+            category='uploaded',
+            gender=gender,
+            notes='Uploaded via V2 dashboard'
+        )
+
+        return jsonify({
+            'status': 'success',
+            'picture_id': pic_id,
+            'filename': filename,
+            'message': 'Picture uploaded successfully'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/picture/<path:filename>', methods=['GET'])
+def serve_picture(filename):
+    """Serve profile pictures as thumbnails"""
+    from flask import send_from_directory
+    from profile_automation_db import PROFILE_PICTURES_DIR
+
+    # Check in subdirectories
+    for subdir in ['uploaded', 'female', 'male', 'neutral', '']:
+        pic_path = PROFILE_PICTURES_DIR / subdir / filename if subdir else PROFILE_PICTURES_DIR / filename
+        if pic_path.exists():
+            return send_from_directory(str(pic_path.parent), filename)
+
+    return jsonify({'status': 'error', 'message': 'Picture not found'}), 404
+
+
+@profile_automation_bp.route('/pictures-with-files', methods=['GET'])
+def get_pictures_with_files():
+    """
+    Get profile pictures from both DB and filesystem scan.
+    Returns pictures with their serve URLs.
+    """
+    try:
+        from profile_automation_db import get_profile_pictures, PROFILE_PICTURES_DIR
+
+        gender = request.args.get('gender')
+        pictures = get_profile_pictures(gender=gender)
+
+        # Also scan filesystem for any not-yet-imported pictures
+        all_files = []
+        for subdir in ['uploaded', 'female', 'male', 'neutral']:
+            dir_path = PROFILE_PICTURES_DIR / subdir
+            if dir_path.exists():
+                for f in dir_path.iterdir():
+                    if f.is_file() and f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.gif', '.webp'}:
+                        all_files.append({
+                            'filename': f.name,
+                            'subfolder': subdir,
+                            'url': f'/api/profile_automation/picture/{f.name}',
+                            'size': f.stat().st_size
+                        })
+
+        # Enrich DB pictures with URLs
+        for pic in pictures:
+            pic['url'] = f'/api/profile_automation/picture/{pic["filename"]}'
+
+        return jsonify({
+            'status': 'success',
+            'pictures': pictures,
+            'filesystem_files': all_files
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/tasks/process-parallel-async', methods=['POST'])
+def process_tasks_parallel_async():
+    """
+    Start parallel processing in background thread.
+    Returns immediately, poll /execution-status for progress.
+    """
+    try:
+        import threading
+        from pathlib import Path
+
+        data = request.get_json() or {}
+
+        # Import required modules
+        sys.path.insert(0, str(Path(__file__).parent / 'uiAutomator'))
+        from parallel_profile_processor import ParallelProfileProcessor
+        from profile_automation_db import get_pending_tasks
+
+        # Get pending tasks
+        pending_tasks = get_pending_tasks()
+
+        # Filter by device if specified
+        if data.get('device_serial'):
+            pending_tasks = [t for t in pending_tasks if t['device_serial'] == data['device_serial']]
+
+        if data.get('max_tasks'):
+            pending_tasks = pending_tasks[:data['max_tasks']]
+
+        if not pending_tasks:
+            return jsonify({
+                'status': 'success',
+                'message': 'No pending tasks',
+                'task_count': 0
+            })
+
+        def run_processor():
+            try:
+                processor = ParallelProfileProcessor()
+                processor.run_parallel(
+                    pending_tasks,
+                    max_parallel_devices=data.get('max_devices')
+                )
+            except Exception as e:
+                print(f"[ProfileAutomation] Async processor error: {e}")
+
+        thread = threading.Thread(target=run_processor, daemon=True)
+        thread.start()
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Started processing {len(pending_tasks)} tasks in background',
+            'task_count': len(pending_tasks)
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@profile_automation_bp.route('/tasks/retry-failed', methods=['POST'])
+def retry_failed_tasks():
+    """Reset all failed tasks back to pending"""
+    try:
+        from profile_automation_db import get_all_tasks, update_task_status
+
+        all_tasks = get_all_tasks()
+        retried = 0
+
+        for task in all_tasks:
+            if task['status'] == 'failed':
+                update_task_status(task['id'], 'pending', error_message=None)
+                retried += 1
+
+        return jsonify({
+            'status': 'success',
+            'retried': retried,
+            'message': f'{retried} tasks reset to pending'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/tasks/clear-completed', methods=['POST'])
+def clear_completed_tasks_v2():
+    """Delete all completed tasks"""
+    try:
+        from profile_automation_db import PROFILE_AUTOMATION_DB
+
+        conn = sqlite3.connect(str(PROFILE_AUTOMATION_DB))
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM profile_updates WHERE status = 'completed'")
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'status': 'success',
+            'deleted': deleted,
+            'message': f'{deleted} completed tasks cleared'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/bio_templates', methods=['POST'])
+def add_template():
+    """Add a new bio template"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        bio_text = data.get('bio_text', '').strip()
+        category = data.get('category', 'general')
+
+        if not name or not bio_text:
+            return jsonify({'status': 'error', 'message': 'Name and bio_text are required'}), 400
+
+        template_id = add_bio_template(name, bio_text, category)
+        if template_id:
+            return jsonify({'status': 'success', 'template_id': template_id})
+        else:
+            return jsonify({'status': 'error', 'message': 'Template with this name already exists'}), 409
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 # Instructions for integration into simple_app.py

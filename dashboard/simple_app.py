@@ -2808,6 +2808,10 @@ def account_inventory():
 def profile_automation():
     return render_template('profile_automation.html')
 
+@app.route('/profile-automation-v2')
+def profile_automation_v2():
+    return render_template('profile_automation_v2.html')
+
 @app.route('/login-automation')
 def login_automation():
     return render_template('login_automation.html')

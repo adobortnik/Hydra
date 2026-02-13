@@ -1,0 +1,1357 @@
+{% extends "base.html" %}
+{% block title %}Profile Automation V2 - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── Wizard Steps ── */
+    .wizard-steps { display: flex; gap: 4px; margin-bottom: 1.5rem; }
+    .wizard-step {
+        flex: 1; text-align: center; padding: 10px 8px; border-radius: 8px;
+        background: var(--bg-card); border: 1px solid var(--border);
+        cursor: pointer; transition: all 0.2s; font-size: 0.85rem;
+    }
+    .wizard-step.active { background: rgba(0,210,160,0.15); border-color: var(--green); color: var(--green); }
+    .wizard-step.done { background: rgba(108,92,231,0.12); border-color: var(--accent); color: var(--accent-light); }
+    .wizard-step .step-num {
+        display: inline-block; width: 24px; height: 24px; line-height: 24px;
+        border-radius: 50%; background: var(--border); font-weight: 700; font-size: 0.75rem; margin-right: 4px;
+    }
+    .wizard-step.active .step-num { background: var(--green); color: #000; }
+    .wizard-step.done .step-num { background: var(--accent); color: #fff; }
+
+    /* ── Step Panels ── */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    /* ── Account List ── */
+    .account-row { padding: 8px 12px; border-bottom: 1px solid var(--border); transition: all 0.15s; cursor: pointer; }
+    .account-row:hover { background: var(--bg-hover); }
+    .account-row.selected { background: rgba(0,210,160,0.08); border-left: 3px solid var(--green); }
+    .device-group-header { background: var(--bg-card); padding: 10px 14px; border-radius: 6px; margin-bottom: 2px; cursor: pointer; }
+    .device-group-header:hover { background: var(--bg-hover); }
+    .device-accounts { border-left: 2px solid var(--border); margin-left: 16px; }
+
+    /* ── Action Cards ── */
+    .action-card {
+        cursor: pointer; padding: 1.25rem; border-radius: 12px;
+        border: 2px solid var(--border); transition: all 0.2s; background: var(--bg-card);
+    }
+    .action-card:hover { border-color: rgba(108,92,231,0.5); background: rgba(108,92,231,0.05); }
+    .action-card.selected { border-color: var(--accent); background: rgba(108,92,231,0.12); }
+    .action-card .action-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .action-card h5 { margin-bottom: 0.25rem; }
+    .action-card p { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0; }
+    .action-options { display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+    .action-card.selected .action-options { display: block; }
+
+    /* ── Picture Gallery ── */
+    .pic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+    .pic-thumb {
+        position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden;
+        border: 2px solid transparent; transition: all 0.2s; cursor: pointer;
+    }
+    .pic-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .pic-thumb .usage-badge {
+        position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7);
+        color: #fff; font-size: 0.65rem; padding: 1px 5px; border-radius: 8px;
+    }
+
+    /* ── Drop Zone ── */
+    .drop-zone {
+        border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center;
+        transition: all 0.2s; color: var(--text-dim); cursor: pointer;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(108,92,231,0.05); color: var(--text); }
+
+    /* ── Stats Cards ── */
+    .stat-card-sm { border-radius: 10px; padding: 1rem; text-align: center; }
+    .stat-card-sm h3 { font-size: 1.75rem; font-weight: 800; margin: 0; }
+    .stat-card-sm small { font-size: 0.8rem; }
+
+    /* ── Task Table ── */
+    .task-status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+    .task-status.pending { background: rgba(255,193,7,0.15); color: #ffc107; }
+    .task-status.processing { background: rgba(13,110,253,0.15); color: #0d6efd; }
+    .task-status.completed { background: rgba(25,135,84,0.15); color: #198754; }
+    .task-status.failed { background: rgba(220,53,69,0.15); color: #dc3545; }
+
+    /* ── Review table ── */
+    .review-change { font-size: 0.82rem; }
+    .review-change .old { color: var(--text-dim); text-decoration: line-through; }
+    .review-change .arrow { color: var(--accent); margin: 0 4px; }
+    .review-change .new { color: var(--green); }
+
+    /* ── Action badges ── */
+    .action-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+    .action-badge.bio { background: rgba(13,110,253,0.15); color: #4fa8d5; }
+    .action-badge.username { background: rgba(108,92,231,0.15); color: #a29bfe; }
+    .action-badge.picture { background: rgba(240,160,64,0.15); color: #f0a040; }
+
+    /* ── Toast styling ── */
+    .toast-container { z-index: 9999; }
+
+    /* ── Progress bar ── */
+    .execution-progress { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+    .execution-progress .bar { height: 100%; transition: width 0.5s; border-radius: 3px; }
+
+    /* ── Activity Log ── */
+    .activity-log { max-height: 250px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.8rem; background: #0a0a12; border-radius: 8px; padding: 12px; }
+    .activity-log .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .activity-log .log-time { color: var(--text-dim); margin-right: 8px; }
+    .activity-log .log-ok { color: var(--green); }
+    .activity-log .log-err { color: var(--red); }
+    .activity-log .log-info { color: var(--blue); }
+
+    /* ── Search ── */
+    .search-bar { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 8px 12px; width: 100%; }
+    .search-bar:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Sample previews ── */
+    .sample-chip { display: inline-block; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; margin: 3px; font-size: 0.82rem; }
+
+    /* ── Tag selector ── */
+    .tag-chip { display: inline-block; padding: 5px 12px; border-radius: 16px; font-size: 0.82rem; cursor: pointer; border: 1px solid var(--border); transition: all 0.15s; margin: 2px; }
+    .tag-chip:hover { border-color: var(--accent); }
+    .tag-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .tag-chip .count-badge { background: rgba(255,255,255,0.2); padding: 1px 6px; border-radius: 10px; font-size: 0.7rem; margin-left: 4px; }
+
+    /* ── Slider ── */
+    input[type="range"] { accent-color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer"></div>
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2><i class="fas fa-magic me-2 text-info"></i>Profile Automation V2</h2>
+        <span class="text-muted small">Campaign wizard + live execution dashboard</span>
+    </div>
+    <div>
+        <a href="/profile-automation" class="btn btn-sm btn-outline-secondary me-2"><i class="fas fa-arrow-left me-1"></i>Old Version</a>
+        <button class="btn btn-sm btn-outline-warning" onclick="grantPermissions()"><i class="fas fa-key me-1"></i>Grant Permissions</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION A: CAMPAIGN WIZARD             -->
+<!-- ═══════════════════════════════════════ -->
+<div class="card bg-dark border-secondary mb-4" id="wizardCard">
+    <div class="card-body">
+        <!-- Wizard Steps Bar -->
+        <div class="wizard-steps" id="wizardSteps">
+            <div class="wizard-step active" data-step="1" onclick="goToStep(1)">
+                <span class="step-num">1</span> Select Accounts
+            </div>
+            <div class="wizard-step" data-step="2" onclick="goToStep(2)">
+                <span class="step-num">2</span> Choose Actions
+            </div>
+            <div class="wizard-step" data-step="3" onclick="goToStep(3)">
+                <span class="step-num">3</span> Review & Execute
+            </div>
+        </div>
+
+        <!-- ══════════════ STEP 1: Select Accounts ══════════════ -->
+        <div id="step1" class="step-panel active">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="fas fa-users me-2 text-warning"></i>Step 1: Select Target Accounts</h5>
+                <div>
+                    <span class="badge bg-info me-2" id="selectionCount">0 of 0 selected</span>
+                    <button class="btn btn-sm btn-outline-success" onclick="selectAllAccounts()">Select All</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="deselectAllAccounts()">Deselect All</button>
+                </div>
+            </div>
+
+            <!-- Tag Selector -->
+            <div class="mb-3">
+                <label class="form-label small text-muted">Filter by Tag</label>
+                <div class="d-flex align-items-center gap-2 flex-wrap" id="tagSelector">
+                    <span class="tag-chip active" data-tag="" onclick="filterByTag(this, '')">All</span>
+                    <!-- Tags inserted here -->
+                </div>
+                <div class="mt-2 d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="newTagName" placeholder="New tag name..." style="max-width:200px">
+                    <button class="btn btn-sm btn-outline-info" onclick="createNewTag()"><i class="fas fa-plus me-1"></i>Create Tag</button>
+                </div>
+            </div>
+
+            <!-- Search -->
+            <div class="mb-3">
+                <input type="text" class="search-bar" id="accountSearch" placeholder="🔍 Search accounts by username, device, or tag..." oninput="filterAccounts()">
+            </div>
+
+            <!-- Device / Account List -->
+            <div id="accountList" style="max-height: 450px; overflow-y: auto;">
+                <div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...</div>
+            </div>
+
+            <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-primary" onclick="goToStep(2)" id="step1Next" disabled>
+                    Next: Choose Actions <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ══════════════ STEP 2: Choose Actions ══════════════ -->
+        <div id="step2" class="step-panel">
+            <h5 class="mb-3"><i class="fas fa-sliders-h me-2 text-info"></i>Step 2: Choose Actions</h5>
+
+            <div class="row g-3 mb-4">
+                <!-- Profile Picture Card -->
+                <div class="col-md-4">
+                    <div class="action-card" id="actionPicture" onclick="toggleAction('picture')">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="action-icon">📷</div>
+                                <h5>Change Profile Picture</h5>
+                                <p>Update profile photos from gallery</p>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="togglePicture" onclick="event.stopPropagation();" onchange="toggleAction('picture')">
+                            </div>
+                        </div>
+                        <div class="action-options" onclick="event.stopPropagation();">
+                            <label class="form-label small">Strategy</label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="pictureStrategy">
+                                <option value="gallery_auto">📱 Auto Gallery (use phone gallery)</option>
+                                <option value="rotate">🔄 Rotate (cycle through library)</option>
+                                <option value="random">🎲 Random</option>
+                            </select>
+                            <label class="form-label small">Gender Filter</label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="pictureGender">
+                                <option value="">All</option>
+                                <option value="female">Female</option>
+                                <option value="male">Male</option>
+                                <option value="neutral">Neutral</option>
+                            </select>
+                            <!-- Upload Zone -->
+                            <div class="drop-zone mt-2" id="pictureDropZone">
+                                <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i><br>
+                                <span>Drag & drop pictures here or <strong>click to browse</strong></span>
+                                <input type="file" id="pictureFileInput" accept="image/*" multiple style="display:none" onchange="handleFileUpload(this.files)">
+                            </div>
+                            <!-- Gallery Preview -->
+                            <div class="mt-3">
+                                <label class="form-label small d-flex justify-content-between">
+                                    <span>Picture Library</span>
+                                    <span class="text-muted" id="pictureCount">0 pictures</span>
+                                </label>
+                                <div class="pic-grid" id="pictureGallery"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bio Card -->
+                <div class="col-md-4">
+                    <div class="action-card" id="actionBio" onclick="toggleAction('bio')">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="action-icon">📝</div>
+                                <h5>Change Bio</h5>
+                                <p>AI-generated or template bios</p>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="toggleBio" onclick="event.stopPropagation();" onchange="toggleAction('bio')">
+                            </div>
+                        </div>
+                        <div class="action-options" onclick="event.stopPropagation();">
+                            <label class="form-label small">Source</label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="bioSource" onchange="updateBioOptions()">
+                                <option value="ai">🤖 AI Generated</option>
+                                <option value="template">📋 Template</option>
+                                <option value="custom">✏️ Custom</option>
+                            </select>
+
+                            <!-- AI options -->
+                            <div id="bioAiOptions">
+                                <label class="form-label small">Mother Account Name</label>
+                                <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary mb-2" id="bioMotherAccount" placeholder="e.g. chantall.main">
+                                <label class="form-label small">Mother Bio (reference)</label>
+                                <textarea class="form-control form-control-sm bg-dark text-white border-secondary mb-2" id="bioMotherBio" rows="2" placeholder="✨ Fashion & Lifestyle | 📍 Paris"></textarea>
+                                <button class="btn btn-sm btn-outline-info" onclick="previewBioSamples()">
+                                    <i class="fas fa-eye me-1"></i>Preview 3 Samples
+                                </button>
+                                <div id="bioSamples" class="mt-2"></div>
+                            </div>
+
+                            <!-- Template options -->
+                            <div id="bioTemplateOptions" style="display:none">
+                                <div id="bioTemplateList" class="mb-2" style="max-height:200px; overflow-y:auto;"></div>
+                                <div class="d-flex gap-2">
+                                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="newTemplateName" placeholder="Template name">
+                                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="newTemplateText" placeholder="Bio text...">
+                                    <button class="btn btn-sm btn-outline-success" onclick="addBioTemplate()"><i class="fas fa-plus"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Custom options -->
+                            <div id="bioCustomOptions" style="display:none">
+                                <textarea class="form-control form-control-sm bg-dark text-white border-secondary" id="bioCustomText" rows="3" placeholder="Enter custom bio for all accounts..."></textarea>
+                                <small class="text-muted"><span id="bioCustomCount">0</span>/150 characters</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Username Card -->
+                <div class="col-md-4">
+                    <div class="action-card" id="actionUsername" onclick="toggleAction('username')">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="action-icon">👤</div>
+                                <h5>Change Username</h5>
+                                <p>AI or creative username variations</p>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="toggleUsername" onclick="event.stopPropagation();" onchange="toggleAction('username')">
+                            </div>
+                        </div>
+                        <div class="action-options" onclick="event.stopPropagation();">
+                            <label class="form-label small">Source</label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="usernameSource" onchange="updateUsernameOptions()">
+                                <option value="creative">🎨 Creative (from shortcuts)</option>
+                                <option value="ai">🤖 AI Generated</option>
+                            </select>
+
+                            <label class="form-label small">Mother Account</label>
+                            <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary mb-2" id="usernameMotherAccount" placeholder="e.g. chantall.main">
+
+                            <div id="usernameCreativeOptions">
+                                <label class="form-label small">Name Shortcuts / Variations</label>
+                                <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary mb-2" id="nameShortcuts" placeholder="chantall, chantie, chan (comma-separated)">
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label small d-flex justify-content-between">
+                                    <span>Max Retry Attempts</span>
+                                    <span class="text-muted" id="retryValue">5</span>
+                                </label>
+                                <input type="range" class="form-range" min="1" max="20" value="5" id="usernameRetries" oninput="document.getElementById('retryValue').textContent=this.value">
+                            </div>
+
+                            <button class="btn btn-sm btn-outline-info" onclick="previewUsernameSamples()">
+                                <i class="fas fa-eye me-1"></i>Preview 5 Samples
+                            </button>
+                            <div id="usernameSamples" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToStep(1)"><i class="fas fa-arrow-left me-1"></i>Back</button>
+                <button class="btn btn-primary" onclick="goToStep(3)" id="step2Next" disabled>
+                    Next: Review <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ══════════════ STEP 3: Review & Execute ══════════════ -->
+        <div id="step3" class="step-panel">
+            <h5 class="mb-3"><i class="fas fa-clipboard-check me-2 text-success"></i>Step 3: Review & Execute</h5>
+
+            <!-- Summary Card -->
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h4 class="text-white mb-0" id="reviewAccountCount">0</h4>
+                            <small class="text-muted">Accounts</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-info mb-0" id="reviewActionSummary">-</h4>
+                            <small class="text-muted">Actions</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-warning mb-0" id="reviewDeviceCount">0</h4>
+                            <small class="text-muted">Devices</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-accent mb-0" id="reviewStrategy">-</h4>
+                            <small class="text-muted">Strategy</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Table -->
+            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                <table class="table table-dark table-sm mb-0">
+                    <thead style="position:sticky;top:0;background:#12121a;z-index:1">
+                        <tr>
+                            <th>#</th>
+                            <th>Account</th>
+                            <th>Device</th>
+                            <th>Changes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reviewTableBody">
+                        <tr><td colspan="4" class="text-center text-muted py-3">No accounts selected</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToStep(2)"><i class="fas fa-arrow-left me-1"></i>Back</button>
+                <button class="btn btn-success btn-lg" onclick="createTasks()" id="createTasksBtn">
+                    <i class="fas fa-rocket me-2"></i>Create Tasks & Execute
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION B: EXECUTION DASHBOARD         -->
+<!-- ═══════════════════════════════════════ -->
+<div class="card bg-dark border-secondary mb-4" id="executionPanel">
+    <div class="card-header bg-dark border-secondary">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-tasks me-2 text-info"></i>Execution Dashboard</h5>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-success" onclick="runAllTasks()" id="runAllBtn">
+                    <i class="fas fa-play me-1"></i>Run All
+                </button>
+                <button class="btn btn-sm btn-warning" onclick="retryFailed()">
+                    <i class="fas fa-redo me-1"></i>Retry Failed
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="clearCompleted()">
+                    <i class="fas fa-trash me-1"></i>Clear Done
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshExecution()">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Progress Bar -->
+        <div class="execution-progress mb-3">
+            <div class="bar bg-success" id="execProgressBar" style="width: 0%"></div>
+        </div>
+
+        <!-- Stats -->
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <div class="stat-card-sm" style="background: rgba(255,193,7,0.1); border: 1px solid rgba(255,193,7,0.3);">
+                    <h3 class="text-warning" id="execPending">0</h3>
+                    <small class="text-muted">Pending</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card-sm" style="background: rgba(13,110,253,0.1); border: 1px solid rgba(13,110,253,0.3);">
+                    <h3 class="text-primary" id="execProcessing">0</h3>
+                    <small class="text-muted">Processing</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card-sm" style="background: rgba(25,135,84,0.1); border: 1px solid rgba(25,135,84,0.3);">
+                    <h3 class="text-success" id="execCompleted">0</h3>
+                    <small class="text-muted">Completed</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card-sm" style="background: rgba(220,53,69,0.1); border: 1px solid rgba(220,53,69,0.3);">
+                    <h3 class="text-danger" id="execFailed">0</h3>
+                    <small class="text-muted">Failed</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task Table -->
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-dark table-hover table-sm mb-0">
+                <thead style="position:sticky;top:0;background:#12121a;z-index:1">
+                    <tr>
+                        <th style="width:40px">Status</th>
+                        <th>Account</th>
+                        <th>Device</th>
+                        <th>Actions</th>
+                        <th>Details</th>
+                        <th>Error</th>
+                        <th style="width:60px">Act</th>
+                    </tr>
+                </thead>
+                <tbody id="execTableBody">
+                    <tr><td colspan="7" class="text-center text-muted py-4">No tasks yet. Create a campaign above.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Activity Log (collapsible) -->
+        <div class="mt-3">
+            <a class="text-muted small" data-bs-toggle="collapse" href="#activityLog" role="button">
+                <i class="fas fa-terminal me-1"></i>Activity Log ▾
+            </a>
+            <div class="collapse mt-2" id="activityLog">
+                <div class="activity-log" id="logContent">
+                    <div class="log-entry"><span class="log-time">--:--</span><span class="log-info">Waiting for tasks...</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let allAccounts = [];
+let allTags = [];
+let selectedAccounts = new Set(); // Set of "device_serial|username"
+let activeTag = '';
+let searchQuery = '';
+let activeActions = { picture: false, bio: false, username: false };
+let bioTemplates = [];
+let profilePictures = [];
+let pollInterval = null;
+let isProcessing = false;
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+$(document).ready(function() {
+    loadAccounts();
+    loadTags();
+    loadPictures();
+    loadBioTemplates();
+    refreshExecution();
+    setupDropZone();
+
+    // Character counter for custom bio
+    $('#bioCustomText').on('input', function() {
+        $('#bioCustomCount').text(this.value.length);
+    });
+});
+
+// ═══════════════════════════════════════════════
+// TOASTS
+// ═══════════════════════════════════════════════
+function showToast(message, type = 'info') {
+    const colors = { success: 'bg-success', error: 'bg-danger', warning: 'bg-warning text-dark', info: 'bg-info text-dark' };
+    const icons = { success: 'check-circle', error: 'exclamation-circle', warning: 'exclamation-triangle', info: 'info-circle' };
+    const html = `
+        <div class="toast align-items-center ${colors[type] || colors.info} border-0" role="alert" data-bs-delay="4000">
+            <div class="d-flex">
+                <div class="toast-body"><i class="fas fa-${icons[type] || icons.info} me-2"></i>${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>`;
+    const el = $(html).appendTo('#toastContainer');
+    new bootstrap.Toast(el[0]).show();
+    el.on('hidden.bs.toast', () => el.remove());
+}
+
+// ═══════════════════════════════════════════════
+// WIZARD NAVIGATION
+// ═══════════════════════════════════════════════
+let currentStep = 1;
+
+function goToStep(step) {
+    // Validation
+    if (step === 2 && selectedAccounts.size === 0) {
+        showToast('Please select at least one account', 'warning');
+        return;
+    }
+    if (step === 3 && !activeActions.picture && !activeActions.bio && !activeActions.username) {
+        showToast('Please enable at least one action', 'warning');
+        return;
+    }
+
+    currentStep = step;
+    // Update step indicators
+    $('.wizard-step').each(function() {
+        const s = parseInt($(this).data('step'));
+        $(this).removeClass('active done');
+        if (s === step) $(this).addClass('active');
+        else if (s < step) $(this).addClass('done');
+    });
+    // Show/hide panels
+    $('.step-panel').removeClass('active');
+    $(`#step${step}`).addClass('active');
+
+    if (step === 3) buildReviewTable();
+}
+
+// ═══════════════════════════════════════════════
+// STEP 1: ACCOUNTS
+// ═══════════════════════════════════════════════
+function loadAccounts() {
+    $.get('/api/profile_automation/accounts-with-details', function(data) {
+        if (data.status !== 'success') { showToast('Failed to load accounts', 'error'); return; }
+        allAccounts = data.accounts;
+        renderAccountList();
+        updateSelectionCount();
+    }).fail(() => showToast('Failed to load accounts', 'error'));
+}
+
+function loadTags() {
+    $.get('/api/profile_automation/tags', function(data) {
+        if (data.status !== 'success') return;
+        allTags = data.tags || [];
+        renderTags();
+    });
+}
+
+function renderTags() {
+    const container = $('#tagSelector');
+    container.find('.tag-chip:not(:first)').remove();
+    allTags.forEach(tag => {
+        container.append(`<span class="tag-chip" data-tag="${tag.name}" onclick="filterByTag(this, '${tag.name}')">${tag.name}<span class="count-badge">${tag.account_count}</span></span>`);
+    });
+}
+
+function filterByTag(el, tagName) {
+    activeTag = tagName;
+    $('.tag-chip').removeClass('active');
+    $(el).addClass('active');
+    renderAccountList();
+}
+
+function filterAccounts() {
+    searchQuery = $('#accountSearch').val().toLowerCase();
+    renderAccountList();
+}
+
+function renderAccountList() {
+    const container = $('#accountList');
+    let filtered = allAccounts;
+
+    // Filter by tag
+    if (activeTag) {
+        filtered = filtered.filter(a => {
+            const tags = (a.tags || '').split(',').map(t => t.trim());
+            return tags.includes(activeTag) && a.enable_tags;
+        });
+    }
+
+    // Filter by search
+    if (searchQuery) {
+        filtered = filtered.filter(a =>
+            (a.username || '').toLowerCase().includes(searchQuery) ||
+            (a.device_serial || '').toLowerCase().includes(searchQuery) ||
+            (a.device_name || '').toLowerCase().includes(searchQuery) ||
+            (a.tags || '').toLowerCase().includes(searchQuery)
+        );
+    }
+
+    // Group by device
+    const groups = {};
+    filtered.forEach(a => {
+        const key = a.device_serial;
+        if (!groups[key]) groups[key] = { device_serial: key, device_name: a.device_name || key, accounts: [] };
+        groups[key].accounts.push(a);
+    });
+
+    if (Object.keys(groups).length === 0) {
+        container.html('<div class="text-center text-muted py-4">No accounts found</div>');
+        return;
+    }
+
+    let html = '';
+    Object.values(groups).forEach(group => {
+        const allSelected = group.accounts.every(a => selectedAccounts.has(`${a.device_serial}|${a.username}`));
+        const someSelected = group.accounts.some(a => selectedAccounts.has(`${a.device_serial}|${a.username}`));
+
+        html += `<div class="device-group mb-2">`;
+        html += `<div class="device-group-header d-flex justify-content-between align-items-center" onclick="toggleDeviceGroup(this)">
+            <div>
+                <i class="fas fa-mobile-alt me-2 text-warning"></i>
+                <strong>${group.device_name || group.device_serial}</strong>
+                <span class="text-muted ms-2">${group.device_serial}</span>
+                <span class="badge bg-secondary ms-2">${group.accounts.length} accounts</span>
+            </div>
+            <div>
+                <button class="btn btn-xs btn-outline-success me-2" onclick="event.stopPropagation(); selectDevice('${group.device_serial}')">
+                    ${allSelected ? '<i class="fas fa-check-double"></i> All' : 'Select All'}
+                </button>
+                <i class="fas fa-chevron-down text-muted"></i>
+            </div>
+        </div>`;
+        html += `<div class="device-accounts" style="display:none;">`;
+        group.accounts.forEach(a => {
+            const key = `${a.device_serial}|${a.username}`;
+            const sel = selectedAccounts.has(key);
+            const tags = (a.tags || '').split(',').filter(t => t.trim()).map(t => `<span class="badge bg-secondary me-1" style="font-size:0.65rem">${t.trim()}</span>`).join('');
+            html += `<div class="account-row d-flex align-items-center ${sel ? 'selected' : ''}" data-key="${key}" onclick="toggleAccount('${key}')">
+                <input type="checkbox" class="form-check-input me-3" ${sel ? 'checked' : ''} onclick="event.stopPropagation(); toggleAccount('${key}')">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center">
+                        <strong class="me-2">${a.username || '(unnamed)'}</strong>
+                        ${tags}
+                    </div>
+                    <small class="text-muted">${a.app_package || ''} · ${a.status || ''}</small>
+                </div>
+            </div>`;
+        });
+        html += `</div></div>`;
+    });
+
+    container.html(html);
+}
+
+function toggleDeviceGroup(header) {
+    const accounts = $(header).next('.device-accounts');
+    accounts.slideToggle(200);
+    $(header).find('.fa-chevron-down, .fa-chevron-up').toggleClass('fa-chevron-down fa-chevron-up');
+}
+
+function toggleAccount(key) {
+    if (selectedAccounts.has(key)) selectedAccounts.delete(key);
+    else selectedAccounts.add(key);
+    updateAccountRowUI(key);
+    updateSelectionCount();
+}
+
+function updateAccountRowUI(key) {
+    const row = $(`.account-row[data-key="${key}"]`);
+    const sel = selectedAccounts.has(key);
+    row.toggleClass('selected', sel);
+    row.find('input[type="checkbox"]').prop('checked', sel);
+}
+
+function selectDevice(deviceSerial) {
+    const deviceAccounts = allAccounts.filter(a => a.device_serial === deviceSerial);
+    const allSelected = deviceAccounts.every(a => selectedAccounts.has(`${a.device_serial}|${a.username}`));
+    deviceAccounts.forEach(a => {
+        const key = `${a.device_serial}|${a.username}`;
+        if (allSelected) selectedAccounts.delete(key);
+        else selectedAccounts.add(key);
+    });
+    renderAccountList();
+    updateSelectionCount();
+}
+
+function selectAllAccounts() {
+    getFilteredAccounts().forEach(a => selectedAccounts.add(`${a.device_serial}|${a.username}`));
+    renderAccountList();
+    updateSelectionCount();
+}
+
+function deselectAllAccounts() {
+    selectedAccounts.clear();
+    renderAccountList();
+    updateSelectionCount();
+}
+
+function getFilteredAccounts() {
+    let filtered = allAccounts;
+    if (activeTag) {
+        filtered = filtered.filter(a => {
+            const tags = (a.tags || '').split(',').map(t => t.trim());
+            return tags.includes(activeTag) && a.enable_tags;
+        });
+    }
+    if (searchQuery) {
+        filtered = filtered.filter(a =>
+            (a.username || '').toLowerCase().includes(searchQuery) ||
+            (a.device_serial || '').toLowerCase().includes(searchQuery) ||
+            (a.tags || '').toLowerCase().includes(searchQuery)
+        );
+    }
+    return filtered;
+}
+
+function updateSelectionCount() {
+    const total = allAccounts.length;
+    const sel = selectedAccounts.size;
+    $('#selectionCount').text(`${sel} of ${total} selected`);
+    $('#step1Next').prop('disabled', sel === 0);
+}
+
+function createNewTag() {
+    const name = $('#newTagName').val().trim();
+    if (!name) { showToast('Enter a tag name', 'warning'); return; }
+    $.ajax({
+        url: '/api/profile_automation/tags',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ name }),
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(`Tag "${name}" created`, 'success');
+                $('#newTagName').val('');
+                loadTags();
+            } else {
+                showToast(data.message || 'Failed to create tag', 'error');
+            }
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════
+// STEP 2: ACTIONS
+// ═══════════════════════════════════════════════
+function toggleAction(action) {
+    const card = $(`#action${action.charAt(0).toUpperCase() + action.slice(1)}`);
+    const toggle = $(`#toggle${action.charAt(0).toUpperCase() + action.slice(1)}`);
+
+    activeActions[action] = !activeActions[action];
+    toggle.prop('checked', activeActions[action]);
+    card.toggleClass('selected', activeActions[action]);
+
+    updateStep2Next();
+}
+
+function updateStep2Next() {
+    const anyActive = activeActions.picture || activeActions.bio || activeActions.username;
+    $('#step2Next').prop('disabled', !anyActive);
+}
+
+function updateBioOptions() {
+    const source = $('#bioSource').val();
+    $('#bioAiOptions').toggle(source === 'ai');
+    $('#bioTemplateOptions').toggle(source === 'template');
+    $('#bioCustomOptions').toggle(source === 'custom');
+}
+
+function updateUsernameOptions() {
+    const source = $('#usernameSource').val();
+    $('#usernameCreativeOptions').toggle(source === 'creative');
+}
+
+// ── Pictures ──
+function loadPictures() {
+    $.get('/api/profile_automation/pictures-with-files', function(data) {
+        if (data.status !== 'success') return;
+        profilePictures = data.pictures || [];
+        renderPictureGallery(data.filesystem_files || []);
+    });
+}
+
+function renderPictureGallery(files) {
+    const gallery = $('#pictureGallery');
+    const gender = $('#pictureGender').val();
+
+    let filtered = files;
+    if (gender) {
+        filtered = filtered.filter(f => f.subfolder === gender);
+    }
+
+    $('#pictureCount').text(`${filtered.length} pictures`);
+
+    if (filtered.length === 0) {
+        gallery.html('<div class="text-muted small">No pictures in library</div>');
+        return;
+    }
+
+    let html = '';
+    filtered.forEach(f => {
+        const dbPic = profilePictures.find(p => p.filename === f.filename);
+        const usage = dbPic ? dbPic.times_used : 0;
+        html += `<div class="pic-thumb">
+            <img src="${f.url}" alt="${f.filename}" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMWExYTI4Ii8+PHRleHQgeD0iNDAiIHk9IjQwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSIgZmlsbD0iIzY2NiIgZm9udC1zaXplPSIxMiI+Tm8gaW1nPC90ZXh0Pjwvc3ZnPg=='">
+            <span class="usage-badge">${usage}×</span>
+        </div>`;
+    });
+    gallery.html(html);
+}
+
+$('#pictureGender').on('change', function() { loadPictures(); });
+
+// ── Drop Zone ──
+function setupDropZone() {
+    const zone = document.getElementById('pictureDropZone');
+    const input = document.getElementById('pictureFileInput');
+
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        handleFileUpload(e.dataTransfer.files);
+    });
+}
+
+function handleFileUpload(files) {
+    if (!files || files.length === 0) return;
+    let uploaded = 0;
+    Array.from(files).forEach(file => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('gender', $('#pictureGender').val() || 'neutral');
+        $.ajax({
+            url: '/api/profile_automation/upload-picture',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(data) {
+                uploaded++;
+                if (uploaded === files.length) {
+                    showToast(`${uploaded} picture(s) uploaded`, 'success');
+                    loadPictures();
+                }
+            },
+            error: function() { showToast(`Failed to upload ${file.name}`, 'error'); }
+        });
+    });
+}
+
+// ── Bio Templates ──
+function loadBioTemplates() {
+    $.get('/api/profile_automation/bio_templates', function(data) {
+        if (data.status !== 'success') return;
+        bioTemplates = data.templates || [];
+        renderBioTemplates();
+    });
+}
+
+function renderBioTemplates() {
+    const list = $('#bioTemplateList');
+    if (bioTemplates.length === 0) {
+        list.html('<div class="text-muted small">No templates yet. Add one below.</div>');
+        return;
+    }
+    let html = '';
+    bioTemplates.forEach(t => {
+        html += `<div class="d-flex justify-content-between align-items-center p-2 mb-1" style="background:var(--bg-hover); border-radius:6px;">
+            <div>
+                <strong class="small">${t.name}</strong>
+                <div class="text-muted" style="font-size:0.78rem">${t.bio_text}</div>
+            </div>
+            <span class="badge bg-secondary">${t.times_used}×</span>
+        </div>`;
+    });
+    list.html(html);
+}
+
+function addBioTemplate() {
+    const name = $('#newTemplateName').val().trim();
+    const text = $('#newTemplateText').val().trim();
+    if (!name || !text) { showToast('Name and bio text required', 'warning'); return; }
+
+    $.ajax({
+        url: '/api/profile_automation/bio_templates',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ name, bio_text: text }),
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast('Template added', 'success');
+                $('#newTemplateName').val('');
+                $('#newTemplateText').val('');
+                loadBioTemplates();
+            } else {
+                showToast(data.message || 'Failed', 'error');
+            }
+        }
+    });
+}
+
+// ── AI Preview ──
+function previewBioSamples() {
+    const btn = $(event.target).closest('button');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Generating...');
+
+    $.ajax({
+        url: '/api/profile_automation/preview-ai',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            type: 'bio',
+            count: 3,
+            mother_account: $('#bioMotherAccount').val(),
+            mother_bio: $('#bioMotherBio').val()
+        }),
+        success: function(data) {
+            btn.prop('disabled', false).html('<i class="fas fa-eye me-1"></i>Preview 3 Samples');
+            if (data.status === 'success' && data.samples) {
+                let html = '';
+                data.samples.forEach(s => { html += `<div class="sample-chip">${s}</div>`; });
+                $('#bioSamples').html(html);
+            } else {
+                showToast(data.message || 'AI preview failed', 'error');
+            }
+        },
+        error: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-eye me-1"></i>Preview 3 Samples');
+            showToast('AI preview request failed', 'error');
+        }
+    });
+}
+
+function previewUsernameSamples() {
+    const btn = $(event.target).closest('button');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Generating...');
+
+    const shortcuts = $('#nameShortcuts').val().split(',').map(s => s.trim()).filter(s => s);
+
+    $.ajax({
+        url: '/api/profile_automation/preview-ai',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            type: 'username',
+            count: 5,
+            mother_account: $('#usernameMotherAccount').val(),
+            name_shortcuts: shortcuts
+        }),
+        success: function(data) {
+            btn.prop('disabled', false).html('<i class="fas fa-eye me-1"></i>Preview 5 Samples');
+            if (data.status === 'success' && data.samples) {
+                let html = '';
+                data.samples.forEach(s => { html += `<div class="sample-chip">@${s}</div>`; });
+                $('#usernameSamples').html(html);
+            } else {
+                showToast(data.message || 'Preview failed', 'error');
+            }
+        },
+        error: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-eye me-1"></i>Preview 5 Samples');
+            showToast('Preview request failed', 'error');
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════
+// STEP 3: REVIEW
+// ═══════════════════════════════════════════════
+function buildReviewTable() {
+    const selected = getSelectedAccountObjects();
+    const devices = new Set(selected.map(a => a.device_serial));
+    const actions = [];
+    if (activeActions.picture) actions.push('📷 Picture');
+    if (activeActions.bio) actions.push('📝 Bio');
+    if (activeActions.username) actions.push('👤 Username');
+
+    $('#reviewAccountCount').text(selected.length);
+    $('#reviewActionSummary').text(actions.join(', ') || '-');
+    $('#reviewDeviceCount').text(devices.size);
+
+    // Build strategy text
+    let strat = [];
+    if (activeActions.picture) strat.push($('#pictureStrategy option:selected').text().trim());
+    if (activeActions.bio) strat.push($('#bioSource option:selected').text().trim());
+    if (activeActions.username) strat.push($('#usernameSource option:selected').text().trim());
+    $('#reviewStrategy').text(strat.join(', ') || '-');
+
+    const tbody = $('#reviewTableBody');
+    if (selected.length === 0) {
+        tbody.html('<tr><td colspan="4" class="text-center text-muted py-3">No accounts selected</td></tr>');
+        return;
+    }
+
+    let html = '';
+    selected.forEach((a, i) => {
+        let changes = '';
+        if (activeActions.picture) changes += '<span class="action-badge picture me-1">📷 PFP</span>';
+        if (activeActions.bio) changes += '<span class="action-badge bio me-1">📝 Bio</span>';
+        if (activeActions.username) changes += '<span class="action-badge username me-1">👤 Username</span>';
+
+        html += `<tr>
+            <td>${i + 1}</td>
+            <td><strong>${a.username || '(unnamed)'}</strong></td>
+            <td><span class="text-muted small">${a.device_name || a.device_serial}</span></td>
+            <td>${changes}</td>
+        </tr>`;
+    });
+    tbody.html(html);
+}
+
+function getSelectedAccountObjects() {
+    return allAccounts.filter(a => selectedAccounts.has(`${a.device_serial}|${a.username}`));
+}
+
+// ═══════════════════════════════════════════════
+// CREATE TASKS
+// ═══════════════════════════════════════════════
+function createTasks() {
+    const selected = getSelectedAccountObjects();
+    if (selected.length === 0) { showToast('No accounts selected', 'warning'); return; }
+
+    const btn = $('#createTasksBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Creating Tasks...');
+
+    // Build campaign payload
+    const tag = activeTag || 'manual';
+    const motherAccount = $('#usernameMotherAccount').val() || $('#bioMotherAccount').val() || '';
+    const motherBio = $('#bioMotherBio').val() || '';
+    const shortcuts = $('#nameShortcuts').val() ? $('#nameShortcuts').val().split(',').map(s => s.trim()).filter(s => s) : [];
+
+    const bioSource = $('#bioSource').val();
+    const usernameSource = $('#usernameSource').val();
+
+    // Determine if AI is needed
+    const useAi = (activeActions.bio && bioSource === 'ai') || (activeActions.username && usernameSource === 'ai');
+
+    const payload = {
+        tag: tag,
+        mother_account: motherAccount,
+        mother_bio: activeActions.bio && bioSource === 'custom' ? $('#bioCustomText').val() : motherBio,
+        name_shortcuts: shortcuts,
+        use_ai: useAi,
+        selected_accounts: selected.map(a => ({ device_serial: a.device_serial, username: a.username })),
+        actions: {
+            change_picture: activeActions.picture,
+            change_bio: activeActions.bio,
+            change_username: activeActions.username
+        }
+    };
+
+    $.ajax({
+        url: '/api/profile_automation/quick_campaign',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(data) {
+            btn.prop('disabled', false).html('<i class="fas fa-rocket me-2"></i>Create Tasks & Execute');
+            if (data.status === 'success') {
+                showToast(`Created ${data.tasks_created} tasks! Starting execution...`, 'success');
+                addLogEntry(`Created ${data.tasks_created} tasks for campaign`, 'info');
+                refreshExecution();
+                // Auto-start execution
+                setTimeout(() => runAllTasks(), 1000);
+            } else {
+                showToast(data.message || 'Failed to create tasks', 'error');
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fas fa-rocket me-2"></i>Create Tasks & Execute');
+            const msg = xhr.responseJSON ? xhr.responseJSON.message : 'Request failed';
+            showToast(msg, 'error');
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════
+// EXECUTION DASHBOARD
+// ═══════════════════════════════════════════════
+function refreshExecution() {
+    $.get('/api/profile_automation/execution-status', function(data) {
+        if (data.status !== 'success') return;
+
+        const stats = data.stats;
+        const tasks = data.tasks;
+
+        // Update stats
+        $('#execPending').text(stats.pending);
+        $('#execProcessing').text(stats.processing);
+        $('#execCompleted').text(stats.completed);
+        $('#execFailed').text(stats.failed);
+
+        // Progress bar
+        const total = stats.total || 1;
+        const pct = Math.round(((stats.completed + stats.failed) / total) * 100);
+        $('#execProgressBar').css('width', pct + '%');
+
+        // Check if processing is active
+        if (stats.processing > 0) {
+            startPolling();
+        }
+
+        // Render table
+        renderExecutionTable(tasks);
+    });
+}
+
+function renderExecutionTable(tasks) {
+    const tbody = $('#execTableBody');
+    if (!tasks || tasks.length === 0) {
+        tbody.html('<tr><td colspan="7" class="text-center text-muted py-4">No tasks. Create a campaign above.</td></tr>');
+        return;
+    }
+
+    let html = '';
+    tasks.forEach(t => {
+        const statusIcon = {
+            pending: '<span class="task-status pending"><i class="fas fa-clock"></i> Pending</span>',
+            processing: '<span class="task-status processing"><i class="fas fa-spinner fa-spin"></i> Processing</span>',
+            completed: '<span class="task-status completed"><i class="fas fa-check"></i> Done</span>',
+            failed: '<span class="task-status failed"><i class="fas fa-times"></i> Failed</span>'
+        }[t.status] || `<span class="task-status">${t.status}</span>`;
+
+        let actionBadges = '';
+        (t.actions || []).forEach(a => {
+            actionBadges += `<span class="action-badge ${a} me-1">${a}</span>`;
+        });
+
+        let details = '';
+        if (t.new_username) details += `<span class="review-change"><span class="old">${t.username || '?'}</span><span class="arrow">→</span><span class="new">${t.new_username}</span></span><br>`;
+        if (t.new_bio) details += `<span class="text-muted" style="font-size:0.75rem">${(t.new_bio || '').substring(0, 40)}${(t.new_bio || '').length > 40 ? '...' : ''}</span>`;
+
+        const error = t.error_message ? `<span class="text-danger small">${(t.error_message || '').substring(0, 50)}</span>` : '';
+
+        let actions = '';
+        if (t.status === 'failed') {
+            actions += `<button class="btn btn-xs btn-outline-warning" onclick="restartTask(${t.id})" title="Retry"><i class="fas fa-redo"></i></button>`;
+        }
+        if (t.status === 'pending' || t.status === 'failed') {
+            actions += ` <button class="btn btn-xs btn-outline-danger" onclick="deleteTask(${t.id})" title="Delete"><i class="fas fa-trash"></i></button>`;
+        }
+
+        html += `<tr>
+            <td>${statusIcon}</td>
+            <td><strong>${t.username || '?'}</strong></td>
+            <td class="text-muted small">${(t.device_serial || '').replace(/_/g, ':').substring(0, 20)}</td>
+            <td>${actionBadges}</td>
+            <td>${details}</td>
+            <td>${error}</td>
+            <td>${actions}</td>
+        </tr>`;
+    });
+
+    tbody.html(html);
+}
+
+function runAllTasks() {
+    if (isProcessing) { showToast('Already processing', 'warning'); return; }
+
+    const btn = $('#runAllBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Starting...');
+
+    $.ajax({
+        url: '/api/profile_automation/tasks/process-parallel-async',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(data) {
+            btn.prop('disabled', false).html('<i class="fas fa-play me-1"></i>Run All');
+            if (data.status === 'success') {
+                if (data.task_count === 0) {
+                    showToast('No pending tasks to process', 'warning');
+                    return;
+                }
+                showToast(`Started processing ${data.task_count} tasks`, 'success');
+                addLogEntry(`Started processing ${data.task_count} tasks in parallel`, 'info');
+                isProcessing = true;
+                startPolling();
+            } else {
+                showToast(data.message || 'Failed to start', 'error');
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fas fa-play me-1"></i>Run All');
+            showToast('Failed to start processor', 'error');
+        }
+    });
+}
+
+function retryFailed() {
+    $.ajax({
+        url: '/api/profile_automation/tasks/retry-failed',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(`${data.retried} tasks reset to pending`, 'success');
+                addLogEntry(`Retried ${data.retried} failed tasks`, 'info');
+                refreshExecution();
+            }
+        }
+    });
+}
+
+function clearCompleted() {
+    $.ajax({
+        url: '/api/profile_automation/tasks/clear-completed',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(`${data.deleted} completed tasks cleared`, 'success');
+                refreshExecution();
+            }
+        }
+    });
+}
+
+function restartTask(taskId) {
+    $.ajax({
+        url: `/api/profile_automation/tasks/${taskId}/restart`,
+        method: 'POST',
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(`Task ${taskId} restarted`, 'success');
+                refreshExecution();
+            }
+        }
+    });
+}
+
+function deleteTask(taskId) {
+    $.ajax({
+        url: `/api/profile_automation/tasks/${taskId}`,
+        method: 'DELETE',
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(`Task ${taskId} deleted`, 'success');
+                refreshExecution();
+            }
+        }
+    });
+}
+
+// ── Polling ──
+function startPolling() {
+    if (pollInterval) return;
+    pollInterval = setInterval(() => {
+        $.get('/api/profile_automation/execution-status', function(data) {
+            if (data.status !== 'success') return;
+            const stats = data.stats;
+
+            $('#execPending').text(stats.pending);
+            $('#execProcessing').text(stats.processing);
+            $('#execCompleted').text(stats.completed);
+            $('#execFailed').text(stats.failed);
+
+            const total = stats.total || 1;
+            const pct = Math.round(((stats.completed + stats.failed) / total) * 100);
+            $('#execProgressBar').css('width', pct + '%');
+
+            renderExecutionTable(data.tasks);
+
+            // Stop polling when done
+            if (stats.processing === 0 && stats.pending === 0) {
+                stopPolling();
+                isProcessing = false;
+                if (stats.completed > 0 || stats.failed > 0) {
+                    addLogEntry(`Execution complete: ${stats.completed} done, ${stats.failed} failed`, stats.failed > 0 ? 'err' : 'ok');
+                    showToast(`Execution complete: ${stats.completed} done, ${stats.failed} failed`, stats.failed > 0 ? 'warning' : 'success');
+                }
+            }
+        });
+    }, 2000);
+}
+
+function stopPolling() {
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+// ── Activity Log ──
+function addLogEntry(message, type = 'info') {
+    const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const cls = type === 'ok' ? 'log-ok' : type === 'err' ? 'log-err' : 'log-info';
+    const entry = `<div class="log-entry"><span class="log-time">${now}</span><span class="${cls}">${message}</span></div>`;
+    const log = document.getElementById('logContent');
+    log.insertAdjacentHTML('beforeend', entry);
+    log.scrollTop = log.scrollHeight;
+}
+
+// ── Permissions ──
+function grantPermissions() {
+    showToast('Granting storage permissions...', 'info');
+    $.ajax({
+        url: '/api/profile_automation/grant_permissions',
+        method: 'POST',
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message || 'Failed', 'error');
+            }
+        },
+        error: function() { showToast('Failed to grant permissions', 'error'); }
+    });
+}
+</script>
+{% endblock %}
