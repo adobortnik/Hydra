@@ -384,6 +384,9 @@ function renderDevices(devices) {
                     <button class="btn-action btn-stop" onclick="stopBot('${escAttr(dev.device_serial)}')" title="Stop Bot">
                         <i class="fas fa-stop fa-xs"></i> Stop
                     </button>
+                    <button class="btn-action" style="background:rgba(99,102,241,0.2);color:#818cf8;border-color:#818cf8;" onclick="mirrorDevice('${escAttr(dev.device_serial)}')" title="Mirror Screen">
+                        <i class="fas fa-eye fa-xs"></i>
+                    </button>
                     <a href="/device-manager/${serialEncoded}" class="btn-action btn-manage">
                         <i class="fas fa-cogs fa-xs"></i> Manage
                     </a>
@@ -406,6 +409,19 @@ function updateStats(devices) {
     document.getElementById('statOnline').textContent = online;
     document.getElementById('statOffline').textContent = offline;
     document.getElementById('statAccounts').textContent = accounts;
+}
+
+function mirrorDevice(serial) {
+    fetch(`/api/device-manager/${encodeURIComponent(serial)}/mirror`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Screen mirror starting...', 'success');
+            } else {
+                showToast('Mirror failed: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        })
+        .catch(e => showToast('Mirror error: ' + e, 'danger'));
 }
 
 function startBot(serial) {

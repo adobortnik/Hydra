@@ -263,6 +263,30 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
     return accounts
 
 
+# ── API: Screen Mirror (scrcpy) ─────────────────────────────────────
+
+@device_manager_bp.route('/api/device-manager/<path:serial>/mirror')
+def api_mirror_device(serial):
+    """Launch scrcpy to mirror a device screen."""
+    import subprocess, os
+    adb_serial = serial.replace('_', ':')
+
+    scrcpy_path = r'C:\tools\scrcpy\scrcpy-win64-v3.1\scrcpy.exe'
+    if not os.path.exists(scrcpy_path):
+        return jsonify(success=False, error='scrcpy not found. Install it to C:\\tools\\scrcpy\\')
+
+    try:
+        # Launch scrcpy detached (non-blocking)
+        subprocess.Popen(
+            [scrcpy_path, '-s', adb_serial, '--window-title', f'Mirror: {serial}',
+             '--max-size', '800', '--stay-awake'],
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+        return jsonify(success=True, message=f'Mirroring started for {serial}')
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+
 # ── API: Detect Foreground App ──────────────────────────────────────
 
 @device_manager_bp.route('/api/device-manager/<path:serial>/detect-foreground-app')
