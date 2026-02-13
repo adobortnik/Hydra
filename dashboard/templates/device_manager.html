@@ -93,6 +93,70 @@
         font-size: 0.8rem;
         font-weight: 600;
     }
+
+    /* Quick Search */
+    .search-wrapper {
+        position: relative;
+    }
+    .search-wrapper .search-icon {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6b7280;
+        pointer-events: none;
+        transition: color 0.2s;
+    }
+    .search-wrapper input:focus ~ .search-icon,
+    .search-wrapper input:not(:placeholder-shown) ~ .search-icon {
+        color: #f59e0b;
+    }
+    .search-wrapper input {
+        padding-left: 40px;
+        padding-right: 40px;
+        height: 44px;
+        font-size: 0.92rem;
+        border-radius: 8px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .search-wrapper input:focus {
+        border-color: #f59e0b !important;
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+    }
+    .search-wrapper input::placeholder {
+        color: #6b7280;
+    }
+    .search-clear {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #6b7280;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        display: none;
+        transition: color 0.2s, background 0.2s;
+    }
+    .search-clear:hover {
+        color: #ef4444;
+        background: #ef444420;
+    }
+    .search-clear.visible {
+        display: block;
+    }
+    .search-count {
+        font-size: 0.78rem;
+        color: #6b7280;
+        margin-top: 6px;
+        transition: color 0.2s;
+    }
+    .search-count.filtered {
+        color: #f59e0b;
+    }
 </style>
 {% endblock %}
 
@@ -149,6 +213,19 @@
             <div class="stat-label">Total Accounts</div>
         </div>
     </div>
+</div>
+
+<!-- Quick Search -->
+<div class="mb-3">
+    <div class="search-wrapper">
+        <input type="text" id="deviceSearch" class="form-control bg-dark text-white border-secondary" 
+               placeholder="Search devices — name, serial, IP, status, account..." autocomplete="off" spellcheck="false">
+        <i class="fas fa-search search-icon"></i>
+        <button type="button" class="search-clear" id="searchClear" title="Clear search (Esc)">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="search-count d-none" id="searchCount"></div>
 </div>
 
 <!-- Device Table -->
@@ -590,6 +667,88 @@ function saveDevice() {
         showToast('Error: ' + err, 'danger');
     });
 }
+
+// ============ Quick Search / Filter ============
+
+const searchInput = document.getElementById('deviceSearch');
+const searchClear = document.getElementById('searchClear');
+const searchCount = document.getElementById('searchCount');
+
+function filterDevices() {
+    const query = searchInput.value.trim().toLowerCase();
+    const tbody = document.getElementById('deviceTableBody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    // Toggle clear button
+    searchClear.classList.toggle('visible', query.length > 0);
+    
+    if (!query) {
+        // Show all rows
+        rows.forEach(r => r.style.display = '');
+        searchCount.classList.add('d-none');
+        searchCount.classList.remove('filtered');
+        return;
+    }
+    
+    let visible = 0;
+    let total = 0;
+    
+    rows.forEach(row => {
+        // Skip placeholder rows (loading, empty, error)
+        if (row.querySelector('td[colspan]')) return;
+        total++;
+        const text = row.textContent.toLowerCase();
+        if (text.includes(query)) {
+            row.style.display = '';
+            visible++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // If total is 0, the table might still be loading
+    if (total === 0) {
+        searchCount.classList.add('d-none');
+        return;
+    }
+    
+    searchCount.classList.remove('d-none');
+    searchCount.classList.toggle('filtered', visible < total);
+    searchCount.textContent = `Showing ${visible} of ${total} device${total !== 1 ? 's' : ''}`;
+}
+
+searchInput.addEventListener('input', filterDevices);
+
+searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    filterDevices();
+    searchInput.focus();
+});
+
+// Escape key clears search
+searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        searchInput.value = '';
+        filterDevices();
+        searchInput.blur();
+    }
+});
+
+// Ctrl+F focuses search instead of browser find
+document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+    }
+});
+
+// Re-apply filter after devices re-render (e.g. from refresh)
+const _origRender = renderDevices;
+renderDevices = function(devices) {
+    _origRender(devices);
+    filterDevices();
+};
 
 // Initial load + auto-refresh every 30s
 refreshDevices();
