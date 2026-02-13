@@ -82,8 +82,6 @@ def main():
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
     parser.add_argument('--port', type=int, default=5000, help='Port to bind to')
     parser.add_argument('--debug', action='store_true', help='Debug mode')
-    parser.add_argument('--auto-start-orchestrator', action='store_true',
-                       help='Auto-start the device orchestrator on boot')
     parser.add_argument('--auto-start-scheduler', action='store_true', default=True,
                        help='Auto-start the task scheduler on boot')
     args = parser.parse_args()
@@ -96,13 +94,6 @@ def main():
         scheduler = get_scheduler()
         scheduler.start()
         log.info("Task scheduler started")
-
-    # Start orchestrator if requested
-    if args.auto_start_orchestrator:
-        from automation.device_orchestrator import get_orchestrator
-        orch = get_orchestrator()
-        orch.start()
-        log.info("Device orchestrator started")
 
     log.info("Starting server on %s:%d", args.host, args.port)
     app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)

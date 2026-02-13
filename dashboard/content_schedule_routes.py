@@ -1152,7 +1152,7 @@ def list_devices_for_schedule():
 
 @content_schedule_bp.route('/api/content-schedule/accounts', methods=['GET'])
 def list_accounts_for_schedule():
-    """List accounts for the schedule UI, optionally filtered by device."""
+    """List accounts for the schedule UI, optionally filtered by device. Includes work hours."""
     try:
         device_serial = request.args.get('device_serial')
         
@@ -1160,12 +1160,12 @@ def list_accounts_for_schedule():
         try:
             if device_serial and device_serial != 'all':
                 rows = rows_to_dicts(conn.execute(
-                    "SELECT id, device_serial, username, status FROM accounts WHERE device_serial = ? AND status = 'active' ORDER BY username",
+                    "SELECT id, device_serial, username, status, start_time, end_time FROM accounts WHERE device_serial = ? AND status = 'active' ORDER BY username",
                     (device_serial,)
                 ).fetchall())
             else:
                 rows = rows_to_dicts(conn.execute(
-                    "SELECT id, device_serial, username, status FROM accounts WHERE status = 'active' ORDER BY device_serial, username"
+                    "SELECT id, device_serial, username, status, start_time, end_time FROM accounts WHERE status = 'active' ORDER BY device_serial, username"
                 ).fetchall())
             return jsonify({'accounts': rows})
         finally:

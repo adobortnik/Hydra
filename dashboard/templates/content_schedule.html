@@ -591,7 +591,16 @@
                 <div class="col-md-6">
                     <!-- Strategy selection -->
                     <label class="form-label fw-bold mb-2">Distribution Strategy</label>
-                    <div class="strategy-card selected" data-strategy="even_spread" onclick="selectStrategy('even_spread')">
+                    <div class="strategy-card selected" data-strategy="work_hours" onclick="selectStrategy('work_hours')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-success"><i class="fas fa-user-clock"></i></span>
+                            <div>
+                                <h6 class="mb-0">Work-Hour Aware</h6>
+                                <small>Schedule within each account's work hours</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="strategy-card" data-strategy="even_spread" onclick="selectStrategy('even_spread')">
                         <div class="d-flex align-items-start">
                             <span class="strategy-icon text-primary"><i class="fas fa-arrows-alt-h"></i></span>
                             <div>
@@ -631,8 +640,40 @@
                     <hr class="border-secondary my-3">
 
                     <!-- Strategy-specific options -->
+                    <!-- Work-Hour Aware options -->
+                    <div id="strategyWorkHours">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="whStartDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="whEndDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Posts Per Day / Account</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="whPostsPerDay" value="1" min="1" max="10">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Buffer (min from edges)</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="whBufferMinutes" value="15" min="0" max="120">
+                            </div>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="whRandomize" checked>
+                            <label class="form-check-label" for="whRandomize">
+                                <small>Randomize within work window</small>
+                            </label>
+                        </div>
+                        <div class="form-text text-muted mt-2">
+                            <i class="fas fa-info-circle me-1"></i>Each account's posts are scheduled within its own start/end work hours.
+                            Accounts without work hours use 8:00–22:00.
+                        </div>
+                    </div>
+
                     <!-- Even Spread options -->
-                    <div id="strategyEvenSpread">
+                    <div id="strategyEvenSpread" style="display:none">
                         <div class="row g-2">
                             <div class="col-6">
                                 <label class="form-label">Start Date</label>
@@ -1059,11 +1100,17 @@ let wizardState = {
     musicSearch: '',
     mentionUsername: '',
     linkUrl: '',
-    selectedAccounts: [],    // [{account_id, device_serial, username}]
+    selectedAccounts: [],    // [{account_id, device_serial, username, start_time, end_time}]
     startTime: '',
     intervalHours: 1,
     batchName: '',
-    strategy: 'even_spread',
+    strategy: 'work_hours',
+    // Work-Hour Aware state
+    whStartDate: '',
+    whEndDate: '',
+    whPostsPerDay: 1,
+    whBufferMinutes: 15,
+    whRandomize: true,
     // Strategy-specific state
     evenStartDate: '',
     evenEndDate: '',
@@ -1103,8 +1150,8 @@ $(document).ready(function() {
     // Set default date range for strategies
     const todayStr = new Date().toISOString().slice(0, 10);
     const weekLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-    $('#evenStartDate, #randomStartDate').val(todayStr);
-    $('#evenEndDate, #randomEndDate').val(weekLater);
+    $('#evenStartDate, #randomStartDate, #whStartDate').val(todayStr);
+    $('#evenEndDate, #randomEndDate, #whEndDate').val(weekLater);
 
     // Tab change handlers
     $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
@@ -1120,6 +1167,7 @@ $(document).ready(function() {
     $('#evenStartDate, #evenEndDate, #evenPostsPerDay, #evenWindowStart, #evenWindowEnd').on('change input', updateSchedulePreview);
     $('#fillWeekPostsPerDay, #fillWeekStartDay').on('change', updateSchedulePreview);
     $('#randomStartDate, #randomEndDate, #randomPostsPerDay, #randomWindowStart, #randomWindowEnd').on('change input', updateSchedulePreview);
+    $('#whStartDate, #whEndDate, #whPostsPerDay, #whBufferMinutes, #whRandomize').on('change input', updateSchedulePreview);
     $('#roundRobinCheck').on('change', updateSchedulePreview);
 });
 
@@ -1256,7 +1304,13 @@ function collectStepData() {
         wizardState.roundRobin = $('#roundRobinCheck').is(':checked');
         // Collect strategy-specific data
         const strat = wizardState.strategy;
-        if (strat === 'even_spread') {
+        if (strat === 'work_hours') {
+            wizardState.whStartDate = $('#whStartDate').val();
+            wizardState.whEndDate = $('#whEndDate').val();
+            wizardState.whPostsPerDay = parseInt($('#whPostsPerDay').val()) || 1;
+            wizardState.whBufferMinutes = parseInt($('#whBufferMinutes').val()) || 15;
+            wizardState.whRandomize = $('#whRandomize').is(':checked');
+        } else if (strat === 'even_spread') {
             wizardState.evenStartDate = $('#evenStartDate').val();
             wizardState.evenEndDate = $('#evenEndDate').val();
             wizardState.evenPostsPerDay = parseInt($('#evenPostsPerDay').val()) || 2;
@@ -1285,8 +1339,9 @@ function selectStrategy(strategy) {
     $(`.strategy-card[data-strategy="${strategy}"]`).addClass('selected');
 
     // Show/hide strategy panels
-    $('#strategyEvenSpread, #strategyFillWeek, #strategyCustomInterval, #strategyRandomTimes').hide();
-    if (strategy === 'even_spread') $('#strategyEvenSpread').show();
+    $('#strategyWorkHours, #strategyEvenSpread, #strategyFillWeek, #strategyCustomInterval, #strategyRandomTimes').hide();
+    if (strategy === 'work_hours') $('#strategyWorkHours').show();
+    else if (strategy === 'even_spread') $('#strategyEvenSpread').show();
     else if (strategy === 'fill_week') $('#strategyFillWeek').show();
     else if (strategy === 'custom_interval') $('#strategyCustomInterval').show();
     else if (strategy === 'random_times') $('#strategyRandomTimes').show();
@@ -1718,13 +1773,23 @@ function loadTargetAccounts() {
                     const checked = wizardState.selectedAccounts.some(
                         sa => sa.username === a.username && sa.device_serial === a.device_serial
                     ) ? 'checked' : '';
+                    // Format work hours label
+                    const st = parseInt(a.start_time) || 0;
+                    const et = parseInt(a.end_time) || 0;
+                    let workHoursLabel;
+                    if (st === et || (st === 0 && et === 0)) {
+                        workHoursLabel = '<span class="badge bg-secondary bg-opacity-50 ms-2" style="font-size:0.7rem">24h</span>';
+                    } else {
+                        workHoursLabel = `<span class="badge bg-success bg-opacity-25 text-success ms-2" style="font-size:0.7rem">${String(st).padStart(2,'0')}:00–${String(et).padStart(2,'0')}:00</span>`;
+                    }
                     html += `<div class="account-check-item">
                         <div class="form-check">
                             <input class="form-check-input acct-check" type="checkbox" ${checked}
                                    data-id="${a.id}" data-serial="${a.device_serial}" data-username="${a.username}"
+                                   data-start-time="${st}" data-end-time="${et}"
                                    onchange="updateAccountSelection()">
                             <label class="form-check-label">
-                                <strong>${a.username}</strong>
+                                <strong>${a.username}</strong>${workHoursLabel}
                                 ${showHeaders ? '' : '<small class="text-muted ms-2">' + ds + '</small>'}
                             </label>
                         </div>
@@ -1761,7 +1826,9 @@ function updateAccountSelection() {
         wizardState.selectedAccounts.push({
             account_id: parseInt($(this).data('id')),
             device_serial: $(this).data('serial'),
-            username: $(this).data('username')
+            username: $(this).data('username'),
+            start_time: $(this).data('start-time'),
+            end_time: $(this).data('end-time')
         });
     });
     const count = wizardState.selectedAccounts.length;
@@ -1774,18 +1841,21 @@ function generateScheduleTimes() {
     /**
      * Generate an array of Date objects based on the selected strategy.
      * Returns enough times for all media x accounts (round-robin or duplicate).
+     * For work_hours strategy, returns null — buildScheduleItems handles it directly.
      */
     collectStepData();
     const mediaCount = wizardState.selectedMedia.length;
     const acctCount = wizardState.selectedAccounts.length;
     if (!mediaCount || !acctCount) return [];
 
+    const strat = wizardState.strategy;
+
+    // Work-hour aware generates times per-account, handled in buildScheduleItems
+    if (strat === 'work_hours') return null;
+
     const roundRobin = wizardState.roundRobin;
-    // In round-robin: total = mediaCount, each media goes to one account cyclically
-    // Non round-robin: total = mediaCount * acctCount, each media to every account
     const totalItems = roundRobin ? mediaCount : mediaCount * acctCount;
 
-    const strat = wizardState.strategy;
     let times = [];
 
     if (strat === 'even_spread') {
@@ -1853,45 +1923,176 @@ function generateScheduleTimes() {
     return times;
 }
 
+/**
+ * Get the effective work window for an account (hours).
+ * Returns {start, end} in hours (0-23). Handles always-active and midnight-wrap.
+ */
+function getAccountWorkWindow(account) {
+    let st = parseInt(account.start_time) || 0;
+    let et = parseInt(account.end_time) || 0;
+    // If both 0 or equal → "always active" → use default 8-22
+    if (st === et || (st === 0 && et === 0)) {
+        return { start: 8, end: 22, alwaysActive: true };
+    }
+    return { start: st, end: et, alwaysActive: false };
+}
+
+/**
+ * Generate times for one account within its work window for a date range.
+ * Returns array of Date objects.
+ */
+function generateTimesForAccount(account, startDate, endDate, postsPerDay, bufferMinutes, randomize) {
+    const ww = getAccountWorkWindow(account);
+    const buf = bufferMinutes || 0;
+    let times = [];
+
+    // Calculate effective window in minutes from midnight
+    let wStartMin, wEndMin, windowMinutes;
+    if (ww.start < ww.end) {
+        // Normal window: e.g. 8-16
+        wStartMin = ww.start * 60 + buf;
+        wEndMin = ww.end * 60 - buf;
+        windowMinutes = wEndMin - wStartMin;
+    } else {
+        // Midnight wrap: e.g. 22-4 → we schedule in the first segment (22:00–23:59)
+        // To keep it simple and avoid cross-midnight dates, use the longer segment
+        const segmentA = (24 - ww.start) * 60 - buf; // from start to midnight
+        const segmentB = ww.end * 60 - buf;           // from midnight to end
+        if (segmentA >= segmentB) {
+            wStartMin = ww.start * 60 + buf;
+            wEndMin = 24 * 60;
+            windowMinutes = wEndMin - wStartMin;
+        } else {
+            wStartMin = 0 + buf;
+            wEndMin = ww.end * 60 - buf;
+            windowMinutes = wEndMin - wStartMin;
+        }
+    }
+
+    if (windowMinutes <= 0) windowMinutes = 60; // safety: at least 1 hour
+
+    let d = new Date(startDate);
+    while (d <= endDate) {
+        for (let p = 0; p < postsPerDay; p++) {
+            let minuteOffset;
+            if (randomize) {
+                minuteOffset = Math.floor(Math.random() * windowMinutes);
+            } else {
+                // Evenly spaced within window
+                minuteOffset = postsPerDay > 1
+                    ? Math.floor((windowMinutes / postsPerDay) * p + (windowMinutes / postsPerDay / 2))
+                    : Math.floor(windowMinutes / 2);
+            }
+            const totalMin = wStartMin + minuteOffset;
+            const t = new Date(d);
+            t.setHours(Math.floor(totalMin / 60), totalMin % 60, 0, 0);
+            times.push(t);
+        }
+        d.setDate(d.getDate() + 1);
+    }
+
+    // Sort times
+    times.sort((a, b) => a - b);
+    return times;
+}
+
 function buildScheduleItems() {
     /**
      * Build the full schedule: [{time, accountIdx, mediaIdx, account, media}]
+     * For work_hours strategy, generates per-account times.
      */
-    const times = generateScheduleTimes();
+    const strat = wizardState.strategy;
     const mediaCount = wizardState.selectedMedia.length;
     const acctCount = wizardState.selectedAccounts.length;
-    if (!times.length || !mediaCount || !acctCount) return [];
+    if (!mediaCount || !acctCount) return [];
 
-    const roundRobin = wizardState.roundRobin;
     let items = [];
 
-    if (roundRobin) {
-        // Each media file goes to one account, cycling through accounts
-        for (let i = 0; i < times.length && i < mediaCount; i++) {
-            const acctIdx = i % acctCount;
-            items.push({
-                time: times[i],
-                accountIdx: acctIdx,
-                mediaIdx: i,
-                account: wizardState.selectedAccounts[acctIdx],
-                media: wizardState.selectedMedia[i]
-            });
-        }
-    } else {
-        // Each media to every account
-        let idx = 0;
-        for (let m = 0; m < mediaCount; m++) {
-            for (let a = 0; a < acctCount; a++) {
-                if (idx < times.length) {
-                    items.push({
-                        time: times[idx],
-                        accountIdx: a,
-                        mediaIdx: m,
-                        account: wizardState.selectedAccounts[a],
-                        media: wizardState.selectedMedia[m]
-                    });
+    if (strat === 'work_hours') {
+        // --- Work-Hour Aware: per-account scheduling ---
+        collectStepData();
+        const startDate = wizardState.whStartDate ? new Date(wizardState.whStartDate) : new Date();
+        const endDate = wizardState.whEndDate ? new Date(wizardState.whEndDate) : new Date(Date.now() + 7*86400000);
+        const ppd = wizardState.whPostsPerDay || 1;
+        const buf = wizardState.whBufferMinutes || 15;
+        const randomize = wizardState.whRandomize;
+        const roundRobin = wizardState.roundRobin;
+
+        // For each account, generate their times and assign media
+        let mediaPointer = 0; // global media pointer for round-robin across accounts
+        for (let a = 0; a < acctCount; a++) {
+            const acct = wizardState.selectedAccounts[a];
+            const acctTimes = generateTimesForAccount(acct, startDate, endDate, ppd, buf, randomize);
+
+            // How many media items for this account?
+            let mediaForAcct;
+            if (roundRobin) {
+                // Each account gets a slice of media (cycling)
+                mediaForAcct = [];
+                for (let t = 0; t < acctTimes.length; t++) {
+                    if (mediaPointer >= mediaCount) mediaPointer = 0;
+                    mediaForAcct.push(mediaPointer);
+                    mediaPointer++;
                 }
-                idx++;
+            } else {
+                // Each account gets ALL media
+                mediaForAcct = [];
+                for (let t = 0; t < acctTimes.length; t++) {
+                    mediaForAcct.push(t % mediaCount);
+                }
+            }
+
+            // Limit to available slots
+            const slotCount = Math.min(acctTimes.length, mediaForAcct.length);
+            for (let i = 0; i < slotCount; i++) {
+                items.push({
+                    time: acctTimes[i],
+                    accountIdx: a,
+                    mediaIdx: mediaForAcct[i],
+                    account: acct,
+                    media: wizardState.selectedMedia[mediaForAcct[i]]
+                });
+            }
+        }
+
+        // Sort all items by time
+        items.sort((a, b) => a.time - b.time);
+
+    } else {
+        // --- Standard strategies ---
+        const times = generateScheduleTimes();
+        if (!times || !times.length) return [];
+
+        const roundRobin = wizardState.roundRobin;
+
+        if (roundRobin) {
+            // Each media file goes to one account, cycling through accounts
+            for (let i = 0; i < times.length && i < mediaCount; i++) {
+                const acctIdx = i % acctCount;
+                items.push({
+                    time: times[i],
+                    accountIdx: acctIdx,
+                    mediaIdx: i,
+                    account: wizardState.selectedAccounts[acctIdx],
+                    media: wizardState.selectedMedia[i]
+                });
+            }
+        } else {
+            // Each media to every account
+            let idx = 0;
+            for (let m = 0; m < mediaCount; m++) {
+                for (let a = 0; a < acctCount; a++) {
+                    if (idx < times.length) {
+                        items.push({
+                            time: times[idx],
+                            accountIdx: a,
+                            mediaIdx: m,
+                            account: wizardState.selectedAccounts[a],
+                            media: wizardState.selectedMedia[m]
+                        });
+                    }
+                    idx++;
+                }
             }
         }
     }
@@ -1943,6 +2144,7 @@ function buildReview() {
 
     // Strategy label
     const stratLabels = {
+        'work_hours': 'Work-Hour Aware',
         'even_spread': 'Even Spread',
         'fill_week': 'Fill Week',
         'custom_interval': 'Custom Interval',
@@ -2040,7 +2242,9 @@ function resetWizard() {
         step: 1, contentType: null, selectedMedia: [], caption: '', hashtags: '',
         location: '', musicSearch: '', mentionUsername: '', linkUrl: '',
         selectedAccounts: [], startTime: '', intervalHours: 1, batchName: '',
-        strategy: 'even_spread', evenStartDate: '', evenEndDate: '',
+        strategy: 'work_hours',
+        whStartDate: '', whEndDate: '', whPostsPerDay: 1, whBufferMinutes: 15, whRandomize: true,
+        evenStartDate: '', evenEndDate: '',
         evenPostsPerDay: 2, evenWindowStart: 9, evenWindowEnd: 21,
         fillWeekPostsPerDay: 2, fillWeekStartDay: 'today',
         randomStartDate: '', randomEndDate: '', randomPostsPerDay: 2,
@@ -2051,7 +2255,7 @@ function resetWizard() {
     $('#btnStep1Next').prop('disabled', true);
     mediaTypeFilter = 'all';
     currentFolderId = '';
-    selectStrategy('even_spread');
+    selectStrategy('work_hours');
     goToStep(1);
 }
 

@@ -868,105 +868,49 @@ def api_adb_devices():
 
 
 # ===================================================================
-#  BOT ORCHESTRATOR — Start/Stop/Status per device
+#  BOT ORCHESTRATOR — DEPRECATED (use launch_farm.py + run_device.py)
 # ===================================================================
 
 @automation_bp.route('/api/automation/orchestrator/start', methods=['POST'])
 def api_orchestrator_start():
-    """
-    Start the device orchestrator.
-    Optional JSON body: { "devices": ["10.1.11.4_5555", ...] }
-    If devices is provided, only those devices are managed.
-    If omitted, ALL devices are managed.
-    """
-    from automation.device_orchestrator import get_orchestrator
-    orch = get_orchestrator()
-    if orch.is_running:
-        return jsonify({'success': True, 'message': 'Already running'})
-
-    device_serials = None
-    if request.is_json and request.json:
-        device_serials = request.json.get('devices')
-
-    orch.start(device_serials=device_serials)
-
-    msg = 'Orchestrator started'
-    if device_serials:
-        msg += f' (restricted to {len(device_serials)} device(s))'
-    return jsonify({'success': True, 'message': msg})
+    """Deprecated: use launch_farm.py + run_device.py instead."""
+    return jsonify({'success': False, 'message': 'Orchestrator removed. Use launch_farm.py + run_device.py'}), 410
 
 
 @automation_bp.route('/api/automation/orchestrator/stop', methods=['POST'])
 def api_orchestrator_stop():
-    """Stop the device orchestrator."""
-    from automation.device_orchestrator import get_orchestrator
-    orch = get_orchestrator()
-    if not orch.is_running:
-        return jsonify({'success': True, 'message': 'Already stopped'})
-    orch.stop()
-    return jsonify({'success': True, 'message': 'Orchestrator stopped'})
+    """Deprecated: use launch_farm.py + run_device.py instead."""
+    return jsonify({'success': False, 'message': 'Orchestrator removed. Use launch_farm.py + run_device.py'}), 410
 
 
 @automation_bp.route('/api/automation/orchestrator/status')
 def api_orchestrator_status():
-    """Get orchestrator status + all managed devices."""
-    from automation.device_orchestrator import get_orchestrator
-    orch = get_orchestrator()
-    return jsonify({
-        'success': True,
-        'running': orch.is_running,
-        'devices': orch.get_status() if orch.is_running else {},
-    })
+    """Deprecated: use launch_farm.py + run_device.py instead."""
+    return jsonify({'success': False, 'running': False, 'message': 'Orchestrator removed. Use launch_farm.py + run_device.py'}), 410
 
 
 @automation_bp.route('/api/automation/bot/start/<device_serial>', methods=['POST'])
 def api_bot_start_device(device_serial):
-    """Start bot on a specific device. Orchestrator picks the right account."""
-    from automation.device_orchestrator import get_orchestrator
-    orch = get_orchestrator()
-    if not orch.is_running:
-        orch.start()
-    result = orch.start_device(device_serial)
-    return jsonify({
-        'success': bool(result),
-        'message': 'Bot started' if result else 'No active account for this device',
-        'device_serial': device_serial,
-    })
+    """Deprecated: use launch_farm.py + run_device.py instead."""
+    return jsonify({'success': False, 'message': 'Orchestrator removed. Use launch_farm.py + run_device.py'}), 410
 
 
 @automation_bp.route('/api/automation/bot/stop/<device_serial>', methods=['POST'])
 def api_bot_stop_device(device_serial):
-    """Stop bot on a specific device."""
-    from automation.device_orchestrator import get_orchestrator
-    orch = get_orchestrator()
-    result = orch.stop_device(device_serial)
-    return jsonify({
-        'success': bool(result),
-        'message': 'Bot stopped' if result else 'No bot running on this device',
-        'device_serial': device_serial,
-    })
+    """Deprecated: use launch_farm.py + run_device.py instead."""
+    return jsonify({'success': False, 'message': 'Orchestrator removed. Use launch_farm.py + run_device.py'}), 410
 
 
 @automation_bp.route('/api/automation/bot/start-all', methods=['POST'])
 def api_bot_start_all():
-    """Start bots on all devices that have active accounts."""
-    from automation.device_orchestrator import get_orchestrator
-    orch = get_orchestrator()
-    if not orch.is_running:
-        orch.start()
-    return jsonify({
-        'success': True,
-        'message': 'Orchestrator started — will auto-start all devices',
-    })
+    """Deprecated: use launch_farm.py + run_device.py instead."""
+    return jsonify({'success': False, 'message': 'Orchestrator removed. Use launch_farm.py + run_device.py'}), 410
 
 
 @automation_bp.route('/api/automation/bot/stop-all', methods=['POST'])
 def api_bot_stop_all():
-    """Stop all bots."""
-    from automation.device_orchestrator import get_orchestrator
-    orch = get_orchestrator()
-    orch.stop()
-    return jsonify({'success': True, 'message': 'All bots stopped'})
+    """Deprecated: use launch_farm.py + run_device.py instead."""
+    return jsonify({'success': False, 'message': 'Orchestrator removed. Use launch_farm.py + run_device.py'}), 410
 
 
 @automation_bp.route('/api/automation/bot/status')
