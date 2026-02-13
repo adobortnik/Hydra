@@ -149,14 +149,58 @@ def get_device_accounts(serial):
     return [dict(r) for r in rows]
 
 
+def _parse_time_windows(start_str, end_str):
+    """
+    Parse start_time/end_time into list of (start, end) tuples.
+    Supports comma-separated multi-windows: start="2,12" end="4,14" -> [(2,4), (12,14)]
+    Single window: start="8" end="16" -> [(8,16)]
+    Always-active: start="0" end="0" -> [(0,0)]
+    """
+    starts = [int(x.strip()) for x in str(start_str or "0").split(",") if x.strip().isdigit()]
+    ends = [int(x.strip()) for x in str(end_str or "0").split(",") if x.strip().isdigit()]
+
+    if not starts:
+        starts = [0]
+    if not ends:
+        ends = [0]
+
+    # Pad shorter list to match longer
+    while len(ends) < len(starts):
+        ends.append(ends[-1])
+    while len(starts) < len(ends):
+        starts.append(starts[-1])
+
+    return list(zip(starts, ends))
+
+
+def _is_in_window(now_hour, windows):
+    """Check if now_hour falls within any of the time windows."""
+    for start, end in windows:
+        if start == end:
+            continue  # always-active, handled separately
+        if start < end:
+            if start <= now_hour < end:
+                return True
+        else:  # wraps midnight
+            if now_hour >= start or now_hour < end:
+                return True
+    return False
+
+
+def _is_always_active(windows):
+    """Check if all windows are always-active (start==end)."""
+    return all(s == e for s, e in windows)
+
+
 def get_current_account(accounts):
     """
     Pick the account whose time window covers the current hour.
 
     Rules:
-        start == end        → always-active (lowest priority)
-        start < end         → normal range (e.g. 8-16)
-        start > end         → wraps midnight (e.g. 22-4)
+        start == end        -> always-active (lowest priority)
+        start < end         -> normal range (e.g. 8-16)
+        start > end         -> wraps midnight (e.g. 22-4)
+        Comma-separated     -> multiple windows (e.g. start="2,12" end="4,14")
 
     Returns the account dict, or None.
     """
@@ -164,22 +208,16 @@ def get_current_account(accounts):
 
     # First pass: accounts with specific time windows
     for acct in accounts:
-        start = int(acct.get("start_time") or 0)
-        end = int(acct.get("end_time") or 0)
-        if start == end:
-            continue  # always-active, check later
-        if start < end:
-            if start <= now_hour < end:
-                return acct
-        else:
-            if now_hour >= start or now_hour < end:
-                return acct
+        windows = _parse_time_windows(acct.get("start_time"), acct.get("end_time"))
+        if _is_always_active(windows):
+            continue  # check later
+        if _is_in_window(now_hour, windows):
+            return acct
 
     # Second pass: always-active (start==end, typically 0-0)
     for acct in accounts:
-        start = int(acct.get("start_time") or 0)
-        end = int(acct.get("end_time") or 0)
-        if start == end:
+        windows = _parse_time_windows(acct.get("start_time"), acct.get("end_time"))
+        if _is_always_active(windows):
             return acct
 
     return None
@@ -268,7 +306,11 @@ class DeviceRunner:
         # Show accounts
         for acct in self.accounts:
             s, e = acct.get("start_time", "0"), acct.get("end_time", "0")
-            window = "always" if s == e or (s == "0" and e == "0") else f"{s}h-{e}h"
+            windows = _parse_time_windows(s, e)
+            if _is_always_active(windows):
+                window = "always"
+            else:
+                window = " + ".join(f"{ws}h-{we}h" for ws, we in windows if ws != we)
             self.log.info(f"  {YELLOW}{acct['username']:<30}{RESET} window={window}  pkg={acct.get('instagram_package','default')}")
 
         if self.dry_run:

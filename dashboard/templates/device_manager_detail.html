@@ -476,6 +476,7 @@
                         <th>Start</th>
                         <th>End</th>
                         <th>Username</th>
+                        <th>Package</th>
                         <th>Followers</th>
                         <th>Following</th>
                         <th>Followed</th>
@@ -553,6 +554,10 @@
                         <div class="col-md-4">
                             <label class="form-label">Status</label>
                             <input type="text" class="form-control" id="sp_status" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Instagram Package</label>
+                            <input type="text" class="form-control" id="sp_instagram_package" readonly>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">App Cloner</label>
@@ -1378,6 +1383,7 @@ function renderAccounts(accounts) {
                 <span class="health-badge ${healthClass}" title="${healthTitle}"></span>
                 ${escHtml(a.username)}
             </td>
+            <td><small class="text-muted">${a.instagram_package ? a.instagram_package.replace('com.instagram.', '') : '-'}</small></td>
             <td>${statWithDelta(a.followers, a.followers_delta)}</td>
             <td>${statWithDelta(a.following, a.following_delta)}</td>
             <td>${statCell(a.follows_done)}</td>
@@ -1555,6 +1561,7 @@ function populateSettings(settings, accountData) {
     document.getElementById('sp_username').value = accountData.username || '';
     document.getElementById('sp_password').value = accountData.password || '';
     document.getElementById('sp_status').value = accountData.status || '';
+    document.getElementById('sp_instagram_package').value = accountData.instagram_package || '';
     document.getElementById('sp_app_cloner').value = accountData.app_cloner || '';
     document.getElementById('sp_followers').value = accountData.followers || '0';
 
