@@ -321,18 +321,20 @@ def api_update_app_id(serial):
     if not username or not package:
         return jsonify(success=False, error='username and package required')
 
-    # Ensure full package/activity format
+    # Split into package-only and full app_id
     if '/' in package:
+        pkg_only = package.split('/')[0]
         full_app_id = package
     else:
+        pkg_only = package
         full_app_id = f"{package}/com.instagram.mainactivity.MainActivity"
 
     conn = _get_conn()
     try:
-        # Update instagram_package column (full package/activity)
+        # Update instagram_package column (package only — used as resource ID prefix)
         conn.execute(
             "UPDATE accounts SET instagram_package=? WHERE device_serial=? AND username=?",
-            (full_app_id, serial, username)
+            (pkg_only, serial, username)
         )
 
         # Update app_cloner in account_settings (full package/activity)

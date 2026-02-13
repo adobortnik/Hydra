@@ -220,8 +220,8 @@ def get_available_clone_letters(device_serial):
 
 
 def make_package_name(letter):
-    """Build the full instagram_package from a clone letter (package/activity)."""
-    return f"com.instagram.androi{letter}/com.instagram.mainactivity.MainActivity"
+    """Build the instagram package name from a clone letter (package only, no activity)."""
+    return f"com.instagram.androi{letter}"
 
 
 def make_app_id(letter):
