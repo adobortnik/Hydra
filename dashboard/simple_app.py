@@ -2517,6 +2517,59 @@ def _require_basic_auth():
     return None
 
 
+@app.route('/api/settings/ai', methods=['GET'])
+def get_ai_settings():
+    """Get AI configuration from global_settings.json."""
+    try:
+        gs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'global_settings.json')
+        if os.path.exists(gs_path):
+            with open(gs_path, 'r') as f:
+                gs = json.load(f)
+            ai = gs.get('ai', {})
+            # Mask keys for display (show first 8 chars + ...)
+            return jsonify({
+                'openai_api_key': ai.get('openai_api_key', ''),
+                'anthropic_api_key': ai.get('anthropic_api_key', ''),
+                'provider': ai.get('provider', 'openai'),
+                'enabled': ai.get('enabled', True),
+            })
+        return jsonify({'openai_api_key': '', 'anthropic_api_key': '', 'provider': 'openai', 'enabled': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/settings/ai', methods=['POST'])
+def save_ai_settings():
+    """Save AI configuration to global_settings.json."""
+    try:
+        data = request.get_json()
+        gs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'global_settings.json')
+
+        # Load existing
+        gs = {}
+        if os.path.exists(gs_path):
+            with open(gs_path, 'r') as f:
+                gs = json.load(f)
+
+        # Update AI section
+        if 'ai' not in gs:
+            gs['ai'] = {}
+        if data.get('openai_api_key') is not None:
+            gs['ai']['openai_api_key'] = data['openai_api_key']
+        if data.get('anthropic_api_key') is not None:
+            gs['ai']['anthropic_api_key'] = data['anthropic_api_key']
+        if data.get('provider'):
+            gs['ai']['provider'] = data['provider']
+        gs['ai']['enabled'] = True
+
+        with open(gs_path, 'w') as f:
+            json.dump(gs, f, indent=4)
+
+        return jsonify({'status': 'success', 'message': 'AI settings saved'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/auth/change-password', methods=['POST'])
 def change_password():
     """Change the dashboard password. Requires current credentials."""

@@ -36,10 +36,113 @@
                 <p class="mb-0">Default username: <code>admin</code></p>
             </div>
         </div>
+
+        <!-- API Keys Section -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-robot me-2"></i>AI Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div id="aiAlertBox" class="d-none"></div>
+                <form id="aiSettingsForm">
+                    <div class="mb-3">
+                        <label for="openaiKey" class="form-label">OpenAI API Key</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="openaiKey" placeholder="sk-...">
+                            <button class="btn btn-outline-secondary" type="button" onclick="toggleKeyVisibility('openaiKey', this)">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Used for AI caption generation in Content Schedule. Get yours at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="anthropicKey" class="form-label">Anthropic API Key <span class="text-muted">(optional)</span></label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="anthropicKey" placeholder="sk-ant-...">
+                            <button class="btn btn-outline-secondary" type="button" onclick="toggleKeyVisibility('anthropicKey', this)">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">For future AI features.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="aiProvider" class="form-label">AI Provider</label>
+                        <select class="form-select" id="aiProvider">
+                            <option value="openai">OpenAI (gpt-4o-mini)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="saveAiBtn">
+                        <i class="fas fa-save me-1"></i> Save AI Settings
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
+// ---- AI Settings ----
+function toggleKeyVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+    } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="fas fa-eye"></i>';
+    }
+}
+
+// Load AI settings on page load
+(async function loadAiSettings() {
+    try {
+        const resp = await fetch('/api/settings/ai');
+        if (resp.ok) {
+            const data = await resp.json();
+            document.getElementById('openaiKey').value = data.openai_api_key || '';
+            document.getElementById('anthropicKey').value = data.anthropic_api_key || '';
+            document.getElementById('aiProvider').value = data.provider || 'openai';
+        }
+    } catch(e) { console.error('Failed to load AI settings', e); }
+})();
+
+document.getElementById('aiSettingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const alertBox = document.getElementById('aiAlertBox');
+    const btn = document.getElementById('saveAiBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+
+    try {
+        const resp = await fetch('/api/settings/ai', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                openai_api_key: document.getElementById('openaiKey').value.trim(),
+                anthropic_api_key: document.getElementById('anthropicKey').value.trim(),
+                provider: document.getElementById('aiProvider').value
+            })
+        });
+        const result = await resp.json();
+        if (resp.ok) {
+            alertBox.className = 'alert alert-success';
+            alertBox.textContent = 'AI settings saved successfully.';
+        } else {
+            alertBox.className = 'alert alert-danger';
+            alertBox.textContent = result.error || 'Failed to save.';
+        }
+    } catch(err) {
+        alertBox.className = 'alert alert-danger';
+        alertBox.textContent = 'Network error: ' + err.message;
+    } finally {
+        alertBox.classList.remove('d-none');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save AI Settings';
+    }
+});
+
+// ---- Password ----
 document.getElementById('changePasswordForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const alertBox = document.getElementById('alertBox');
