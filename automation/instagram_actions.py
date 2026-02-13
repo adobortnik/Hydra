@@ -258,6 +258,36 @@ class InstagramActions:
                 self.device(descriptionContains="Search and explore").exists(timeout=2)):
                 return 'logged_in'
 
+            # Check for post-login modals (contacts, notifications, save login, etc.)
+            # These appear AFTER login — account IS logged in but modal is blocking
+            post_login_kw = [
+                "allow access to contacts", "find people to follow",
+                "turn on notifications", "save your login",
+                "save login info", "add your phone number",
+                "set up on new device", "add a profile photo",
+                "welcome to instagram", "syncing your contacts",
+            ]
+            for kw in post_login_kw:
+                if kw in xml_lower:
+                    log.info("[%s] Post-login modal detected: '%s' — dismissing",
+                             self.device_serial, kw)
+                    # Try to dismiss it
+                    self.dismiss_post_login_modals(max_attempts=3)
+                    return 'logged_in'
+
+            # Also check for generic Skip/Not Now buttons with IG in foreground
+            # (these are almost always post-login prompts)
+            skip_btn = self.device(text="Skip")
+            not_now_btn = self.device(text="Not Now")
+            not_now_btn2 = self.device(text="Not now")
+            if skip_btn.exists(timeout=1) or not_now_btn.exists(timeout=1) or not_now_btn2.exists(timeout=1):
+                # Verify IG is actually running (not on launcher)
+                if 'com.instagram' in xml_lower or self.device(textContains="instagram").exists(timeout=1):
+                    log.info("[%s] Skip/Not Now button found on IG screen — treating as logged in, dismissing",
+                             self.device_serial)
+                    self.dismiss_post_login_modals(max_attempts=3)
+                    return 'logged_in'
+
             return 'unknown'
 
         except Exception as e:
@@ -493,41 +523,76 @@ class InstagramActions:
         except Exception:
             return True
 
-    def dismiss_post_login_modals(self, max_attempts=5):
-        """Dismiss any post-login modals (location, contacts, etc.)."""
-        try:
-            time.sleep(2)
-            for attempt in range(max_attempts):
-                # Check for Continue -> Deny flow (location services)
-                for sel in [self.device(text="Continue"), self.device(textContains="Continue")]:
-                    if sel.exists(timeout=2):
-                        sel.click()
-                        time.sleep(2)
-                        for deny in [self.device(text="Deny"), self.device(textContains="Deny"),
-                                     self.device(text="Don't allow")]:
-                            if deny.exists(timeout=3):
-                                deny.click()
-                                time.sleep(2)
-                                break
-                        break
+    def dismiss_post_login_modals(self, max_attempts=8):
+        """
+        Dismiss any post-login modals — contacts, notifications, save login,
+        profile photo, Android permission dialogs, etc.
 
-                # Generic dismiss buttons
+        Keeps trying up to max_attempts times until no more dismiss buttons found.
+        """
+        try:
+            time.sleep(1)
+            dismissed_count = 0
+            for attempt in range(max_attempts):
+                time.sleep(1)
+
+                # Android system permission dialog ("Allow" / "Don't allow")
+                dont_allow = self.device(text="Don't allow")
+                if dont_allow.exists(timeout=1):
+                    dont_allow.click()
+                    time.sleep(2)
+                    dismissed_count += 1
+                    log.debug("[%s] Dismissed Android permission dialog", self.device_serial)
+                    continue
+
+                # "Continue" -> then "Deny" flow (location services)
+                continue_btn = self.device(text="Continue")
+                if continue_btn.exists(timeout=1):
+                    continue_btn.click()
+                    time.sleep(2)
+                    for deny in [self.device(text="Deny"), self.device(text="Don't allow"),
+                                 self.device(textContains="Deny")]:
+                        if deny.exists(timeout=3):
+                            deny.click()
+                            time.sleep(2)
+                            dismissed_count += 1
+                            break
+                    continue
+
+                # Generic dismiss buttons (ordered by priority)
                 dismiss_sels = [
-                    self.device(text="Not Now"), self.device(text="Not now"),
-                    self.device(text="Skip"), self.device(text="Deny"),
-                    self.device(textContains="Not Now"), self.device(textContains="Skip"),
+                    self.device(text="Skip"),
+                    self.device(text="Not Now"),
+                    self.device(text="Not now"),
+                    self.device(text="No Thanks"),
+                    self.device(text="No thanks"),
+                    self.device(text="Deny"),
+                    self.device(text="Cancel"),
+                    self.device(text="Maybe Later"),
+                    self.device(text="Close"),
+                    self.device(textContains="Not Now"),
+                    self.device(textContains="Skip"),
+                    self.device(textContains="No Thanks"),
                 ]
                 found = False
                 for sel in dismiss_sels:
-                    if sel.exists(timeout=2):
+                    if sel.exists(timeout=1):
                         sel.click()
                         time.sleep(2)
+                        dismissed_count += 1
                         found = True
+                        log.debug("[%s] Dismissed post-login modal (%d)",
+                                  self.device_serial, dismissed_count)
                         break
                 if not found:
                     break
+
+            if dismissed_count > 0:
+                log.info("[%s] Dismissed %d post-login modal(s)",
+                         self.device_serial, dismissed_count)
             return True
-        except Exception:
+        except Exception as e:
+            log.debug("[%s] dismiss_post_login_modals error: %s", self.device_serial, e)
             return True
 
     def verify_logged_in(self):
