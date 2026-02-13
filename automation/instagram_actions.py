@@ -218,58 +218,44 @@ class InstagramActions:
                 if kw in xml_lower:
                     return '2fa'
 
-            # Check for login/signup BEFORE checking logged_in
-            # (prevents false 'logged_in' when app is on login screen or launcher)
+            # Check for login/signup screens BEFORE checking logged_in
+            # Use specific IG login/signup text that won't appear on normal screens
 
-            # Check signup/intro — "I already have an account" / "Sign In" / "Log In"
-            signup_kw = [
-                "i already have an account", "already have an account",
-                "sign in", "log in", "log into",
-                "sign up", "get started", "create new account",
-            ]
-            for kw in signup_kw:
-                if kw in xml_lower:
-                    log.info("[%s] Login/signup screen detected: matched '%s'",
-                             self.device_serial, kw)
-                    return 'signup' if 'sign up' in kw or 'create' in kw or 'get started' in kw or 'already' in kw else 'login'
+            # Signup/intro screen — very specific phrases
+            if ("already have an account" in xml_lower or
+                "create new account" in xml_lower or
+                "get started" in xml_lower):
+                log.info("[%s] Signup/intro screen detected", self.device_serial)
+                return 'signup'
 
-            # Check for login fields
-            has_username = (
+            # Login screen — check for BOTH username AND password fields together
+            has_username_field = (
                 self.device(textContains="Username").exists(timeout=2) or
-                self.device(textContains="Phone").exists(timeout=2) or
-                self.device(textContains="Email").exists(timeout=2) or
-                self.device(className="android.widget.EditText").exists(timeout=2)
+                self.device(textContains="Phone number, username").exists(timeout=2)
             )
-            has_password = (
-                self.device(textContains="Password").exists(timeout=2) or
-                self.device(textContains="password").exists(timeout=2)
+            has_password_field = (
+                self.device(textContains="Password").exists(timeout=2)
+            )
+            has_login_button = (
+                self.device(text="Log in").exists(timeout=1) or
+                self.device(text="Log In").exists(timeout=1) or
+                self.device(text="Sign in").exists(timeout=1)
             )
 
-            if has_username and has_password:
+            if has_username_field and has_password_field:
+                log.info("[%s] Login screen detected (username + password fields)",
+                         self.device_serial)
                 return 'login'
 
-            if has_username or has_password:
+            if has_login_button and has_username_field:
+                log.info("[%s] Login screen detected (login button + username field)",
+                         self.device_serial)
                 return 'login'
 
-            # Check logged in — ONLY if correct IG app is in foreground
-            # Verify the expected package is running (not launcher or wrong clone)
-            try:
-                import subprocess
-                adb_serial = self.device_serial.replace('_', ':')
-                focus_result = subprocess.run(
-                    ['adb', '-s', adb_serial, 'shell', 'dumpsys', 'window', '|', 'grep', 'mCurrentFocus'],
-                    capture_output=True, text=True, timeout=5, shell=True
-                )
-                focus_text = focus_result.stdout.strip()
-                # Check if any IG package is in foreground
-                is_ig_foreground = 'com.instagram' in focus_text
-            except Exception:
-                is_ig_foreground = True  # assume yes if check fails
-
-            if is_ig_foreground and (
-                self.device(description="Profile").exists(timeout=2) or
+            # Check logged in — navigation tabs visible (Profile/Home/Search)
+            if (self.device(description="Profile").exists(timeout=2) or
                 self.device(description="Home").exists(timeout=2) or
-                self.device(descriptionContains="Search").exists(timeout=2)):
+                self.device(descriptionContains="Search and explore").exists(timeout=2)):
                 return 'logged_in'
 
             return 'unknown'
