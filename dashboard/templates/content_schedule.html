@@ -452,8 +452,61 @@
                 <div class="mb-3">
                     <label class="form-label">Caption Template</label>
                     <textarea class="form-control bg-dark text-white border-secondary" id="captionTemplate" rows="3"
-                              placeholder="Enter caption for all posts..."></textarea>
-                    <div class="form-text text-muted">Applied to every scheduled item</div>
+                              placeholder="Enter caption for all posts..." oninput="onCaptionInput()"></textarea>
+                    
+                    <!-- AI Caption Generation Row -->
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="aiToneSelect" style="width:auto;min-width:140px">
+                            <option value="engaging">✨ Engaging</option>
+                            <option value="funny">😄 Funny</option>
+                            <option value="professional">💼 Professional</option>
+                            <option value="motivational">💪 Motivational</option>
+                            <option value="casual">😎 Casual</option>
+                            <option value="edgy">🔥 Edgy</option>
+                        </select>
+                        <button class="btn btn-sm btn-outline-info" onclick="showAiGenerateForm()" id="btnAiGenerate" title="Generate caption with AI">
+                            ✨ Generate with AI
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning d-none" onclick="previewAiTags()" id="btnPreviewAi" title="Preview AI tag replacements">
+                            <i class="fas fa-eye me-1"></i>Preview AI
+                        </button>
+                    </div>
+
+                    <!-- AI Generate Inline Form (hidden by default) -->
+                    <div class="collapse mt-2" id="aiGenerateForm">
+                        <div class="card card-body bg-dark border-secondary p-3">
+                            <div class="mb-2">
+                                <label class="form-label small text-muted mb-1">Custom prompt (optional)</label>
+                                <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" 
+                                       id="aiCustomPrompt" placeholder="e.g. Write something about morning motivation and fitness...">
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <button class="btn btn-sm btn-info" onclick="generateAiCaption()" id="btnDoGenerate">
+                                    <i class="fas fa-magic me-1"></i>Generate
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="$('#aiGenerateForm').collapse('hide')">Cancel</button>
+                                <span class="spinner-border spinner-border-sm text-info d-none" id="aiSpinner"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Preview Collapse -->
+                    <div class="collapse mt-2" id="aiPreviewPanel">
+                        <div class="card card-body bg-dark border-secondary p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-muted"><i class="fas fa-wand-magic-sparkles me-1"></i>AI Preview — 3 sample captions</span>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="$('#aiPreviewPanel').collapse('hide')">×</button>
+                            </div>
+                            <div id="aiPreviewContent">
+                                <span class="text-muted small">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-text text-muted">
+                        Applied to every scheduled item. 
+                        <span class="text-info">Use <code>[AI]</code> or <code>[AI:your prompt]</code> in the caption for unique AI text per post.</span>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Hashtags</label>
@@ -1513,6 +1566,102 @@ function showConfigForType() {
     $('#musicSearchInput').val(wizardState.musicSearch);
     $('#mentionInput').val(wizardState.mentionUsername);
     $('#linkUrlInput').val(wizardState.linkUrl);
+
+    // Check AI tag visibility
+    onCaptionInput();
+}
+
+// --- AI Caption Generation ---
+function onCaptionInput() {
+    const text = $('#captionTemplate').val() || '';
+    const hasAiTag = /\[AI(?::[^\]]*)?\]/.test(text);
+    if (hasAiTag) {
+        $('#btnPreviewAi').removeClass('d-none');
+    } else {
+        $('#btnPreviewAi').addClass('d-none');
+        $('#aiPreviewPanel').collapse('hide');
+    }
+}
+
+function showAiGenerateForm() {
+    $('#aiGenerateForm').collapse('toggle');
+}
+
+function generateAiCaption() {
+    const btn = $('#btnDoGenerate');
+    const spinner = $('#aiSpinner');
+    const tone = $('#aiToneSelect').val();
+    const customPrompt = $('#aiCustomPrompt').val().trim();
+    const contentType = wizardState.contentType || 'post';
+
+    const prompt = customPrompt || `Write a short engaging Instagram caption for a ${contentType}. Be creative and use emojis naturally.`;
+
+    btn.prop('disabled', true);
+    spinner.removeClass('d-none');
+
+    $.ajax({
+        url: API + '/ai-caption',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ prompt: prompt, tone: tone, content_type: contentType, count: 1 }),
+        success: function(data) {
+            btn.prop('disabled', false);
+            spinner.addClass('d-none');
+            if (data.captions && data.captions.length > 0) {
+                $('#captionTemplate').val(data.captions[0]);
+                wizardState.caption = data.captions[0];
+                onCaptionInput();
+                $('#aiGenerateForm').collapse('hide');
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false);
+            spinner.addClass('d-none');
+            const err = xhr.responseJSON ? xhr.responseJSON.error : 'AI generation failed';
+            alert('⚠️ ' + err);
+        }
+    });
+}
+
+function previewAiTags() {
+    const text = $('#captionTemplate').val() || '';
+    const tone = $('#aiToneSelect').val();
+    const contentType = wizardState.contentType || 'post';
+
+    // Extract the prompt from the first [AI:...] tag, or use default
+    const match = text.match(/\[AI(?::([^\]]*))?\]/);
+    let prompt = `Write a short engaging Instagram caption for a ${contentType}. Be creative and use emojis naturally.`;
+    if (match && match[1]) {
+        prompt = match[1].trim();
+    }
+
+    $('#aiPreviewPanel').collapse('show');
+    $('#aiPreviewContent').html('<span class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Generating 3 previews...</span>');
+
+    $.ajax({
+        url: API + '/ai-caption',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ prompt: prompt, tone: tone, content_type: contentType, count: 3 }),
+        success: function(data) {
+            if (data.captions && data.captions.length > 0) {
+                let html = '';
+                data.captions.forEach((cap, i) => {
+                    // Show the full caption with AI tag replaced
+                    const preview = text.replace(/\[AI(?:[^\]]*)?\]/, cap);
+                    html += `<div class="p-2 mb-1 rounded" style="background:rgba(255,255,255,0.05);font-size:0.85rem">
+                        <span class="badge bg-secondary me-1">${i+1}</span>${$('<span>').text(preview).html()}
+                    </div>`;
+                });
+                html += '<div class="text-muted mt-1" style="font-size:0.75rem">Each post will get a unique variation at schedule time.</div>';
+                $('#aiPreviewContent').html(html);
+            }
+        },
+        error: function(xhr) {
+            const err = xhr.responseJSON ? xhr.responseJSON.error : 'Preview failed';
+            $('#aiPreviewContent').html(`<span class="text-danger small">⚠️ ${$('<span>').text(err).html()}</span>`);
+        }
+    });
 }
 
 // ============ STEP 4: TARGET ACCOUNTS ============

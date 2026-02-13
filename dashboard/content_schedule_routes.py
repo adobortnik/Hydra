@@ -7,6 +7,8 @@ Tables: content_schedule, content_batches
 """
 
 import os
+import re
+import json
 import uuid
 import subprocess
 import threading
@@ -463,6 +465,10 @@ def create_batch_schedule():
                 if validation_errors:
                     return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
 
+                # Pre-resolve AI tags if caption contains them
+                has_ai_tags = bool(AI_TAG_PATTERN.search(caption_template))
+                ai_api_key = _get_openai_key() if has_ai_tags else ''
+
                 for si in schedule_items:
                     mp = si.get('media_path', '')
                     scheduled_time_str = si.get('scheduled_time', '')
@@ -474,6 +480,11 @@ def create_batch_schedule():
                         )
                     except (ValueError, AttributeError):
                         st = datetime.utcnow()
+
+                    # Resolve [AI] / [AI:prompt] tags for each post individually
+                    item_caption = caption_template
+                    if has_ai_tags:
+                        item_caption = resolve_ai_tags(caption_template, content_type, 'engaging', ai_api_key)
 
                     conn.execute("""
                         INSERT INTO content_schedule
@@ -488,7 +499,7 @@ def create_batch_schedule():
                         si.get('username'),
                         content_type,
                         mp,
-                        caption_template,
+                        item_caption,
                         hashtags,
                         location,
                         None,
@@ -575,10 +586,19 @@ def create_batch_schedule():
                 if not accounts:
                     return jsonify({'error': 'No valid accounts found'}), 400
 
+                # Pre-check for AI tags in legacy mode
+                has_ai_tags_legacy = bool(AI_TAG_PATTERN.search(caption_template))
+                ai_api_key_legacy = _get_openai_key() if has_ai_tags_legacy else ''
+
                 current_time = start_time
                 first_time = start_time
                 for media_path in media_paths:
                     for acct in accounts:
+                        # Resolve [AI] tags uniquely per post
+                        item_caption = caption_template
+                        if has_ai_tags_legacy:
+                            item_caption = resolve_ai_tags(caption_template, content_type, 'engaging', ai_api_key_legacy)
+
                         conn.execute("""
                             INSERT INTO content_schedule
                             (account_id, device_serial, username, content_type, media_path,
@@ -592,7 +612,7 @@ def create_batch_schedule():
                             acct.get('username'),
                             content_type,
                             media_path,
-                            caption_template,
+                            item_caption,
                             hashtags,
                             location,
                             None,
@@ -1371,6 +1391,221 @@ def _run_test_post(test_id, account, media_path, content_type,
         _update('failed', 'Error: %s' % str(e),
                 success=False, error=str(e),
                 completed_at=datetime.utcnow().isoformat())
+
+
+# =============================================================================
+# AI CAPTION GENERATION
+# =============================================================================
+
+# Regex to find [AI] or [AI:custom prompt] tags
+AI_TAG_PATTERN = re.compile(r'\[AI(?::([^\]]*))?\]')
+
+SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'global_settings.json')
+
+
+def _get_openai_key():
+    """Read OpenAI API key from global_settings.json. Returns key or empty string."""
+    try:
+        with open(SETTINGS_PATH, 'r') as f:
+            settings = json.load(f)
+        return (settings.get('ai', {}).get('openai_api_key', '') or '').strip()
+    except Exception as e:
+        log.warning("Could not read global_settings.json for AI key: %s", e)
+        return ''
+
+
+def _generate_captions_openai(api_key, prompts, tone='engaging', content_type='post', count=1):
+    """
+    Generate captions using OpenAI API.
+
+    Args:
+        api_key: OpenAI API key
+        prompts: list of prompt strings (one per caption needed), or a single string
+        tone: tone/style for generation
+        content_type: post/reel/story
+        count: number of captions to generate (used when prompts is a single string)
+
+    Returns:
+        list of generated caption strings
+    """
+    from openai import OpenAI
+
+    client = OpenAI(api_key=api_key)
+
+    system_prompt = (
+        "You are an Instagram caption writer. Generate captions that are creative, "
+        "authentic, and engaging. Rules:\n"
+        "- Do NOT wrap the caption in quotes\n"
+        "- Include emojis naturally (don't overdo it)\n"
+        "- Keep it concise (1-3 sentences max)\n"
+        "- Match the requested tone/style\n"
+        "- Don't include hashtags (those are added separately)\n"
+        "- Each caption should be unique and different from others\n"
+        f"- Content type: Instagram {content_type}\n"
+        f"- Tone/style: {tone}"
+    )
+
+    if isinstance(prompts, str):
+        # Single prompt, generate `count` captions
+        if count == 1:
+            user_msg = prompts
+        else:
+            user_msg = (
+                f"Generate {count} UNIQUE and DIFFERENT Instagram captions. "
+                f"Base prompt: {prompts}\n\n"
+                f"Return exactly {count} captions, one per line. "
+                "Number them like 1. 2. 3. etc."
+            )
+
+        response = client.chat.completions.create(
+            model='gpt-4o-mini',
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_msg}
+            ],
+            temperature=0.9,
+            max_tokens=500 * max(count, 1)
+        )
+
+        text = response.choices[0].message.content.strip()
+
+        if count == 1:
+            return [text]
+        else:
+            # Parse numbered list
+            lines = [l.strip() for l in text.split('\n') if l.strip()]
+            captions = []
+            for line in lines:
+                # Remove numbering like "1. ", "1) ", "- "
+                cleaned = re.sub(r'^[\d]+[.)]\s*', '', line).strip()
+                cleaned = re.sub(r'^[-•]\s*', '', cleaned).strip()
+                if cleaned:
+                    captions.append(cleaned)
+            # Ensure we have the right count
+            while len(captions) < count:
+                captions.append(captions[-1] if captions else text)
+            return captions[:count]
+
+    elif isinstance(prompts, list):
+        # Multiple individual prompts — generate one caption per prompt
+        captions = []
+        # Batch into a single request for efficiency
+        if len(prompts) <= 10:
+            numbered = '\n'.join(f"{i+1}. {p}" for i, p in enumerate(prompts))
+            user_msg = (
+                f"Generate {len(prompts)} UNIQUE Instagram captions, one for each prompt below.\n\n"
+                f"{numbered}\n\n"
+                f"Return exactly {len(prompts)} captions, numbered 1. through {len(prompts)}. "
+                "Each must be unique and match its corresponding prompt."
+            )
+
+            response = client.chat.completions.create(
+                model='gpt-4o-mini',
+                messages=[
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': user_msg}
+                ],
+                temperature=0.9,
+                max_tokens=300 * len(prompts)
+            )
+
+            text = response.choices[0].message.content.strip()
+            lines = [l.strip() for l in text.split('\n') if l.strip()]
+            for line in lines:
+                cleaned = re.sub(r'^[\d]+[.)]\s*', '', line).strip()
+                cleaned = re.sub(r'^[-•]\s*', '', cleaned).strip()
+                if cleaned:
+                    captions.append(cleaned)
+
+            while len(captions) < len(prompts):
+                captions.append(captions[-1] if captions else 'Check out this post! ✨')
+            return captions[:len(prompts)]
+        else:
+            # Too many — batch in groups of 10
+            for i in range(0, len(prompts), 10):
+                batch = prompts[i:i+10]
+                batch_results = _generate_captions_openai(api_key, batch, tone, content_type)
+                captions.extend(batch_results)
+            return captions
+
+    return ['']
+
+
+def resolve_ai_tags(caption, content_type='post', tone='engaging', api_key=None):
+    """
+    Resolve all [AI] and [AI:prompt] tags in a caption for a SINGLE post.
+    Returns the caption with tags replaced by AI-generated text.
+    If no API key or AI fails, returns the caption unchanged.
+    """
+    if not caption or '[AI' not in caption:
+        return caption
+
+    if not api_key:
+        api_key = _get_openai_key()
+    if not api_key:
+        log.warning("AI tags found in caption but no OpenAI API key configured")
+        return caption
+
+    matches = list(AI_TAG_PATTERN.finditer(caption))
+    if not matches:
+        return caption
+
+    try:
+        prompts = []
+        for match in matches:
+            custom_prompt = match.group(1)
+            if custom_prompt and custom_prompt.strip():
+                prompts.append(custom_prompt.strip())
+            else:
+                prompts.append(
+                    f"Write a short engaging Instagram caption for a {content_type}. "
+                    "Be creative and use emojis naturally."
+                )
+
+        generated = _generate_captions_openai(api_key, prompts, tone, content_type)
+
+        # Replace tags from right to left to preserve positions
+        result = caption
+        for match, replacement in zip(reversed(matches), reversed(generated)):
+            result = result[:match.start()] + replacement + result[match.end():]
+
+        return result
+
+    except Exception as e:
+        log.error("AI tag resolution failed: %s", e)
+        return caption
+
+
+@content_schedule_bp.route('/api/content-schedule/ai-caption', methods=['POST'])
+def generate_ai_caption():
+    """
+    Generate AI-powered captions.
+
+    Body: {prompt: str, tone: str, content_type: str, count: int}
+    Returns: {captions: [str, ...]}
+    """
+    try:
+        data = request.json or {}
+        prompt = data.get('prompt', '').strip()
+        tone = data.get('tone', 'engaging').strip()
+        content_type = data.get('content_type', 'post').strip()
+        count = min(int(data.get('count', 1)), 20)  # cap at 20
+
+        if not prompt:
+            prompt = f"Write a short engaging Instagram caption for a {content_type}. Be creative and use emojis naturally."
+
+        api_key = _get_openai_key()
+        if not api_key:
+            return jsonify({
+                'error': 'OpenAI API key not configured. Add your key to dashboard/global_settings.json under ai.openai_api_key'
+            }), 400
+
+        captions = _generate_captions_openai(api_key, prompt, tone, content_type, count)
+        return jsonify({'captions': captions})
+
+    except Exception as e:
+        log.error("AI caption generation failed: %s", e)
+        return jsonify({'error': 'AI generation failed: %s' % str(e)}), 500
 
 
 # =============================================================================
