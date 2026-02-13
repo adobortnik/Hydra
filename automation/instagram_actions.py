@@ -537,12 +537,37 @@ class InstagramActions:
                 time.sleep(1)
 
                 # Android system permission dialog ("Allow" / "Don't allow")
+                # ALLOW storage, photos, camera, audio, media — needed for content posting
+                # DENY contacts, location, and everything else
                 dont_allow = self.device(text="Don't allow")
-                if dont_allow.exists(timeout=1):
-                    dont_allow.click()
+                allow_btn = self.device(text="Allow")
+                while_using = self.device(textContains="While using")
+                if dont_allow.exists(timeout=1) or allow_btn.exists(timeout=1) or while_using.exists(timeout=1):
+                    xml_check = self.device.dump_hierarchy().lower()
+                    # Permissions we WANT to allow
+                    allow_kw = ["storage", "photos", "photo", "media", "camera",
+                                "audio", "microphone", "music", "files", "images",
+                                "videos", "record", "gallery", "pictures"]
+                    should_allow = any(kw in xml_check for kw in allow_kw)
+
+                    if should_allow:
+                        # Click "Allow" or "While using the app"
+                        if while_using.exists(timeout=1):
+                            while_using.click()
+                            log.info("[%s] ALLOWED permission (media/camera/storage)", self.device_serial)
+                        elif allow_btn.exists(timeout=1):
+                            allow_btn.click()
+                            log.info("[%s] ALLOWED permission (media/camera/storage)", self.device_serial)
+                    else:
+                        # Deny contacts, location, etc.
+                        if dont_allow.exists(timeout=1):
+                            dont_allow.click()
+                            log.debug("[%s] Denied permission (not media-related)", self.device_serial)
+                        elif allow_btn.exists(timeout=1):
+                            # If there's only Allow with no Don't allow, press back
+                            self.device.press('back')
                     time.sleep(2)
                     dismissed_count += 1
-                    log.debug("[%s] Dismissed Android permission dialog", self.device_serial)
                     continue
 
                 # "Continue" -> then "Deny" flow (location services)
