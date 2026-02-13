@@ -687,10 +687,19 @@ class IGController:
             return False
 
     def launch_app(self) -> bool:
-        """Launch our IG clone package."""
+        """Force-stop then launch our IG clone package for a clean start."""
         try:
+            # Force-stop first to clear any bad state (white screen, frozen, etc.)
+            import subprocess
+            adb_serial = self.device_serial.replace('_', ':')
+            subprocess.run(
+                ['adb', '-s', adb_serial, 'shell', 'am', 'force-stop', self.package],
+                capture_output=True, timeout=5
+            )
+            time.sleep(1)
+
             self.device.app_start(self.package)
-            time.sleep(4)
+            time.sleep(5)
             return self.is_correct_app()
         except Exception as e:
             log.error("[%s] Failed to launch %s: %s", self.device_serial, self.package, e)
