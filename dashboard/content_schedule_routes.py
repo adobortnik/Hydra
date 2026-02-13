@@ -14,6 +14,7 @@ import subprocess
 import threading
 import logging
 import sqlite3
+import time as _time
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, render_template
 from phone_farm_db import get_conn, row_to_dict, rows_to_dicts, get_account_by_id
@@ -184,6 +185,26 @@ init_content_schedule_tables()
 
 _test_post_progress = {}  # test_id -> {status, message, steps, ...}
 _test_post_lock = threading.Lock()
+
+
+# =============================================================================
+# BATCH PROGRESS - In-memory tracking for async batch processing
+# =============================================================================
+
+_batch_progress = {}       # batch_id -> {status, total, done, current_item, errors, result, created_at}
+_batch_progress_lock = threading.Lock()
+_BATCH_PROGRESS_TTL = 300  # 5 minutes
+
+
+def _cleanup_old_batch_progress():
+    """Remove batch progress entries older than TTL."""
+    now = _time.time()
+    with _batch_progress_lock:
+        expired = [k for k, v in _batch_progress.items()
+                   if now - v.get('created_at_ts', 0) > _BATCH_PROGRESS_TTL
+                   and v.get('status') in ('completed', 'failed')]
+        for k in expired:
+            del _batch_progress[k]
 
 
 # =============================================================================
@@ -410,17 +431,15 @@ def delete_scheduled_item(item_id):
 @content_schedule_bp.route('/api/content-schedule/batch', methods=['POST'])
 def create_batch_schedule():
     """
-    Bulk schedule: supports two modes:
-    
+    Async bulk schedule: validates input, returns immediately with batch_id,
+    then processes in a background thread.
+
+    Supports two modes:
     1. Smart mode (schedule_items): Pre-computed schedule from frontend strategies.
-       Each item has: media_path, account_id, device_serial, username, scheduled_time
-    
-    2. Legacy mode (media_paths + accounts + start_time + interval_hours):
-       Creates one row per account per media file with fixed intervals.
-    
-    Common fields:
-        content_type, caption_template, hashtags, location,
-        mention_username, music_search_query, link_url, batch_name
+    2. Legacy mode (media_paths + accounts + start_time + interval_hours).
+
+    Returns: {batch_id, status: 'processing'} immediately.
+    Poll GET /api/content-schedule/batch/<batch_id>/progress for status.
     """
     try:
         data = request.json
@@ -432,18 +451,106 @@ def create_batch_schedule():
             return jsonify({'error': 'content_type must be post, reel, or story'}), 400
 
         caption_template = data.get('caption_template', '')
+        batch_id = str(uuid.uuid4())[:12]
+        batch_name = data.get('batch_name', f"{content_type.title()} batch - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}")
+
+        schedule_items = data.get('schedule_items')
+
+        # ---------- Quick validation (sync, before returning) ----------
+        if schedule_items and isinstance(schedule_items, list) and len(schedule_items) > 0:
+            # Smart mode - validate media upfront
+            validation_errors = []
+            for si in schedule_items:
+                mp = si.get('media_path', '')
+                if mp:
+                    ok, err = validate_media(mp, content_type)
+                    if not ok:
+                        validation_errors.append(err)
+            if validation_errors:
+                return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
+            total_estimate = len(schedule_items)
+        else:
+            # Legacy mode - basic validation
+            media_paths = data.get('media_paths', [])
+            if not media_paths:
+                return jsonify({'error': 'media_paths is required and must not be empty'}), 400
+            validation_errors = []
+            for mp in media_paths:
+                ok, err = validate_media(mp, content_type)
+                if not ok:
+                    validation_errors.append(err)
+            if validation_errors:
+                return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
+            if not data.get('start_time'):
+                return jsonify({'error': 'start_time is required'}), 400
+            total_estimate = len(media_paths) * max(len(data.get('accounts', [])), 1)
+
+        # ---------- Set up progress tracking ----------
+        _cleanup_old_batch_progress()
+        with _batch_progress_lock:
+            _batch_progress[batch_id] = {
+                'status': 'processing',
+                'total': total_estimate,
+                'done': 0,
+                'current_item': 'Starting...',
+                'errors': [],
+                'result': None,
+                'created_at_ts': _time.time(),
+            }
+
+        # ---------- Spawn background thread ----------
+        t = threading.Thread(
+            target=_process_batch_background,
+            args=(batch_id, data, content_type, caption_template, batch_name),
+            daemon=True,
+        )
+        t.start()
+
+        return jsonify({
+            'batch_id': batch_id,
+            'status': 'processing',
+            'name': batch_name,
+            'total_estimate': total_estimate,
+        }), 202
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@content_schedule_bp.route('/api/content-schedule/batch/<batch_id>/progress', methods=['GET'])
+def get_batch_progress(batch_id):
+    """Poll progress of an async batch operation."""
+    with _batch_progress_lock:
+        progress = _batch_progress.get(batch_id)
+    if not progress:
+        return jsonify({'error': 'Unknown batch_id or expired'}), 404
+    return jsonify(progress)
+
+
+def _process_batch_background(batch_id, data, content_type, caption_template, batch_name):
+    """
+    Background worker for batch processing.
+    Handles both smart mode and legacy mode.
+    Optimizes AI caption generation into a single batched call.
+    """
+    def _update_progress(**kwargs):
+        with _batch_progress_lock:
+            p = _batch_progress.get(batch_id, {})
+            p.update(kwargs)
+            _batch_progress[batch_id] = p
+
+    try:
         hashtags = data.get('hashtags', '')
         location = data.get('location', '')
         mention_username = data.get('mention_username', '')
         music_search_query = data.get('music_search_query', '')
         link_url = data.get('link_url', '')
         now = datetime.utcnow().isoformat()
-        batch_id = str(uuid.uuid4())[:12]
-        batch_name = data.get('batch_name', f"{content_type.title()} batch - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}")
 
-        # Check for smart mode (schedule_items from frontend)
         schedule_items = data.get('schedule_items')
-        
+
         conn = get_conn()
         try:
             total_items = 0
@@ -453,26 +560,54 @@ def create_batch_schedule():
             last_time = None
 
             if schedule_items and isinstance(schedule_items, list) and len(schedule_items) > 0:
-                # ---- SMART MODE: Pre-computed schedule ----
-                # Validate media
-                validation_errors = []
-                for si in schedule_items:
-                    mp = si.get('media_path', '')
-                    if mp:
-                        ok, err = validate_media(mp, content_type)
-                        if not ok:
-                            validation_errors.append(err)
-                if validation_errors:
-                    return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
+                # ---- SMART MODE ----
+                _update_progress(current_item='Preparing schedule items...', total=len(schedule_items))
 
-                # Pre-resolve AI tags if caption contains them
+                # Check for AI tags
                 has_ai_tags = bool(AI_TAG_PATTERN.search(caption_template))
-                ai_api_key = _get_openai_key() if has_ai_tags else ''
 
-                for si in schedule_items:
+                # Phase 1: Generate AI captions in ONE batch call if needed
+                captions_list = []
+                if has_ai_tags:
+                    _update_progress(current_item='Generating AI captions...')
+                    ai_api_key = _get_openai_key()
+                    if ai_api_key:
+                        try:
+                            # Extract the prompt from the template
+                            matches = list(AI_TAG_PATTERN.finditer(caption_template))
+                            base_prompt = None
+                            if matches:
+                                custom = matches[0].group(1)
+                                if custom and custom.strip():
+                                    base_prompt = custom.strip()
+                            if not base_prompt:
+                                base_prompt = (
+                                    f"Write a short engaging Instagram caption for a {content_type}. "
+                                    "Be creative and use emojis naturally."
+                                )
+
+                            count_needed = len(schedule_items)
+                            _update_progress(current_item=f'Generating {count_needed} AI captions in one batch...')
+                            captions_list = _generate_captions_openai(
+                                ai_api_key, base_prompt, 'engaging', content_type, count=count_needed
+                            )
+                        except Exception as e:
+                            log.error("Batch AI caption generation failed: %s", e)
+                            _update_progress(current_item='AI caption generation failed, using template...')
+                            captions_list = []
+
+                # Phase 2: Build all INSERT rows
+                insert_rows = []
+                for idx, si in enumerate(schedule_items):
                     mp = si.get('media_path', '')
                     scheduled_time_str = si.get('scheduled_time', '')
-                    
+                    username = si.get('username', '')
+
+                    _update_progress(
+                        done=idx,
+                        current_item=f'Preparing item {idx + 1}/{len(schedule_items)} — @{username}...'
+                    )
+
                     # Parse time
                     try:
                         st = datetime.fromisoformat(
@@ -481,22 +616,21 @@ def create_batch_schedule():
                     except (ValueError, AttributeError):
                         st = datetime.utcnow()
 
-                    # Resolve [AI] / [AI:prompt] tags for each post individually
+                    # Resolve caption
                     item_caption = caption_template
-                    if has_ai_tags:
-                        item_caption = resolve_ai_tags(caption_template, content_type, 'engaging', ai_api_key)
+                    if has_ai_tags and captions_list:
+                        # Use pre-generated caption from batch
+                        generated = captions_list[idx % len(captions_list)]
+                        # Replace ALL [AI...] tags in the template with this generated caption
+                        item_caption = AI_TAG_PATTERN.sub(generated, caption_template)
+                    elif has_ai_tags:
+                        # Fallback: leave template as-is (AI generation failed)
+                        item_caption = caption_template
 
-                    conn.execute("""
-                        INSERT INTO content_schedule
-                        (account_id, device_serial, username, content_type, media_path,
-                         caption, hashtags, location, music_name, music_search_query,
-                         mention_username, link_url, scheduled_time, status, batch_id,
-                         created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-                    """, (
+                    insert_rows.append((
                         si.get('account_id'),
                         si.get('device_serial'),
-                        si.get('username'),
+                        username,
                         content_type,
                         mp,
                         item_caption,
@@ -511,45 +645,43 @@ def create_batch_schedule():
                         now, now
                     ))
                     total_items += 1
-                    unique_accounts.add(si.get('username', ''))
+                    unique_accounts.add(username)
                     unique_media.add(mp)
                     if first_time is None or st < first_time:
                         first_time = st
                     if last_time is None or st > last_time:
                         last_time = st
 
+                # Phase 3: Batch insert to DB
+                _update_progress(current_item='Saving to database...', done=len(schedule_items))
+                conn.executemany("""
+                    INSERT INTO content_schedule
+                    (account_id, device_serial, username, content_type, media_path,
+                     caption, hashtags, location, music_name, music_search_query,
+                     mention_username, link_url, scheduled_time, status, batch_id,
+                     created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+                """, insert_rows)
+
             else:
-                # ---- LEGACY MODE: media_paths + accounts + interval ----
+                # ---- LEGACY MODE ----
                 media_paths = data.get('media_paths', [])
-                if not media_paths:
-                    return jsonify({'error': 'media_paths is required and must not be empty'}), 400
-
-                validation_errors = []
-                for mp in media_paths:
-                    ok, err = validate_media(mp, content_type)
-                    if not ok:
-                        validation_errors.append(err)
-                if validation_errors:
-                    return jsonify({'error': 'Media validation failed', 'details': validation_errors}), 400
-
                 start_time_str = data.get('start_time')
-                if not start_time_str:
-                    return jsonify({'error': 'start_time is required'}), 400
-
                 interval_hours = float(data.get('interval_hours', 24))
                 if interval_hours <= 0:
-                    return jsonify({'error': 'interval_hours must be positive'}), 400
+                    interval_hours = 24
 
                 try:
                     start_time = datetime.fromisoformat(
                         start_time_str.replace('Z', '+00:00').replace('T', ' ').split('+')[0]
                     )
-                except ValueError:
-                    return jsonify({'error': 'Invalid start_time format'}), 400
+                except (ValueError, TypeError):
+                    start_time = datetime.utcnow()
 
                 accounts = data.get('accounts', [])
                 device_serial = data.get('device_serial')
-                
+
+                # Resolve accounts
                 if accounts == 'all' or (isinstance(accounts, str) and accounts.lower() == 'all'):
                     if device_serial and device_serial != 'all':
                         acct_rows = conn.execute(
@@ -584,32 +716,61 @@ def create_batch_schedule():
                     accounts = resolved
 
                 if not accounts:
-                    return jsonify({'error': 'No valid accounts found'}), 400
+                    _update_progress(status='failed', current_item='No valid accounts found')
+                    _batch_progress[batch_id]['errors'].append('No valid accounts found')
+                    return
 
-                # Pre-check for AI tags in legacy mode
+                total_legacy = len(media_paths) * len(accounts)
+                _update_progress(total=total_legacy, current_item='Preparing legacy schedule...')
+
+                # Batch AI captions for legacy mode
                 has_ai_tags_legacy = bool(AI_TAG_PATTERN.search(caption_template))
-                ai_api_key_legacy = _get_openai_key() if has_ai_tags_legacy else ''
+                captions_list = []
+                if has_ai_tags_legacy:
+                    _update_progress(current_item='Generating AI captions...')
+                    ai_api_key_legacy = _get_openai_key()
+                    if ai_api_key_legacy:
+                        try:
+                            matches = list(AI_TAG_PATTERN.finditer(caption_template))
+                            base_prompt = None
+                            if matches:
+                                custom = matches[0].group(1)
+                                if custom and custom.strip():
+                                    base_prompt = custom.strip()
+                            if not base_prompt:
+                                base_prompt = (
+                                    f"Write a short engaging Instagram caption for a {content_type}. "
+                                    "Be creative and use emojis naturally."
+                                )
+                            captions_list = _generate_captions_openai(
+                                ai_api_key_legacy, base_prompt, 'engaging', content_type, count=total_legacy
+                            )
+                        except Exception as e:
+                            log.error("Legacy batch AI caption generation failed: %s", e)
 
                 current_time = start_time
                 first_time = start_time
+                insert_rows = []
+                caption_idx = 0
+
                 for media_path in media_paths:
                     for acct in accounts:
-                        # Resolve [AI] tags uniquely per post
-                        item_caption = caption_template
-                        if has_ai_tags_legacy:
-                            item_caption = resolve_ai_tags(caption_template, content_type, 'engaging', ai_api_key_legacy)
+                        username = acct.get('username', '')
+                        _update_progress(
+                            done=total_items,
+                            current_item=f'Preparing {total_items + 1}/{total_legacy} — @{username}...'
+                        )
 
-                        conn.execute("""
-                            INSERT INTO content_schedule
-                            (account_id, device_serial, username, content_type, media_path,
-                             caption, hashtags, location, music_name, music_search_query,
-                             mention_username, link_url, scheduled_time, status, batch_id,
-                             created_at, updated_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-                        """, (
+                        item_caption = caption_template
+                        if has_ai_tags_legacy and captions_list:
+                            generated = captions_list[caption_idx % len(captions_list)]
+                            item_caption = AI_TAG_PATTERN.sub(generated, caption_template)
+                            caption_idx += 1
+
+                        insert_rows.append((
                             acct.get('account_id'),
                             acct.get('device_serial', device_serial),
-                            acct.get('username'),
+                            username,
                             content_type,
                             media_path,
                             item_caption,
@@ -624,11 +785,22 @@ def create_batch_schedule():
                             now, now
                         ))
                         total_items += 1
-                        unique_accounts.add(acct.get('username', ''))
+                        unique_accounts.add(username)
                         current_time += timedelta(hours=interval_hours)
 
                 last_time = current_time
                 unique_media = set(media_paths)
+
+                # Batch insert
+                _update_progress(current_item='Saving to database...', done=total_items)
+                conn.executemany("""
+                    INSERT INTO content_schedule
+                    (account_id, device_serial, username, content_type, media_path,
+                     caption, hashtags, location, music_name, music_search_query,
+                     mention_username, link_url, scheduled_time, status, batch_id,
+                     created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+                """, insert_rows)
 
             # Create batch record
             conn.execute("""
@@ -638,22 +810,37 @@ def create_batch_schedule():
 
             conn.commit()
 
-            return jsonify({
+            result = {
                 'batch_id': batch_id,
                 'name': batch_name,
                 'total_items': total_items,
                 'accounts': len(unique_accounts),
                 'media_files': len(unique_media),
                 'start_time': first_time.isoformat() if first_time else now,
-                'end_time': last_time.isoformat() if last_time else now
-            }), 201
+                'end_time': last_time.isoformat() if last_time else now,
+            }
+
+            _update_progress(
+                status='completed',
+                done=total_items,
+                total=total_items,
+                current_item='Done!',
+                result=result,
+            )
 
         finally:
             conn.close()
+
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        log.error("Batch %s background processing failed: %s", batch_id, e)
+        with _batch_progress_lock:
+            p = _batch_progress.get(batch_id, {})
+            p['status'] = 'failed'
+            p['current_item'] = f'Error: {str(e)}'
+            p['errors'] = p.get('errors', []) + [str(e)]
+            _batch_progress[batch_id] = p
 
 
 @content_schedule_bp.route('/api/content-schedule/batches', methods=['GET'])

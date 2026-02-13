@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Content Schedule - Hydra{% endblock %}
 
@@ -1083,11 +1083,84 @@
     </div>
 </div>
 
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999" id="toastContainer"></div>
+
+<!-- Batch Progress Modal -->
+<div class="modal fade" id="batchProgressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-cogs me-2 text-primary"></i>Scheduling Batch</h5>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span id="batchProgressLabel">Starting...</span>
+                        <span id="batchProgressPct" class="text-primary fw-bold">0%</span>
+                    </div>
+                    <div class="progress" style="height: 24px; background: rgba(255,255,255,0.1); border-radius: 12px;">
+                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                             id="batchProgressBar" role="progressbar" style="width: 0%; border-radius: 12px;"
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+                <div class="text-muted small" id="batchProgressDetail" style="min-height: 1.5em;">
+                    <i class="fas fa-spinner fa-spin me-1"></i>Initializing...
+                </div>
+                <!-- Errors area (hidden by default) -->
+                <div id="batchProgressErrors" class="mt-2" style="display:none;">
+                    <div class="alert alert-danger py-2 px-3 mb-0" style="font-size:0.85rem; max-height:120px; overflow-y:auto;">
+                        <i class="fas fa-exclamation-triangle me-1"></i><span id="batchProgressErrorText"></span>
+                    </div>
+                </div>
+                <!-- Success result (hidden by default) -->
+                <div id="batchProgressResult" class="mt-3" style="display:none;">
+                    <div class="alert alert-success py-2 px-3 mb-0">
+                        <i class="fas fa-check-circle me-2"></i><strong>Batch scheduled successfully!</strong>
+                        <div class="mt-2 small" id="batchResultDetails"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary" id="batchProgressFooter" style="display:none;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="onBatchProgressClose()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const API = '/api/content-schedule';
+
+// ============ TOAST HELPER ============
+function showToast(message, type = 'info', duration = 5000) {
+    const icons = {
+        success: 'fa-check-circle text-success',
+        error: 'fa-exclamation-circle text-danger',
+        warning: 'fa-exclamation-triangle text-warning',
+        info: 'fa-info-circle text-primary'
+    };
+    const icon = icons[type] || icons.info;
+    const id = 'toast_' + Date.now();
+    const html = `
+        <div id="${id}" class="toast align-items-center border-0" role="alert" aria-live="assertive" data-bs-delay="${duration}" style="background: #1e2126; border: 1px solid rgba(255,255,255,0.1) !important;">
+            <div class="d-flex">
+                <div class="toast-body text-white">
+                    <i class="fas ${icon} me-2"></i>${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>`;
+    $('#toastContainer').append(html);
+    const el = document.getElementById(id);
+    const toast = new bootstrap.Toast(el);
+    toast.show();
+    el.addEventListener('hidden.bs.toast', () => el.remove());
+}
 
 // ============ STATE ============
 let wizardState = {
@@ -1401,7 +1474,7 @@ function createNewFolder() {
             if (data.id) setTimeout(() => loadFolderMedia(data.id), 300);
         },
         error: function(xhr) {
-            alert('Error creating folder: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown'));
+            showToast('Error creating folder: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown'), 'error');
         }
     });
 }
@@ -1601,7 +1674,7 @@ function uploadFiles(files) {
         },
         error: function(xhr) {
             progressBar.hide(); progressFill.css('width', '0');
-            alert('Upload failed: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'));
+            showToast('Upload failed: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'), 'error');
         }
     });
 }
@@ -1673,7 +1746,7 @@ function generateAiCaption() {
             btn.prop('disabled', false);
             spinner.addClass('d-none');
             const err = xhr.responseJSON ? xhr.responseJSON.error : 'AI generation failed';
-            alert('⚠️ ' + err);
+            showToast(err, 'error');
         }
     });
 }
@@ -2178,6 +2251,8 @@ function buildReview() {
 }
 
 // ============ SUBMIT BATCH ============
+let _batchPollTimer = null;
+
 function submitBatch() {
     const btn = $('#btnSubmitBatch');
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Scheduling...');
@@ -2185,7 +2260,7 @@ function submitBatch() {
     const items = wizardState.generatedSchedule;
     if (!items || !items.length) {
         btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
-        alert('No schedule items generated. Go back and configure timing.');
+        showToast('No schedule items generated. Go back and configure timing.', 'warning');
         return;
     }
 
@@ -2209,7 +2284,6 @@ function submitBatch() {
         link_url: wizardState.linkUrl,
         batch_name: wizardState.batchName,
         strategy: wizardState.strategy,
-        // Fallback fields for legacy compat
         media_paths: wizardState.selectedMedia.map(m => m.full_path),
         accounts: wizardState.selectedAccounts,
         start_time: items[0].time.toISOString(),
@@ -2223,18 +2297,119 @@ function submitBatch() {
         data: JSON.stringify(payload),
         success: function(data) {
             btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
-            alert(`Batch scheduled!\n\nBatch ID: ${data.batch_id}\nTotal items: ${data.total_items}\nAccounts: ${data.accounts}\nMedia files: ${data.media_files}`);
 
-            // Reset wizard
-            resetWizard();
-            loadStats();
+            if (data.status === 'processing' && data.batch_id) {
+                showBatchProgressModal(data.batch_id, data.total_estimate || items.length);
+            } else {
+                showToast('Batch scheduled! ' + (data.total_items || '?') + ' items created.', 'success', 8000);
+                resetWizard();
+                loadStats();
+            }
         },
         error: function(xhr) {
             btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
             const err = xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error';
-            alert('âŒ Failed to schedule batch: ' + err);
+            const details = xhr.responseJSON && xhr.responseJSON.details;
+            let msg = 'Failed to schedule batch: ' + err;
+            if (details && Array.isArray(details)) {
+                msg += '<br><small>' + details.slice(0, 3).join('<br>') + '</small>';
+            }
+            showToast(msg, 'error', 10000);
         }
     });
+}
+
+function showBatchProgressModal(batchId, totalEstimate) {
+    $('#batchProgressBar').css('width', '0%').removeClass('bg-danger');
+    $('#batchProgressBar').addClass('progress-bar-striped progress-bar-animated bg-success');
+    $('#batchProgressPct').text('0%');
+    $('#batchProgressLabel').text('Processing 0/' + totalEstimate + ' items...');
+    $('#batchProgressDetail').html('<i class="fas fa-spinner fa-spin me-1"></i>Initializing...');
+    $('#batchProgressErrors').hide();
+    $('#batchProgressResult').hide();
+    $('#batchProgressFooter').hide();
+
+    var modal = new bootstrap.Modal('#batchProgressModal');
+    modal.show();
+
+    _batchPollTimer = setInterval(function() { pollBatchProgress(batchId); }, 500);
+}
+
+function pollBatchProgress(batchId) {
+    $.get(API + '/batch/' + batchId + '/progress', function(data) {
+        var done = data.done || 0;
+        var total = data.total || 1;
+        var pct = Math.min(Math.round((done / total) * 100), 100);
+        var currentItem = data.current_item || '';
+
+        $('#batchProgressBar').css('width', pct + '%');
+        $('#batchProgressPct').text(pct + '%');
+        $('#batchProgressLabel').text('Processing ' + done + '/' + total + ' items... (' + pct + '%)');
+        $('#batchProgressDetail').html(
+            data.status === 'processing'
+                ? '<i class="fas fa-spinner fa-spin me-1"></i>' + currentItem
+                : currentItem
+        );
+
+        if (data.errors && data.errors.length > 0) {
+            $('#batchProgressErrors').show();
+            $('#batchProgressErrorText').text(data.errors.join('; '));
+        }
+
+        if (data.status === 'completed') {
+            clearInterval(_batchPollTimer);
+            _batchPollTimer = null;
+
+            $('#batchProgressBar').css('width', '100%').removeClass('progress-bar-animated');
+            $('#batchProgressPct').text('100%');
+            $('#batchProgressLabel').text('Completed \u2014 ' + total + ' items scheduled');
+            $('#batchProgressDetail').html('<i class="fas fa-check text-success me-1"></i>All items saved successfully.');
+
+            if (data.result) {
+                var r = data.result;
+                var detailHtml = 'Batch ID: <code>' + r.batch_id + '</code><br>' +
+                    'Items: <strong>' + r.total_items + '</strong> | ' +
+                    'Accounts: <strong>' + r.accounts + '</strong> | ' +
+                    'Media: <strong>' + r.media_files + '</strong>';
+                if (r.start_time) {
+                    detailHtml += '<br>From: ' + new Date(r.start_time).toLocaleString();
+                }
+                if (r.end_time) {
+                    detailHtml += ' \u2192 ' + new Date(r.end_time).toLocaleString();
+                }
+                $('#batchResultDetails').html(detailHtml);
+                $('#batchProgressResult').show();
+            }
+
+            $('#batchProgressFooter').show();
+            showToast('Batch scheduling completed! \ud83c\udf89', 'success', 6000);
+
+        } else if (data.status === 'failed') {
+            clearInterval(_batchPollTimer);
+            _batchPollTimer = null;
+
+            $('#batchProgressBar').removeClass('bg-success progress-bar-animated').addClass('bg-danger');
+            $('#batchProgressLabel').text('Batch failed');
+            $('#batchProgressDetail').html('<i class="fas fa-times text-danger me-1"></i>' + (data.current_item || 'Unknown error'));
+            $('#batchProgressFooter').show();
+            showToast('Batch scheduling failed.', 'error', 8000);
+        }
+    }).fail(function() {
+        clearInterval(_batchPollTimer);
+        _batchPollTimer = null;
+        $('#batchProgressDetail').html('<i class="fas fa-exclamation-triangle text-warning me-1"></i>Lost connection to progress tracker.');
+        $('#batchProgressFooter').show();
+    });
+}
+
+function onBatchProgressClose() {
+    if (_batchPollTimer) {
+        clearInterval(_batchPollTimer);
+        _batchPollTimer = null;
+    }
+    resetWizard();
+    loadStats();
+    loadCalendar();
 }
 
 function resetWizard() {
@@ -2396,12 +2571,12 @@ function cancelBatch(batchId) {
         url: API + '/batches/' + batchId,
         method: 'DELETE',
         success: function(data) {
-            alert('Batch cancelled: ' + (data.cancelled || 0) + ' items cancelled');
+            showToast('Batch cancelled: ' + (data.cancelled || 0) + ' items cancelled', 'success');
             loadBatches();
             loadStats();
         },
         error: function(xhr) {
-            alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown'));
+            showToast((xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'), 'error');
         }
     });
 }
@@ -2441,7 +2616,7 @@ function saveEditItem() {
             loadStats();
         },
         error: function(xhr) {
-            alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown'));
+            showToast((xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'), 'error');
         }
     });
 }
@@ -2600,8 +2775,8 @@ function submitTestPost() {
     var music = $('#tpMusic').val();
     var location = $('#tpLocation').val();
 
-    if (!accountId) { alert('Please select an account'); return; }
-    if (!mediaPath) { alert('Please select a media file'); return; }
+    if (!accountId) { showToast('Please select an account', 'warning'); return; }
+    if (!mediaPath) { showToast('Please select a media file', 'warning'); return; }
 
     // Find full_path from the files list
     var file = tpAllFolderFiles.find(function(f) { return f.path === mediaPath; });
@@ -2626,7 +2801,7 @@ function submitTestPost() {
         data: JSON.stringify(payload),
         success: function(resp) {
             if (resp.status !== 'success') {
-                alert('Error: ' + (resp.message || 'Unknown'));
+                showToast((resp.message || 'Unknown error'), 'error');
                 $('#btnTestPost').prop('disabled', false).html('<i class="fas fa-play me-1"></i>Post Now');
                 return;
             }
@@ -2689,7 +2864,7 @@ function submitTestPost() {
         },
         error: function(xhr) {
             var err = xhr.responseJSON ? xhr.responseJSON.message : 'Request failed';
-            alert('Error: ' + err);
+            showToast(err, 'error');
             $('#btnTestPost').prop('disabled', false).html('<i class="fas fa-play me-1"></i>Post Now');
         }
     });
