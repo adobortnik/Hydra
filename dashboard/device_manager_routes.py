@@ -279,7 +279,7 @@ def api_mirror_device(serial):
         # Launch scrcpy detached (non-blocking)
         subprocess.Popen(
             [scrcpy_path, '-s', adb_serial, '--window-title', f'Mirror: {serial}',
-             '--max-size', '800', '--stay-awake'],
+             '--max-size', '800', '--stay-awake', '--no-audio'],
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         )
         return jsonify(success=True, message=f'Mirroring started for {serial}')
