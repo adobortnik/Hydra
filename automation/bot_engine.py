@@ -174,12 +174,22 @@ class BotEngine:
             # Check proxy status (SuperProxy VPN must be running)
             proxy_ok = self._check_proxy_status()
             if not proxy_ok:
-                msg = "Proxy not active on device — skipping to avoid running without proxy"
-                log.warning("[%s] %s: %s", self.device_serial, username, msg)
-                result['errors'].append(msg)
-                _blog(msg, device=self.device_serial, username=username,
-                      level='warning', category='proxy')
-                return result
+                # Try to reconnect Surfshark VPN automatically
+                log.warning("[%s] %s: Proxy not active — attempting Surfshark reconnect...",
+                            self.device_serial, username)
+                reconnected = self._reconnect_surfshark()
+                if reconnected:
+                    log.info("[%s] %s: Surfshark reconnected successfully!",
+                             self.device_serial, username)
+                    _blog("VPN reconnected automatically via Surfshark", device=self.device_serial,
+                          username=username, level='info', category='proxy')
+                else:
+                    msg = "Proxy not active on device — skipping to avoid running without proxy"
+                    log.warning("[%s] %s: %s", self.device_serial, username, msg)
+                    result['errors'].append(msg)
+                    _blog(msg, device=self.device_serial, username=username,
+                          level='warning', category='proxy')
+                    return result
 
             # Open Instagram
             if not self._open_instagram():
@@ -416,6 +426,94 @@ class BotEngine:
                         self.device_serial, e)
             # If we can't check, allow to proceed rather than blocking
             return True
+
+    def _reconnect_surfshark(self, max_wait: int = 30) -> bool:
+        """
+        Reconnect Surfshark VPN on the device.
+        Flow:
+          1. Open Surfshark app
+          2. If "VPN didn't connect" dialog → click Cancel
+          3. Click the Connect button
+          4. Wait for VPN to establish (check for 'VPN on' in status bar)
+        Returns True if VPN reconnected, False otherwise.
+        """
+        SURFSHARK_PKG = 'com.surfshark.vpnclient.android'
+
+        try:
+            # Step 1: Open Surfshark
+            log.info("[%s] Opening Surfshark VPN...", self.device_serial)
+            self._device.app_start(SURFSHARK_PKG)
+            time.sleep(3)
+
+            # Step 2: Dismiss "VPN didn't connect" dialog if present
+            xml = self._device.dump_hierarchy()
+            if "VPN didn" in xml or "didn\u2019t connect" in xml or "didn't connect" in xml:
+                log.info("[%s] Found 'VPN didn't connect' dialog — dismissing...", self.device_serial)
+                cancel_btn = self._device(text='Cancel')
+                if cancel_btn.exists(timeout=3):
+                    cancel_btn.click()
+                    time.sleep(2)
+                else:
+                    # Try X button
+                    close_btn = self._device(description='Close')
+                    if close_btn.exists(timeout=2):
+                        close_btn.click()
+                        time.sleep(2)
+
+            # Step 3: Click Connect button
+            log.info("[%s] Clicking Connect...", self.device_serial)
+            connect_btn = self._device(text='Connect')
+            if connect_btn.exists(timeout=5):
+                connect_btn.click()
+                time.sleep(2)
+
+                # Handle Android VPN connection dialog if it appears
+                ok_btn = self._device(text='OK')
+                if ok_btn.exists(timeout=3):
+                    ok_btn.click()
+                    time.sleep(1)
+            else:
+                # Maybe already connected or different UI state
+                log.warning("[%s] Connect button not found", self.device_serial)
+                # Check if already connected
+                xml = self._device.dump_hierarchy()
+                if 'Connected' in xml and 'Not connected' not in xml:
+                    log.info("[%s] Surfshark appears already connected", self.device_serial)
+                    self._device.press('home')
+                    time.sleep(1)
+                    return True
+                return False
+
+            # Step 4: Wait for VPN to establish
+            log.info("[%s] Waiting for VPN connection (up to %ds)...", self.device_serial, max_wait)
+            for i in range(max_wait // 3):
+                time.sleep(3)
+                xml = self._device.dump_hierarchy()
+                if 'VPN on' in xml or ('Connected' in xml and 'Not connected' not in xml):
+                    log.info("[%s] Surfshark VPN connected!", self.device_serial)
+                    # Go back to home screen
+                    self._device.press('home')
+                    time.sleep(1)
+                    return True
+                # Check if the error dialog appeared again
+                if "VPN didn" in xml or "didn't connect" in xml:
+                    log.warning("[%s] Surfshark failed to connect again", self.device_serial)
+                    self._device.press('home')
+                    time.sleep(1)
+                    return False
+
+            log.warning("[%s] Surfshark VPN did not connect within %ds", self.device_serial, max_wait)
+            self._device.press('home')
+            time.sleep(1)
+            return False
+
+        except Exception as e:
+            log.error("[%s] Surfshark reconnect error: %s", self.device_serial, e)
+            try:
+                self._device.press('home')
+            except Exception:
+                pass
+            return False
 
     def _open_instagram(self):
         """Open the correct Instagram clone for this specific account.
