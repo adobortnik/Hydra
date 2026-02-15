@@ -494,6 +494,8 @@ _GRANT_PERMISSIONS = [
     "android.permission.READ_MEDIA_VIDEO",
     "android.permission.READ_MEDIA_AUDIO",
     "android.permission.ACCESS_MEDIA_LOCATION",
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_COARSE_LOCATION",
 ]
 
 # Shared state for background grant job

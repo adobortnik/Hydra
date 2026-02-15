@@ -417,6 +417,8 @@
     <a href="#welcome" class="nav-link"><i class="fas fa-home"></i> Welcome</a>
     <a href="#what-is-hydra" class="nav-link"><i class="fas fa-info-circle"></i> What is Hydra?</a>
     <a href="#quick-start" class="nav-link"><i class="fas fa-rocket"></i> Quick Start</a>
+    <a href="#deploy-wizard" class="nav-link"><i class="fas fa-magic"></i> Deploy Wizard</a>
+    <a href="#login-automation" class="nav-link"><i class="fas fa-sign-in-alt"></i> Login Automation</a>
 
     <div class="nav-section">Dashboard Guide</div>
     <a href="#dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard Home</a>
@@ -424,14 +426,18 @@
     <a href="#bot-settings" class="nav-link"><i class="fas fa-sliders-h"></i> Bot Settings</a>
     <a href="#sources" class="nav-link"><i class="fas fa-crosshairs"></i> Sources & Targets</a>
     <a href="#content" class="nav-link"><i class="fas fa-photo-video"></i> Content & Media</a>
+    <a href="#comments" class="nav-link"><i class="fas fa-comments"></i> Comment Management</a>
     <a href="#jobs" class="nav-link"><i class="fas fa-tasks"></i> Job Orders</a>
     <a href="#devices" class="nav-link"><i class="fas fa-mobile-alt"></i> Device Management</a>
+    <a href="#farm-stats" class="nav-link"><i class="fas fa-chart-bar"></i> Farm Stats</a>
+    <a href="#profile-automation" class="nav-link"><i class="fas fa-user-edit"></i> Profile Automation</a>
 
     <div class="nav-section">Automation</div>
     <a href="#how-bot-works" class="nav-link"><i class="fas fa-robot"></i> How the Bot Works</a>
     <a href="#actions" class="nav-link"><i class="fas fa-bolt"></i> Actions Explained</a>
     <a href="#limits" class="nav-link"><i class="fas fa-shield-alt"></i> Safety & Limits</a>
     <a href="#scheduling" class="nav-link"><i class="fas fa-calendar-alt"></i> Scheduling</a>
+    <a href="#ai-features" class="nav-link"><i class="fas fa-brain"></i> AI Features</a>
 
     <div class="nav-section">Help</div>
     <a href="#faq" class="nav-link"><i class="fas fa-question-circle"></i> FAQ</a>
@@ -452,7 +458,7 @@
 <div class="hero">
     <h1>🐙 Welcome to Hydra</h1>
     <p>Your Instagram phone farm automation platform</p>
-    <span class="version">v1.0 — February 2026</span>
+    <span class="version">v1.1 — February 2026</span>
 </div>
 
 <!-- ======================== WELCOME ======================== -->
@@ -568,6 +574,85 @@
             <p>Go to <strong>Automation → Bot Manager</strong> and start the bots. Or ask Jarvis (the AI) to launch the farm for you.</p>
         </div>
     </div>
+</div>
+
+
+<!-- ======================== DEPLOY WIZARD ======================== -->
+<h2 id="deploy-wizard">🧙 Deploy Wizard</h2>
+
+<div class="page-card">
+    <div class="page-icon">🧙</div>
+    <div>
+        <h4>Deploy Wizard</h4>
+        <div class="page-url">/deploy</div>
+        <p>One-click device onboarding wizard. Makes setting up a new phone take <strong>2 minutes instead of 20</strong>. Walks you through everything in a guided flow.</p>
+    </div>
+</div>
+
+<h3>How It Works</h3>
+<div class="steps">
+    <div class="step">
+        <div class="step-content">
+            <h4>Select a device</h4>
+            <p>Pick a connected phone from the device list. The wizard shows only available devices that are online and ready.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Bulk paste accounts</h4>
+            <p>Paste account credentials in <strong>username:password</strong> format. The wizard detects how many clone slots are free on the device and warns you if you're adding too many.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Auto-assign clone apps</h4>
+            <p>The system automatically assigns each account to the next available clone app (androie, androif, androig, etc.). No manual slot picking needed.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Set warmup defaults</h4>
+            <p>Configure default bot settings for all new accounts — time windows, daily limits, enabled actions. These defaults get applied to every account at once.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Import</h4>
+            <p>Click Import and all accounts are created, assigned, and configured in one batch. Ready to log in immediately.</p>
+        </div>
+    </div>
+</div>
+
+<div class="info-box tip">
+    <strong>💡 Best for new phones</strong>
+    <p>The Deploy Wizard is designed for setting up fresh devices. For adding accounts to an already-running phone, use Bulk Import instead.</p>
+</div>
+
+
+<!-- ======================== LOGIN AUTOMATION ======================== -->
+<h2 id="login-automation">🔐 Login Automation V2</h2>
+
+<div class="page-card">
+    <div class="page-icon">🔐</div>
+    <div>
+        <h4>Login Automation V2</h4>
+        <div class="page-url">/login-automation-v2</div>
+        <p>Parallel login system. Select pending accounts, click Login, and the system logs each account into its assigned clone app automatically — all at once.</p>
+    </div>
+</div>
+
+<h3>Features</h3>
+<ul>
+    <li><strong>Parallel processing</strong> — logs in multiple accounts simultaneously across different devices</li>
+    <li><strong>Progress tracking</strong> — real-time progress bar showing which accounts are done, in progress, or failed</li>
+    <li><strong>Stop button</strong> — halt the login batch mid-way if something goes wrong</li>
+    <li><strong>Auto-recovery</strong> — if you reload the page, active login batches are automatically recovered and continue where they left off</li>
+    <li><strong>Stale task cleanup</strong> — tasks that got stuck are automatically detected and cleaned up</li>
+</ul>
+
+<div class="info-box info">
+    <strong>ℹ️ How it works</strong>
+    <p>Select accounts with status "Pending Login" → Click Login → The system opens each clone app on the phone, enters the credentials, and completes the login flow. You just watch the progress dashboard.</p>
 </div>
 
 
@@ -735,6 +820,32 @@
 </table>
 
 
+<!-- ======================== COMMENT MANAGEMENT ======================== -->
+<h2 id="comments">💬 Comment Management</h2>
+
+<div class="page-card">
+    <div class="page-icon">💬</div>
+    <div>
+        <h4>Comment Management</h4>
+        <div class="page-url">/comments</div>
+        <p>Create and manage comment template lists. Build collections of natural-looking comments that the bot picks from randomly when executing comment actions.</p>
+    </div>
+</div>
+
+<h3>Features</h3>
+<ul>
+    <li><strong>Comment lists</strong> — organize comments into named lists (e.g., "Fitness Comments", "Travel Comments", "Generic Hype")</li>
+    <li><strong>AI-generated comments</strong> — click a button to generate batches of comments using AI. Select the tone (friendly, hype, casual, professional) and the AI creates unique, natural-sounding comments</li>
+    <li><strong>Tone selection</strong> — choose the vibe: 🔥 Hype, 😊 Friendly, 💼 Professional, 😂 Funny, ❤️ Supportive</li>
+    <li><strong>Assign to accounts</strong> — link comment lists to specific accounts or tags so different accounts use different comment styles</li>
+</ul>
+
+<div class="info-box tip">
+    <strong>💡 Why varied comments matter</strong>
+    <p>Instagram detects repetitive comments. If all your accounts post "Nice pic! 🔥", you'll get flagged. Use comment lists with 50+ unique comments to keep things natural.</p>
+</div>
+
+
 <!-- ======================== JOB ORDERS ======================== -->
 <h2 id="jobs">📋 Job Orders</h2>
 
@@ -754,6 +865,8 @@
     <tr><td><strong>Like</strong></td><td>Get X likes on a specific post</td></tr>
     <tr><td><strong>Comment</strong></td><td>Get X comments on a specific post</td></tr>
     <tr><td><strong>Share</strong></td><td>Get X accounts to share a post to their story</td></tr>
+    <tr><td><strong>Report</strong></td><td>Get X accounts to report a target account or post (Quick Mass Report)</td></tr>
+    <tr><td><strong>Save</strong></td><td>Get X accounts to bookmark/save a specific post or reel</td></tr>
 </table>
 
 <p>Jobs have <strong>higher priority</strong> than regular automation — when a job order is active, the bot will prioritize it over normal follow/like cycles.</p>
@@ -781,6 +894,73 @@
 <div class="info-box info">
     <strong>ℹ️ Clone apps</strong>
     <p>Each phone has up to <strong>13 Instagram clone apps</strong> installed (named androie through androip). Each clone is a separate Instagram installation where one account can be logged in. This is how one phone runs multiple accounts.</p>
+</div>
+
+
+<!-- ======================== FARM STATS ======================== -->
+<h2 id="farm-stats">📊 Farm Stats</h2>
+
+<div class="page-card">
+    <div class="page-icon">📊</div>
+    <div>
+        <h4>Farm Stats</h4>
+        <div class="page-url">/farm-stats</div>
+        <p>Analytics dashboard showing daily and weekly stats for your entire farm. See exactly what's happening across all accounts and devices.</p>
+    </div>
+</div>
+
+<h3>What You Can See</h3>
+<ul>
+    <li><strong>Daily totals</strong> — follows, likes, comments, shares, reels watched for today</li>
+    <li><strong>Weekly trends</strong> — charts showing activity over the past 7 days</li>
+    <li><strong>Per-account breakdown</strong> — drill down to see what each account did</li>
+    <li><strong>Per-device breakdown</strong> — see how productive each phone is</li>
+    <li><strong>Action history</strong> — browse past days with date navigation (← → arrows)</li>
+</ul>
+
+<div class="info-box tip">
+    <strong>💡 Use Farm Stats to spot problems</strong>
+    <p>If a device suddenly drops to 0 actions, something's wrong (crashed app, disconnected phone). Farm Stats makes these dips immediately visible.</p>
+</div>
+
+
+<!-- ======================== PROFILE AUTOMATION ======================== -->
+<h2 id="profile-automation">🎨 Profile Automation V2</h2>
+
+<div class="page-card">
+    <div class="page-icon">🎨</div>
+    <div>
+        <h4>Profile Automation V2</h4>
+        <div class="page-url">/profile-automation-v2</div>
+        <p>Bulk tool for changing usernames, bios, and profile pictures across multiple accounts. A 3-step wizard with live progress tracking.</p>
+    </div>
+</div>
+
+<h3>3-Step Wizard</h3>
+<div class="steps">
+    <div class="step">
+        <div class="step-content">
+            <h4>Select accounts</h4>
+            <p>Filter accounts by tag or device. Select individual accounts or entire groups. See current username, bio, and profile picture for each.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Choose actions</h4>
+            <p>Pick what to change: <strong>username</strong>, <strong>bio</strong>, <strong>profile picture</strong>, or all three. Upload new profile pictures via drag-and-drop. Use AI preview to see how the new profile will look before applying.</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-content">
+            <h4>Review and execute</h4>
+            <p>Review all pending changes, then click Execute. A live progress dashboard shows each account being updated in real time. 11 API endpoints handle the work in parallel.</p>
+        </div>
+    </div>
+</div>
+
+<div class="info-box info">
+    <strong>ℹ️ Parallel processing</strong>
+    <p>Profile Automation V2 uses parallel processing to update multiple accounts simultaneously. Changing 50 profiles takes minutes, not hours.</p>
 </div>
 
 
@@ -906,6 +1086,22 @@
     </div>
 </div>
 
+<div class="page-card">
+    <div class="page-icon">🚩</div>
+    <div>
+        <h4>Report</h4>
+        <p>Reports Instagram accounts or posts. Vision-assisted — uses screenshots at each step to navigate the report flow accurately. Available as a Quick Mass Report job order for coordinated reporting.</p>
+    </div>
+</div>
+
+<div class="page-card">
+    <div class="page-icon">🔖</div>
+    <div>
+        <h4>Save Post</h4>
+        <p>Bookmarks/saves posts and reels from the feed or specific source accounts. Useful for engagement signals — saved posts boost the algorithm for the content creator.</p>
+    </div>
+</div>
+
 
 <!-- ======================== LIMITS ======================== -->
 <h2 id="limits">🛡️ Safety & Limits</h2>
@@ -957,6 +1153,125 @@
 <div class="info-box tip">
     <strong>💡 Stagger your time windows</strong>
     <p>If you have 3 accounts on one phone, stagger them: Account 1 = 7AM-3PM, Account 2 = 10AM-6PM, Account 3 = 1PM-11PM. This way the phone is always doing something, and accounts get more natural-looking usage patterns.</p>
+</div>
+
+<h3>Multi-Window Time Support</h3>
+<p>Accounts can have <strong>multiple active time windows per day</strong> using comma-separated values in Bot Settings. This lets you simulate different activity patterns — like someone who checks Instagram in the morning and again in the evening.</p>
+
+<table>
+    <tr><th>Setting</th><th>Value</th><th>Result</th></tr>
+    <tr><td><strong>start_time</strong></td><td>"2,12"</td><td rowspan="2">Account runs <strong>2:00-4:00 AM</strong> AND <strong>12:00-2:00 PM</strong></td></tr>
+    <tr><td><strong>end_time</strong></td><td>"4,14"</td></tr>
+    <tr><td><strong>start_time</strong></td><td>"8,18"</td><td rowspan="2">Account runs <strong>8:00 AM-12:00 PM</strong> AND <strong>6:00-10:00 PM</strong></td></tr>
+    <tr><td><strong>end_time</strong></td><td>"12,22"</td></tr>
+</table>
+
+<div class="info-box tip">
+    <strong>💡 Why multi-window?</strong>
+    <p>Real people don't use Instagram for 16 hours straight. They check it a few times a day. Multi-window scheduling makes your accounts look more human by creating natural gaps in activity.</p>
+</div>
+
+<h3>Work-Hour Aware Scheduling</h3>
+<p>The Content Schedule has a <strong>"Work-Hour Aware"</strong> strategy. When enabled, the scheduler reads each account's start_time/end_time and <strong>only schedules posts within their active window</strong>.</p>
+<ul>
+    <li>Prevents posts being scheduled at 3 AM when the account's window is 8 AM-11 PM</li>
+    <li>Shows <strong>work hour badges</strong> next to each account in the account selection, so you can see at a glance when each account is active</li>
+    <li>Automatically adjusts if you change an account's time window</li>
+</ul>
+
+<h3>Tag Dedup (Detailed)</h3>
+<p>Accounts sharing the same <strong>tag</strong> won't follow the same people. This prevents wasted actions when running multiple accounts targeting the same audience.</p>
+<ul>
+    <li>When Account A (tag: "fitness") follows @user123, that username is added to the "fitness" dedup list</li>
+    <li>When Account B (tag: "fitness") encounters @user123, it <strong>skips them automatically</strong></li>
+    <li>The bot pre-loads usernames already followed by same-tag peers before each follow session</li>
+    <li>Settings are read fresh from the database each cycle — <strong>no restart needed</strong> when you change tags</li>
+    <li>Different tags have separate dedup lists — accounts in "fitness" and "travel" tags operate independently</li>
+</ul>
+
+<div class="info-box info">
+    <strong>ℹ️ Why use Tag Dedup?</strong>
+    <p>If you have 10 accounts all following from the same source, without dedup they might all follow the same 50 people — wasting 450 follow actions. With dedup, each account follows unique people, maximizing your reach.</p>
+</div>
+
+
+<!-- ======================== AI FEATURES ======================== -->
+<h2 id="ai-features">🧠 AI Features</h2>
+<p>Hydra integrates with OpenAI and Anthropic APIs to add AI-powered capabilities across the platform.</p>
+
+<h3>AI Caption Generation</h3>
+<p>In Content Schedule, captions can use special tags to generate unique, AI-written captions for every post:</p>
+
+<table>
+    <tr><th>Tag</th><th>What It Does</th><th>Example</th></tr>
+    <tr><td><strong>[AI]</strong></td><td>Generates a unique caption automatically</td><td>Caption field: <code>[AI]</code> → Each post gets a different AI-written caption</td></tr>
+    <tr><td><strong>[AI:prompt]</strong></td><td>Uses your custom instructions to guide the AI</td><td><code>[AI:Write a motivational fitness caption with emojis]</code></td></tr>
+</table>
+
+<ul>
+    <li><strong>Preview AI</strong> button — click to see sample captions before scheduling</li>
+    <li><strong>Configurable tone</strong> — Engaging, Funny, Professional, Inspirational, Casual</li>
+    <li>Each post receives a <strong>unique caption</strong> — no two posts get the same text</li>
+    <li>Requires an OpenAI API key configured in Settings</li>
+</ul>
+
+<h3>AI Comment Generation</h3>
+<p>In the <a href="#comments">Comment Management</a> page, AI can generate batches of natural-sounding comments. Select a tone, click Generate, and the AI creates 10-50 unique comments ready to use.</p>
+
+<h3>AI Settings</h3>
+
+<div class="page-card">
+    <div class="page-icon">🔑</div>
+    <div>
+        <h4>AI Settings</h4>
+        <div class="page-url">/settings</div>
+        <p>Configure your AI provider on the Settings page. Add your <strong>OpenAI API key</strong> and/or <strong>Anthropic API key</strong>, select the preferred provider, and you're ready to use AI captions and AI comments.</p>
+    </div>
+</div>
+
+<div class="info-box warning">
+    <strong>⚠️ API keys required</strong>
+    <p>AI features won't work without a valid API key. Go to <strong>Settings → AI Configuration</strong>, paste your key, and test the connection. OpenAI is the default provider for captions; Anthropic can be used as an alternative.</p>
+</div>
+
+
+<!-- ======================== DASHBOARD AUTH ======================== -->
+<h3>Dashboard Authentication</h3>
+<p>All dashboard pages are protected by <strong>HTTP Basic Auth</strong>. When you first visit the dashboard, you'll be prompted for a username and password.</p>
+
+<table>
+    <tr><th>Setting</th><th>Default Value</th></tr>
+    <tr><td><strong>Username</strong></td><td>admin</td></tr>
+    <tr><td><strong>Password</strong></td><td>hydra2026</td></tr>
+</table>
+
+<div class="info-box warning">
+    <strong>⚠️ Change the default password!</strong>
+    <p>Change your password on the <strong>Settings page</strong> or via the API. The default credentials are public knowledge — always set a custom password in production.</p>
+</div>
+
+
+<!-- ======================== SOURCE CODE PROTECTION ======================== -->
+<h3>Source Code Protection</h3>
+<p>Hydra's source code is protected with multiple layers of security:</p>
+
+<ul>
+    <li><strong>PyArmor</strong> — encrypts Python source code so it cannot be read or modified</li>
+    <li><strong>PyInstaller</strong> — packages everything into standalone executables</li>
+    <li><strong>License system</strong> — 4 tiers with machine-locking and expiry dates:</li>
+</ul>
+
+<table>
+    <tr><th>Tier</th><th>Devices</th><th>Features</th></tr>
+    <tr><td><strong>Starter</strong></td><td>Up to 10</td><td>Core automation</td></tr>
+    <tr><td><strong>Pro</strong></td><td>Up to 30</td><td>Core + AI features + Job Orders</td></tr>
+    <tr><td><strong>Enterprise</strong></td><td>Up to 100</td><td>All features + priority support</td></tr>
+    <tr><td><strong>Unlimited</strong></td><td>Unlimited</td><td>Everything, no restrictions</td></tr>
+</table>
+
+<div class="info-box info">
+    <strong>ℹ️ Machine-locked licenses</strong>
+    <p>Each license is locked to a specific machine. If you move to a new computer, contact support to transfer your license.</p>
 </div>
 
 
@@ -1043,6 +1358,46 @@
     </div></div>
 </div>
 
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        How do I change the dashboard password?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Go to the <strong>Settings page</strong> (/settings) and update the password in the Authentication section. You can also change it via the API endpoint <code>POST /api/settings/password</code>.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        What is tag dedup and why should I use it?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Tag dedup prevents accounts with the same tag from following the same people. When Account A follows @user123, all other accounts with the same tag automatically skip that user. This eliminates wasted follow actions and maximizes your reach across the farm. Without it, 10 accounts might all follow the same 50 people.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        Can I run the same account on different time windows?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        Yes! Use multi-window support by setting comma-separated values. Example: <strong>start_time="8,18"</strong> and <strong>end_time="12,22"</strong> runs the account 8 AM-12 PM and 6 PM-10 PM. This simulates natural usage patterns — checking Instagram a few times per day.
+    </div></div>
+</div>
+
+<div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+        How does AI caption generation work?
+        <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="faq-a"><div class="faq-a-inner">
+        In Content Schedule, type <strong>[AI]</strong> in the caption field to generate a unique caption for each post. Use <strong>[AI:your prompt here]</strong> for custom instructions. You need an OpenAI API key configured in <strong>Settings → AI Configuration</strong>. Click "Preview AI" to see sample captions before scheduling.
+    </div></div>
+</div>
+
 
 <!-- ======================== TROUBLESHOOTING ======================== -->
 <h2 id="troubleshooting">🔧 Troubleshooting</h2>
@@ -1112,7 +1467,10 @@
     <tr><td><strong>Warmup</strong></td><td>Low-risk activities (scrolling feed, watching reels) that make the account look natural before doing growth actions.</td></tr>
     <tr><td><strong>Dead Source</strong></td><td>A source account that no longer exists, went private, or can't be found. Automatically skipped.</td></tr>
     <tr><td><strong>Job Order</strong></td><td>A specific task to complete (e.g., "get 1000 follows on @account"). Distributed across the farm.</td></tr>
-    <tr><td><strong>Tag Dedup</strong></td><td>Prevents multiple accounts from following the same person. Accounts with the same tag share a "do not follow again" list.</td></tr>
+    <tr><td><strong>Tag Dedup</strong></td><td>Prevents multiple accounts from following the same person. Accounts with the same tag share a "do not follow again" list. Pre-loads peers' follow history each cycle.</td></tr>
+    <tr><td><strong>Deploy Wizard</strong></td><td>One-click setup tool for new devices. Guides you through account import, clone assignment, and warmup configuration in one flow.</td></tr>
+    <tr><td><strong>Profile Automation</strong></td><td>Bulk tool for changing usernames, bios, and profile pictures across multiple accounts in parallel.</td></tr>
+    <tr><td><strong>Multi-Window</strong></td><td>Running an account in multiple time slots per day using comma-separated start/end times. Simulates natural usage patterns.</td></tr>
     <tr><td><strong>Device Serial</strong></td><td>The phone's network address (e.g., 10.1.11.4:5555). Used to identify each phone.</td></tr>
     <tr><td><strong>ADB</strong></td><td>Android Debug Bridge — the tool that lets the computer talk to the phones over WiFi.</td></tr>
     <tr><td><strong>UIAutomator</strong></td><td>Android testing framework that lets the bot tap, scroll, and read screens on the phone.</td></tr>
@@ -1121,7 +1479,7 @@
 
 <br><br>
 <div style="text-align: center; padding-top: 24px; border-top: 1px solid var(--border);">
-    <p style="color: var(--text-dim); font-size: 0.8rem;">Hydra 🐙 User Guide — Last updated: February 2026</p>
+    <p style="color: var(--text-dim); font-size: 0.8rem;">Hydra 🐙 User Guide v1.1 — Last updated: February 2026</p>
     <p style="margin-top: 8px;"><a href="/docs-dev" style="color: var(--accent-light); text-decoration: none; font-size: 0.82rem;"><i class="fas fa-code"></i> Looking for developer docs? Click here</a></p>
 </div>
 

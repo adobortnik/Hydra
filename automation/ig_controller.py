@@ -500,19 +500,66 @@ class IGController:
             if not xml:
                 break
 
+            # --- Instagram Location Services screen ---
+            # IG shows "To use Location Services, allow Instagram to access"
+            # with a blue "Continue" button, then Android shows location permission.
+            # We click Continue first, then Deny the location permission.
+            if 'Location Services' in xml or 'location' in xml.lower():
+                # IG's own location explanation screen — click Continue
+                continue_btn = self.device(text='Continue')
+                if continue_btn.exists(timeout=1):
+                    try:
+                        continue_btn.click()
+                        dismissed += 1
+                        log.info("[%s] Dismissed IG Location Services screen (Continue)", self.device_serial)
+                        time.sleep(1.5)
+                        # Now handle the Android location permission that follows
+                        deny_btn = self.device(text='Deny')
+                        if deny_btn.exists(timeout=3):
+                            deny_btn.click()
+                            dismissed += 1
+                            log.info("[%s] Denied location permission", self.device_serial)
+                            time.sleep(1.5)
+                        continue
+                    except Exception as e:
+                        log.debug("[%s] Failed Location Services dismiss: %s", self.device_serial, e)
+
+            # --- Android permission dialogs (camera/mic/location/storage) ---
+            # Detect by "Allow .* to" pattern in XML
+            if 'access this device' in xml.lower() or 'to take pictures' in xml.lower() or 'to record audio' in xml.lower():
+                # For location: Deny. For camera/mic/storage: Allow.
+                if 'location' in xml.lower():
+                    perm_btn = self.device(text='Deny')
+                    perm_label = 'Deny (location)'
+                else:
+                    perm_btn = self.device(text='While using the app')
+                    if not perm_btn.exists(timeout=1):
+                        perm_btn = self.device(text='Allow')
+                    perm_label = 'While using the app'
+                if perm_btn.exists(timeout=1):
+                    try:
+                        perm_btn.click()
+                        dismissed += 1
+                        log.info("[%s] Dismissed permission dialog (%s)", self.device_serial, perm_label)
+                        time.sleep(1.5)
+                        continue
+                    except Exception as e:
+                        log.debug("[%s] Failed permission dismiss: %s", self.device_serial, e)
+
             # Look for dismissal buttons in priority order
-            # Includes Android permission dialog buttons (com.google.android.permissioncontroller)
             dismiss_patterns = [
                 ('text', 'While using the app'),
                 ('text', 'WHILE USING THE APP'),
-                ('text', 'Allow'),
-                ('text', 'ALLOW'),
                 ('text', 'Not Now'),
                 ('text', 'Not now'),
+                ('text', 'Allow'),
+                ('text', 'ALLOW'),
+                ('text', 'Deny'),
                 ('text', 'Cancel'),
                 ('text', 'Skip'),
                 ('text', 'Dismiss'),
                 ('text', 'Close'),
+                ('text', 'Continue'),
                 ('text', 'No Thanks'),
                 ('text', 'Maybe Later'),
                 ('text', 'OK'),

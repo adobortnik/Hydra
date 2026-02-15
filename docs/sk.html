@@ -107,19 +107,25 @@
     <a href="#vitajte" class="nav-link"><i class="fas fa-home"></i> Vitajte</a>
     <a href="#co-je-hydra" class="nav-link"><i class="fas fa-info-circle"></i> Čo je Hydra?</a>
     <a href="#rychly-start" class="nav-link"><i class="fas fa-rocket"></i> Rýchly štart</a>
+    <a href="#deploy-wizard" class="nav-link"><i class="fas fa-magic"></i> Deploy Wizard</a>
+    <a href="#login-automatizacia" class="nav-link"><i class="fas fa-sign-in-alt"></i> Login automatizácia</a>
     <div class="nav-section">Sprievodca dashboardom</div>
     <a href="#dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i> Hlavný prehľad</a>
     <a href="#ucty" class="nav-link"><i class="fas fa-users"></i> Správa účtov</a>
     <a href="#nastavenia-bota" class="nav-link"><i class="fas fa-sliders-h"></i> Nastavenia bota</a>
     <a href="#zdroje" class="nav-link"><i class="fas fa-crosshairs"></i> Zdroje a ciele</a>
     <a href="#obsah" class="nav-link"><i class="fas fa-photo-video"></i> Obsah a médiá</a>
+    <a href="#komentare" class="nav-link"><i class="fas fa-comments"></i> Správa komentárov</a>
     <a href="#zakazky" class="nav-link"><i class="fas fa-tasks"></i> Zákazky</a>
     <a href="#zariadenia" class="nav-link"><i class="fas fa-mobile-alt"></i> Správa zariadení</a>
+    <a href="#statistiky-farmy" class="nav-link"><i class="fas fa-chart-bar"></i> Štatistiky farmy</a>
+    <a href="#profil-automatizacia" class="nav-link"><i class="fas fa-user-edit"></i> Profil automatizácia</a>
     <div class="nav-section">Automatizácia</div>
     <a href="#ako-funguje-bot" class="nav-link"><i class="fas fa-robot"></i> Ako bot funguje</a>
     <a href="#akcie" class="nav-link"><i class="fas fa-bolt"></i> Vysvetlenie akcií</a>
     <a href="#limity" class="nav-link"><i class="fas fa-shield-alt"></i> Bezpečnosť a limity</a>
     <a href="#planovanie" class="nav-link"><i class="fas fa-calendar-alt"></i> Plánovanie</a>
+    <a href="#ai-funkcie" class="nav-link"><i class="fas fa-brain"></i> AI funkcie</a>
     <div class="nav-section">Pomoc</div>
     <a href="#faq" class="nav-link"><i class="fas fa-question-circle"></i> Časté otázky</a>
     <a href="#riesenie-problemov" class="nav-link"><i class="fas fa-wrench"></i> Riešenie problémov</a>
@@ -136,7 +142,7 @@
 <div class="hero">
     <h1>🐙 Vitajte v Hydra</h1>
     <p>Vaša platforma na automatizáciu Instagram phone farmy</p>
-    <span class="version">v1.0 — Február 2026</span>
+    <span class="version">v1.1 — Február 2026</span>
 </div>
 
 <h2 id="vitajte">👋 Vitajte</h2>
@@ -177,6 +183,46 @@
     <div class="step"><div class="step-content"><h4>Nakonfigurujte nastavenia bota</h4><p>Choďte na <strong>Automation → Bot Settings</strong>. Zapnite akcie, ktoré chcete (sledovanie, lajky, reels, komentáre, atď.) a nastavte denné limity.</p></div></div>
     <div class="step"><div class="step-content"><h4>Spustite boty!</h4><p>Choďte na <strong>Automation → Bot Manager</strong> a spustite boty. Alebo požiadajte Jarvisa (AI), aby spustil farmu za vás.</p></div></div>
 </div>
+
+<!-- ======================== DEPLOY WIZARD ======================== -->
+<h2 id="deploy-wizard">🧙 Deploy Wizard</h2>
+
+<div class="page-card"><div class="page-icon">🧙</div><div><h4>Deploy Wizard</h4><div class="page-url">/deploy</div><p>Sprievodca nasadením zariadenia jedným klikom. Nastavenie nového telefónu trvá <strong>2 minúty namiesto 20</strong>. Prevedie vás celým procesom krok za krokom.</p></div></div>
+
+<h3>Ako to funguje</h3>
+<div class="steps">
+    <div class="step"><div class="step-content"><h4>Vyberte zariadenie</h4><p>Zvoľte pripojený telefón zo zoznamu. Sprievodca zobrazuje len dostupné zariadenia, ktoré sú online a pripravené.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Hromadne vložte účty</h4><p>Vložte prihlasovacie údaje vo formáte <strong>meno:heslo</strong>. Sprievodca zistí, koľko klonových slotov je voľných a upozorní vás, ak pridávate príliš veľa.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Automatické priradenie klonov</h4><p>Systém automaticky priradí každý účet k ďalšej dostupnej klonovej aplikácii (androie, androif, androig, atď.). Žiadny manuálny výber slotov.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Nastavte predvolené hodnoty</h4><p>Nakonfigurujte predvolené nastavenia bota pre všetky nové účty — časové okná, denné limity, povolené akcie. Aplikujú sa na všetky účty naraz.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Importujte</h4><p>Kliknite Importovať a všetky účty sú vytvorené, priradené a nakonfigurované v jednom kroku. Ihneď pripravené na prihlásenie.</p></div></div>
+</div>
+
+<div class="info-box tip">
+    <strong>💡 Najlepšie pre nové telefóny</strong>
+    <p>Deploy Wizard je navrhnutý na nastavenie čerstvých zariadení. Na pridávanie účtov k už bežiacemu telefónu použite radšej Hromadný import.</p>
+</div>
+
+
+<!-- ======================== LOGIN AUTOMATIZÁCIA ======================== -->
+<h2 id="login-automatizacia">🔐 Login automatizácia V2</h2>
+
+<div class="page-card"><div class="page-icon">🔐</div><div><h4>Login automatizácia V2</h4><div class="page-url">/login-automation-v2</div><p>Paralelný prihlasovací systém. Vyberte čakajúce účty, kliknite Login a systém prihlási každý účet do jeho priradenej klonovej aplikácie — všetky naraz.</p></div></div>
+
+<h3>Funkcie</h3>
+<ul>
+    <li><strong>Paralelné spracovanie</strong> — prihlasuje viacero účtov súčasne na rôznych zariadeniach</li>
+    <li><strong>Sledovanie priebehu</strong> — ukazovateľ priebehu v reálnom čase: hotové, prebiehajúce, zlyhané</li>
+    <li><strong>Tlačidlo Stop</strong> — zastavte prihlasovanie uprostred dávky, ak niečo nie je v poriadku</li>
+    <li><strong>Automatické obnovenie</strong> — ak obnovíte stránku, aktívne dávky sa automaticky obnovia a pokračujú</li>
+    <li><strong>Čistenie zaseknutých úloh</strong> — úlohy, ktoré sa zasekli, sú automaticky detegované a vyčistené</li>
+</ul>
+
+<div class="info-box info">
+    <strong>ℹ️ Ako to funguje</strong>
+    <p>Vyberte účty so stavom "Pending Login" → Kliknite Login → Systém otvorí klonovú aplikáciu na telefóne, zadá prihlasovacie údaje a dokončí prihlásenie. Vy len sledujete priebeh.</p>
+</div>
+
 
 <h2 id="dashboard">🖥️ Hlavný prehľad</h2>
 <p>Hlavný dashboard na <strong>/</strong> vám dáva rýchly prehľad celej farmy:</p>
@@ -256,6 +302,25 @@
     <tr><td><strong>Story</strong></td><td>Zmizne po 24 hodinách</td><td>Denné aktualizácie, engagement</td></tr>
 </table>
 
+<!-- ======================== SPRÁVA KOMENTÁROV ======================== -->
+<h2 id="komentare">💬 Správa komentárov</h2>
+
+<div class="page-card"><div class="page-icon">💬</div><div><h4>Správa komentárov</h4><div class="page-url">/comments</div><p>Vytvárajte a spravujte zoznamy šablón komentárov. Budujte kolekcie prirodzene vyzerajúcich komentárov, z ktorých bot náhodne vyberá pri komentovaní.</p></div></div>
+
+<h3>Funkcie</h3>
+<ul>
+    <li><strong>Zoznamy komentárov</strong> — organizujte komentáre do pomenovaných zoznamov (napr. "Fitness komentáre", "Cestovanie", "Všeobecný hype")</li>
+    <li><strong>AI-generované komentáre</strong> — kliknutím tlačidla vygenerujete dávku komentárov pomocou AI. Vyberte tón (priateľský, nadšený, profesionálny) a AI vytvorí unikátne, prirodzené komentáre</li>
+    <li><strong>Výber tónu</strong> — zvoľte náladu: 🔥 Hype, 😊 Priateľský, 💼 Profesionálny, 😂 Vtipný, ❤️ Podporujúci</li>
+    <li><strong>Priradenie k účtom</strong> — prepojte zoznamy s konkrétnymi účtami alebo tagmi, aby rôzne účty používali rôzne štýly komentárov</li>
+</ul>
+
+<div class="info-box tip">
+    <strong>💡 Prečo rôznorodé komentáre</strong>
+    <p>Instagram deteguje opakujúce sa komentáre. Ak všetky účty píšu "Pecka! 🔥", budete označení. Používajte zoznamy s 50+ unikátnymi komentármi pre prirodzený vzhľad.</p>
+</div>
+
+
 <h2 id="zakazky">📋 Zákazky</h2>
 
 <div class="page-card"><div class="page-icon">📋</div><div><h4>Zákazky</h4><div class="page-url">/job-orders-v2</div><p>Vytvorte úlohy distribuované naprieč účtami. "Získaj 1000 sledovateľov na @klient" — Hydra rozdelí prácu po celej farme.</p></div></div>
@@ -266,6 +331,8 @@
     <tr><td><strong>Lajky</strong></td><td>X lajkov na konkrétny príspevok</td></tr>
     <tr><td><strong>Komentáre</strong></td><td>X komentárov na konkrétny príspevok</td></tr>
     <tr><td><strong>Zdieľanie</strong></td><td>X účtov zdieľa príspevok na story</td></tr>
+    <tr><td><strong>Nahlásenie</strong></td><td>X účtov nahlási cieľový účet alebo príspevok (Rýchle hromadné nahlásenie)</td></tr>
+    <tr><td><strong>Uloženie</strong></td><td>X účtov uloží/záloží konkrétny príspevok alebo reel</td></tr>
 </table>
 
 <p>Zákazky majú <strong>vyššiu prioritu</strong> ako bežná automatizácia.</p>
@@ -284,6 +351,44 @@
     <strong>ℹ️ Klonové aplikácie</strong>
     <p>Každý telefón má až <strong>13 klonových Instagram aplikácií</strong> (androie až androip). Každý klon = jedna samostatná inštalácia Instagramu s jedným účtom. Takto jeden telefón prevádzkuje viacero účtov.</p>
 </div>
+
+<!-- ======================== ŠTATISTIKY FARMY ======================== -->
+<h2 id="statistiky-farmy">📊 Štatistiky farmy</h2>
+
+<div class="page-card"><div class="page-icon">📊</div><div><h4>Štatistiky farmy</h4><div class="page-url">/farm-stats</div><p>Analytický dashboard zobrazujúci denné a týždenné štatistiky celej farmy. Vidíte presne, čo sa deje na všetkých účtoch a zariadeniach.</p></div></div>
+
+<h3>Čo môžete vidieť</h3>
+<ul>
+    <li><strong>Denné súhrny</strong> — sledovania, lajky, komentáre, zdieľania, pozerané reels za dnešok</li>
+    <li><strong>Týždenné trendy</strong> — grafy aktivity za posledných 7 dní</li>
+    <li><strong>Rozpad podľa účtov</strong> — detail, čo každý účet urobil</li>
+    <li><strong>Rozpad podľa zariadení</strong> — vidíte produktivitu každého telefónu</li>
+    <li><strong>História akcií</strong> — prechádzanie predošlých dní s navigáciou ← →</li>
+</ul>
+
+<div class="info-box tip">
+    <strong>💡 Používajte štatistiky na odhalenie problémov</strong>
+    <p>Ak zariadenie zrazu klesne na 0 akcií, niečo je zle (padnutá aplikácia, odpojený telefón). Štatistiky farmy tieto poklesy okamžite zobrazia.</p>
+</div>
+
+
+<!-- ======================== PROFIL AUTOMATIZÁCIA ======================== -->
+<h2 id="profil-automatizacia">🎨 Profil automatizácia V2</h2>
+
+<div class="page-card"><div class="page-icon">🎨</div><div><h4>Profil automatizácia V2</h4><div class="page-url">/profile-automation-v2</div><p>Hromadný nástroj na zmenu mien, bios a profilových fotiek na viacerých účtoch. 3-krokový sprievodca so sledovaním priebehu naživo.</p></div></div>
+
+<h3>3-krokový sprievodca</h3>
+<div class="steps">
+    <div class="step"><div class="step-content"><h4>Vyberte účty</h4><p>Filtrujte účty podľa tagu alebo zariadenia. Vyberte jednotlivé účty alebo celé skupiny. Pre každý vidíte aktuálne meno, bio a profilovú fotku.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Zvoľte akcie</h4><p>Vyberte, čo zmeniť: <strong>používateľské meno</strong>, <strong>bio</strong>, <strong>profilovú fotku</strong>, alebo všetko. Nahrajte nové profilové fotky cez drag-and-drop. Pomocou AI náhľadu si pozrite, ako bude nový profil vyzerať.</p></div></div>
+    <div class="step"><div class="step-content"><h4>Skontrolujte a spustite</h4><p>Skontrolujte všetky čakajúce zmeny a kliknite Spustiť. Živý dashboard priebehu ukazuje aktualizáciu každého účtu v reálnom čase. 11 API endpointov spracúva prácu paralelne.</p></div></div>
+</div>
+
+<div class="info-box info">
+    <strong>ℹ️ Paralelné spracovanie</strong>
+    <p>Profil automatizácia V2 aktualizuje viacero účtov súčasne. Zmena 50 profilov trvá minúty, nie hodiny.</p>
+</div>
+
 
 <h2 id="ako-funguje-bot">🤖 Ako bot funguje</h2>
 <p>Pochopenie cyklu bota vám pomôže lepšie ho nakonfigurovať.</p>
@@ -315,6 +420,10 @@
 <div class="page-card"><div class="page-icon">👋</div><div><h4>Engagement (Zahriatie)</h4><p>Scrolluje feed, pozerá stories, lajkuje náhodné príspevky. Prirodzené správanie pred rastovými akciami.</p></div></div>
 <div class="page-card"><div class="page-icon">➖</div><div><h4>Odsledovanie (Unfollow)</h4><p>Odsleduje ľudí sledovaných pred X dňami. Udržiava zdravý pomer sledovatelia/sledovaní.</p></div></div>
 <div class="page-card"><div class="page-icon">📝</div><div><h4>Postovanie obsahu</h4><p>Postne naplánovaný obsah (fotku, reel, story) z knižnice médií. Plne automatizované.</p></div></div>
+
+<div class="page-card"><div class="page-icon">🚩</div><div><h4>Nahlásenie (Report)</h4><p>Nahlási Instagram účty alebo príspevky. S asistenciou obrazovky — používa screenshoty na každom kroku pre presnosť. Dostupné ako typ zákazky Rýchle hromadné nahlásenie.</p></div></div>
+
+<div class="page-card"><div class="page-icon">🔖</div><div><h4>Uloženie príspevku (Save)</h4><p>Uloží/záloží príspevky a reels z feedu alebo konkrétnych zdrojových účtov. Uložené príspevky posilňujú algoritmus pre tvorcu obsahu.</p></div></div>
 
 <h2 id="limity">🛡️ Bezpečnosť a limity</h2>
 <p>Instagram blokuje účty, ktoré sa správajú agresívne. Hydra má zabudované ochrany:</p>
@@ -354,6 +463,119 @@
     <p>3 účty na jednom telefóne? Rozložte: Účet 1 = 7:00-15:00, Účet 2 = 10:00-18:00, Účet 3 = 13:00-23:00. Telefón stále pracuje a účty vyzerajú prirodzene.</p>
 </div>
 
+<h3>Podpora viacerých časových okien</h3>
+<p>Účty môžu mať <strong>viacero aktívnych časových okien za deň</strong> pomocou čiarkou oddelených hodnôt v nastaveniach bota. Umožňuje to simulovať rôzne vzory aktivity — napríklad niekto, kto kontroluje Instagram ráno a znova večer.</p>
+
+<table>
+    <tr><th>Nastavenie</th><th>Hodnota</th><th>Výsledok</th></tr>
+    <tr><td><strong>start_time</strong></td><td>"2,12"</td><td rowspan="2">Účet beží <strong>2:00-4:00</strong> A <strong>12:00-14:00</strong></td></tr>
+    <tr><td><strong>end_time</strong></td><td>"4,14"</td></tr>
+    <tr><td><strong>start_time</strong></td><td>"8,18"</td><td rowspan="2">Účet beží <strong>8:00-12:00</strong> A <strong>18:00-22:00</strong></td></tr>
+    <tr><td><strong>end_time</strong></td><td>"12,22"</td></tr>
+</table>
+
+<div class="info-box tip">
+    <strong>💡 Prečo viacero okien?</strong>
+    <p>Skutoční ľudia nepoužívajú Instagram 16 hodín v kuse. Kontrolujú ho niekoľkokrát denne. Viacero okien robí vaše účty prirodzenejšími vytváraním medzier v aktivite.</p>
+</div>
+
+<h3>Plánovanie s ohľadom na pracovné hodiny</h3>
+<p>Plánovanie obsahu má stratégiu <strong>"S ohľadom na pracovné hodiny"</strong>. Keď je zapnutá, plánovač číta start_time/end_time každého účtu a <strong>plánuje príspevky len v rámci aktívneho okna</strong>.</p>
+<ul>
+    <li>Zabraňuje plánovaniu príspevkov o 3:00 ráno, keď je okno účtu 8:00-23:00</li>
+    <li>Zobrazuje <strong>odznaky pracovných hodín</strong> pri výbere účtov, aby ste na prvý pohľad videli, kedy je každý účet aktívny</li>
+    <li>Automaticky sa prispôsobí pri zmene časového okna účtu</li>
+</ul>
+
+<h3>Tag Dedup (podrobne)</h3>
+<p>Účty zdieľajúce rovnaký <strong>tag</strong> nebudú sledovať rovnakých ľudí. Zabraňuje to plytvaniu akciami pri prevádzkovaní viacerých účtov cieľujúcich rovnaké publikum.</p>
+<ul>
+    <li>Keď Účet A (tag: "fitness") začne sledovať @user123, toto meno sa pridá do "fitness" dedup zoznamu</li>
+    <li>Keď Účet B (tag: "fitness") narazí na @user123, <strong>automaticky ho preskočí</strong></li>
+    <li>Bot pred každou reláciou sledovania vopred načíta mená sledované rovnako označenými účtami</li>
+    <li>Nastavenia sa čítajú čerstvé z databázy každý cyklus — <strong>nie je potrebný reštart</strong> pri zmene tagov</li>
+    <li>Rôzne tagy majú oddelené dedup zoznamy — účty v "fitness" a "cestovanie" fungujú nezávisle</li>
+</ul>
+
+<div class="info-box info">
+    <strong>ℹ️ Prečo používať Tag Dedup?</strong>
+    <p>Ak máte 10 účtov sledujúcich z rovnakého zdroja, bez dedupu môžu všetky sledovať tých istých 50 ľudí — plytvanie 450 akciami. S dedupom každý účet sleduje unikátnych ľudí, čo maximalizuje dosah.</p>
+</div>
+
+
+<!-- ======================== AI FUNKCIE ======================== -->
+<h2 id="ai-funkcie">🧠 AI funkcie</h2>
+<p>Hydra integruje OpenAI a Anthropic API pre AI funkcie naprieč celou platformou.</p>
+
+<h3>AI generovanie popiskov</h3>
+<p>V Plánovaní obsahu môžu popisky používať špeciálne tagy na generovanie unikátnych, AI-napísaných popiskov pre každý príspevok:</p>
+
+<table>
+    <tr><th>Tag</th><th>Čo robí</th><th>Príklad</th></tr>
+    <tr><td><strong>[AI]</strong></td><td>Vygeneruje unikátny popisok automaticky</td><td>Pole popisku: <code>[AI]</code> → Každý príspevok dostane iný AI popisok</td></tr>
+    <tr><td><strong>[AI:prompt]</strong></td><td>Použije vaše vlastné inštrukcie</td><td><code>[AI:Napíš motivačný fitness popisok s emoji]</code></td></tr>
+</table>
+
+<ul>
+    <li><strong>Tlačidlo Náhľad AI</strong> — kliknite pre zobrazenie ukážkových popiskov pred naplánovaním</li>
+    <li><strong>Nastaviteľný tón</strong> — Pútavý, Vtipný, Profesionálny, Inšpiratívny, Neformálny</li>
+    <li>Každý príspevok dostane <strong>unikátny popisok</strong> — žiadne dva príspevky nemajú rovnaký text</li>
+    <li>Vyžaduje OpenAI API kľúč nakonfigurovaný v Nastaveniach</li>
+</ul>
+
+<h3>AI generovanie komentárov</h3>
+<p>Na stránke <a href="#komentare">Správa komentárov</a> vie AI generovať dávky prirodzene znejúcich komentárov. Vyberte tón, kliknite Generovať a AI vytvorí 10-50 unikátnych komentárov pripravených na použitie.</p>
+
+<h3>AI nastavenia</h3>
+
+<div class="page-card"><div class="page-icon">🔑</div><div><h4>AI nastavenia</h4><div class="page-url">/settings</div><p>Nakonfigurujte AI providera na stránke Nastavenia. Pridajte <strong>OpenAI API kľúč</strong> a/alebo <strong>Anthropic API kľúč</strong>, vyberte preferovaného providera a ste pripravení používať AI popisky a AI komentáre.</p></div></div>
+
+<div class="info-box warning">
+    <strong>⚠️ Vyžadované API kľúče</strong>
+    <p>AI funkcie nebudú fungovať bez platného API kľúča. Choďte na <strong>Nastavenia → AI konfigurácia</strong>, vložte kľúč a otestujte pripojenie. OpenAI je predvolený provider pre popisky; Anthropic možno použiť ako alternatívu.</p>
+</div>
+
+
+<!-- ======================== AUTENTIFIKÁCIA ======================== -->
+<h3>Autentifikácia dashboardu</h3>
+<p>Všetky stránky dashboardu sú chránené <strong>HTTP Basic Auth</strong>. Pri prvej návšteve budete vyzvaní na zadanie mena a hesla.</p>
+
+<table>
+    <tr><th>Nastavenie</th><th>Predvolená hodnota</th></tr>
+    <tr><td><strong>Používateľské meno</strong></td><td>admin</td></tr>
+    <tr><td><strong>Heslo</strong></td><td>hydra2026</td></tr>
+</table>
+
+<div class="info-box warning">
+    <strong>⚠️ Zmeňte predvolené heslo!</strong>
+    <p>Heslo si zmeňte na <strong>stránke Nastavenia</strong> alebo cez API. Predvolené prihlasovacie údaje sú verejne známe — v produkčnom prostredí vždy nastavte vlastné heslo.</p>
+</div>
+
+
+<!-- ======================== OCHRANA ZDROJOVÉHO KÓDU ======================== -->
+<h3>Ochrana zdrojového kódu</h3>
+<p>Zdrojový kód Hydry je chránený viacerými vrstvami zabezpečenia:</p>
+
+<ul>
+    <li><strong>PyArmor</strong> — šifruje zdrojový kód Pythonu tak, aby sa nedal čítať ani upravovať</li>
+    <li><strong>PyInstaller</strong> — zabalí všetko do samostatných spustiteľných súborov</li>
+    <li><strong>Licenčný systém</strong> — 4 úrovne s väzbou na konkrétny počítač a dátumom expirácie:</li>
+</ul>
+
+<table>
+    <tr><th>Úroveň</th><th>Zariadenia</th><th>Funkcie</th></tr>
+    <tr><td><strong>Starter</strong></td><td>Do 10</td><td>Základná automatizácia</td></tr>
+    <tr><td><strong>Pro</strong></td><td>Do 30</td><td>Základ + AI funkcie + Zákazky</td></tr>
+    <tr><td><strong>Enterprise</strong></td><td>Do 100</td><td>Všetky funkcie + prioritná podpora</td></tr>
+    <tr><td><strong>Unlimited</strong></td><td>Neobmedzene</td><td>Všetko, bez obmedzení</td></tr>
+</table>
+
+<div class="info-box info">
+    <strong>ℹ️ Licencie viazané na počítač</strong>
+    <p>Každá licencia je viazaná na konkrétny počítač. Ak prechádzate na nový počítač, kontaktujte podporu pre prenos licencie.</p>
+</div>
+
+
 <h2 id="faq">❓ Často kladené otázky</h2>
 
 <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Koľko účtov zvládne jeden telefón?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Až <strong>13 účtov na telefón</strong>. V praxi 3-5 aktívnych účtov dáva najlepší výkon.</div></div></div>
@@ -371,6 +593,14 @@
 <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Môžem vidieť, čo bot robí?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Áno! Každé zariadenie má konzolu s farebnými logmi. Tiež <strong>Farm Stats</strong> pre dnešné čísla, alebo monitoring softvér pre live pohľad.</div></div></div>
 
 <div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Ako zastavím bota?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Choďte na <strong>Automation → Bot Manager</strong> a zastavte zariadenia alebo celú farmu. Alebo povedzte Jarvisovi.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Ako zmením heslo dashboardu?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Choďte na <strong>stránku Nastavenia</strong> (/settings) a aktualizujte heslo v sekcii Autentifikácia. Tiež ho môžete zmeniť cez API endpoint <code>POST /api/settings/password</code>.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Čo je tag dedup a prečo ho mám používať?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Tag dedup zabraňuje účtom s rovnakým tagom sledovať tých istých ľudí. Keď Účet A začne sledovať @user123, všetky ostatné účty s rovnakým tagom tohto používateľa automaticky preskočia. Eliminuje to plytvanie sledovaniami a maximalizuje váš dosah. Bez toho by 10 účtov mohlo sledovať tých istých 50 ľudí.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Môžem prevádzkovať účet v rôznych časových oknách?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">Áno! Použite viacero okien s čiarkou oddelenými hodnotami. Príklad: <strong>start_time="8,18"</strong> a <strong>end_time="12,22"</strong> prevádzkuje účet 8:00-12:00 a 18:00-22:00. Simuluje to prirodzené vzory používania — kontrola Instagramu niekoľkokrát denne.</div></div></div>
+
+<div class="faq-item"><div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Ako funguje AI generovanie popiskov?<i class="fas fa-chevron-down"></i></div><div class="faq-a"><div class="faq-a-inner">V Plánovaní obsahu napíšte <strong>[AI]</strong> do poľa popisku pre automatický unikátny popisok ku každému príspevku. Použite <strong>[AI:váš prompt]</strong> pre vlastné inštrukcie. Potrebujete OpenAI API kľúč nakonfigurovaný v <strong>Nastavenia → AI konfigurácia</strong>. Kliknutím na "Náhľad AI" zobrazíte ukážky pred naplánovaním.</div></div></div>
 
 <h2 id="riesenie-problemov">🔧 Riešenie problémov</h2>
 
@@ -396,7 +626,10 @@
     <tr><td><strong>Zahriatie (Warmup)</strong></td><td>Nízko-rizikové aktivity (scrollovanie, reels) pred rastovými akciami.</td></tr>
     <tr><td><strong>Mŕtvy zdroj</strong></td><td>Zdrojový účet, ktorý už neexistuje alebo je súkromný. Automaticky preskočený.</td></tr>
     <tr><td><strong>Zákazka (Job Order)</strong></td><td>Konkrétna úloha distribuovaná po farme.</td></tr>
-    <tr><td><strong>Tag Dedup</strong></td><td>Zabraňuje viacerým účtom sledovať rovnakého človeka.</td></tr>
+    <tr><td><strong>Tag Dedup</strong></td><td>Zabraňuje viacerým účtom sledovať rovnakého človeka. Vopred načítava históriu sledovaní rovnako označených účtov každý cyklus.</td></tr>
+    <tr><td><strong>Deploy Wizard</strong></td><td>Nástroj na nastavenie nových zariadení jedným klikom. Prevedie vás importom účtov, priradením klonov a konfiguráciou zahriatiama v jednom toku.</td></tr>
+    <tr><td><strong>Profil automatizácia</strong></td><td>Hromadný nástroj na zmenu mien, bios a profilových fotiek na viacerých účtoch paralelne.</td></tr>
+    <tr><td><strong>Multi-Window</strong></td><td>Prevádzkovanie účtu vo viacerých časových slotoch za deň pomocou čiarkou oddelených začiatočných/koncových časov.</td></tr>
     <tr><td><strong>ADB</strong></td><td>Android Debug Bridge — komunikácia počítač → telefóny cez WiFi.</td></tr>
     <tr><td><strong>UIAutomator</strong></td><td>Framework na ovládanie obrazoviek telefónu (klikanie, scrollovanie, čítanie).</td></tr>
     <tr><td><strong>Jarvis</strong></td><td>AI asistent, ktorý dohliada na celú operáciu.</td></tr>
@@ -404,7 +637,7 @@
 
 <br><br>
 <div style="text-align: center; padding-top: 24px; border-top: 1px solid var(--border);">
-    <p style="color: var(--text-dim); font-size: 0.8rem;">Hydra 🐙 Používateľská príručka — Posledná aktualizácia: Február 2026</p>
+    <p style="color: var(--text-dim); font-size: 0.8rem;">Hydra 🐙 Používateľská príručka v1.1 — Posledná aktualizácia: Február 2026</p>
     <p style="margin-top: 8px;">
         <a href="/docs" style="color: var(--accent-light); text-decoration: none; font-size: 0.82rem; margin-right: 20px;"><i class="fas fa-globe"></i> English version</a>
         <a href="/docs-dev" style="color: var(--accent-light); text-decoration: none; font-size: 0.82rem;"><i class="fas fa-code"></i> Vývojárska dokumentácia</a>
