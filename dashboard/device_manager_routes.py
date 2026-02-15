@@ -13,7 +13,12 @@ API endpoints:
 """
 
 import os
+import sys
 import sqlite3
+import subprocess
+import threading
+import time
+import concurrent.futures
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, jsonify, request
 
@@ -473,3 +478,203 @@ def api_watchdog_status():
         return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
+
+
+# ── Grant Permissions ────────────────────────────────────────────────
+# Inline logic from grant_permissions.py — runs in background thread
+
+_GRANT_PACKAGES = [f"com.instagram.androi{c}" for c in "efghijklmnop"]
+
+_GRANT_PERMISSIONS = [
+    "android.permission.CAMERA",
+    "android.permission.RECORD_AUDIO",
+    "android.permission.READ_EXTERNAL_STORAGE",
+    "android.permission.WRITE_EXTERNAL_STORAGE",
+    "android.permission.READ_MEDIA_IMAGES",
+    "android.permission.READ_MEDIA_VIDEO",
+    "android.permission.READ_MEDIA_AUDIO",
+    "android.permission.ACCESS_MEDIA_LOCATION",
+]
+
+# Shared state for background grant job
+_grant_state = {
+    'running': False,
+    'progress': '',
+    'devices_total': 0,
+    'devices_done': 0,
+    'clones_total': 0,
+    'permissions_count': len(_GRANT_PERMISSIONS),
+    'results': None,
+    'error': None,
+    'started_at': None,
+    'finished_at': None,
+}
+_grant_lock = threading.Lock()
+
+
+def _get_adb_devices():
+    """Get list of connected ADB device serials."""
+    try:
+        result = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=10)
+        devices = []
+        for line in result.stdout.strip().split("\n")[1:]:
+            line = line.strip()
+            if line and "\tdevice" in line:
+                devices.append(line.split("\t")[0])
+        return devices
+    except Exception:
+        return []
+
+
+def _get_installed_ig_clones(serial):
+    """Get list of installed IG clone packages on a device."""
+    try:
+        result = subprocess.run(
+            ["adb", "-s", serial, "shell", "pm", "list", "packages", "com.instagram.androi"],
+            capture_output=True, text=True, timeout=15
+        )
+        installed = []
+        for line in result.stdout.strip().split("\n"):
+            line = line.strip()
+            if line.startswith("package:"):
+                pkg = line.replace("package:", "")
+                if pkg in _GRANT_PACKAGES:
+                    installed.append(pkg)
+        return installed
+    except Exception:
+        return []
+
+
+def _grant_permissions_one_device(serial, packages_filter=None):
+    """Grant all permissions to all IG clones on a single device. Returns clone count."""
+    installed = _get_installed_ig_clones(serial)
+    if packages_filter:
+        installed = [p for p in installed if p in packages_filter]
+    if not installed:
+        return 0
+
+    granted = 0
+    for pkg in installed:
+        cmds = " ; ".join([f"pm grant {pkg} {p} 2>/dev/null" for p in _GRANT_PERMISSIONS])
+        try:
+            subprocess.run(
+                ["adb", "-s", serial, "shell", cmds],
+                capture_output=True, text=True, timeout=30
+            )
+            granted += 1
+        except Exception:
+            pass
+    return granted
+
+
+def _run_grant_job(target_device=None):
+    """Background job: grant permissions to all (or one) device."""
+    global _grant_state
+    try:
+        with _grant_lock:
+            _grant_state['running'] = True
+            _grant_state['error'] = None
+            _grant_state['results'] = None
+            _grant_state['started_at'] = datetime.utcnow().isoformat()
+            _grant_state['finished_at'] = None
+            _grant_state['devices_done'] = 0
+            _grant_state['clones_total'] = 0
+
+        if target_device:
+            devices = [target_device]
+        else:
+            devices = _get_adb_devices()
+
+        with _grant_lock:
+            _grant_state['devices_total'] = len(devices)
+            _grant_state['progress'] = f'Found {len(devices)} device(s), granting permissions...'
+
+        if not devices:
+            with _grant_lock:
+                _grant_state['running'] = False
+                _grant_state['error'] = 'No connected devices found'
+                _grant_state['finished_at'] = datetime.utcnow().isoformat()
+            return
+
+        total_clones = 0
+
+        def _process_one(serial):
+            nonlocal total_clones
+            count = _grant_permissions_one_device(serial)
+            with _grant_lock:
+                _grant_state['devices_done'] += 1
+                _grant_state['clones_total'] += count
+                _grant_state['progress'] = (
+                    f"{_grant_state['devices_done']}/{_grant_state['devices_total']} devices done "
+                    f"({_grant_state['clones_total']} clones)"
+                )
+            return count
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+            futures = {executor.submit(_process_one, dev): dev for dev in devices}
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception:
+                    pass
+
+        with _grant_lock:
+            _grant_state['running'] = False
+            _grant_state['finished_at'] = datetime.utcnow().isoformat()
+            _grant_state['results'] = {
+                'ok': True,
+                'devices': _grant_state['devices_total'],
+                'clones': _grant_state['clones_total'],
+                'permissions': len(_GRANT_PERMISSIONS),
+            }
+            _grant_state['progress'] = (
+                f"Done! {_grant_state['devices_total']} devices, "
+                f"{_grant_state['clones_total']} clones × {len(_GRANT_PERMISSIONS)} permissions"
+            )
+
+    except Exception as e:
+        with _grant_lock:
+            _grant_state['running'] = False
+            _grant_state['error'] = str(e)
+            _grant_state['finished_at'] = datetime.utcnow().isoformat()
+
+
+@device_manager_bp.route('/api/devices/grant-permissions', methods=['POST'])
+def api_grant_permissions():
+    """Start a background grant-permissions job."""
+    with _grant_lock:
+        if _grant_state['running']:
+            return jsonify({
+                'ok': False,
+                'error': 'Grant job already running',
+                'progress': _grant_state['progress']
+            }), 409
+
+    data = request.get_json(silent=True) or {}
+    target_device = data.get('device', None)
+
+    thread = threading.Thread(target=_run_grant_job, args=(target_device,), daemon=True)
+    thread.start()
+
+    return jsonify({
+        'ok': True,
+        'message': f'Grant job started' + (f' for {target_device}' if target_device else ' for all devices'),
+    })
+
+
+@device_manager_bp.route('/api/devices/grant-permissions/status')
+def api_grant_permissions_status():
+    """Poll the grant-permissions job status."""
+    with _grant_lock:
+        return jsonify({
+            'running': _grant_state['running'],
+            'progress': _grant_state['progress'],
+            'devices_total': _grant_state['devices_total'],
+            'devices_done': _grant_state['devices_done'],
+            'clones_total': _grant_state['clones_total'],
+            'permissions_count': _grant_state['permissions_count'],
+            'results': _grant_state['results'],
+            'error': _grant_state['error'],
+            'started_at': _grant_state['started_at'],
+            'finished_at': _grant_state['finished_at'],
+        })

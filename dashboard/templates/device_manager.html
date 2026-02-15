@@ -169,6 +169,9 @@
         <button class="btn btn-success me-2" onclick="discoverDevices()">
             <i class="fas fa-search me-1"></i> Discover Devices
         </button>
+        <button class="btn btn-warning me-2" onclick="confirmGrantPermissions()" id="grantPermBtn">
+            🔑 Grant Permissions
+        </button>
         <button class="btn btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
             <i class="fas fa-plus me-1"></i> Add Device
         </button>
@@ -329,6 +332,38 @@
         </div>
     </div>
 </div>
+<!-- Grant Permissions Confirmation Modal -->
+<div class="modal fade" id="grantPermModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">🔑 Grant Permissions</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="grantPermMessage">Grant <strong>camera, microphone, and storage</strong> permissions to all Instagram clones on all connected devices?</p>
+                <div class="d-none" id="grantPermProgress">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="spinner-border spinner-border-sm text-warning me-2" role="status"></div>
+                        <span id="grantPermProgressText" class="text-warning">Starting...</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-warning" id="grantPermBar" role="progressbar" style="width:0%"></div>
+                    </div>
+                </div>
+                <div class="d-none" id="grantPermResults">
+                    <div class="alert alert-success mb-0" id="grantPermResultsText"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary" id="grantPermFooter">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="grantPermConfirmBtn" onclick="startGrantPermissions()">
+                    🔑 Grant All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -391,6 +426,9 @@ function renderDevices(devices) {
                     </a>
                     <button class="btn-action btn-mirror" onclick="mirrorDevice('${escAttr(dev.device_serial)}')" title="Mirror Screen">
                         <i class="fas fa-tv"></i>
+                    </button>
+                    <button class="btn-action btn-edit" onclick="grantPermissionsDevice('${escAttr(dev.device_serial)}')" title="Grant Permissions" style="background:#f59e0b;color:#000;">
+                        🔑
                     </button>
                     <button class="btn-action btn-edit" onclick="editDevice(${dev.id}, '${escAttr(dev.device_serial)}', '${escAttr(dev.device_name||'')}', '${escAttr(dev.notes||'')}')" title="Edit">
                         <i class="fas fa-edit"></i>
@@ -767,6 +805,107 @@ renderDevices = function(devices) {
     _origRender(devices);
     filterDevices();
 };
+
+// ============ Grant Permissions ============
+
+let _grantPollTimer = null;
+let _grantTargetDevice = null;
+
+function confirmGrantPermissions(device) {
+    _grantTargetDevice = device || null;
+    // Reset modal state
+    document.getElementById('grantPermProgress').classList.add('d-none');
+    document.getElementById('grantPermResults').classList.add('d-none');
+    document.getElementById('grantPermConfirmBtn').classList.remove('d-none');
+    document.getElementById('grantPermConfirmBtn').disabled = false;
+    
+    if (device) {
+        document.getElementById('grantPermMessage').innerHTML = 
+            `Grant <strong>camera, microphone, and storage</strong> permissions to all IG clones on device <code>${escHtml(device)}</code>?`;
+        document.getElementById('grantPermConfirmBtn').textContent = '🔑 Grant for Device';
+    } else {
+        document.getElementById('grantPermMessage').innerHTML = 
+            'Grant <strong>camera, microphone, and storage</strong> permissions to all Instagram clones on <strong>all connected devices</strong>?';
+        document.getElementById('grantPermConfirmBtn').textContent = '🔑 Grant All';
+    }
+    
+    new bootstrap.Modal(document.getElementById('grantPermModal')).show();
+}
+
+function grantPermissionsDevice(serial) {
+    confirmGrantPermissions(serial);
+}
+
+function startGrantPermissions() {
+    const btn = document.getElementById('grantPermConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Starting...';
+    
+    document.getElementById('grantPermProgress').classList.remove('d-none');
+    document.getElementById('grantPermProgressText').textContent = 'Starting...';
+    document.getElementById('grantPermBar').style.width = '0%';
+    
+    const body = _grantTargetDevice ? JSON.stringify({ device: _grantTargetDevice }) : '{}';
+    
+    fetch('/api/devices/grant-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) {
+            showToast('Grant permissions: ' + (data.error || 'Failed'), 'danger');
+            btn.disabled = false;
+            btn.innerHTML = '🔑 Grant All';
+            return;
+        }
+        btn.classList.add('d-none');
+        // Start polling
+        _grantPollTimer = setInterval(pollGrantStatus, 1500);
+    })
+    .catch(err => {
+        showToast('Error: ' + err, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '🔑 Grant All';
+    });
+}
+
+function pollGrantStatus() {
+    fetch('/api/devices/grant-permissions/status')
+        .then(r => r.json())
+        .then(data => {
+            const progressText = document.getElementById('grantPermProgressText');
+            const progressBar = document.getElementById('grantPermBar');
+            
+            progressText.textContent = data.progress || 'Working...';
+            
+            if (data.devices_total > 0) {
+                const pct = Math.round((data.devices_done / data.devices_total) * 100);
+                progressBar.style.width = pct + '%';
+            }
+            
+            if (!data.running) {
+                clearInterval(_grantPollTimer);
+                _grantPollTimer = null;
+                
+                document.getElementById('grantPermProgress').classList.add('d-none');
+                
+                if (data.error) {
+                    showToast('Grant permissions failed: ' + data.error, 'danger');
+                } else if (data.results) {
+                    const r = data.results;
+                    document.getElementById('grantPermResults').classList.remove('d-none');
+                    document.getElementById('grantPermResultsText').innerHTML = 
+                        `<strong>✅ Done!</strong> Granted ${r.permissions} permissions to ${r.clones} clones across ${r.devices} devices.`;
+                    showToast(`✅ Permissions granted: ${r.devices} devices, ${r.clones} clones`, 'success');
+                }
+            }
+        })
+        .catch(() => {
+            // Ignore transient fetch errors during polling
+        });
+}
 
 // Initial load + auto-refresh every 30s
 refreshDevices();
