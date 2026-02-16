@@ -14,7 +14,7 @@ import threading
 import traceback
 from pathlib import Path
 from datetime import datetime, timedelta
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, jsonify, request, render_template, Response
 
 from phone_farm_db import (
     get_all_devices, get_all_accounts, get_account_by_id,
@@ -299,6 +299,54 @@ def api_stop_login():
                 _login_progress[batch_id]['stopped'] = True
 
         return jsonify({'status': 'success', 'message': f'Stop requested for {batch_id}'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@login_v2_bp.route('/api/login-v2/export-failed', methods=['GET'])
+def api_export_failed():
+    """Export failed accounts as CSV for sending to supplier."""
+    try:
+        import csv
+        import io
+
+        # Get all failed accounts
+        failed = get_all_accounts(status_filter=['login_failed'])
+
+        if not failed:
+            return jsonify({'status': 'error', 'message': 'No failed accounts to export'}), 404
+
+        # Build CSV
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Header
+        writer.writerow(['username', 'password', 'device_serial', 'device_name',
+                         'status', 'instagram_package', 'error_reason'])
+
+        for acc in failed:
+            writer.writerow([
+                acc.get('username', ''),
+                acc.get('password', ''),
+                acc.get('device_serial', ''),
+                acc.get('device_name', ''),
+                acc.get('status', ''),
+                acc.get('instagram_package', ''),
+                acc.get('notes', acc.get('error_message', '')),
+            ])
+
+        csv_data = output.getvalue()
+        output.close()
+
+        # Return as downloadable CSV file
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'failed_accounts_{timestamp}.csv'
+
+        return Response(
+            csv_data,
+            mimetype='text/csv',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

@@ -61,6 +61,9 @@
             <button class="btn btn-sm btn-outline-warning" onclick="resetFailed()">
                 <i class="fas fa-redo me-1"></i> Reset Stuck/Failed
             </button>
+            <button class="btn btn-sm btn-outline-info" onclick="exportFailed()">
+                <i class="fas fa-file-csv me-1"></i> Export Failed CSV
+            </button>
             <button class="btn btn-success" id="loginBtn" onclick="loginSelected()">
                 <i class="fas fa-sign-in-alt me-1"></i> Login Selected (<span id="selectedCount">0</span>)
             </button>
@@ -249,6 +252,15 @@ function updateSelectedCount() {
 
 function getSelectedIds() {
     return $('.acc-check:checked').map(function() { return parseInt($(this).data('id')); }).get();
+}
+
+function exportFailed() {
+    const failedCount = allAccounts.filter(a => a.status === 'login_failed').length;
+    if (failedCount === 0) {
+        showToast('No failed accounts to export', 'warning');
+        return;
+    }
+    window.location.href = '/api/login-v2/export-failed';
 }
 
 function resetFailed() {
