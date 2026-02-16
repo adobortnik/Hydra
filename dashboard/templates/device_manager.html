@@ -361,7 +361,7 @@
             <div class="modal-footer border-secondary" id="grantPermFooter">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-warning" id="grantPermConfirmBtn" onclick="startGrantPermissions()">
-                    đź"' Grant All
+                    &#x1F511; Grant All
                 </button>
             </div>
         </div>
@@ -671,7 +671,7 @@ function quickAdd(serial, ip, port) {
     .then(r => r.json())
     .then(data => {
         if (data.status === 'success') {
-            btn.outerHTML = '<span class="badge bg-success">Added âś"</span>';
+            btn.outerHTML = '<span class="badge bg-success">Added \u2713</span>';
             refreshDevices();
         } else {
             showToast(data.message || 'Failed to add', 'danger');
@@ -856,11 +856,11 @@ function confirmGrantPermissions(device) {
     if (device) {
         document.getElementById('grantPermMessage').innerHTML =
             `Grant <strong>camera, microphone, and storage</strong> permissions to all IG clones on device <code>${escHtml(device)}</code>?`;
-        document.getElementById('grantPermConfirmBtn').textContent = 'đź"' Grant for Device';
+        document.getElementById('grantPermConfirmBtn').textContent = '\u{1F511} Grant for Device';
     } else {
         document.getElementById('grantPermMessage').innerHTML =
             'Grant <strong>camera, microphone, and storage</strong> permissions to all Instagram clones on <strong>all connected devices</strong>?';
-        document.getElementById('grantPermConfirmBtn').textContent = 'đź"' Grant All';
+        document.getElementById('grantPermConfirmBtn').textContent = '\u{1F511} Grant All';
     }
 
     new bootstrap.Modal(document.getElementById('grantPermModal')).show();
@@ -891,7 +891,7 @@ function startGrantPermissions() {
         if (!data.ok) {
             showToast('Grant permissions: ' + (data.error || 'Failed'), 'danger');
             btn.disabled = false;
-            btn.innerHTML = 'đź"' Grant All';
+            btn.innerHTML = '\u{1F511} Grant All';
             return;
         }
         btn.classList.add('d-none');
@@ -901,7 +901,7 @@ function startGrantPermissions() {
     .catch(err => {
         showToast('Error: ' + err, 'danger');
         btn.disabled = false;
-        btn.innerHTML = 'đź"' Grant All';
+        btn.innerHTML = '\u{1F511} Grant All';
     });
 }
 
@@ -931,8 +931,8 @@ function pollGrantStatus() {
                     const r = data.results;
                     document.getElementById('grantPermResults').classList.remove('d-none');
                     document.getElementById('grantPermResultsText').innerHTML =
-                        `<strong>âś… Done!</strong> Granted ${r.permissions} permissions to ${r.clones} clones across ${r.devices} devices.`;
-                    showToast(`âś… Permissions granted: ${r.devices} devices, ${r.clones} clones`, 'success');
+                        `<strong>\u2705 Done!</strong> Granted ${r.permissions} permissions to ${r.clones} clones across ${r.devices} devices.`;
+                    showToast(`\u2705 Permissions granted: ${r.devices} devices, ${r.clones} clones`, 'success');
                 }
             }
         })
