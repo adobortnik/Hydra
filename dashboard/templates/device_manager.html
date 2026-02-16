@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Device Manager - Hydra{% endblock %}
 
 {% block extra_css %}
@@ -170,7 +170,7 @@
             <i class="fas fa-search me-1"></i> Discover Devices
         </button>
         <button class="btn btn-warning me-2" onclick="confirmGrantPermissions()" id="grantPermBtn">
-            🔑 Grant Permissions
+            đź”‘ Grant Permissions
         </button>
         <button class="btn btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
             <i class="fas fa-plus me-1"></i> Add Device
@@ -220,15 +220,20 @@
     </div>
 </div>
 
-<!-- Quick Search -->
-<div class="mb-3">
-    <div class="search-wrapper">
+<!-- Quick Search + Date Filter -->
+<div class="mb-3 d-flex gap-3 align-items-start flex-wrap">
+    <div class="search-wrapper flex-grow-1">
         <input type="text" id="deviceSearch" class="form-control bg-dark text-white border-secondary" 
-               placeholder="Search devices — name, serial, IP, status, account..." autocomplete="off" spellcheck="false">
+               placeholder="Search devices â€” name, serial, IP, status, account..." autocomplete="off" spellcheck="false">
         <i class="fas fa-search search-icon"></i>
         <button type="button" class="search-clear" id="searchClear" title="Clear search (Esc)">
             <i class="fas fa-times"></i>
         </button>
+    </div>
+    <div style="min-width:200px">
+        <select id="dateFilter" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="filterDevices()" style="height:42px">
+            <option value="">All dates</option>
+        </select>
     </div>
     <div class="search-count d-none" id="searchCount"></div>
 </div>
@@ -248,13 +253,14 @@
                         <th>Device ID</th>
                         <th>Device Name</th>
                         <th style="width:100px">Accounts</th>
+                        <th style="width:90px">Added</th>
                         <th style="width:100px">Bot</th>
                         <th style="width:320px">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="deviceTableBody">
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
+                        <td colspan="7" class="text-center text-muted py-4">
                             <i class="fas fa-spinner fa-spin me-2"></i>Loading devices...
                         </td>
                     </tr>
@@ -337,7 +343,7 @@
     <div class="modal-dialog">
         <div class="modal-content bg-dark text-white">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title">🔑 Grant Permissions</h5>
+                <h5 class="modal-title">đź”‘ Grant Permissions</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -358,7 +364,7 @@
             <div class="modal-footer border-secondary" id="grantPermFooter">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-warning" id="grantPermConfirmBtn" onclick="startGrantPermissions()">
-                    🔑 Grant All
+                    đź”‘ Grant All
                 </button>
             </div>
         </div>
@@ -391,7 +397,7 @@ function renderDevices(devices) {
     const tbody = document.getElementById('deviceTableBody');
     
     if (!devices.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">
             <i class="fas fa-inbox me-2"></i>No devices found
         </td></tr>`;
         return;
@@ -407,11 +413,16 @@ function renderDevices(devices) {
         // Encode serial for URL (replace special chars)
         const serialEncoded = encodeURIComponent(dev.device_serial);
 
-        return `<tr>
+        // Parse added date
+        const addedDate = dev.created_at ? dev.created_at.split('T')[0] : '';
+        const addedDisplay = addedDate || '-';
+
+        return `<tr data-added="${addedDate}">
             <td><span class="status-dot ${statusClass}" title="${dev.status}"></span></td>
             <td class="device-serial">${escHtml(dev.device_serial)}</td>
             <td class="device-name">${escHtml(dev.device_name || '-')}</td>
             <td><span class="account-badge">${dev.account_count || 0}</span></td>
+            <td><small class="text-muted">${addedDisplay}</small></td>
             <td><span class="bot-badge ${botClass}">${botLabel}</span></td>
             <td>
                 <div class="action-btns">
@@ -428,7 +439,7 @@ function renderDevices(devices) {
                         <i class="fas fa-tv"></i>
                     </button>
                     <button class="btn-action btn-edit" onclick="grantPermissionsDevice('${escAttr(dev.device_serial)}')" title="Grant Permissions" style="background:#f59e0b;color:#000;">
-                        🔑
+                        đź”‘
                     </button>
                     <button class="btn-action btn-edit" onclick="editDevice(${dev.id}, '${escAttr(dev.device_serial)}', '${escAttr(dev.device_name||'')}', '${escAttr(dev.notes||'')}')" title="Edit">
                         <i class="fas fa-edit"></i>
@@ -449,6 +460,34 @@ function updateStats(devices) {
     document.getElementById('statOnline').textContent = online;
     document.getElementById('statOffline').textContent = offline;
     document.getElementById('statAccounts').textContent = accounts;
+
+    // Populate date filter dropdown
+    populateDateFilter(devices);
+}
+
+function populateDateFilter(devices) {
+    const select = document.getElementById('dateFilter');
+    const currentVal = select.value;
+
+    // Extract unique dates, sorted newest first
+    const dates = [...new Set(
+        devices
+            .map(d => d.created_at ? d.created_at.split('T')[0] : '')
+            .filter(d => d)
+    )].sort().reverse();
+
+    let html = '<option value="">All dates</option>';
+    dates.forEach(d => {
+        const label = new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+        const count = devices.filter(dev => (dev.created_at || '').startsWith(d)).length;
+        html += `<option value="${d}">${label} (${count})</option>`;
+    });
+    select.innerHTML = html;
+
+    // Restore previous selection if still valid
+    if (currentVal && dates.includes(currentVal)) {
+        select.value = currentVal;
+    }
 }
 
 function mirrorDevice(serial) {
@@ -542,7 +581,7 @@ function showToast(message, type = 'info') {
 
 function showError(msg) {
     document.getElementById('deviceTableBody').innerHTML = 
-        `<tr><td colspan="6" class="text-center text-danger py-4">
+        `<tr><td colspan="7" class="text-center text-danger py-4">
             <i class="fas fa-exclamation-triangle me-2"></i>${escHtml(msg)}
         </td></tr>`;
 }
@@ -637,7 +676,7 @@ function quickAdd(serial, ip, port) {
     .then(r => r.json())
     .then(data => {
         if (data.status === 'success') {
-            btn.outerHTML = '<span class="badge bg-success">Added ✓</span>';
+            btn.outerHTML = '<span class="badge bg-success">Added âś“</span>';
             refreshDevices();
         } else {
             showToast(data.message || 'Failed to add', 'danger');
@@ -732,13 +771,16 @@ const searchCount = document.getElementById('searchCount');
 
 function filterDevices() {
     const query = searchInput.value.trim().toLowerCase();
+    const dateVal = document.getElementById('dateFilter').value;
     const tbody = document.getElementById('deviceTableBody');
     const rows = tbody.querySelectorAll('tr');
     
     // Toggle clear button
     searchClear.classList.toggle('visible', query.length > 0);
     
-    if (!query) {
+    const hasFilter = query || dateVal;
+    
+    if (!hasFilter) {
         // Show all rows
         rows.forEach(r => r.style.display = '');
         searchCount.classList.add('d-none');
@@ -753,13 +795,23 @@ function filterDevices() {
         // Skip placeholder rows (loading, empty, error)
         if (row.querySelector('td[colspan]')) return;
         total++;
-        const text = row.textContent.toLowerCase();
-        if (text.includes(query)) {
-            row.style.display = '';
-            visible++;
-        } else {
-            row.style.display = 'none';
+        
+        let show = true;
+        
+        // Text search filter
+        if (query) {
+            const text = row.textContent.toLowerCase();
+            if (!text.includes(query)) show = false;
         }
+        
+        // Date filter
+        if (dateVal && show) {
+            const rowDate = row.getAttribute('data-added') || '';
+            if (rowDate !== dateVal) show = false;
+        }
+        
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
     });
     
     // If total is 0, the table might still be loading
@@ -822,11 +874,11 @@ function confirmGrantPermissions(device) {
     if (device) {
         document.getElementById('grantPermMessage').innerHTML = 
             `Grant <strong>camera, microphone, and storage</strong> permissions to all IG clones on device <code>${escHtml(device)}</code>?`;
-        document.getElementById('grantPermConfirmBtn').textContent = '🔑 Grant for Device';
+        document.getElementById('grantPermConfirmBtn').textContent = 'đź”‘ Grant for Device';
     } else {
         document.getElementById('grantPermMessage').innerHTML = 
             'Grant <strong>camera, microphone, and storage</strong> permissions to all Instagram clones on <strong>all connected devices</strong>?';
-        document.getElementById('grantPermConfirmBtn').textContent = '🔑 Grant All';
+        document.getElementById('grantPermConfirmBtn').textContent = 'đź”‘ Grant All';
     }
     
     new bootstrap.Modal(document.getElementById('grantPermModal')).show();
@@ -857,7 +909,7 @@ function startGrantPermissions() {
         if (!data.ok) {
             showToast('Grant permissions: ' + (data.error || 'Failed'), 'danger');
             btn.disabled = false;
-            btn.innerHTML = '🔑 Grant All';
+            btn.innerHTML = 'đź”‘ Grant All';
             return;
         }
         btn.classList.add('d-none');
@@ -867,7 +919,7 @@ function startGrantPermissions() {
     .catch(err => {
         showToast('Error: ' + err, 'danger');
         btn.disabled = false;
-        btn.innerHTML = '🔑 Grant All';
+        btn.innerHTML = 'đź”‘ Grant All';
     });
 }
 
@@ -897,8 +949,8 @@ function pollGrantStatus() {
                     const r = data.results;
                     document.getElementById('grantPermResults').classList.remove('d-none');
                     document.getElementById('grantPermResultsText').innerHTML = 
-                        `<strong>✅ Done!</strong> Granted ${r.permissions} permissions to ${r.clones} clones across ${r.devices} devices.`;
-                    showToast(`✅ Permissions granted: ${r.devices} devices, ${r.clones} clones`, 'success');
+                        `<strong>âś… Done!</strong> Granted ${r.permissions} permissions to ${r.clones} clones across ${r.devices} devices.`;
+                    showToast(`âś… Permissions granted: ${r.devices} devices, ${r.clones} clones`, 'success');
                 }
             }
         })
