@@ -170,7 +170,7 @@
             <i class="fas fa-search me-1"></i> Discover Devices
         </button>
         <button class="btn btn-warning me-2" onclick="confirmGrantPermissions()" id="grantPermBtn">
-            đź"' Grant Permissions
+            &#x1F511; Grant Permissions
         </button>
         <button class="btn btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
             <i class="fas fa-plus me-1"></i> Add Device
@@ -340,7 +340,7 @@
     <div class="modal-dialog">
         <div class="modal-content bg-dark text-white">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title">đź"' Grant Permissions</h5>
+                <h5 class="modal-title">&#x1F511; Grant Permissions</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -436,7 +436,7 @@ function renderDevices(devices) {
                         <i class="fas fa-tv"></i>
                     </button>
                     <button class="btn-action btn-edit" onclick="grantPermissionsDevice('${escAttr(dev.device_serial)}')" title="Grant Permissions" style="background:#f59e0b;color:#000;">
-                        đź"'
+                        &#x1F511;
                     </button>
                     <button class="btn-action btn-edit" onclick="editDevice(${dev.id}, '${escAttr(dev.device_serial)}', '${escAttr(dev.device_name||'')}', '${escAttr(dev.notes||'')}')" title="Edit">
                         <i class="fas fa-edit"></i>
