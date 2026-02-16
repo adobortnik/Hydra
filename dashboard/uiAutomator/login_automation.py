@@ -490,6 +490,106 @@ class LoginAutomation:
             print(f"[!] Error detecting 2FA screen: {e}")
             return False
 
+    def _try_another_way_to_2fa(self):
+        """
+        Handle the "Check your notifications on another device" screen.
+        
+        Flow:
+          1. Detect "Check your notifications" / "Waiting for approval" screen
+          2. Click "Try another way"
+          3. On "Choose a way to confirm" screen, select "Authentication app"
+          4. Click "Continue"
+          5. Returns True if we successfully navigated to the 2FA code entry screen
+        
+        Returns:
+            bool: True if we reached the 2FA code entry screen
+        """
+        try:
+            xml_dump = self.device.dump_hierarchy()
+            xml_lower = xml_dump.lower()
+
+            # Step 1: Detect "Check notifications on another device" screen
+            notification_keywords = [
+                "check your notifications",
+                "notifications on another device",
+                "waiting for approval",
+                "approve from the other device",
+            ]
+
+            on_notification_screen = any(kw in xml_lower for kw in notification_keywords)
+
+            if not on_notification_screen:
+                return False
+
+            print("\n[!] Detected 'Check notifications on another device' screen")
+            print("[...] Attempting 'Try another way' → 'Authentication app' flow")
+
+            # Step 2: Click "Try another way"
+            try_another = self.device(textContains="Try another way")
+            if not try_another.exists(timeout=3):
+                # Also try "another way" partial match
+                try_another = self.device(textContains="another way")
+
+            if not try_another.exists(timeout=3):
+                print("[X] 'Try another way' button not found")
+                return False
+
+            print("[OK] Clicking 'Try another way'...")
+            try_another.click()
+            time.sleep(3)
+
+            # Step 3: Select "Authentication app" on the "Choose a way" screen
+            xml_dump = self.device.dump_hierarchy()
+            xml_lower = xml_dump.lower()
+
+            if "choose a way" not in xml_lower and "confirmation methods" not in xml_lower:
+                # Maybe we skipped straight to 2FA entry
+                if self.detect_two_factor_screen():
+                    print("[OK] Landed directly on 2FA code entry screen")
+                    return True
+                print("[X] Not on 'Choose a way' screen after clicking 'Try another way'")
+                return False
+
+            print("[OK] On 'Choose a way to confirm' screen")
+
+            # Click on "Authentication app" option
+            auth_app = self.device(textContains="Authentication app")
+            if not auth_app.exists(timeout=3):
+                auth_app = self.device(textContains="authentication app")
+
+            if auth_app.exists(timeout=3):
+                print("[OK] Selecting 'Authentication app'...")
+                auth_app.click()
+                time.sleep(1)
+            else:
+                print("[X] 'Authentication app' option not found")
+                return False
+
+            # Step 4: Click "Continue"
+            continue_btn = self.device(text="Continue")
+            if not continue_btn.exists(timeout=3):
+                continue_btn = self.device(textContains="Continue")
+
+            if continue_btn.exists(timeout=3):
+                print("[OK] Clicking 'Continue'...")
+                continue_btn.click()
+                time.sleep(4)
+            else:
+                print("[X] 'Continue' button not found")
+                return False
+
+            # Step 5: Verify we're now on the 2FA code entry screen
+            if self.detect_two_factor_screen():
+                print("[OK] Successfully navigated to 2FA code entry screen!")
+                return True
+            else:
+                print("[X] Not on 2FA code entry screen after navigation")
+                return False
+
+        except Exception as e:
+            print(f"[!] Error in _try_another_way_to_2fa: {e}")
+            return False
+
     def handle_two_factor(self, two_fa_token):
         """
         Handle 2FA by fetching code from 2fa.live and entering it
@@ -954,6 +1054,11 @@ class LoginAutomation:
 
             two_fa_detected = self.detect_two_factor_screen()
 
+            # If not on standard 2FA screen, check for "Check notifications on another device"
+            # and navigate through "Try another way" → "Authentication app" → "Continue"
+            if not two_fa_detected:
+                two_fa_detected = self._try_another_way_to_2fa()
+
             if two_fa_detected:
                 print("\n[OK] 2FA screen detected")
                 result['two_fa_used'] = True
@@ -983,7 +1088,12 @@ class LoginAutomation:
             print("-"*70)
 
             # Re-check for 2FA screen (in case detection missed it the first time)
-            if self.detect_two_factor_screen():
+            # Also check for "notifications on another device" screen again
+            still_on_2fa = self.detect_two_factor_screen()
+            if not still_on_2fa:
+                still_on_2fa = self._try_another_way_to_2fa()
+
+            if still_on_2fa:
                 print("\n[!] WARNING: Still on 2FA screen after entering credentials!")
 
                 if two_fa_token and not two_fa_detected:
