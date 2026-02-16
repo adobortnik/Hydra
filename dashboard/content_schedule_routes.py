@@ -1526,6 +1526,16 @@ def _run_test_post(test_id, account, media_path, content_type,
 
         import uiautomator2 as u2
         device = u2.connect(adb_serial)
+
+        # Lock rotation to portrait
+        try:
+            device.shell("settings put system accelerometer_rotation 0")
+            device.shell("settings put system user_rotation 0")
+            device.freeze_rotation()
+            device.set_orientation('natural')
+        except Exception:
+            pass
+
         _update('running', 'Connected to device. Preparing PostContentAction...')
 
         # Step 2: Build schedule_item dict (matches content_schedule row shape)

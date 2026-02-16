@@ -127,6 +127,17 @@ class LoginAutomation:
                 _ = self.device.window_size()
                 elapsed = int(time.time() - start_time)
                 print(f"[OK] SUCCESS! UIAutomator is responsive (took {elapsed}s)")
+
+                # Lock rotation to portrait — UIAutomator can flip apps to landscape
+                try:
+                    self.device.shell("settings put system accelerometer_rotation 0")
+                    self.device.shell("settings put system user_rotation 0")
+                    self.device.freeze_rotation()
+                    self.device.set_orientation('natural')
+                    print("[OK] Rotation locked to portrait")
+                except Exception as rot_err:
+                    print(f"[!] Could not lock rotation: {rot_err}")
+
                 return self.device
             except Exception as e:
                 elapsed = int(time.time() - start_time)
