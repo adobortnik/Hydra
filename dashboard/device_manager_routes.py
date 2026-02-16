@@ -82,7 +82,7 @@ def api_dm_devices():
             FROM devices d
             LEFT JOIN accounts a ON a.device_serial = d.device_serial
             GROUP BY d.id
-            ORDER BY d.device_serial
+            ORDER BY d.created_at ASC, d.device_serial
         """).fetchall())
 
         # Attach bot_status info if available
