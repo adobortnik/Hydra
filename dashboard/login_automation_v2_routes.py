@@ -351,6 +351,120 @@ def api_export_failed():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@login_v2_bp.route('/api/login-v2/failed-accounts', methods=['GET'])
+def api_get_failed_accounts():
+    """Get all login_failed accounts grouped by device with slot info."""
+    try:
+        failed = get_all_accounts(status_filter=['login_failed'])
+        by_device = {}
+        for acc in failed:
+            ds = acc.get('device_serial', 'unassigned')
+            if ds not in by_device:
+                by_device[ds] = []
+            by_device[ds].append({
+                'id': acc['id'],
+                'username': acc['username'],
+                'device_serial': ds,
+                'device_name': acc.get('device_name', ''),
+                'instagram_package': acc.get('instagram_package', ''),
+                'status': acc['status'],
+            })
+        return jsonify({
+            'status': 'success',
+            'failed': failed,
+            'by_device': by_device,
+            'total': len(failed),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@login_v2_bp.route('/api/login-v2/replace-failed', methods=['POST'])
+def api_replace_failed():
+    """
+    Replace failed accounts with new credentials.
+    
+    Body: {
+        "new_accounts": "user1:pass1:2fa1\\nuser2:pass2:2fa2\\n...",
+        "failed_account_ids": [1, 2, 3, ...]  // optional — if omitted, replaces ALL failed
+    }
+    
+    Maps new accounts 1:1 onto failed slots (same device, same clone package).
+    If fewer new accounts than failed slots, only the first N are replaced.
+    If more new accounts than failed slots, extras are ignored.
+    """
+    try:
+        data = request.get_json()
+        raw_text = data.get('new_accounts', '')
+        target_ids = data.get('failed_account_ids', [])
+
+        # Parse new accounts
+        new_accounts = []
+        for line in raw_text.strip().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split(':')
+            if len(parts) < 2:
+                continue
+            new_accounts.append({
+                'username': parts[0].strip(),
+                'password': parts[1].strip(),
+                'two_fa_token': parts[2].strip() if len(parts) > 2 and parts[2].strip() else '',
+            })
+
+        if not new_accounts:
+            return jsonify({'status': 'error', 'message': 'No valid accounts parsed. Use format: username:password:2fa (one per line)'}), 400
+
+        # Get failed accounts to replace
+        if target_ids:
+            failed = [get_account_by_id(aid) for aid in target_ids]
+            failed = [a for a in failed if a and a.get('status') == 'login_failed']
+        else:
+            failed = get_all_accounts(status_filter=['login_failed'])
+
+        if not failed:
+            return jsonify({'status': 'error', 'message': 'No failed accounts to replace'}), 400
+
+        # Map 1:1 — new account credentials onto failed slots
+        replaced = []
+        skipped = []
+        for i, new_acc in enumerate(new_accounts):
+            if i >= len(failed):
+                skipped.append(new_acc['username'])
+                continue
+
+            old = failed[i]
+            # Update the existing row: swap credentials, reset status
+            update_account(old['id'],
+                username=new_acc['username'],
+                password=new_acc['password'],
+                two_fa_token=new_acc['two_fa_token'],
+                status='pending_login',
+            )
+            replaced.append({
+                'old_username': old['username'],
+                'new_username': new_acc['username'],
+                'device_serial': old.get('device_serial', ''),
+                'instagram_package': old.get('instagram_package', ''),
+            })
+
+        unfilled = len(failed) - len(replaced)
+
+        return jsonify({
+            'status': 'success',
+            'replaced': len(replaced),
+            'details': replaced,
+            'skipped_new': skipped,
+            'unfilled_slots': unfilled,
+            'message': f'Replaced {len(replaced)} accounts. {unfilled} failed slots still unfilled.' if unfilled > 0
+                       else f'Replaced {len(replaced)} accounts. All failed slots filled!',
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 # ─────────────────────────────────────────────
 # BACKGROUND LOGIN WORKER
 # ─────────────────────────────────────────────
