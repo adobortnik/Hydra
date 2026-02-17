@@ -216,6 +216,14 @@ class LoginAutomation:
                 print("[OK] Already logged in (profile tab visible)")
                 return 'logged_in'
 
+            # Check for suspended/disabled account (dead end)
+            suspended_keywords = ["we suspended your account", "your account has been disabled",
+                                  "account was disabled", "days left to appeal", "permanently disable"]
+            for keyword in suspended_keywords:
+                if keyword in xml_lower:
+                    print(f"[X] Account SUSPENDED/DISABLED: '{keyword}'")
+                    return 'suspended'
+
             # Check for SMS verification screen (dead end — can't proceed)
             sms_keywords = ["check your sms", "we sent a link", "sent a code to", "check your email"]
             for keyword in sms_keywords:
@@ -1089,6 +1097,14 @@ class LoginAutomation:
                 result['login_type'] = 'already_logged_in'
                 return result
 
+            # Handle suspended/disabled account (dead end)
+            if screen_state == 'suspended':
+                print("\n[X] Account is SUSPENDED — cannot login")
+                result['error'] = "Account suspended by Instagram"
+                result['challenge_encountered'] = True
+                result['login_type'] = 'suspended'
+                return result
+
             # Handle SMS/Email verification (dead end — can't login)
             if screen_state == 'sms_challenge':
                 print("\n[X] SMS/Email verification required — account cannot be logged in automatically")
@@ -1123,8 +1139,18 @@ class LoginAutomation:
             print("-"*70)
             time.sleep(6)  # Increased from 5 to 6 seconds
 
-            # Check for SMS/Email verification (dead end) before checking 2FA
+            # Check for suspended account (dead end) after entering credentials
             xml_check = self.device.dump_hierarchy().lower()
+            suspended_checks = ["we suspended your account", "your account has been disabled",
+                                "account was disabled", "days left to appeal", "permanently disable"]
+            for kw in suspended_checks:
+                if kw in xml_check:
+                    print(f"\n[X] Account SUSPENDED after credentials: '{kw}'")
+                    result['error'] = "Account suspended by Instagram"
+                    result['login_type'] = 'suspended'
+                    return result
+
+            # Check for SMS/Email verification (dead end) before checking 2FA
             sms_dead_ends = ["check your sms", "we sent a link", "sent a code to", "check your email"]
             for kw in sms_dead_ends:
                 if kw in xml_check:
