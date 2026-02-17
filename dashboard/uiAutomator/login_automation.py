@@ -629,20 +629,68 @@ class LoginAutomation:
         print("Entering 2FA code...")
 
         try:
-            # Find code input field
-            code_field = self.device(className="android.widget.EditText")
+            # Find code input field — try multiple selectors
+            code_field = None
+            selectors = [
+                # Standard EditText
+                ("EditText", self.device(className="android.widget.EditText")),
+                # IG sometimes uses resourceId with "code" or "security"
+                ("resourceId ~code", self.device(resourceIdMatches=".*code.*")),
+                ("resourceId ~security", self.device(resourceIdMatches=".*security.*input.*")),
+                ("resourceId ~verification", self.device(resourceIdMatches=".*verification.*")),
+                # Focused/clickable input
+                ("focused input", self.device(focused=True, className="android.widget.EditText")),
+                # IG WebView input fields
+                ("EditText in WebView", self.device(className="android.widget.EditText", packageMatches=".*instagram.*")),
+                # Generic focusable field
+                ("focusable EditText", self.device(className="android.widget.EditText", focusable=True)),
+            ]
 
-            if not code_field.exists(timeout=3):
-                print("[X] Could not find code input field")
+            for name, selector in selectors:
+                if selector.exists(timeout=2):
+                    code_field = selector
+                    print(f"[OK] Found code input field via: {name}")
+                    break
+
+            if not code_field:
+                # Last resort: dump hierarchy and look for any input-like element
+                print("[!] Standard selectors failed, searching XML dump...")
+                xml = self.device.dump_hierarchy()
+                # Check if there's an EditText at all
+                if 'EditText' in xml:
+                    print("[!] EditText exists in XML but selectors didn't match. Trying xpath...")
+                    try:
+                        code_field = self.device.xpath('//android.widget.EditText').get()
+                        if code_field:
+                            print("[OK] Found code input via xpath")
+                    except Exception as xpath_err:
+                        print(f"[!] Xpath attempt failed: {xpath_err}")
+
+            if not code_field:
+                print("[X] Could not find code input field (tried all selectors)")
+                # Dump the XML for debugging
+                try:
+                    xml = self.device.dump_hierarchy()
+                    # Log first 2000 chars to help debug
+                    print(f"[DEBUG] Screen XML (first 2000 chars):\n{xml[:2000]}")
+                except:
+                    pass
                 return False
 
             print("[OK] Found code input field")
-            code_field.click()
+            try:
+                code_field.click()
+            except:
+                # xpath elements use .click() differently
+                pass
             time.sleep(1)
-            code_field.clear_text()
+            try:
+                code_field.clear_text()
+            except:
+                pass
             time.sleep(0.5)
 
-            # Enter code via ADB
+            # Enter code via ADB (most reliable method)
             connection_serial = self.device_serial.replace('_', ':')
             subprocess.run(
                 ['adb', '-s', connection_serial, 'shell', 'input', 'text', code],
