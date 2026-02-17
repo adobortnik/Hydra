@@ -564,7 +564,7 @@ def api_verify_status():
 
 
 def _run_verify(by_device):
-    """Background worker: verify accounts are actually logged in on each device."""
+    """Coordinator: spawn one thread per device for parallel verification."""
     import builtins
     _orig_print = builtins.print
     def _fp(*a, **kw):
@@ -572,126 +572,137 @@ def _run_verify(by_device):
         _orig_print(*a, **kw)
     builtins.print = _fp
 
+    threads = []
+    for device_serial, accounts in by_device.items():
+        t = threading.Thread(target=_verify_one_device, args=(device_serial, accounts), daemon=True)
+        threads.append(t)
+        t.start()
+        print(f"[VERIFY] Started thread for {device_serial} ({len(accounts)} accounts)")
+
+    # Wait for all threads to finish
+    for t in threads:
+        t.join()
+
+    with _verify_lock:
+        v = _verify_state
+        v['progress'] = f"Done! {v['verified']} verified, {v['failed']} failed, {v['unreachable']} unreachable"
+        v['running'] = False
+
+    print(f"[VERIFY] === COMPLETE === Verified: {_verify_state['verified']}, "
+          f"Failed: {_verify_state['failed']}, Unreachable: {_verify_state['unreachable']}")
+
+
+def _verify_one_device(device_serial, accounts):
+    """Verify all accounts on a single device. Runs in its own thread."""
     try:
         import uiautomator2 as u2
+        adb_serial = serial_db_to_adb(device_serial)
 
-        for device_serial, accounts in by_device.items():
-            adb_serial = serial_db_to_adb(device_serial)
+        # Check device reachable
+        if not check_device_reachable(device_serial):
+            print(f"[VERIFY] Device {device_serial} not reachable — skipping {len(accounts)} accounts")
+            with _verify_lock:
+                _verify_state['unreachable'] += len(accounts)
+                _verify_state['checked'] += len(accounts)
+                for acc in accounts:
+                    _verify_state['results'].append({
+                        'username': acc['username'],
+                        'device': device_serial,
+                        'status': 'device_unreachable',
+                    })
+            return
 
-            # Check device reachable
-            if not check_device_reachable(device_serial):
-                print(f"[VERIFY] Device {device_serial} not reachable — skipping {len(accounts)} accounts")
-                with _verify_lock:
-                    _verify_state['unreachable'] += len(accounts)
-                    _verify_state['checked'] += len(accounts)
-                    for acc in accounts:
-                        _verify_state['results'].append({
-                            'username': acc['username'],
-                            'device': device_serial,
-                            'status': 'device_unreachable',
-                        })
-                continue
+        # Connect to device
+        try:
+            print(f"[VERIFY] Connecting to {device_serial}...")
+            device = u2.connect(adb_serial)
+            device.info  # test connection
+        except Exception as ce:
+            print(f"[VERIFY] Failed to connect to {device_serial}: {ce}")
+            with _verify_lock:
+                _verify_state['unreachable'] += len(accounts)
+                _verify_state['checked'] += len(accounts)
+            return
 
-            # Connect to device
+        for acc in accounts:
+            username = acc.get('username', '?')
+            package = acc.get('instagram_package', 'com.instagram.android')
+            acc_id = acc['id']
+
+            with _verify_lock:
+                _verify_state['progress'] = f'Checking {username} on {device_serial}...'
+
             try:
-                print(f"[VERIFY] Connecting to {device_serial}...")
-                device = u2.connect(adb_serial)
-                device.info  # test connection
-            except Exception as ce:
-                print(f"[VERIFY] Failed to connect to {device_serial}: {ce}")
-                with _verify_lock:
-                    _verify_state['unreachable'] += len(accounts)
-                    _verify_state['checked'] += len(accounts)
-                continue
+                print(f"[VERIFY] Checking {username} ({package}) on {device_serial}...")
 
-            for acc in accounts:
-                username = acc.get('username', '?')
-                package = acc.get('instagram_package', 'com.instagram.android')
-                acc_id = acc['id']
+                # Open the specific IG clone
+                device.app_start(package)
+                time.sleep(4)
 
-                with _verify_lock:
-                    _verify_state['progress'] = f'Checking {username} on {device_serial}...'
+                # Check if logged in — look for profile/home/search tabs
+                logged_in = False
+                xml = device.dump_hierarchy()
+                xml_lower = xml.lower()
 
-                try:
-                    print(f"[VERIFY] Checking {username} ({package}) on {device_serial}...")
-
-                    # Open the specific IG clone
-                    device.app_start(package)
-                    time.sleep(4)
-
-                    # Check if logged in — look for profile/home/search tabs
+                # Profile tab (standard indicator)
+                if device(description="Profile").exists(timeout=3):
+                    logged_in = True
+                elif device(description="Home").exists(timeout=2):
+                    logged_in = True
+                elif device(description="Search").exists(timeout=2) or device(description="Explore").exists(timeout=2):
+                    logged_in = True
+                elif 'tab_bar' in xml_lower or 'bottom_bar' in xml_lower:
+                    logged_in = True
+                # Check for login screen (definitely NOT logged in)
+                elif 'log in' in xml_lower and ('password' in xml_lower or 'phone' in xml_lower):
                     logged_in = False
-                    xml = device.dump_hierarchy()
-                    xml_lower = xml.lower()
+                # Check for suspended
+                elif 'suspended' in xml_lower or 'disabled' in xml_lower:
+                    logged_in = False
 
-                    # Profile tab (standard indicator)
-                    if device(description="Profile").exists(timeout=3):
-                        logged_in = True
-                    elif device(description="Home").exists(timeout=2):
-                        logged_in = True
-                    elif device(description="Search").exists(timeout=2) or device(description="Explore").exists(timeout=2):
-                        logged_in = True
-                    elif 'tab_bar' in xml_lower or 'bottom_bar' in xml_lower:
-                        logged_in = True
-                    # Check for login screen (definitely NOT logged in)
-                    elif 'log in' in xml_lower and ('password' in xml_lower or 'phone' in xml_lower):
-                        logged_in = False
-                    # Check for suspended
-                    elif 'suspended' in xml_lower or 'disabled' in xml_lower:
-                        logged_in = False
-
-                    if logged_in:
-                        print(f"[VERIFY] ✓ {username} — LOGGED IN")
-                        with _verify_lock:
-                            _verify_state['verified'] += 1
-                            _verify_state['results'].append({
-                                'username': username, 'device': device_serial,
-                                'package': package, 'status': 'verified',
-                            })
-                    else:
-                        print(f"[VERIFY] ✗ {username} — NOT LOGGED IN → marking as login_failed")
-                        update_account_status(acc_id, 'login_failed')
-                        with _verify_lock:
-                            _verify_state['failed'] += 1
-                            _verify_state['results'].append({
-                                'username': username, 'device': device_serial,
-                                'package': package, 'status': 'not_logged_in',
-                            })
-
-                except Exception as e:
-                    print(f"[VERIFY] Error checking {username}: {e}")
+                if logged_in:
+                    print(f"[VERIFY] {device_serial} | {username} — LOGGED IN")
                     with _verify_lock:
+                        _verify_state['verified'] += 1
                         _verify_state['results'].append({
                             'username': username, 'device': device_serial,
-                            'status': 'error', 'error': str(e),
+                            'package': package, 'status': 'verified',
+                        })
+                else:
+                    print(f"[VERIFY] {device_serial} | {username} — NOT LOGGED IN -> login_failed")
+                    update_account_status(acc_id, 'login_failed')
+                    with _verify_lock:
+                        _verify_state['failed'] += 1
+                        _verify_state['results'].append({
+                            'username': username, 'device': device_serial,
+                            'package': package, 'status': 'not_logged_in',
                         })
 
+            except Exception as e:
+                print(f"[VERIFY] {device_serial} | Error checking {username}: {e}")
                 with _verify_lock:
-                    _verify_state['checked'] += 1
+                    _verify_state['results'].append({
+                        'username': username, 'device': device_serial,
+                        'status': 'error', 'error': str(e),
+                    })
 
-                # Brief pause between accounts
-                time.sleep(2)
+            with _verify_lock:
+                _verify_state['checked'] += 1
 
-            # Press home after checking all accounts on device
-            try:
-                device.press('home')
-            except:
-                pass
+            # Brief pause between accounts on same device
+            time.sleep(2)
 
-        with _verify_lock:
-            v = _verify_state
-            v['progress'] = f"Done! {v['verified']} verified, {v['failed']} failed, {v['unreachable']} unreachable"
-            v['running'] = False
-
-        print(f"[VERIFY] === COMPLETE === Verified: {_verify_state['verified']}, "
-              f"Failed: {_verify_state['failed']}, Unreachable: {_verify_state['unreachable']}")
+        # Press home after done
+        try:
+            device.press('home')
+        except:
+            pass
 
     except Exception as e:
+        print(f"[VERIFY] {device_serial} | Thread error: {e}")
         traceback.print_exc()
         with _verify_lock:
-            _verify_state['running'] = False
             _verify_state['error'] = str(e)
-            _verify_state['progress'] = f'Error: {e}'
 
 
 # ─────────────────────────────────────────────
