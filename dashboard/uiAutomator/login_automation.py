@@ -1208,25 +1208,26 @@ class LoginAutomation:
                 result['error'] = "Failed to enter credentials"
                 return result
 
+            # Quick check for Wrong Password modal (appears instantly)
+            time.sleep(3)
+            xml_quick = self.device.dump_hierarchy().lower()
+            wrong_pw_keywords = ["wrong password", "incorrect password", "password you entered is incorrect",
+                                 "password was incorrect", "the password you entered"]
+            for kw in wrong_pw_keywords:
+                if kw in xml_quick:
+                    print(f"\n[X] WRONG PASSWORD detected: '{kw}'")
+                    result['error'] = "Wrong password"
+                    result['login_type'] = 'wrong_password'
+                    return result
+
             # Wait and check for 2FA (give it more time to appear)
             print("\n" + "-"*70)
             print("CHECKING FOR 2FA SCREEN...")
             print("-"*70)
-            time.sleep(6)  # Increased from 5 to 6 seconds
+            time.sleep(3)  # Already waited 3s above, total ~6s
 
             # Post-credential screen checks
             xml_check = self.device.dump_hierarchy().lower()
-
-            # Check for WRONG PASSWORD (must fail, not complete)
-            wrong_pw_keywords = ["wrong password", "incorrect password", "password you entered is incorrect",
-                                 "password was incorrect", "didn't match", "does not match",
-                                 "the password you entered", "forgot password"]
-            for kw in wrong_pw_keywords:
-                if kw in xml_check:
-                    print(f"\n[X] WRONG PASSWORD detected: '{kw}'")
-                    result['error'] = f"Wrong password"
-                    result['login_type'] = 'wrong_password'
-                    return result
 
             # Check for suspended account (dead end) after entering credentials
             suspended_checks = ["we suspended your account", "your account has been disabled",
