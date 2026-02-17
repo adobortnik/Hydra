@@ -178,9 +178,14 @@ class LoginAutomation:
         print(f"{'='*70}")
 
         try:
+            # Force-stop first to ensure clean slate (no stale screens)
+            print(f"[...] Force-stopping {instagram_package} first...")
+            self.device.app_stop(instagram_package)
+            time.sleep(2)
+
             # Use uiautomator2's app_start with monkey (most reliable)
             self.device.app_start(instagram_package, use_monkey=True)
-            print("[OK] Instagram launched with monkey")
+            print("[OK] Instagram launched with monkey (fresh start)")
             time.sleep(5)  # Give app time to launch
 
             # Verify app is running

@@ -335,24 +335,30 @@ def api_export_failed():
         if not failed:
             return jsonify({'status': 'error', 'message': 'No failed accounts to export'}), 404
 
-        # Build CSV
-        output = io.StringIO()
-        writer = csv.writer(output)
+        # Get 2FA tokens from account_settings
+        from phone_farm_db import get_conn
+        conn = get_conn()
+        tfa_map = {}
+        for acc in failed:
+            try:
+                row = conn.execute(
+                    "SELECT settings_json FROM account_settings WHERE account_id = ?",
+                    (acc['id'],)
+                ).fetchone()
+                if row:
+                    s = json.loads(row['settings_json'] or '{}')
+                    tfa_map[acc['id']] = s.get('code_2fa', '')
+            except:
+                pass
+        conn.close()
 
-        # Header
-        writer.writerow(['username', 'password', 'device_serial', 'device_name',
-                         'status', 'instagram_package', 'error_reason'])
+        # Build CSV — simple format: username:password:2fa
+        output = io.StringIO()
 
         for acc in failed:
-            writer.writerow([
-                acc.get('username', ''),
-                acc.get('password', ''),
-                acc.get('device_serial', ''),
-                acc.get('device_name', ''),
-                acc.get('status', ''),
-                acc.get('instagram_package', ''),
-                acc.get('notes', acc.get('error_message', '')),
-            ])
+            tfa = acc.get('two_fa_token', '') or tfa_map.get(acc['id'], '')
+            line = f"{acc.get('username', '')}:{acc.get('password', '')}:{tfa}"
+            output.write(line + '\n')
 
         csv_data = output.getvalue()
         output.close()
