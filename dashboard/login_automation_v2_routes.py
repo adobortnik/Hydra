@@ -142,11 +142,29 @@ def api_create_login_tasks():
                 errors.append(f"{acc['username']}: no device assigned")
                 continue
 
+            # Get 2FA token — try accounts.two_fa_token first, fallback to account_settings.code_2fa
+            tfa = acc.get('two_fa_token', '')
+            if not tfa:
+                try:
+                    from phone_farm_db import get_conn as _gc
+                    _c = _gc()
+                    _row = _c.execute(
+                        "SELECT settings_json FROM account_settings WHERE account_id = ?",
+                        (acc['id'],)
+                    ).fetchone()
+                    _c.close()
+                    if _row:
+                        import json as _j
+                        _s = _j.loads(_row['settings_json'] or '{}')
+                        tfa = _s.get('code_2fa', '')
+                except Exception:
+                    pass
+
             # Build params for the login task
             params = {
                 'username': acc['username'],
                 'password': acc.get('password', ''),
-                'two_fa_token': acc.get('two_fa_token', ''),
+                'two_fa_token': tfa,
                 'instagram_package': acc.get('instagram_package', 'com.instagram.android'),
                 'device_serial': acc['device_serial'],
             }

@@ -1264,11 +1264,12 @@ class LoginAutomation:
                 two_fa_detected = self._try_another_way_to_2fa()
 
             if two_fa_detected:
-                print("\n[OK] 2FA screen detected")
+                print(f"\n[OK] 2FA screen detected (two_fa_token={'YES: '+two_fa_token[:8]+'...' if two_fa_token else 'NONE/EMPTY'})")
                 result['two_fa_used'] = True
 
                 if not two_fa_token:
                     result['error'] = "2FA required but no token provided"
+                    print("[X] No 2FA token available — cannot proceed")
                     return result
 
                 if not self.handle_two_factor(two_fa_token):
