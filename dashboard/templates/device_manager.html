@@ -220,15 +220,20 @@
     </div>
 </div>
 
-<!-- Quick Search -->
-<div class="mb-3">
-    <div class="search-wrapper">
+<!-- Quick Search + Group Filter -->
+<div class="mb-3 d-flex gap-3 align-items-start flex-wrap">
+    <div class="search-wrapper flex-grow-1">
         <input type="text" id="deviceSearch" class="form-control bg-dark text-white border-secondary"
                placeholder="Search devices - name, serial, IP, status, account..." autocomplete="off" spellcheck="false">
         <i class="fas fa-search search-icon"></i>
         <button type="button" class="search-clear" id="searchClear" title="Clear search (Esc)">
             <i class="fas fa-times"></i>
         </button>
+    </div>
+    <div style="min-width:150px">
+        <select id="groupFilter" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="filterDevices()" style="height:42px">
+            <option value="">All groups</option>
+        </select>
     </div>
     <div class="search-count d-none" id="searchCount"></div>
 </div>
@@ -247,6 +252,7 @@
                         <th style="width:50px">Status</th>
                         <th>Device ID</th>
                         <th>Device Name</th>
+                        <th style="width:80px">Group</th>
                         <th style="width:100px">Accounts</th>
                         <th style="width:90px;cursor:pointer;user-select:none" onclick="toggleDateSort()" title="Click to sort by date added">
                             Added <i class="fas fa-sort" id="dateSortIcon" style="font-size:0.7rem;opacity:0.5"></i>
@@ -257,7 +263,7 @@
                 </thead>
                 <tbody id="deviceTableBody">
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
+                        <td colspan="8" class="text-center text-muted py-4">
                             <i class="fas fa-spinner fa-spin me-2"></i>Loading devices...
                         </td>
                     </tr>
@@ -394,7 +400,7 @@ function renderDevices(devices) {
     const tbody = document.getElementById('deviceTableBody');
 
     if (!devices.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">
             <i class="fas fa-inbox me-2"></i>No devices found
         </td></tr>`;
         return;
@@ -418,6 +424,9 @@ function renderDevices(devices) {
             <td><span class="status-dot ${statusClass}" title="${dev.status}"></span></td>
             <td class="device-serial">${escHtml(dev.device_serial)}</td>
             <td class="device-name">${escHtml(dev.device_name || '-')}</td>
+            <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" 
+                value="${escHtml(dev.device_group || '')}" style="width:80px;font-size:0.75rem;padding:2px 6px" 
+                onchange="updateDeviceGroup(${dev.id}, this.value)" placeholder="-" title="Set group tag"></td>
             <td><span class="account-badge">${dev.account_count || 0}</span></td>
             <td><small class="text-muted">${addedDisplay}</small></td>
             <td><span class="bot-badge ${botClass}">${botLabel}</span></td>
@@ -458,6 +467,37 @@ function updateStats(devices) {
     document.getElementById('statOffline').textContent = offline;
     document.getElementById('statAccounts').textContent = accounts;
 
+    // Populate group filter
+    const groupSelect = document.getElementById('groupFilter');
+    const currentGroup = groupSelect.value;
+    const groups = [...new Set(devices.map(d => d.device_group || '').filter(g => g))].sort();
+    let ghtml = '<option value="">All groups</option>';
+    groups.forEach(g => {
+        const cnt = devices.filter(d => (d.device_group || '') === g).length;
+        ghtml += `<option value="${g}">${g} (${cnt})</option>`;
+    });
+    groupSelect.innerHTML = ghtml;
+    if (currentGroup && groups.includes(currentGroup)) groupSelect.value = currentGroup;
+}
+
+function updateDeviceGroup(deviceId, newGroup) {
+    fetch('/api/device-manager/update-group', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({device_id: deviceId, device_group: newGroup.trim()})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Update local data
+            const dev = devicesData.find(d => d.id === deviceId);
+            if (dev) dev.device_group = newGroup.trim();
+            updateStats(devicesData);
+            showToast('Group updated', 'success');
+        } else {
+            showToast('Error: ' + (data.error || 'Unknown'), 'danger');
+        }
+    });
 }
 
 let dateSortOrder = 'none'; // none → asc → desc → none
@@ -576,7 +616,7 @@ function showToast(message, type = 'info') {
 
 function showError(msg) {
     document.getElementById('deviceTableBody').innerHTML =
-        `<tr><td colspan="7" class="text-center text-danger py-4">
+        `<tr><td colspan="8" class="text-center text-danger py-4">
             <i class="fas fa-exclamation-triangle me-2"></i>${escHtml(msg)}
         </td></tr>`;
 }
@@ -766,13 +806,14 @@ const searchCount = document.getElementById('searchCount');
 
 function filterDevices() {
     const query = searchInput.value.trim().toLowerCase();
+    const groupVal = document.getElementById('groupFilter').value;
     const tbody = document.getElementById('deviceTableBody');
     const rows = tbody.querySelectorAll('tr');
     
     // Toggle clear button
     searchClear.classList.toggle('visible', query.length > 0);
     
-    if (!query) {
+    if (!query && !groupVal) {
         // Show all rows
         rows.forEach(r => r.style.display = '');
         searchCount.classList.add('d-none');
@@ -787,13 +828,21 @@ function filterDevices() {
         // Skip placeholder rows (loading, empty, error)
         if (row.querySelector('td[colspan]')) return;
         total++;
-        const text = row.textContent.toLowerCase();
-        if (text.includes(query)) {
-            row.style.display = '';
-            visible++;
-        } else {
-            row.style.display = 'none';
+        let show = true;
+        
+        if (query) {
+            const text = row.textContent.toLowerCase();
+            if (!text.includes(query)) show = false;
         }
+        if (groupVal && show) {
+            // Check group input value in this row
+            const groupInput = row.querySelector('input[type="text"]');
+            const rowGroup = groupInput ? groupInput.value.trim() : '';
+            if (rowGroup !== groupVal) show = false;
+        }
+        
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
     });
     
     // If total is 0, the table might still be loading

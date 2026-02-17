@@ -24,6 +24,23 @@ def get_conn():
     return conn
 
 
+def _ensure_columns():
+    """Add missing columns to existing tables (safe migrations)."""
+    try:
+        conn = get_conn()
+        # Add device_group to devices table
+        try:
+            conn.execute("ALTER TABLE devices ADD COLUMN device_group TEXT DEFAULT ''")
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
+        conn.close()
+    except Exception:
+        pass
+
+_ensure_columns()
+
+
 def row_to_dict(row):
     """Convert a sqlite3.Row to a plain dict."""
     return dict(row) if row else None
@@ -95,7 +112,7 @@ def add_device(device_serial, device_name=None, ip_address=None, adb_port=5555, 
 
 def update_device(device_id, **kwargs):
     """Update device fields. Pass only the fields you want to change."""
-    allowed = {'device_name', 'ip_address', 'adb_port', 'status', 'last_seen', 'notes'}
+    allowed = {'device_name', 'ip_address', 'adb_port', 'status', 'last_seen', 'notes', 'device_group'}
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:
         return False

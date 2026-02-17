@@ -339,6 +339,52 @@ def api_detect_foreground_app(serial):
         return jsonify(success=False, error=str(e))
 
 
+# ── API: Update Device Group ────────────────────────────────────────
+
+@device_manager_bp.route('/api/device-manager/update-group', methods=['POST'])
+def api_update_device_group():
+    """Update device_group tag for a device."""
+    data = request.get_json() or {}
+    device_id = data.get('device_id')
+    group = data.get('device_group', '')
+
+    if not device_id:
+        return jsonify({'success': False, 'error': 'No device_id'}), 400
+
+    try:
+        from phone_farm_db import get_conn
+        conn = get_conn()
+        conn.execute("UPDATE devices SET device_group = ? WHERE id = ?", (group, device_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@device_manager_bp.route('/api/device-manager/bulk-group', methods=['POST'])
+def api_bulk_update_group():
+    """Set device_group for multiple devices at once."""
+    data = request.get_json() or {}
+    device_ids = data.get('device_ids', [])
+    group = data.get('device_group', '')
+
+    if not device_ids:
+        return jsonify({'success': False, 'error': 'No devices selected'}), 400
+
+    try:
+        from phone_farm_db import get_conn
+        conn = get_conn()
+        placeholders = ','.join('?' * len(device_ids))
+        conn.execute(f"UPDATE devices SET device_group = ? WHERE id IN ({placeholders})",
+                     [group] + device_ids)
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'updated': len(device_ids)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ── API: Update Account App ID ─────────────────────────────────────
 
 @device_manager_bp.route('/api/device-manager/<path:serial>/update-app-id', methods=['POST'])
