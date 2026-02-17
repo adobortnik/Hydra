@@ -591,17 +591,24 @@ class LoginAutomation:
 
             print(f"{TAG} Step 2: Looking for 'Try another way' button...")
 
-            # Step 2: Click "Try another way" — may need scrolling
+            # Small scroll first — button is always at bottom edge, often just off-screen
+            try:
+                w, h = self.device.window_size()
+                self.device.swipe(w // 2, int(h * 0.7), w // 2, int(h * 0.4), duration=0.3)
+                time.sleep(1.5)
+            except:
+                pass
+
+            # Step 2: Click "Try another way"
             try_another = self.device(textContains="Try another way")
             if not try_another.exists(timeout=5):
                 try_another = self.device(textContains="another way")
 
             if not try_another.exists(timeout=5):
-                # Scroll down to reveal button
-                print(f"{TAG} Scrolling down to find 'Try another way'...")
+                # Bigger scroll and retry
+                print(f"{TAG} Not found yet — scrolling more...")
                 try:
-                    w, h = self.device.window_size()
-                    self.device.swipe(w // 2, int(h * 0.8), w // 2, int(h * 0.3), duration=0.3)
+                    self.device.swipe(w // 2, int(h * 0.85), w // 2, int(h * 0.2), duration=0.3)
                     time.sleep(2)
                 except:
                     pass
