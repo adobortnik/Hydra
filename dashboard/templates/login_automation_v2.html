@@ -67,6 +67,9 @@
             <button class="btn btn-sm btn-outline-info" onclick="exportFailed()">
                 <i class="fas fa-file-csv me-1"></i> Export Failed CSV
             </button>
+            <button class="btn btn-sm btn-info" onclick="startVerify()" id="verifyBtn">
+                <i class="fas fa-check-double me-1"></i> Re-verify Accounts
+            </button>
             <button class="btn btn-success" id="loginBtn" onclick="loginSelected()">
                 <i class="fas fa-sign-in-alt me-1"></i> Login Selected (<span id="selectedCount">0</span>)
             </button>
@@ -312,6 +315,59 @@ function updateSelectedCount() {
 
 function getSelectedIds() {
     return $('.acc-check:checked').map(function() { return parseInt($(this).data('id')); }).get();
+}
+
+function startVerify() {
+    const activeCount = allAccounts.filter(a => a.status === 'active').length;
+    if (activeCount === 0) {
+        showToast('No active accounts to verify', 'warning');
+        return;
+    }
+    if (!confirm(`Re-verify ${activeCount} active account(s)?\n\nThis will open each IG clone and check if the account is actually logged in. Accounts that aren't logged in will be marked as "login_failed".\n\nThis may take a while.`)) return;
+
+    const btn = $('#verifyBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Verifying...');
+
+    $.ajax({
+        url: '/api/login-v2/verify-accounts',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(`Verification started: ${data.total} accounts`, 'info');
+                pollVerifyStatus();
+            } else {
+                showToast(data.message || 'Failed to start', 'danger');
+                btn.prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Re-verify Accounts');
+            }
+        },
+        error: function(xhr) {
+            const msg = xhr.responseJSON ? xhr.responseJSON.message : 'Error';
+            showToast(msg, 'danger');
+            btn.prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Re-verify Accounts');
+        }
+    });
+}
+
+let _verifyPoll = null;
+function pollVerifyStatus() {
+    _verifyPoll = setInterval(function() {
+        $.get('/api/login-v2/verify-status', function(data) {
+            const btn = $('#verifyBtn');
+            if (data.total > 0) {
+                const pct = Math.round((data.checked / data.total) * 100);
+                btn.html(`<i class="fas fa-spinner fa-spin me-1"></i> ${data.checked}/${data.total} (${pct}%)`);
+            }
+            if (!data.running) {
+                clearInterval(_verifyPoll);
+                btn.prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Re-verify Accounts');
+                showToast(`Verification done: ${data.verified} OK, ${data.failed} failed, ${data.unreachable} unreachable`, 
+                    data.failed > 0 ? 'warning' : 'success');
+                loadAccounts();
+            }
+        });
+    }, 3000);
 }
 
 function exportFailed() {

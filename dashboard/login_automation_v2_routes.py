@@ -466,6 +466,221 @@ def api_replace_failed():
 
 
 # ─────────────────────────────────────────────
+# RE-VERIFY ACCOUNTS
+# ─────────────────────────────────────────────
+
+_verify_state = {
+    'running': False,
+    'progress': '',
+    'total': 0,
+    'checked': 0,
+    'verified': 0,
+    'failed': 0,
+    'unreachable': 0,
+    'results': [],
+    'error': None,
+}
+_verify_lock = threading.Lock()
+
+
+@login_v2_bp.route('/api/login-v2/verify-accounts', methods=['POST'])
+def api_verify_accounts():
+    """
+    Start a background job to re-verify which accounts are actually logged in.
+    Opens each account's IG clone, checks if logged in, marks failed ones.
+    
+    Body: { "device_serials": [...] }  — optional, defaults to all connected devices
+    """
+    with _verify_lock:
+        if _verify_state['running']:
+            return jsonify({'status': 'error', 'message': 'Verification already running'}), 409
+
+    data = request.get_json() or {}
+    device_serials = data.get('device_serials', [])
+
+    # Get accounts to verify — only "active" ones (the ones we think are logged in)
+    if device_serials:
+        accounts = []
+        for ds in device_serials:
+            accounts.extend(get_accounts_for_device(ds))
+        accounts = [a for a in accounts if a.get('status') == 'active']
+    else:
+        accounts = get_all_accounts(status_filter=['active'])
+
+    if not accounts:
+        return jsonify({'status': 'error', 'message': 'No active accounts to verify'}), 400
+
+    # Group by device
+    by_device = {}
+    for acc in accounts:
+        ds = acc.get('device_serial', '')
+        if ds not in by_device:
+            by_device[ds] = []
+        by_device[ds].append(acc)
+
+    with _verify_lock:
+        _verify_state.update({
+            'running': True,
+            'progress': 'Starting verification...',
+            'total': len(accounts),
+            'checked': 0,
+            'verified': 0,
+            'failed': 0,
+            'unreachable': 0,
+            'results': [],
+            'error': None,
+        })
+
+    # Start background thread
+    t = threading.Thread(target=_run_verify, args=(by_device,), daemon=True)
+    t.start()
+
+    return jsonify({
+        'status': 'success',
+        'message': f'Verification started for {len(accounts)} accounts on {len(by_device)} devices',
+        'total': len(accounts),
+    })
+
+
+@login_v2_bp.route('/api/login-v2/verify-status', methods=['GET'])
+def api_verify_status():
+    """Get verification progress."""
+    with _verify_lock:
+        return jsonify(_verify_state.copy())
+
+
+def _run_verify(by_device):
+    """Background worker: verify accounts are actually logged in on each device."""
+    import builtins
+    _orig_print = builtins.print
+    def _fp(*a, **kw):
+        kw.setdefault('flush', True)
+        _orig_print(*a, **kw)
+    builtins.print = _fp
+
+    try:
+        import uiautomator2 as u2
+
+        for device_serial, accounts in by_device.items():
+            adb_serial = serial_db_to_adb(device_serial)
+
+            # Check device reachable
+            if not check_device_reachable(device_serial):
+                print(f"[VERIFY] Device {device_serial} not reachable — skipping {len(accounts)} accounts")
+                with _verify_lock:
+                    _verify_state['unreachable'] += len(accounts)
+                    _verify_state['checked'] += len(accounts)
+                    for acc in accounts:
+                        _verify_state['results'].append({
+                            'username': acc['username'],
+                            'device': device_serial,
+                            'status': 'device_unreachable',
+                        })
+                continue
+
+            # Connect to device
+            try:
+                print(f"[VERIFY] Connecting to {device_serial}...")
+                device = u2.connect(adb_serial)
+                device.info  # test connection
+            except Exception as ce:
+                print(f"[VERIFY] Failed to connect to {device_serial}: {ce}")
+                with _verify_lock:
+                    _verify_state['unreachable'] += len(accounts)
+                    _verify_state['checked'] += len(accounts)
+                continue
+
+            for acc in accounts:
+                username = acc.get('username', '?')
+                package = acc.get('instagram_package', 'com.instagram.android')
+                acc_id = acc['id']
+
+                with _verify_lock:
+                    _verify_state['progress'] = f'Checking {username} on {device_serial}...'
+
+                try:
+                    print(f"[VERIFY] Checking {username} ({package}) on {device_serial}...")
+
+                    # Open the specific IG clone
+                    device.app_start(package)
+                    time.sleep(4)
+
+                    # Check if logged in — look for profile/home/search tabs
+                    logged_in = False
+                    xml = device.dump_hierarchy()
+                    xml_lower = xml.lower()
+
+                    # Profile tab (standard indicator)
+                    if device(description="Profile").exists(timeout=3):
+                        logged_in = True
+                    elif device(description="Home").exists(timeout=2):
+                        logged_in = True
+                    elif device(description="Search").exists(timeout=2) or device(description="Explore").exists(timeout=2):
+                        logged_in = True
+                    elif 'tab_bar' in xml_lower or 'bottom_bar' in xml_lower:
+                        logged_in = True
+                    # Check for login screen (definitely NOT logged in)
+                    elif 'log in' in xml_lower and ('password' in xml_lower or 'phone' in xml_lower):
+                        logged_in = False
+                    # Check for suspended
+                    elif 'suspended' in xml_lower or 'disabled' in xml_lower:
+                        logged_in = False
+
+                    if logged_in:
+                        print(f"[VERIFY] ✓ {username} — LOGGED IN")
+                        with _verify_lock:
+                            _verify_state['verified'] += 1
+                            _verify_state['results'].append({
+                                'username': username, 'device': device_serial,
+                                'package': package, 'status': 'verified',
+                            })
+                    else:
+                        print(f"[VERIFY] ✗ {username} — NOT LOGGED IN → marking as login_failed")
+                        update_account_status(acc_id, 'login_failed')
+                        with _verify_lock:
+                            _verify_state['failed'] += 1
+                            _verify_state['results'].append({
+                                'username': username, 'device': device_serial,
+                                'package': package, 'status': 'not_logged_in',
+                            })
+
+                except Exception as e:
+                    print(f"[VERIFY] Error checking {username}: {e}")
+                    with _verify_lock:
+                        _verify_state['results'].append({
+                            'username': username, 'device': device_serial,
+                            'status': 'error', 'error': str(e),
+                        })
+
+                with _verify_lock:
+                    _verify_state['checked'] += 1
+
+                # Brief pause between accounts
+                time.sleep(2)
+
+            # Press home after checking all accounts on device
+            try:
+                device.press('home')
+            except:
+                pass
+
+        with _verify_lock:
+            v = _verify_state
+            v['progress'] = f"Done! {v['verified']} verified, {v['failed']} failed, {v['unreachable']} unreachable"
+            v['running'] = False
+
+        print(f"[VERIFY] === COMPLETE === Verified: {_verify_state['verified']}, "
+              f"Failed: {_verify_state['failed']}, Unreachable: {_verify_state['unreachable']}")
+
+    except Exception as e:
+        traceback.print_exc()
+        with _verify_lock:
+            _verify_state['running'] = False
+            _verify_state['error'] = str(e)
+            _verify_state['progress'] = f'Error: {e}'
+
+
+# ─────────────────────────────────────────────
 # BACKGROUND LOGIN WORKER
 # ─────────────────────────────────────────────
 
