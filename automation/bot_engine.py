@@ -368,6 +368,11 @@ class BotEngine:
             try:
                 self._device.shell("settings put system accelerometer_rotation 0")
                 self._device.shell("settings put system user_rotation 0")
+                # Window manager level lock (more persistent than u2 freeze)
+                self._device.shell("wm set-user-rotation lock")
+                self._device.shell("wm set-user-rotation lock 0")
+                # Also disable auto-rotate via content provider
+                self._device.shell("content update --uri content://settings/system --bind value:i:0 --where \"name='accelerometer_rotation'\"")
                 self._device.freeze_rotation()
                 self._device.set_orientation('natural')
                 log.debug("[%s] Rotation locked to portrait", self.device_serial)

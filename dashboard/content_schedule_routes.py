@@ -1531,6 +1531,9 @@ def _run_test_post(test_id, account, media_path, content_type,
         try:
             device.shell("settings put system accelerometer_rotation 0")
             device.shell("settings put system user_rotation 0")
+            device.shell("wm set-user-rotation lock")
+            device.shell("wm set-user-rotation lock 0")
+            device.shell("content update --uri content://settings/system --bind value:i:0 --where \"name='accelerometer_rotation'\"")
             device.freeze_rotation()
             device.set_orientation('natural')
         except Exception:

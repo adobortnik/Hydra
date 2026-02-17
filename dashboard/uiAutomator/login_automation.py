@@ -132,6 +132,9 @@ class LoginAutomation:
                 try:
                     self.device.shell("settings put system accelerometer_rotation 0")
                     self.device.shell("settings put system user_rotation 0")
+                    self.device.shell("wm set-user-rotation lock")
+                    self.device.shell("wm set-user-rotation lock 0")
+                    self.device.shell("content update --uri content://settings/system --bind value:i:0 --where \"name='accelerometer_rotation'\"")
                     self.device.freeze_rotation()
                     self.device.set_orientation('natural')
                     print("[OK] Rotation locked to portrait")
