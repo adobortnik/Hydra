@@ -542,58 +542,111 @@ class LoginAutomation:
                 return False
 
             print("\n[!] Detected 'Check notifications on another device' screen")
-            print("[...] Attempting 'Try another way' → 'Authentication app' flow")
+            print("[...] Attempting 'Try another way' -> 'Authentication app' flow")
 
-            # Step 2: Click "Try another way"
+            # Step 2: Click "Try another way" — may need scrolling
             try_another = self.device(textContains="Try another way")
             if not try_another.exists(timeout=3):
-                # Also try "another way" partial match
                 try_another = self.device(textContains="another way")
 
             if not try_another.exists(timeout=3):
-                print("[X] 'Try another way' button not found")
+                # Scroll down to reveal button
+                print("[...] Scrolling down to find 'Try another way'...")
+                try:
+                    w, h = self.device.window_size()
+                    self.device.swipe(w // 2, int(h * 0.8), w // 2, int(h * 0.3), duration=0.3)
+                    time.sleep(2)
+                except:
+                    pass
+                try_another = self.device(textContains="Try another way")
+                if not try_another.exists(timeout=3):
+                    try_another = self.device(textContains="another way")
+
+            if not try_another.exists(timeout=3):
+                print("[X] 'Try another way' button not found even after scroll")
                 return False
 
-            print("[OK] Clicking 'Try another way'...")
+            print("[OK] Found 'Try another way' — clicking...")
             try_another.click()
-            time.sleep(3)
+            time.sleep(4)
 
             # Step 3: Select "Authentication app" on the "Choose a way" screen
             xml_dump = self.device.dump_hierarchy()
             xml_lower = xml_dump.lower()
 
-            if "choose a way" not in xml_lower and "confirmation methods" not in xml_lower:
+            # Check multiple possible screen titles
+            choose_screen = ("choose a way" in xml_lower or "confirmation methods" in xml_lower
+                             or "confirm it" in xml_lower or "authentication app" in xml_lower)
+
+            if not choose_screen:
                 # Maybe we skipped straight to 2FA entry
                 if self.detect_two_factor_screen():
                     print("[OK] Landed directly on 2FA code entry screen")
                     return True
-                print("[X] Not on 'Choose a way' screen after clicking 'Try another way'")
-                return False
+                # Wait a bit more and retry
+                time.sleep(3)
+                xml_lower = self.device.dump_hierarchy().lower()
+                choose_screen = ("choose a way" in xml_lower or "authentication app" in xml_lower)
+                if not choose_screen:
+                    print("[X] Not on 'Choose a way' screen after clicking 'Try another way'")
+                    print(f"[DEBUG] Screen text: {xml_lower[:500]}")
+                    return False
 
             print("[OK] On 'Choose a way to confirm' screen")
 
-            # Click on "Authentication app" option
+            # Click on "Authentication app" radio button / option
             auth_app = self.device(textContains="Authentication app")
             if not auth_app.exists(timeout=3):
                 auth_app = self.device(textContains="authentication app")
+            if not auth_app.exists(timeout=3):
+                # Try finding by description
+                auth_app = self.device(descriptionContains="Authentication app")
 
             if auth_app.exists(timeout=3):
                 print("[OK] Selecting 'Authentication app'...")
                 auth_app.click()
-                time.sleep(1)
+                time.sleep(2)
+                
+                # Verify it's selected — click again if needed (radio button might need direct hit)
+                # Try clicking the radio button circle itself
+                try:
+                    radio = self.device(className="android.widget.RadioButton", textContains="Authentication")
+                    if radio.exists(timeout=2):
+                        if not radio.info.get('checked', False):
+                            print("[...] Radio not checked yet, clicking radio button directly...")
+                            radio.click()
+                            time.sleep(1)
+                        else:
+                            print("[OK] Authentication app radio is checked")
+                except:
+                    pass
             else:
-                print("[X] 'Authentication app' option not found")
+                print("[X] 'Authentication app' option not found on screen")
+                xml_debug = self.device.dump_hierarchy()
+                print(f"[DEBUG] Screen XML (first 1000 chars):\n{xml_debug[:1000]}")
                 return False
 
-            # Step 4: Click "Continue"
+            # Step 4: Click "Continue" — may need scrolling
             continue_btn = self.device(text="Continue")
             if not continue_btn.exists(timeout=3):
                 continue_btn = self.device(textContains="Continue")
+            if not continue_btn.exists(timeout=3):
+                # Scroll down
+                print("[...] Scrolling down to find 'Continue'...")
+                try:
+                    w, h = self.device.window_size()
+                    self.device.swipe(w // 2, int(h * 0.8), w // 2, int(h * 0.3), duration=0.3)
+                    time.sleep(2)
+                except:
+                    pass
+                continue_btn = self.device(text="Continue")
+                if not continue_btn.exists(timeout=3):
+                    continue_btn = self.device(textContains="Continue")
 
             if continue_btn.exists(timeout=3):
                 print("[OK] Clicking 'Continue'...")
                 continue_btn.click()
-                time.sleep(4)
+                time.sleep(5)
             else:
                 print("[X] 'Continue' button not found")
                 return False
@@ -602,9 +655,15 @@ class LoginAutomation:
             if self.detect_two_factor_screen():
                 print("[OK] Successfully navigated to 2FA code entry screen!")
                 return True
-            else:
-                print("[X] Not on 2FA code entry screen after navigation")
-                return False
+
+            # Give it one more chance — sometimes screen loads slowly
+            time.sleep(3)
+            if self.detect_two_factor_screen():
+                print("[OK] 2FA code entry screen appeared after extra wait")
+                return True
+
+            print("[X] Not on 2FA code entry screen after navigation")
+            return False
 
         except Exception as e:
             print(f"[!] Error in _try_another_way_to_2fa: {e}")
