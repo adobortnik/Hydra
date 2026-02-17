@@ -213,6 +213,13 @@ class LoginAutomation:
                 print("[OK] Already logged in (profile tab visible)")
                 return 'logged_in'
 
+            # Check for SMS verification screen (dead end — can't proceed)
+            sms_keywords = ["check your sms", "we sent a link", "sent a code to", "check your email"]
+            for keyword in sms_keywords:
+                if keyword in xml_lower:
+                    print(f"[!] SMS/Email verification screen detected: '{keyword}' — account cannot be logged in")
+                    return 'sms_challenge'
+
             # Check for challenge/verification screens
             challenge_keywords = ["verify", "security check", "unusual activity", "confirm", "suspicious"]
             for keyword in challenge_keywords:
@@ -1026,6 +1033,14 @@ class LoginAutomation:
                 result['login_type'] = 'already_logged_in'
                 return result
 
+            # Handle SMS/Email verification (dead end — can't login)
+            if screen_state == 'sms_challenge':
+                print("\n[X] SMS/Email verification required — account cannot be logged in automatically")
+                result['error'] = "SMS/Email verification required — account is unusable"
+                result['challenge_encountered'] = True
+                result['login_type'] = 'sms_challenge'
+                return result
+
             # Handle challenge screen
             if screen_state == 'challenge':
                 print("\n[!] Challenge/verification screen detected")
@@ -1051,6 +1066,16 @@ class LoginAutomation:
             print("CHECKING FOR 2FA SCREEN...")
             print("-"*70)
             time.sleep(6)  # Increased from 5 to 6 seconds
+
+            # Check for SMS/Email verification (dead end) before checking 2FA
+            xml_check = self.device.dump_hierarchy().lower()
+            sms_dead_ends = ["check your sms", "we sent a link", "sent a code to", "check your email"]
+            for kw in sms_dead_ends:
+                if kw in xml_check:
+                    print(f"\n[X] SMS/Email verification detected after credentials: '{kw}'")
+                    result['error'] = "SMS/Email verification required — account is unusable"
+                    result['login_type'] = 'sms_challenge'
+                    return result
 
             two_fa_detected = self.detect_two_factor_screen()
 
