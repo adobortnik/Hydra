@@ -156,6 +156,54 @@
     </div>
 </div>
 
+<!-- Re-verify Modal -->
+<div class="modal fade" id="verifyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-info">
+            <div class="modal-header border-info">
+                <h5 class="modal-title"><i class="fas fa-check-double me-2 text-info"></i>Re-verify Accounts</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info border-info bg-transparent">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Opens each IG clone on the device and checks if the account is actually logged in.
+                    Accounts that aren't logged in get marked as <strong>login_failed</strong>.
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0"><strong>Select devices:</strong></label>
+                        <div>
+                            <button class="btn btn-sm btn-outline-light me-1" onclick="$('.verify-dev-check').prop('checked', true); updateVerifyCount()">All</button>
+                            <button class="btn btn-sm btn-outline-light" onclick="$('.verify-dev-check').prop('checked', false); updateVerifyCount()">None</button>
+                        </div>
+                    </div>
+                    <div id="verifyDeviceList" style="max-height:300px;overflow-y:auto" class="border border-secondary rounded p-2">
+                        <div class="text-muted text-center py-2">Loading devices...</div>
+                    </div>
+                </div>
+                <div id="verifyCountInfo" class="text-muted small">Select devices to verify</div>
+                <div id="verifyProgress" class="d-none mt-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small class="text-info" id="verifyProgressText">Starting...</small>
+                        <small id="verifyProgressCount" class="text-white">0/0</small>
+                    </div>
+                    <div class="progress" style="height:8px">
+                        <div class="progress-bar bg-info" id="verifyProgressBar" style="width:0%"></div>
+                    </div>
+                </div>
+                <div id="verifyResult" class="d-none mt-3"></div>
+            </div>
+            <div class="modal-footer border-info">
+                <button class="btn btn-info" id="verifyStartBtn" onclick="executeVerify()">
+                    <i class="fas fa-check-double me-1"></i> Start Verification
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Live progress panel (hidden until login starts) -->
 <div class="card bg-dark border-info mb-4 d-none" id="progressPanel">
     <div class="card-header bg-dark border-info d-flex justify-content-between align-items-center">
@@ -318,34 +366,79 @@ function getSelectedIds() {
 }
 
 function startVerify() {
-    const activeCount = allAccounts.filter(a => a.status === 'active').length;
-    if (activeCount === 0) {
+    // Build device list from accounts data
+    const activeAccounts = allAccounts.filter(a => a.status === 'active');
+    if (activeAccounts.length === 0) {
         showToast('No active accounts to verify', 'warning');
         return;
     }
-    if (!confirm(`Re-verify ${activeCount} active account(s)?\n\nThis will open each IG clone and check if the account is actually logged in. Accounts that aren't logged in will be marked as "login_failed".\n\nThis may take a while.`)) return;
 
-    const btn = $('#verifyBtn');
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Verifying...');
+    // Get unique devices that have active accounts
+    const deviceMap = {};
+    activeAccounts.forEach(a => {
+        const ds = a.device_serial || 'unknown';
+        if (!deviceMap[ds]) deviceMap[ds] = { serial: ds, name: a.device_name || ds, count: 0 };
+        deviceMap[ds].count++;
+    });
+    const devices = Object.values(deviceMap).sort((a, b) => a.serial.localeCompare(b.serial));
+
+    let html = '';
+    devices.forEach(d => {
+        html += `<div class="form-check py-1">
+            <input class="form-check-input verify-dev-check" type="checkbox" value="${d.serial}" 
+                   id="vdev_${d.serial.replace(/[.:]/g,'_')}" checked onchange="updateVerifyCount()">
+            <label class="form-check-label d-flex justify-content-between w-100" for="vdev_${d.serial.replace(/[.:]/g,'_')}">
+                <span>${d.name} <small class="text-muted">(${d.serial})</small></span>
+                <span class="badge bg-info">${d.count} accounts</span>
+            </label>
+        </div>`;
+    });
+    $('#verifyDeviceList').html(html);
+    $('#verifyProgress').addClass('d-none');
+    $('#verifyResult').addClass('d-none');
+    $('#verifyStartBtn').prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Start Verification');
+    updateVerifyCount();
+    new bootstrap.Modal('#verifyModal').show();
+}
+
+function updateVerifyCount() {
+    const selected = $('.verify-dev-check:checked').map(function() { return $(this).val(); }).get();
+    const count = allAccounts.filter(a => a.status === 'active' && selected.includes(a.device_serial)).length;
+    $('#verifyCountInfo').html(`<strong>${count}</strong> active account(s) on <strong>${selected.length}</strong> device(s) will be verified`);
+}
+
+function executeVerify() {
+    const selected = $('.verify-dev-check:checked').map(function() { return $(this).val(); }).get();
+    if (selected.length === 0) {
+        showToast('Select at least one device', 'warning');
+        return;
+    }
+
+    const btn = $('#verifyStartBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Starting...');
+    $('#verifyProgress').removeClass('d-none');
+    $('#verifyResult').addClass('d-none');
 
     $.ajax({
         url: '/api/login-v2/verify-accounts',
         method: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({}),
+        data: JSON.stringify({ device_serials: selected }),
         success: function(data) {
             if (data.status === 'success') {
-                showToast(`Verification started: ${data.total} accounts`, 'info');
+                btn.html('<i class="fas fa-spinner fa-spin me-1"></i> Running...');
                 pollVerifyStatus();
             } else {
-                showToast(data.message || 'Failed to start', 'danger');
-                btn.prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Re-verify Accounts');
+                showToast(data.message || 'Failed', 'danger');
+                btn.prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Start Verification');
+                $('#verifyProgress').addClass('d-none');
             }
         },
         error: function(xhr) {
             const msg = xhr.responseJSON ? xhr.responseJSON.message : 'Error';
             showToast(msg, 'danger');
-            btn.prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Re-verify Accounts');
+            btn.prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Start Verification');
+            $('#verifyProgress').addClass('d-none');
         }
     });
 }
@@ -354,16 +447,23 @@ let _verifyPoll = null;
 function pollVerifyStatus() {
     _verifyPoll = setInterval(function() {
         $.get('/api/login-v2/verify-status', function(data) {
-            const btn = $('#verifyBtn');
             if (data.total > 0) {
                 const pct = Math.round((data.checked / data.total) * 100);
-                btn.html(`<i class="fas fa-spinner fa-spin me-1"></i> ${data.checked}/${data.total} (${pct}%)`);
+                $('#verifyProgressBar').css('width', pct + '%');
+                $('#verifyProgressCount').text(`${data.checked} / ${data.total}`);
+                $('#verifyProgressText').text(data.progress || 'Working...');
             }
             if (!data.running) {
                 clearInterval(_verifyPoll);
-                btn.prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Re-verify Accounts');
-                showToast(`Verification done: ${data.verified} OK, ${data.failed} failed, ${data.unreachable} unreachable`, 
-                    data.failed > 0 ? 'warning' : 'success');
+                $('#verifyStartBtn').prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Start Verification');
+                
+                let resultHtml = `<div class="alert ${data.failed > 0 ? 'alert-warning border-warning' : 'alert-success border-success'} bg-transparent mb-0">
+                    <strong>Done!</strong><br>
+                    <span class="text-success">${data.verified}</span> verified OK &nbsp;|&nbsp;
+                    <span class="text-danger">${data.failed}</span> marked failed &nbsp;|&nbsp;
+                    <span class="text-muted">${data.unreachable}</span> unreachable
+                </div>`;
+                $('#verifyResult').html(resultHtml).removeClass('d-none');
                 loadAccounts();
             }
         });
