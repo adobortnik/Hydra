@@ -483,6 +483,20 @@ _verify_state = {
 _verify_lock = threading.Lock()
 
 
+@login_v2_bp.route('/api/login-v2/active-accounts', methods=['GET'])
+def api_active_accounts():
+    """Get all active (logged-in) accounts for the verify modal."""
+    try:
+        accounts = get_all_accounts(status_filter=['active'])
+        return jsonify({
+            'status': 'success',
+            'accounts': accounts,
+            'total': len(accounts),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @login_v2_bp.route('/api/login-v2/verify-accounts', methods=['POST'])
 def api_verify_accounts():
     """

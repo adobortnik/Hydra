@@ -365,45 +365,53 @@ function getSelectedIds() {
     return $('.acc-check:checked').map(function() { return parseInt($(this).data('id')); }).get();
 }
 
+let verifyActiveAccounts = [];
+
 function startVerify() {
-    // Build device list from accounts data
-    const activeAccounts = allAccounts.filter(a => a.status === 'active');
-    if (activeAccounts.length === 0) {
-        showToast('No active accounts to verify', 'warning');
-        return;
-    }
-
-    // Get unique devices that have active accounts
-    const deviceMap = {};
-    activeAccounts.forEach(a => {
-        const ds = a.device_serial || 'unknown';
-        if (!deviceMap[ds]) deviceMap[ds] = { serial: ds, name: a.device_name || ds, count: 0 };
-        deviceMap[ds].count++;
-    });
-    const devices = Object.values(deviceMap).sort((a, b) => a.serial.localeCompare(b.serial));
-
-    let html = '';
-    devices.forEach(d => {
-        html += `<div class="form-check py-1">
-            <input class="form-check-input verify-dev-check" type="checkbox" value="${d.serial}" 
-                   id="vdev_${d.serial.replace(/[.:]/g,'_')}" checked onchange="updateVerifyCount()">
-            <label class="form-check-label d-flex justify-content-between w-100" for="vdev_${d.serial.replace(/[.:]/g,'_')}">
-                <span>${d.name} <small class="text-muted">(${d.serial})</small></span>
-                <span class="badge bg-info">${d.count} accounts</span>
-            </label>
-        </div>`;
-    });
-    $('#verifyDeviceList').html(html);
-    $('#verifyProgress').addClass('d-none');
-    $('#verifyResult').addClass('d-none');
-    $('#verifyStartBtn').prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Start Verification');
-    updateVerifyCount();
+    // Fetch active accounts from backend
+    $('#verifyDeviceList').html('<div class="text-muted text-center py-2"><i class="fas fa-spinner fa-spin me-1"></i> Loading active accounts...</div>');
     new bootstrap.Modal('#verifyModal').show();
+
+    $.get('/api/login-v2/active-accounts', function(data) {
+        if (data.status !== 'success' || !data.accounts || data.accounts.length === 0) {
+            $('#verifyDeviceList').html('<div class="text-muted text-center py-2">No active accounts found</div>');
+            $('#verifyCountInfo').text('Nothing to verify');
+            return;
+        }
+
+        verifyActiveAccounts = data.accounts;
+
+        // Get unique devices
+        const deviceMap = {};
+        verifyActiveAccounts.forEach(a => {
+            const ds = a.device_serial || 'unknown';
+            if (!deviceMap[ds]) deviceMap[ds] = { serial: ds, name: a.device_name || ds, count: 0 };
+            deviceMap[ds].count++;
+        });
+        const devices = Object.values(deviceMap).sort((a, b) => a.serial.localeCompare(b.serial));
+
+        let html = '';
+        devices.forEach(d => {
+            html += `<div class="form-check py-1">
+                <input class="form-check-input verify-dev-check" type="checkbox" value="${d.serial}" 
+                       id="vdev_${d.serial.replace(/[.:]/g,'_')}" checked onchange="updateVerifyCount()">
+                <label class="form-check-label d-flex justify-content-between w-100" for="vdev_${d.serial.replace(/[.:]/g,'_')}">
+                    <span>${d.name} <small class="text-muted">(${d.serial})</small></span>
+                    <span class="badge bg-info">${d.count} accounts</span>
+                </label>
+            </div>`;
+        });
+        $('#verifyDeviceList').html(html);
+        $('#verifyProgress').addClass('d-none');
+        $('#verifyResult').addClass('d-none');
+        $('#verifyStartBtn').prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Start Verification');
+        updateVerifyCount();
+    });
 }
 
 function updateVerifyCount() {
     const selected = $('.verify-dev-check:checked').map(function() { return $(this).val(); }).get();
-    const count = allAccounts.filter(a => a.status === 'active' && selected.includes(a.device_serial)).length;
+    const count = verifyActiveAccounts.filter(a => selected.includes(a.device_serial)).length;
     $('#verifyCountInfo').html(`<strong>${count}</strong> active account(s) on <strong>${selected.length}</strong> device(s) will be verified`);
 }
 
