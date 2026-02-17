@@ -28,11 +28,19 @@ if sys.stdout and hasattr(sys.stdout, 'encoding') and sys.stdout.encoding and sy
         pass
 os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
 
+import builtins
 import uiautomator2 as u2
 import subprocess
 import time
 from pathlib import Path
 from two_fa_live_client import TwoFALiveClient
+
+# Force all print() calls to flush immediately — critical for log capture in threads
+_original_print = builtins.print
+def _flushed_print(*args, **kwargs):
+    kwargs.setdefault('flush', True)
+    _original_print(*args, **kwargs)
+builtins.print = _flushed_print
 
 
 class LoginAutomation:

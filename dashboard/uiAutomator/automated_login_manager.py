@@ -43,6 +43,14 @@ from login_automation_db import (
 )
 from login_automation import LoginAutomation
 
+# Force all print() calls to flush immediately — critical for log capture in threads
+import builtins
+_original_print = builtins.print
+def _flushed_print(*args, **kwargs):
+    kwargs.setdefault('flush', True)
+    _original_print(*args, **kwargs)
+builtins.print = _flushed_print
+
 
 class AutomatedLoginManager:
     """

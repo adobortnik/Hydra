@@ -39,8 +39,10 @@ def run():
         start = time.time()
 
         try:
+            env = os.environ.copy()
+            env['PYTHONUNBUFFERED'] = '1'
             proc = subprocess.Popen(
-                [sys.executable, SCRIPT],
+                [sys.executable, '-u', SCRIPT],
                 cwd=DASHBOARD_DIR,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -48,6 +50,7 @@ def run():
                 encoding='utf-8',
                 errors='replace',
                 bufsize=1,
+                env=env,
             )
             log(f"Dashboard started (PID: {proc.pid})")
 
