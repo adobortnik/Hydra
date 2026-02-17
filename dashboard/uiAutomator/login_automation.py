@@ -555,14 +555,18 @@ class LoginAutomation:
 
             matched = [kw for kw in notification_keywords if kw in xml_lower]
             print(f"{TAG} DETECTED 'Check notifications on another device' screen (matched: {matched})")
+
+            # Wait for page to fully load before looking for button
+            time.sleep(2)
+
             print(f"{TAG} Step 2: Looking for 'Try another way' button...")
 
             # Step 2: Click "Try another way" — may need scrolling
             try_another = self.device(textContains="Try another way")
-            if not try_another.exists(timeout=3):
+            if not try_another.exists(timeout=5):
                 try_another = self.device(textContains="another way")
 
-            if not try_another.exists(timeout=3):
+            if not try_another.exists(timeout=5):
                 # Scroll down to reveal button
                 print(f"{TAG} Scrolling down to find 'Try another way'...")
                 try:
@@ -581,7 +585,16 @@ class LoginAutomation:
 
             print(f"{TAG} [OK] Found 'Try another way' — clicking...")
             try_another.click()
-            time.sleep(4)
+            time.sleep(2)
+            # Click again in case first tap didn't register (common on slower devices)
+            try:
+                if try_another.exists(timeout=2):
+                    print(f"{TAG} Button still visible — clicking again...")
+                    try_another.click()
+                    time.sleep(1)
+            except:
+                pass
+            time.sleep(3)
 
             # Step 3: Select "Authentication app" on the "Choose a way" screen
             xml_dump = self.device.dump_hierarchy()
