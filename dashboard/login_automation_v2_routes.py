@@ -638,30 +638,57 @@ def _verify_one_device(device_serial, accounts):
 
                 # Open the specific IG clone
                 device.app_start(package)
-                time.sleep(4)
+                time.sleep(5)
 
-                # Check if logged in — look for profile/home/search tabs
-                logged_in = False
+                # Dump screen
                 xml = device.dump_hierarchy()
-                xml_lower = xml.lower()
+                xl = xml.lower()
 
-                # Profile tab (standard indicator)
-                if device(description="Profile").exists(timeout=3):
-                    logged_in = True
-                elif device(description="Home").exists(timeout=2):
-                    logged_in = True
-                elif device(description="Search").exists(timeout=2) or device(description="Explore").exists(timeout=2):
-                    logged_in = True
-                elif 'tab_bar' in xml_lower or 'bottom_bar' in xml_lower:
-                    logged_in = True
-                # Check for login screen (definitely NOT logged in)
-                elif 'log in' in xml_lower and ('password' in xml_lower or 'phone' in xml_lower):
-                    logged_in = False
-                # Check for suspended
-                elif 'suspended' in xml_lower or 'disabled' in xml_lower:
-                    logged_in = False
+                # === Check NOT logged in first (aggressive) ===
+                not_logged = False
+                reason = ''
+                if 'join instagram' in xl or 'get started' in xl:
+                    not_logged, reason = True, 'join/signup page'
+                elif 'already have an account' in xl:
+                    not_logged, reason = True, 'signup page'
+                elif 'create new account' in xl:
+                    not_logged, reason = True, 'create account page'
+                elif 'log in' in xl and 'sign up' in xl:
+                    not_logged, reason = True, 'login/signup page'
+                elif 'log in' in xl and ('password' in xl or 'phone' in xl or 'email' in xl):
+                    not_logged, reason = True, 'login page'
+                elif 'we suspended' in xl or 'suspended your account' in xl:
+                    not_logged, reason = True, 'suspended'
+                elif 'account has been disabled' in xl:
+                    not_logged, reason = True, 'disabled'
+                elif 'check your sms' in xl or 'we sent a link' in xl:
+                    not_logged, reason = True, 'SMS verification'
+                elif 'wrong password' in xl or 'incorrect password' in xl:
+                    not_logged, reason = True, 'wrong password'
 
-                if logged_in:
+                if not_logged:
+                    print(f"[VERIFY] {device_serial} | {username} -- NOT LOGGED IN ({reason})")
+                    update_account_status(acc_id, 'login_failed')
+                    with _verify_lock:
+                        _verify_state['failed'] += 1
+                        _verify_state['results'].append({
+                            'username': username, 'device': device_serial,
+                            'package': package, 'status': 'not_logged_in',
+                        })
+                else:
+                    # === Check positive logged-in indicators ===
+                    logged_in = False
+                    p_rid = package + ':id/profile_tab'
+                    if device(resourceId=p_rid).exists(timeout=3):
+                        logged_in = True
+                    elif device(description="Profile").exists(timeout=2) and 'sign up' not in xl:
+                        logged_in = True
+                    elif device(description="Home").exists(timeout=2) and 'sign up' not in xl and 'join instagram' not in xl:
+                        logged_in = True
+                    elif device(description="Search and explore").exists(timeout=2):
+                        logged_in = True
+
+                if not not_logged and logged_in:
                     print(f"[VERIFY] {device_serial} | {username} — LOGGED IN")
                     with _verify_lock:
                         _verify_state['verified'] += 1
@@ -669,14 +696,16 @@ def _verify_one_device(device_serial, accounts):
                             'username': username, 'device': device_serial,
                             'package': package, 'status': 'verified',
                         })
-                else:
-                    print(f"[VERIFY] {device_serial} | {username} — NOT LOGGED IN -> login_failed")
+                elif not not_logged and not logged_in:
+                    # Uncertain = conservative, mark as failed
+                    print(f"[VERIFY] {device_serial} | {username} -- UNCERTAIN, marking NOT logged in")
+                    print(f"[VERIFY] {device_serial} | XML: {xl[:300]}")
                     update_account_status(acc_id, 'login_failed')
                     with _verify_lock:
                         _verify_state['failed'] += 1
                         _verify_state['results'].append({
                             'username': username, 'device': device_serial,
-                            'package': package, 'status': 'not_logged_in',
+                            'package': package, 'status': 'uncertain',
                         })
 
             except Exception as e:
