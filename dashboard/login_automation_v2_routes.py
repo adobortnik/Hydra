@@ -806,6 +806,9 @@ def _run_device_logins(batch_id, device_serial, tasks):
         # Update task status
         update_task(task_id, status='running', started_at=datetime.utcnow().isoformat())
 
+        pkg = params.get('instagram_package', 'com.instagram.android')
+        adb_ser = serial_db_to_adb(device_serial)
+
         try:
             # Try using the existing login manager
             success, message = _perform_login(
@@ -837,6 +840,15 @@ def _run_device_logins(batch_id, device_serial, tasks):
                             result_json=json.dumps({'error': message}))
                 if account_id:
                     update_account_status(account_id, 'login_failed')
+
+                # Force-stop the IG clone so screen doesn't stay stuck
+                try:
+                    import subprocess
+                    subprocess.run(['adb', '-s', adb_ser, 'shell', 'am', 'force-stop', pkg],
+                                   timeout=10, capture_output=True)
+                    print(f"[CLEANUP] Force-stopped {pkg} on {device_serial}")
+                except Exception as fe:
+                    print(f"[CLEANUP] Could not force-stop {pkg}: {fe}")
 
                 with _login_lock:
                     if batch_id in _login_progress:

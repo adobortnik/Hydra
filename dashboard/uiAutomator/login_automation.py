@@ -518,6 +518,31 @@ class LoginAutomation:
             print(f"[!] Error detecting 2FA screen: {e}")
             return False
 
+    def _dump_app_hierarchy(self, tag="", max_retries=3):
+        """
+        Dump UI hierarchy with retry logic.
+        UIAutomator sometimes captures com.android.systemui instead of the
+        foreground app. This retries the dump if it detects systemui.
+        Returns the XML string or None if all retries fail.
+        """
+        for attempt in range(1, max_retries + 1):
+            try:
+                xml = self.device.dump_hierarchy()
+                # Check if we got systemui instead of the actual app
+                if 'com.android.systemui' in xml[:500] and 'instagram' not in xml[:1000].lower():
+                    print(f"{tag} [DUMP] Attempt {attempt}/{max_retries}: Got systemui overlay, retrying...")
+                    time.sleep(1.5)
+                    continue
+                return xml
+            except Exception as e:
+                print(f"{tag} [DUMP] Attempt {attempt}/{max_retries}: Error: {e}")
+                time.sleep(1)
+        # Last attempt — return whatever we get
+        try:
+            return self.device.dump_hierarchy()
+        except:
+            return None
+
     def _try_another_way_to_2fa(self):
         """
         Handle the "Check your notifications on another device" screen.
@@ -535,7 +560,12 @@ class LoginAutomation:
         TAG = "[TRY_ANOTHER_WAY]"
         try:
             print(f"\n{TAG} === Starting 'Try another way' detection ===")
-            xml_dump = self.device.dump_hierarchy()
+
+            # Reliable dump — retry if we get systemui instead of the app
+            xml_dump = self._dump_app_hierarchy(TAG)
+            if not xml_dump:
+                print(f"{TAG} Could not get app hierarchy after retries — skipping")
+                return False
             xml_lower = xml_dump.lower()
             print(f"{TAG} Screen text (first 300 chars): {xml_lower[:300]}")
 
@@ -597,7 +627,7 @@ class LoginAutomation:
             time.sleep(3)
 
             # Step 3: Select "Authentication app" on the "Choose a way" screen
-            xml_dump = self.device.dump_hierarchy()
+            xml_dump = self._dump_app_hierarchy(TAG) or ''
             xml_lower = xml_dump.lower()
 
             # Check multiple possible screen titles
@@ -611,7 +641,7 @@ class LoginAutomation:
                     return True
                 # Wait a bit more and retry
                 time.sleep(3)
-                xml_lower = self.device.dump_hierarchy().lower()
+                xml_lower = (self._dump_app_hierarchy(TAG) or '').lower()
                 choose_screen = ("choose a way" in xml_lower or "authentication app" in xml_lower)
                 if not choose_screen:
                     print(f"{TAG} [X] NOT on 'Choose a way' screen after clicking 'Try another way'")
@@ -1247,8 +1277,8 @@ class LoginAutomation:
             print("-"*70)
             time.sleep(3)  # Already waited 3s above, total ~6s
 
-            # Post-credential screen checks
-            xml_check = self.device.dump_hierarchy().lower()
+            # Post-credential screen checks (retry if systemui captured)
+            xml_check = (self._dump_app_hierarchy("[POST_CRED]") or '').lower()
 
             # Check for suspended account (dead end) after entering credentials
             suspended_checks = ["we suspended your account", "your account has been disabled",
