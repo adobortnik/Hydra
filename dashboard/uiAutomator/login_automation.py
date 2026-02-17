@@ -461,57 +461,80 @@ class LoginAutomation:
 
     def detect_two_factor_screen(self):
         """
-        Detect if we're on the 2FA code entry screen
+        Detect if we're on the actual 2FA CODE ENTRY screen (not challenge/notification screens).
 
         Returns:
-            bool: True if on 2FA screen
+            bool: True if on 2FA code entry screen
         """
         try:
-            print("Checking screen for 2FA indicators...")
-            xml_dump = self.device.dump_hierarchy()
+            print("Checking screen for 2FA code entry indicators...")
+            xml_dump = (self._dump_app_hierarchy("[2FA_DETECT]") or '')
             xml_lower = xml_dump.lower()
 
-            # Keywords that indicate 2FA screen
-            two_fa_keywords = [
+            # FIRST: Exclude challenge/notification screens that are NOT 2FA code entry
+            # These screens may contain words like "we sent" but are NOT code entry screens
+            challenge_exclusions = [
+                "check your notifications",
+                "notifications on another device",
+                "waiting for approval",
+                "approve from the other device",
+                "try another way",
+                "check your sms",
+                "check your email",
+                "confirm your identity",
+                "it was you",
+            ]
+            for excl in challenge_exclusions:
+                if excl in xml_lower:
+                    print(f"[X] Not 2FA code entry — this is a challenge screen ('{excl}')")
+                    return False
+
+            # Strong 2FA code entry keywords (specific to the actual code entry screen)
+            strong_keywords = [
                 "enter the 6-digit code",
                 "enter the code",
-                "enter your",
                 "go to your authentication app",
                 "authentication app you set up",
                 "confirmation code",
                 "security code",
                 "two-factor",
-                "2fa",
+                "enter your security",
                 "authentication code",
-                "verify",
-                "we sent"
             ]
 
-            for keyword in two_fa_keywords:
+            for keyword in strong_keywords:
                 if keyword in xml_lower:
-                    print(f"[OK] 2FA screen detected: keyword '{keyword}'")
+                    print(f"[OK] 2FA code entry screen detected: '{keyword}'")
                     return True
 
-            # Check for EditText field with specific context
-            # On 2FA screen, there's usually a single EditText field
+            # Weak keywords — only match if there's also an EditText (input field) visible
+            weak_keywords = ["we sent", "verify", "2fa", "enter your"]
+            for keyword in weak_keywords:
+                if keyword in xml_lower:
+                    # Must also have an input field to be a code entry screen
+                    edit_texts = self.device(className="android.widget.EditText")
+                    if edit_texts.exists(timeout=2) and edit_texts.count == 1:
+                        print(f"[OK] 2FA screen detected: '{keyword}' + single EditText field")
+                        return True
+                    else:
+                        print(f"[!] Found '{keyword}' but no single EditText — not a code entry screen")
+
+            # Check for single EditText + code/security context
             edit_texts = self.device(className="android.widget.EditText")
             if edit_texts.exists(timeout=2):
-                # Count EditText fields - 2FA usually has 1, login has 2
                 edit_text_count = edit_texts.count
                 print(f"Found {edit_text_count} EditText field(s)")
-
-                # If only 1 EditText and page mentions code/verify/security
                 if edit_text_count == 1:
-                    if any(keyword in xml_lower for keyword in ["code", "security", "verify", "sent"]):
-                        print("[OK] 2FA screen detected (single EditText + verification keywords)")
+                    if any(kw in xml_lower for kw in ["code", "security"]):
+                        print("[OK] 2FA screen detected (single EditText + code/security context)")
                         return True
 
-            # Also check for "Resend Code" or similar buttons (unique to 2FA)
+            # Check for "Resend Code" button (unique to 2FA)
             if self.device(textContains="Resend").exists(timeout=1):
                 print("[OK] 2FA screen detected ('Resend' button found)")
                 return True
 
-            print("[X] No 2FA indicators found")
+            print("[X] No 2FA code entry indicators found")
             return False
 
         except Exception as e:
@@ -1384,12 +1407,14 @@ class LoginAutomation:
                 else:
                     print("[OK] 'Try another way' available — will attempt Auth app path")
 
-            two_fa_detected = self.detect_two_factor_screen()
+            # IMPORTANT: Check for challenge screens (notifications, SMS, etc.) FIRST
+            # because detect_two_factor_screen() has broad keywords like "we sent" that
+            # false-positive on these screens. _try_another_way navigates to the real 2FA screen.
+            two_fa_detected = self._try_another_way_to_2fa()
 
-            # If not on standard 2FA screen, check for "Check notifications on another device"
-            # and navigate through "Try another way" → "Authentication app" → "Continue"
+            # If not a challenge screen, check for standard 2FA code entry screen
             if not two_fa_detected:
-                two_fa_detected = self._try_another_way_to_2fa()
+                two_fa_detected = self.detect_two_factor_screen()
 
             if two_fa_detected:
                 print(f"\n[OK] 2FA screen detected (two_fa_token={'YES: '+two_fa_token[:8]+'...' if two_fa_token else 'NONE/EMPTY'})")
@@ -1420,11 +1445,10 @@ class LoginAutomation:
             print("DOUBLE-CHECKING: Are we stuck on 2FA screen?")
             print("-"*70)
 
-            # Re-check for 2FA screen (in case detection missed it the first time)
-            # Also check for "notifications on another device" screen again
-            still_on_2fa = self.detect_two_factor_screen()
+            # Re-check: challenge screens first, then 2FA (same order as above)
+            still_on_2fa = self._try_another_way_to_2fa()
             if not still_on_2fa:
-                still_on_2fa = self._try_another_way_to_2fa()
+                still_on_2fa = self.detect_two_factor_screen()
 
             if still_on_2fa:
                 print("\n[!] WARNING: Still on 2FA screen after entering credentials!")
