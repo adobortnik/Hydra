@@ -739,8 +739,8 @@ class LoginAutomation:
                 ("resourceId ~verification", self.device(resourceIdMatches=".*verification.*")),
                 # Focused/clickable input
                 ("focused input", self.device(focused=True, className="android.widget.EditText")),
-                # IG WebView input fields
-                ("EditText in WebView", self.device(className="android.widget.EditText", packageMatches=".*instagram.*")),
+                # IG input fields (clickable EditText)
+                ("clickable EditText", self.device(className="android.widget.EditText", clickable=True)),
                 # Generic focusable field
                 ("focusable EditText", self.device(className="android.widget.EditText", focusable=True)),
             ]
