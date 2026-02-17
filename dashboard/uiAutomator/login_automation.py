@@ -601,20 +601,11 @@ class LoginAutomation:
 
             # Step 1: Detect any screen that has "Try another way"
             trigger_keywords = [
-                # Notification approval screens
+                # Notification approval screens — the main target
                 "check your notifications",
                 "notifications on another device",
                 "waiting for approval",
                 "approve from the other device",
-                # SMS screens (also have "Try another way")
-                "check your sms",
-                # Email screens
-                "check your email",
-                # Generic challenge
-                "confirm your identity",
-                "verify your identity",
-                "it was you",
-                "we noticed an unusual login",
             ]
 
             matched = [kw for kw in trigger_keywords if kw in xml_lower]
@@ -1391,21 +1382,14 @@ class LoginAutomation:
                     result['login_type'] = 'suspended'
                     return result
 
-            # Check for SMS/Email verification — NOT a dead end if "Try another way" exists
-            sms_keywords = ["check your sms", "we sent a link", "sent a code to", "check your email"]
-            sms_detected = any(kw in xml_check for kw in sms_keywords)
-            if sms_detected:
-                sms_matched = [kw for kw in sms_keywords if kw in xml_check]
-                print(f"\n[!] SMS/Email screen detected: {sms_matched}")
-                # Don't return as dead end yet — _try_another_way_to_2fa will handle it
-                # by clicking "Try another way" → "Authentication app"
-                if "try another way" not in xml_check:
-                    print("[X] No 'Try another way' option — true dead end")
-                    result['error'] = "SMS/Email verification required — no alternative"
+            # Check for SMS/Email verification — always a dead end
+            sms_dead_ends = ["check your sms", "we sent a link", "sent a code to", "check your email"]
+            for kw in sms_dead_ends:
+                if kw in xml_check:
+                    print(f"\n[X] SMS/Email verification detected: '{kw}' — dead end")
+                    result['error'] = "SMS/Email verification required — account unusable"
                     result['login_type'] = 'sms_challenge'
                     return result
-                else:
-                    print("[OK] 'Try another way' available — will attempt Auth app path")
 
             # IMPORTANT: Check for challenge screens (notifications, SMS, etc.) FIRST
             # because detect_two_factor_screen() has broad keywords like "we sent" that
