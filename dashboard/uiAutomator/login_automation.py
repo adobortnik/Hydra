@@ -457,6 +457,8 @@ class LoginAutomation:
                 "enter the 6-digit code",
                 "enter the code",
                 "enter your",
+                "go to your authentication app",
+                "authentication app you set up",
                 "confirmation code",
                 "security code",
                 "two-factor",
@@ -634,6 +636,9 @@ class LoginAutomation:
             selectors = [
                 # Standard EditText
                 ("EditText", self.device(className="android.widget.EditText")),
+                # Input field with hint/text "Code" (seen on "Go to your authentication app" screen)
+                ("text=Code", self.device(text="Code")),
+                ("textContains=Code", self.device(textContains="Code", className="android.widget.EditText")),
                 # IG sometimes uses resourceId with "code" or "security"
                 ("resourceId ~code", self.device(resourceIdMatches=".*code.*")),
                 ("resourceId ~security", self.device(resourceIdMatches=".*security.*input.*")),
