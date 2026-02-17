@@ -55,6 +55,12 @@
             <button class="btn btn-sm btn-outline-light" onclick="selectAll()">
                 <i class="fas fa-check-double me-1"></i> Select All
             </button>
+            <button class="btn btn-sm btn-outline-warning" onclick="selectByStatus('pending_login')">
+                <i class="fas fa-clock me-1"></i> Select Pending
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="selectByStatus('login_failed')">
+                <i class="fas fa-exclamation-triangle me-1"></i> Select Failed
+            </button>
             <button class="btn btn-sm btn-outline-light" onclick="deselectAll()">
                 <i class="fas fa-times me-1"></i> Deselect
             </button>
@@ -309,7 +315,7 @@ function loadAccounts() {
             const statusBadge = getStatusBadge(acc.status);
             const twofa = acc.two_fa_token ? '<span class="badge bg-success">✓</span>' : '<span class="badge bg-secondary">—</span>';
 
-            html += `<tr>
+            html += `<tr data-status="${acc.status}">
                 <td><input type="checkbox" class="acc-check" data-id="${acc.id}" onchange="updateSelectedCount()"></td>
                 <td><strong>${acc.username}</strong></td>
                 <td><code class="text-info">${acc.device_serial || '-'}</code>
@@ -347,6 +353,12 @@ function toggleAll() {
 function selectAll() {
     $('.acc-check').prop('checked', true);
     $('#checkAll').prop('checked', true);
+    updateSelectedCount();
+}
+
+function selectByStatus(status) {
+    deselectAll();
+    $(`tr[data-status="${status}"] .acc-check`).prop('checked', true);
     updateSelectedCount();
 }
 
