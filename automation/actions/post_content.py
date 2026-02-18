@@ -329,6 +329,21 @@ class PostContentAction:
     # Reel Flow
     # ------------------------------------------------------------------
 
+    _reel_retry_count = 0
+
+    def _post_reel_retry(self):
+        """One-shot retry of _post_reel after Recents recovery."""
+        self._reel_retry_count += 1
+        if self._reel_retry_count > 1:
+            log.warning("[%s] CONTENT: Reel retry limit reached",
+                        self.device_serial)
+            return False
+        log.info("[%s] CONTENT: Retrying reel post (attempt %d)",
+                 self.device_serial, self._reel_retry_count + 1)
+        self.ctrl.navigate_to(Screen.HOME_FEED)
+        time.sleep(2)
+        return self._post_reel()
+
     def _post_reel(self):
         """
         Post a reel (video + caption + optional music).
@@ -367,6 +382,24 @@ class PostContentAction:
             return False
 
         random_sleep(1, 2, label="video_selected")
+
+        # Safety check: if we accidentally hit the Recents button (nav bar),
+        # the app switcher appears. Detect and recover.
+        try:
+            xml = self.ctrl.dump_xml("check_recents")
+            if 'com.android.launcher' in xml or 'RecentTask' in xml or 'recents_view' in xml:
+                log.warning("[%s] CONTENT: Detected app switcher / Recents! "
+                            "Pressing Home and re-opening IG",
+                            self.device_serial)
+                self.device.press('home')
+                time.sleep(1)
+                self.ctrl.ensure_app()
+                time.sleep(2)
+                # At this point we lost the reel creation flow — retry from the top
+                return self._post_reel_retry()
+        except Exception as e:
+            log.debug("[%s] CONTENT: Recents check error (non-fatal): %s",
+                      self.device_serial, e)
 
         # Step 4: Tap "Next" to proceed past video trimming/preview
         if not self._tap_next():
@@ -661,23 +694,30 @@ class PostContentAction:
             r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
         )
         thumbs = re.findall(thumb_pattern, xml)
+        screen_w, screen_h = self.device.window_size()
+        # Nav bar safe zone — don't click below 90% of screen height
+        nav_bar_y = int(screen_h * 0.90)
+
         if thumbs:
-            # Pick the first thumbnail (most recent media)
-            x1, y1, x2, y2 = [int(v) for v in thumbs[0]]
-            # Sanity check: thumbnail should be reasonably sized (not a tiny icon)
-            w = x2 - x1
-            h = y2 - y1
-            if w > 50 and h > 50:
-                self.device.click((x1 + x2) // 2, (y1 + y2) // 2)
-                time.sleep(2)
-                log.debug("[%s] CONTENT: Selected media via first ImageView thumbnail",
-                          self.device_serial)
-                return True
+            # Pick the first thumbnail that's NOT in the nav bar zone
+            for t in thumbs:
+                x1, y1, x2, y2 = [int(v) for v in t]
+                w = x2 - x1
+                h = y2 - y1
+                cy = (y1 + y2) // 2
+                # Sanity: reasonably sized and not in nav bar
+                if w > 50 and h > 50 and cy < nav_bar_y:
+                    self.device.click((x1 + x2) // 2, cy)
+                    time.sleep(2)
+                    log.debug("[%s] CONTENT: Selected media via ImageView thumbnail at y=%d (nav_bar_y=%d)",
+                              self.device_serial, cy, nav_bar_y)
+                    return True
+            log.debug("[%s] CONTENT: All thumbnails too close to nav bar, skipping",
+                      self.device_serial)
 
         # Method 4: Tap the typical gallery grid area (center of screen)
         # The gallery grid usually occupies the bottom 2/3 of the screen
-        w, h = self.device.window_size()
-        self.device.click(int(w * 0.16), int(h * 0.6))
+        self.device.click(int(screen_w * 0.16), int(screen_h * 0.6))
         time.sleep(2)
         log.debug("[%s] CONTENT: Tapped gallery grid area as fallback",
                   self.device_serial)
