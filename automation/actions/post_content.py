@@ -97,6 +97,9 @@ class PostContentAction:
                 raise FileNotFoundError(
                     f"Media file not found: {self.media_path}")
 
+            # Force-stop OTHER IG clones so they don't steal focus
+            self._stop_other_ig_clones()
+
             # Ensure IG is open and on home screen
             self.ctrl.ensure_app()
             self.ctrl.dismiss_popups()
@@ -156,6 +159,31 @@ class PostContentAction:
             self._recover()
 
         return result
+
+    # ------------------------------------------------------------------
+    # Clone Isolation
+    # ------------------------------------------------------------------
+
+    # All known IG clone packages
+    _IG_CLONE_PACKAGES = [f"com.instagram.androi{c}" for c in "efghijklmnop"]
+
+    def _stop_other_ig_clones(self):
+        """Force-stop all IG clone packages except the one we're using."""
+        adb_serial = self.device_serial.replace('_', ':')
+        stopped = []
+        for pkg in self._IG_CLONE_PACKAGES:
+            if pkg == self.package:
+                continue
+            try:
+                subprocess.run(
+                    ['adb', '-s', adb_serial, 'shell', 'am', 'force-stop', pkg],
+                    capture_output=True, timeout=5)
+                stopped.append(pkg)
+            except Exception:
+                pass
+        if stopped:
+            log.info("[%s] CONTENT: Stopped %d other IG clones before posting",
+                     self.device_serial, len(stopped))
 
     # ------------------------------------------------------------------
     # ADB Media Push / Cleanup
