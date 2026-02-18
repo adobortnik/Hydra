@@ -224,11 +224,12 @@ class PostContentAction:
                       self.device_serial, result.stderr[:200])
             return None
 
-        # Register in MediaStore — use media scanner which auto-extracts
-        # video duration, resolution etc. The content insert method doesn't
-        # populate duration, causing videos to show as 0:00 in gallery.
+        # Register in MediaStore via media scanner only (NOT content insert).
+        # content insert creates entries without duration metadata, making
+        # videos show as 0:00 and un-selectable in IG gallery.
+        # Media scanner reads the actual file and extracts all metadata.
 
-        # Method 1: MediaScannerConnection via am broadcast (most reliable for metadata)
+        # Trigger media scan — this extracts duration, resolution, etc.
         subprocess.run(
             ['adb', '-s', adb_serial, 'shell',
              'am', 'broadcast', '-a',
@@ -236,28 +237,17 @@ class PostContentAction:
              '-d', f'file://{remote_path}'],
             capture_output=True, timeout=10)
 
-        # Method 2: Also try 'content insert' as backup for gallery visibility
-        insert_result = subprocess.run(
-            ['adb', '-s', adb_serial, 'shell', 'content', 'insert',
-             '--uri', media_uri,
-             '--bind', f'_data:s:{real_remote_path}',
-             '--bind', f'_display_name:s:{filename}',
-             '--bind', f'mime_type:s:{mime_type}'],
-            capture_output=True, text=True, timeout=15)
-
-        if insert_result.returncode == 0:
-            log.info("[%s] CONTENT: Registered %s in MediaStore",
-                     self.device_serial, filename)
-
-        # Method 3: Trigger full media scan on the file path
-        # This ensures the media scanner reads actual video metadata (duration etc.)
+        # Also try the newer cmd interface
         subprocess.run(
             ['adb', '-s', adb_serial, 'shell',
              'cmd', 'media.scanner', 'scan', real_remote_path],
             capture_output=True, timeout=15)
 
-        # Give media system time to index and extract metadata
-        time.sleep(3)
+        log.info("[%s] CONTENT: Registered %s via media scanner",
+                 self.device_serial, filename)
+
+        # Give media scanner time to index and extract metadata
+        time.sleep(4)
 
         return remote_path
 
