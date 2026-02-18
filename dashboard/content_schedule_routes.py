@@ -1578,7 +1578,28 @@ def _run_test_post(test_id, account, media_path, content_type,
 
         _update('running', 'Executing %s posting flow on device...' % content_type)
 
-        result = action.execute()
+        # Capture PostContentAction logs into progress steps
+        import logging
+        class _StepHandler(logging.Handler):
+            def emit(self, record):
+                msg = self.format(record)
+                # Only capture our content action logs
+                if device_serial in msg or 'CONTENT' in msg or 'POST' in msg.upper():
+                    short = msg.split('] ')[-1] if '] ' in msg else msg
+                    try:
+                        _update('running', short[:200])
+                    except:
+                        pass
+
+        step_handler = _StepHandler()
+        step_handler.setLevel(logging.DEBUG)
+        root_logger = logging.getLogger()
+        root_logger.addHandler(step_handler)
+
+        try:
+            result = action.execute()
+        finally:
+            root_logger.removeHandler(step_handler)
 
         # Step 5: Record result
         now = datetime.utcnow().isoformat()
