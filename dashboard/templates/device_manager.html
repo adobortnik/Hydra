@@ -172,6 +172,9 @@
         <button class="btn btn-warning me-2" onclick="confirmGrantPermissions()" id="grantPermBtn">
             &#x1F511; Grant Permissions
         </button>
+        <button class="btn btn-info me-2" onclick="fixOrientation()">
+            <i class="fas fa-mobile-alt me-1"></i> Fix Orientation
+        </button>
         <button class="btn btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
             <i class="fas fa-plus me-1"></i> Add Device
         </button>
@@ -446,6 +449,9 @@ function renderDevices(devices) {
                     </button>
                     <button class="btn-action btn-edit" onclick="grantPermissionsDevice('${escAttr(dev.device_serial)}')" title="Grant Permissions" style="background:#f59e0b;color:#000;">
                         &#x1F511;
+                    </button>
+                    <button class="btn-action btn-edit" onclick="fixOrientation('${escAttr(dev.device_serial)}')" title="Fix Orientation" style="background:#06b6d4;color:#000;">
+                        <i class="fas fa-mobile-alt"></i>
                     </button>
                     <button class="btn-action btn-edit" onclick="editDevice(${dev.id}, '${escAttr(dev.device_serial)}', '${escAttr(dev.device_name||'')}', '${escAttr(dev.notes||'')}')" title="Edit">
                         <i class="fas fa-edit"></i>
@@ -888,6 +894,36 @@ renderDevices = function(devices) {
     _origRender(devices);
     filterDevices();
 };
+
+// ============ Fix Orientation ============
+
+function fixOrientation(device) {
+    const target = device || null;
+    const msg = target ? `Fix orientation on ${target}?` : 'Fix orientation on ALL connected devices?';
+    if (!confirm(msg)) return;
+
+    const btn = event.target.closest('button');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+    fetch('/api/devices/fix-orientation', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({device: target})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            showToast(data.message, 'success');
+        } else {
+            showToast('Error: ' + (data.error || 'Unknown'), 'danger');
+        }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-mobile-alt"></i>'; }
+    })
+    .catch(err => {
+        showToast('Error: ' + err, 'danger');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-mobile-alt"></i>'; }
+    });
+}
 
 // ============ Grant Permissions ============
 

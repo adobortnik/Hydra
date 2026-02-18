@@ -526,6 +526,63 @@ def api_watchdog_status():
         conn.close()
 
 
+# ── Fix Orientation ──────────────────────────────────────────────────
+
+@device_manager_bp.route('/api/devices/fix-orientation', methods=['POST'])
+def api_fix_orientation():
+    """Force portrait orientation on one or all devices."""
+    data = request.get_json(silent=True) or {}
+    target = data.get('device')  # single serial or None for all
+
+    if target:
+        serials = [target]
+    else:
+        # All connected devices
+        try:
+            result = subprocess.run(['adb', 'devices'], capture_output=True, text=True, timeout=10)
+            serials = []
+            for line in result.stdout.strip().split('\n')[1:]:
+                if '\tdevice' in line:
+                    serials.append(line.split('\t')[0])
+        except:
+            return jsonify({'ok': False, 'error': 'Could not list devices'}), 500
+
+    if not serials:
+        return jsonify({'ok': False, 'error': 'No devices found'}), 404
+
+    fixed = 0
+    errors = []
+    for serial in serials:
+        adb_serial = serial.replace('_', ':') if '_' in serial else serial
+        try:
+            cmds = [
+                "settings put system accelerometer_rotation 0",
+                "settings put system user_rotation 0",
+                "content update --uri content://settings/system --bind value:i:0 --where \"name='accelerometer_rotation'\"",
+            ]
+            for cmd in cmds:
+                subprocess.run(['adb', '-s', adb_serial, 'shell', cmd],
+                               capture_output=True, timeout=10)
+
+            # Also try wm rotation lock
+            subprocess.run(['adb', '-s', adb_serial, 'shell', 'wm', 'set-user-rotation', 'lock'],
+                           capture_output=True, timeout=10)
+            subprocess.run(['adb', '-s', adb_serial, 'shell', 'wm', 'set-user-rotation', 'lock', '0'],
+                           capture_output=True, timeout=10)
+
+            fixed += 1
+        except Exception as e:
+            errors.append(f"{adb_serial}: {e}")
+
+    return jsonify({
+        'ok': True,
+        'fixed': fixed,
+        'total': len(serials),
+        'errors': errors,
+        'message': f'Fixed orientation on {fixed}/{len(serials)} device(s)',
+    })
+
+
 # ── Grant Permissions ────────────────────────────────────────────────
 # Inline logic from grant_permissions.py — runs in background thread
 
