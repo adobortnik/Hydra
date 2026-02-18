@@ -264,34 +264,9 @@ class PostContentAction:
                       self.device_serial, result.stderr[:200])
             return None
 
-        # Register in MediaStore: content insert + update duration for videos.
-        # Media scanner broadcasts don't reliably extract metadata on all devices.
-        insert_result = subprocess.run(
-            ['adb', '-s', adb_serial, 'shell', 'content', 'insert',
-             '--uri', media_uri,
-             '--bind', f'_data:s:{real_remote_path}',
-             '--bind', f'_display_name:s:{filename}',
-             '--bind', f'mime_type:s:{mime_type}'],
-            capture_output=True, text=True, timeout=15)
-
-        if insert_result.returncode == 0:
-            log.info("[%s] CONTENT: Registered %s in MediaStore",
-                     self.device_serial, filename)
-
-        # For videos: read duration from MP4 header and update MediaStore
-        if is_video:
-            duration_ms = self._get_video_duration_ms(local_path)
-            if duration_ms and duration_ms > 0:
-                subprocess.run(
-                    ['adb', '-s', adb_serial, 'shell', 'content', 'update',
-                     '--uri', media_uri,
-                     '--bind', f'duration:i:{duration_ms}',
-                     '--where', f"_data='{real_remote_path}'"],
-                    capture_output=True, timeout=10)
-                log.info("[%s] CONTENT: Set video duration to %dms",
-                         self.device_serial, duration_ms)
-
-        # Also trigger media scanner as backup
+        # Make file visible in gallery via media scanner broadcast.
+        # No content insert — it creates broken entries without metadata.
+        # The media scanner reads the actual file and IG reads duration itself.
         subprocess.run(
             ['adb', '-s', adb_serial, 'shell',
              'am', 'broadcast', '-a',
@@ -299,7 +274,10 @@ class PostContentAction:
              '-d', f'file://{remote_path}'],
             capture_output=True, timeout=10)
 
-        # Give media system time to process
+        log.info("[%s] CONTENT: Registered %s in MediaStore",
+                 self.device_serial, filename)
+
+        # Give media scanner time to index
         time.sleep(3)
 
         return remote_path
