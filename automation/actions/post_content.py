@@ -683,6 +683,30 @@ class PostContentAction:
                           self.device_serial, label)
                 break
 
+        # Handle album folder dropdown/context menu
+        # Some IG versions show a dropdown with "Recents", "Photos", "All Albums"
+        # after tapping the gallery tab. We need to pick "Recents" from it.
+        ctx_menu = self.device(resourceIdMatches=".*context_menu_item_label.*",
+                               text="Recents")
+        if ctx_menu.exists(timeout=2):
+            ctx_menu.click()
+            time.sleep(2)
+            log.debug("[%s] CONTENT: Selected 'Recents' from album dropdown",
+                      self.device_serial)
+        else:
+            # Try dismissing any dropdown by pressing back if a context menu is open
+            ctx_any = self.device(resourceIdMatches=".*context_menu_item.*")
+            if ctx_any.exists(timeout=1):
+                # Context menu is open but no "Recents" — tap first item
+                try:
+                    ctx_any.click()
+                    time.sleep(2)
+                    log.debug("[%s] CONTENT: Selected first album from dropdown",
+                              self.device_serial)
+                except Exception:
+                    self.device.press('back')
+                    time.sleep(1)
+
         # Also try resource-id based gallery tab
         for rid in ['gallery_tab', 'gallery_folder_menu', 'gallery_picker_tab']:
             el = self.device(resourceIdMatches=f".*{rid}.*")
@@ -724,8 +748,9 @@ class PostContentAction:
         )
         thumbs = re.findall(thumb_pattern, xml)
         screen_w, screen_h = self.device.window_size()
-        # Nav bar safe zone — don't click below 90% of screen height
-        nav_bar_y = int(screen_h * 0.90)
+        # Nav bar safe zone — don't click below 95% of screen height
+        # (Nav buttons start at ~92.5% on 1920px screens = y~1776)
+        nav_bar_y = int(screen_h * 0.95)
 
         if thumbs:
             # Pick the first thumbnail that's NOT in the nav bar zone
