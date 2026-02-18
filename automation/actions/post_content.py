@@ -663,6 +663,40 @@ class PostContentAction:
                   self.device_serial)
         return True
 
+    def _dismiss_album_picker(self):
+        """Dismiss album picker bottom sheet if it's showing."""
+        # Check for "Select album" title or album filter tabs
+        album_title = self.device(resourceIdMatches=".*title_text_view.*",
+                                   textContains="Select album")
+        if album_title.exists(timeout=2):
+            log.debug("[%s] CONTENT: Album picker bottom sheet detected, dismissing",
+                      self.device_serial)
+            # Press back to dismiss the bottom sheet
+            self.device.press('back')
+            time.sleep(1)
+            return True
+
+        # Also check for album_filter_title which appears in the album picker
+        album_filter = self.device(resourceIdMatches=".*album_filter_title.*")
+        if album_filter.exists(timeout=1):
+            log.debug("[%s] CONTENT: Album filter detected, pressing back",
+                      self.device_serial)
+            self.device.press('back')
+            time.sleep(1)
+            return True
+
+        # Also handle context_menu dropdown (older IG versions)
+        ctx_menu = self.device(resourceIdMatches=".*context_menu_item_label.*",
+                               text="Recents")
+        if ctx_menu.exists(timeout=1):
+            ctx_menu.click()
+            time.sleep(2)
+            log.debug("[%s] CONTENT: Selected 'Recents' from album dropdown",
+                      self.device_serial)
+            return True
+
+        return False
+
     def _select_media_from_gallery(self):
         """
         Select the pushed media file from the gallery view.
@@ -673,55 +707,14 @@ class PostContentAction:
 
         Returns True if media was selected.
         """
-        # Method 1: Look for gallery tab/button and ensure we're in gallery mode
-        for label in ["Gallery", "GALLERY", "Recents", "All Photos"]:
-            el = self.device(textContains=label)
-            if el.exists(timeout=2):
-                el.click()
-                time.sleep(2)
-                log.debug("[%s] CONTENT: Tapped gallery tab '%s'",
-                          self.device_serial, label)
-                break
+        # Step 0: Dismiss album picker bottom sheet if it appeared
+        # Some IG versions show "Select album" sheet on entering reel gallery
+        self._dismiss_album_picker()
 
-        # Handle album folder dropdown/context menu
-        # Some IG versions show a dropdown with "Recents", "Photos", "All Albums"
-        # after tapping the gallery tab. We need to pick "Recents" from it.
-        ctx_menu = self.device(resourceIdMatches=".*context_menu_item_label.*",
-                               text="Recents")
-        if ctx_menu.exists(timeout=2):
-            ctx_menu.click()
-            time.sleep(2)
-            log.debug("[%s] CONTENT: Selected 'Recents' from album dropdown",
-                      self.device_serial)
-        else:
-            # Try dismissing any dropdown by pressing back if a context menu is open
-            ctx_any = self.device(resourceIdMatches=".*context_menu_item.*")
-            if ctx_any.exists(timeout=1):
-                # Context menu is open but no "Recents" — tap first item
-                try:
-                    ctx_any.click()
-                    time.sleep(2)
-                    log.debug("[%s] CONTENT: Selected first album from dropdown",
-                              self.device_serial)
-                except Exception:
-                    self.device.press('back')
-                    time.sleep(1)
-
-        # Also try resource-id based gallery tab
-        for rid in ['gallery_tab', 'gallery_folder_menu', 'gallery_picker_tab']:
-            el = self.device(resourceIdMatches=f".*{rid}.*")
-            if el.exists(timeout=2):
-                el.click()
-                time.sleep(1)
-                break
-
-        random_sleep(1, 2, label="gallery_grid_loading")
-
-        # Method 2: Select the first (most recent) image in the gallery grid
-        # IG gallery grid uses ImageView elements — the first one is our pushed media
-        # Try specific gallery grid resource IDs
-        for rid in ['gallery_grid_item_image', 'media_thumbnail',
-                    'gallery_image_view', 'gallery_grid']:
+        # Step 1: Try clicking the first gallery grid thumbnail (resource-id based)
+        # IG clone uses 'gallery_grid_item_thumbnail' (View class, not ImageView)
+        for rid in ['gallery_grid_item_thumbnail', 'gallery_grid_item_image',
+                     'media_thumbnail', 'gallery_image_view']:
             grid_item = self.device(resourceIdMatches=f".*{rid}.*")
             if grid_item.exists(timeout=3):
                 try:
@@ -733,45 +726,35 @@ class PostContentAction:
                 except Exception:
                     continue
 
-        # Method 3: Look for a large preview image (some IG versions show a
-        # preview of the selected image at top, with grid below)
-        # The preview is typically already showing the latest image.
-        # Just look for the grid and tap the first item
+        # Step 2: XML-based fallback — find any clickable View/ImageView thumbnails
         xml = self.ctrl.dump_xml("gallery_select")
+        screen_w, screen_h = self.device.window_size()
+        nav_bar_y = int(screen_h * 0.92)
 
-        # Find ImageView elements that look like gallery thumbnails
-        # They're usually in a RecyclerView/GridView with square-ish bounds
+        # Match both ImageView and View (IG clones use android.view.View)
         thumb_pattern = (
-            r'<node[^>]*class="android\.widget\.ImageView"[^>]*'
+            r'<node[^>]*class="android\.(?:widget\.ImageView|view\.View)"[^>]*'
             r'clickable="true"[^>]*'
             r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
         )
         thumbs = re.findall(thumb_pattern, xml)
-        screen_w, screen_h = self.device.window_size()
-        # Nav bar safe zone — don't click below 95% of screen height
-        # (Nav buttons start at ~92.5% on 1920px screens = y~1776)
-        nav_bar_y = int(screen_h * 0.95)
 
         if thumbs:
-            # Pick the first thumbnail that's NOT in the nav bar zone
             for t in thumbs:
                 x1, y1, x2, y2 = [int(v) for v in t]
                 w = x2 - x1
                 h = y2 - y1
                 cy = (y1 + y2) // 2
-                # Sanity: reasonably sized and not in nav bar
-                if w > 50 and h > 50 and cy < nav_bar_y:
+                # Gallery thumbnails are typically square-ish and >100px
+                if w > 100 and h > 100 and cy < nav_bar_y:
                     self.device.click((x1 + x2) // 2, cy)
                     time.sleep(2)
-                    log.debug("[%s] CONTENT: Selected media via ImageView thumbnail at y=%d (nav_bar_y=%d)",
-                              self.device_serial, cy, nav_bar_y)
+                    log.debug("[%s] CONTENT: Selected media via thumbnail at (%d,%d)",
+                              self.device_serial, (x1+x2)//2, cy)
                     return True
-            log.debug("[%s] CONTENT: All thumbnails too close to nav bar, skipping",
-                      self.device_serial)
 
-        # Method 4: Tap the typical gallery grid area (center of screen)
-        # The gallery grid usually occupies the bottom 2/3 of the screen
-        self.device.click(int(screen_w * 0.16), int(screen_h * 0.6))
+        # Step 3: Fallback — tap estimated gallery grid position
+        self.device.click(int(screen_w * 0.16), int(screen_h * 0.5))
         time.sleep(2)
         log.debug("[%s] CONTENT: Tapped gallery grid area as fallback",
                   self.device_serial)
