@@ -1583,11 +1583,19 @@ def _run_test_post(test_id, account, media_path, content_type,
         class _StepHandler(logging.Handler):
             def emit(self, record):
                 msg = self.format(record)
-                # Only capture our content action logs
-                if device_serial in msg or 'CONTENT' in msg or 'POST' in msg.upper():
+                # Capture all relevant automation logs
+                if device_serial in msg or 'CONTENT' in msg or 'POST' in msg.upper() \
+                        or 'navigate' in msg.lower() or 'dismiss' in msg.lower() \
+                        or 'MediaStore' in msg or 'Registered' in msg \
+                        or record.levelno >= logging.WARNING:
                     short = msg.split('] ')[-1] if '] ' in msg else msg
+                    prefix = ''
+                    if record.levelno >= logging.ERROR:
+                        prefix = '❌ '
+                    elif record.levelno >= logging.WARNING:
+                        prefix = '⚠️ '
                     try:
-                        _update('running', short[:200])
+                        _update('running', prefix + short[:200])
                     except:
                         pass
 
