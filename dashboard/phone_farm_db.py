@@ -167,7 +167,7 @@ def get_all_accounts(status_filter=None, device_serial=None):
     conn = get_conn()
     try:
         query = """
-            SELECT a.*, d.device_name
+            SELECT a.*, d.device_name, d.device_group
             FROM accounts a
             LEFT JOIN devices d ON d.id = a.device_id
             WHERE 1=1

@@ -184,10 +184,16 @@
                 </div>
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0"><strong>Filter by group:</strong></label>
+                        <select id="verifyGroupFilter" class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;min-width:140px" onchange="filterVerifyDevicesByGroup()">
+                            <option value="">All Groups</option>
+                        </select>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
                         <label class="form-label mb-0"><strong>Select devices:</strong></label>
                         <div>
-                            <button class="btn btn-sm btn-outline-light me-1" onclick="$('.verify-dev-check').prop('checked', true); updateVerifyCount()">All</button>
-                            <button class="btn btn-sm btn-outline-light" onclick="$('.verify-dev-check').prop('checked', false); updateVerifyCount()">None</button>
+                            <button class="btn btn-sm btn-outline-light me-1" onclick="$('.verify-dev-check:visible').prop('checked', true); updateVerifyCount()">All</button>
+                            <button class="btn btn-sm btn-outline-light" onclick="$('.verify-dev-check:visible').prop('checked', false); updateVerifyCount()">None</button>
                         </div>
                     </div>
                     <div id="verifyDeviceList" style="max-height:300px;overflow-y:auto" class="border border-secondary rounded p-2">
@@ -424,10 +430,12 @@ function getSelectedIds() {
 }
 
 let verifyActiveAccounts = [];
+let verifyDevicesData = [];
 
 function startVerify() {
     // Fetch active accounts from backend
     $('#verifyDeviceList').html('<div class="text-muted text-center py-2"><i class="fas fa-spinner fa-spin me-1"></i> Loading active accounts...</div>');
+    $('#verifyGroupFilter').html('<option value="">All Groups</option>');
     new bootstrap.Modal('#verifyModal').show();
 
     $.get('/api/login-v2/active-accounts', function(data) {
@@ -439,32 +447,58 @@ function startVerify() {
 
         verifyActiveAccounts = data.accounts;
 
-        // Get unique devices
+        // Get unique devices with group info
         const deviceMap = {};
         verifyActiveAccounts.forEach(a => {
             const ds = a.device_serial || 'unknown';
-            if (!deviceMap[ds]) deviceMap[ds] = { serial: ds, name: a.device_name || ds, count: 0 };
+            if (!deviceMap[ds]) deviceMap[ds] = { serial: ds, name: a.device_name || ds, count: 0, group: a.device_group || '' };
             deviceMap[ds].count++;
         });
-        const devices = Object.values(deviceMap).sort((a, b) => a.serial.localeCompare(b.serial));
+        verifyDevicesData = Object.values(deviceMap).sort((a, b) => a.serial.localeCompare(b.serial));
 
-        let html = '';
-        devices.forEach(d => {
-            html += `<div class="form-check py-1">
-                <input class="form-check-input verify-dev-check" type="checkbox" value="${d.serial}" 
-                       id="vdev_${d.serial.replace(/[.:]/g,'_')}" checked onchange="updateVerifyCount()">
-                <label class="form-check-label d-flex justify-content-between w-100" for="vdev_${d.serial.replace(/[.:]/g,'_')}">
-                    <span>${d.name} <small class="text-muted">(${d.serial})</small></span>
-                    <span class="badge bg-info">${d.count} accounts</span>
-                </label>
-            </div>`;
-        });
-        $('#verifyDeviceList').html(html);
+        // Populate group filter dropdown
+        const groups = [...new Set(verifyDevicesData.map(d => d.group).filter(g => g))].sort();
+        let filterHtml = '<option value="">All Groups</option>';
+        if (groups.length > 0) {
+            groups.forEach(g => { filterHtml += `<option value="${g}">${g}</option>`; });
+        }
+        $('#verifyGroupFilter').html(filterHtml);
+
+        renderVerifyDevices();
         $('#verifyProgress').addClass('d-none');
         $('#verifyResult').addClass('d-none');
         $('#verifyStartBtn').prop('disabled', false).html('<i class="fas fa-check-double me-1"></i> Start Verification');
         updateVerifyCount();
     });
+}
+
+function renderVerifyDevices() {
+    let html = '';
+    verifyDevicesData.forEach(d => {
+        html += `<div class="form-check py-1 verify-dev-row" data-group="${(d.group || '').replace(/"/g, '&quot;')}">
+            <input class="form-check-input verify-dev-check" type="checkbox" value="${d.serial}" 
+                   id="vdev_${d.serial.replace(/[.:]/g,'_')}" checked onchange="updateVerifyCount()">
+            <label class="form-check-label d-flex justify-content-between w-100" for="vdev_${d.serial.replace(/[.:]/g,'_')}">
+                <span>${d.name} <small class="text-muted">(${d.serial})</small></span>
+                <span class="badge bg-info">${d.count} accounts</span>
+            </label>
+        </div>`;
+    });
+    $('#verifyDeviceList').html(html);
+}
+
+function filterVerifyDevicesByGroup() {
+    const selected = $('#verifyGroupFilter').val();
+    $('.verify-dev-row').each(function() {
+        const rowGroup = $(this).data('group') || '';
+        if (!selected || rowGroup === selected) {
+            $(this).show();
+        } else {
+            $(this).hide();
+            $(this).find('.verify-dev-check').prop('checked', false);
+        }
+    });
+    updateVerifyCount();
 }
 
 function updateVerifyCount() {
