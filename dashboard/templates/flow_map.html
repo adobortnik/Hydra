@@ -1,0 +1,1042 @@
+{% extends "base.html" %}
+
+{% block title %}Hydra - Automation Flows{% endblock %}
+
+{% block extra_css %}
+<style>
+    .flow-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        transition: border-color 0.2s;
+    }
+    .flow-card:hover {
+        border-color: var(--accent);
+    }
+    .flow-card-header {
+        background: linear-gradient(135deg, rgba(108,92,231,0.08), rgba(79,168,213,0.06));
+        padding: 1rem 1.25rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        user-select: none;
+    }
+    .flow-card-header:hover {
+        background: linear-gradient(135deg, rgba(108,92,231,0.14), rgba(79,168,213,0.10));
+    }
+    .flow-card-header h5 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text);
+    }
+    .flow-card-header .flow-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+    .flow-card-header .flow-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .flow-card-header .badge {
+        font-size: 0.7rem;
+        font-weight: 500;
+    }
+    .flow-card-header .chevron {
+        transition: transform 0.3s;
+        color: var(--text-dim);
+        font-size: 0.85rem;
+    }
+    .flow-card-header.collapsed .chevron {
+        transform: rotate(-90deg);
+    }
+    .flow-card-body {
+        padding: 1.25rem;
+        border-top: 1px solid var(--border);
+        overflow-x: auto;
+    }
+    .flow-card-body .mermaid {
+        display: flex;
+        justify-content: center;
+    }
+    .flow-description {
+        color: var(--text-dim);
+        font-size: 0.82rem;
+        margin-bottom: 1rem;
+        line-height: 1.5;
+    }
+    .flow-source-link {
+        font-size: 0.75rem;
+        color: var(--accent-light);
+        opacity: 0.7;
+    }
+    .flow-source-link:hover {
+        opacity: 1;
+    }
+
+    /* Legend */
+    .legend-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-right: 1.25rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.82rem;
+        color: var(--text-dim);
+    }
+    .legend-swatch {
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    /* Page header */
+    .page-header {
+        margin-bottom: 1.5rem;
+    }
+    .page-header h2 {
+        font-weight: 700;
+        font-size: 1.5rem;
+    }
+    .page-header .subtitle {
+        color: var(--text-dim);
+        font-size: 0.9rem;
+    }
+
+    /* Controls */
+    .flow-controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .flow-controls .btn {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.75rem;
+    }
+
+    /* Mermaid theme overrides for dark mode */
+    .mermaid svg {
+        max-width: 100%;
+    }
+
+    /* Make flowcharts readable on dark bg */
+    .mermaid .node rect,
+    .mermaid .node polygon,
+    .mermaid .node circle {
+        stroke-width: 1.5px !important;
+    }
+    .mermaid .edgeLabel {
+        background-color: var(--bg-card) !important;
+        color: var(--text) !important;
+        font-size: 0.75rem !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="fas fa-project-diagram me-2 text-info"></i>Automation Flows</h2>
+            <p class="subtitle mb-0">Visual documentation of all automation scripts — generated from actual source code</p>
+        </div>
+        <div class="flow-controls">
+            <button class="btn btn-outline-info btn-sm" onclick="expandAll()">
+                <i class="fas fa-expand-arrows-alt me-1"></i>Expand All
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="collapseAll()">
+                <i class="fas fa-compress-arrows-alt me-1"></i>Collapse All
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Color Legend -->
+<div class="legend-card">
+    <strong class="me-3" style="font-size:0.85rem;"><i class="fas fa-palette me-1"></i>Legend</strong>
+    <div class="d-inline-flex flex-wrap">
+        <span class="legend-item"><span class="legend-swatch" style="background:#4fa8d5;"></span>Action / Step</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#f0c040; border-radius:50%;"></span>Decision</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#00d2a0;"></span>Success</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#e74c6f;"></span>Failure / Error</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#f0a040;"></span>Retry / Fallback</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#a29bfe;"></span>External / ADB</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#888;"></span>Start / End</span>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 1: Bot Engine Main Loop -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-bot-engine">
+    <div class="flow-card-header" data-bs-toggle="collapse" data-bs-target="#body-bot-engine">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(108,92,231,0.15); color:var(--accent);">
+                <i class="fas fa-cogs"></i>
+            </div>
+            <div>
+                <h5>Bot Engine — Main Loop & Action Dispatch</h5>
+                <span class="flow-source-link">automation/bot_engine.py → BotEngine.run()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-primary">Core</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse show" id="body-bot-engine">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                The main orchestrator for a single device + account pair. Loads account data, validates time windows,
+                checks proxy/VPN status, opens Instagram, verifies login state, then dispatches enabled actions
+                (follow, unfollow, like, engage, comment, DM, reels, etc.) with randomized cooldowns between each.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>BotEngine.run()"))):::startNode
+    LOAD["📋 Load account data<br/>from phone_farm.db"]:::actionNode
+    LOAD_OK{Account<br/>loaded?}:::decisionNode
+    TIME{"Within time<br/>window?<br/>(start_hour–end_hour)"}:::decisionNode
+    CONNECT["🔌 Connect to device<br/>(must be pre-connected)"]:::actionNode
+    CONNECT_OK{Device<br/>connected?}:::decisionNode
+    LOGIN_TASKS["🔑 Check pending<br/>login tasks for device"]:::actionNode
+    PROXY{"Check proxy/VPN<br/>(SuperProxy +<br/>status bar)"}:::decisionNode
+    SURFSHARK["🔄 Reconnect Surfshark<br/>VPN automatically"]:::retryNode
+    SURF_OK{VPN<br/>reconnected?}:::decisionNode
+    OPEN_IG["📱 Force-stop & open<br/>Instagram clone package"]:::actionNode
+    OPEN_OK{App<br/>opened?}:::decisionNode
+    LOGIN_CHECK{"Detect screen<br/>state: logged_in?<br/>login? challenge?<br/>suspended?"}:::decisionNode
+    ATTEMPT_LOGIN["🔐 Attempt login<br/>(credentials + 2FA)"]:::actionNode
+    FLAG_ACCOUNT["⚠️ Flag account status<br/>(suspended/verification/<br/>2fa_required)"]:::failNode
+    CREATE_SESSION["📝 Create bot session<br/>in account_sessions"]:::actionNode
+    WARMUP_CHECK{"Warmup<br/>mode?"}:::decisionNode
+    WARMUP_ACTIONS["🔥 Warmup only:<br/>reels + explore"]:::actionNode
+    DETERMINE["📊 Determine actions:<br/>scheduled content → jobs →<br/>engage → follow → unfollow →<br/>like → comment → DM →<br/>reels → story → save"]:::actionNode
+    SHUFFLE["🔀 Randomize order<br/>(keep engage first)"]:::actionNode
+    EXEC_LOOP["▶️ Execute action"]:::actionNode
+    ACTION_OK{Action<br/>success?}:::decisionNode
+    BROADCAST["📡 Broadcast via<br/>WebSocket"]:::externalNode
+    COOLDOWN["⏱️ Random cooldown<br/>30-90 seconds"]:::actionNode
+    MORE_ACTIONS{More<br/>actions?}:::decisionNode
+    RECOVER["🔧 Recovery attempt:<br/>dismiss modals,<br/>press back × 3,<br/>re-open IG"]:::retryNode
+    RECOVER_OK{Recovery<br/>OK?}:::decisionNode
+    END_SESSION["📝 End session<br/>(completed/error)"]:::actionNode
+    SUCCESS(["✅ Done"]):::successNode
+    FAIL(["❌ Failed"]):::failNode
+    SKIP(["⏭️ Skipped"]):::skipNode
+
+    START --> LOAD
+    LOAD --> LOAD_OK
+    LOAD_OK -->|No| FAIL
+    LOAD_OK -->|Yes| TIME
+    TIME -->|Outside window| SKIP
+    TIME -->|Within window| CONNECT
+    CONNECT --> CONNECT_OK
+    CONNECT_OK -->|No| FAIL
+    CONNECT_OK -->|Yes| LOGIN_TASKS
+    LOGIN_TASKS --> PROXY
+    PROXY -->|Active| OPEN_IG
+    PROXY -->|Down| SURFSHARK
+    SURFSHARK --> SURF_OK
+    SURF_OK -->|Yes| OPEN_IG
+    SURF_OK -->|No| FAIL
+    OPEN_IG --> OPEN_OK
+    OPEN_OK -->|No| FAIL
+    OPEN_OK -->|Yes| LOGIN_CHECK
+    LOGIN_CHECK -->|logged_in| CREATE_SESSION
+    LOGIN_CHECK -->|login/signup| ATTEMPT_LOGIN
+    LOGIN_CHECK -->|challenge/suspended| FLAG_ACCOUNT
+    FLAG_ACCOUNT --> FAIL
+    ATTEMPT_LOGIN -->|Success| CREATE_SESSION
+    ATTEMPT_LOGIN -->|Failed| FAIL
+    CREATE_SESSION --> WARMUP_CHECK
+    WARMUP_CHECK -->|Yes| WARMUP_ACTIONS
+    WARMUP_CHECK -->|No| DETERMINE
+    WARMUP_ACTIONS --> EXEC_LOOP
+    DETERMINE --> SHUFFLE
+    SHUFFLE --> EXEC_LOOP
+    EXEC_LOOP --> ACTION_OK
+    ACTION_OK -->|Yes| BROADCAST
+    ACTION_OK -->|Error| RECOVER
+    BROADCAST --> COOLDOWN
+    COOLDOWN --> MORE_ACTIONS
+    MORE_ACTIONS -->|Yes| EXEC_LOOP
+    MORE_ACTIONS -->|No| END_SESSION
+    RECOVER --> RECOVER_OK
+    RECOVER_OK -->|Yes| MORE_ACTIONS
+    RECOVER_OK -->|No| END_SESSION
+    END_SESSION --> SUCCESS
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+    classDef skipNode fill:#333,stroke:#888,color:#aaa
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 2: Login Flow -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-login">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-login">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(0,210,160,0.15); color:var(--green);">
+                <i class="fas fa-sign-in-alt"></i>
+            </div>
+            <div>
+                <h5>Login Flow</h5>
+                <span class="flow-source-link">automation/login.py → login_account()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-success">Auth</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-login">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Complete Instagram login flow with 2FA support. Opens IG, detects screen state (login/signup/challenge/logged_in),
+                enters credentials via InstagramActions, handles 2FA code retrieval from 2fa.live or pyotp,
+                dismisses post-login prompts (save login info, notifications), and verifies final login state.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>login_account()"))):::startNode
+    OPEN["📱 Open Instagram<br/>ig.open_instagram(package)"]:::actionNode
+    OPEN_OK{App<br/>opened?}:::decisionNode
+    DETECT["🔍 Detect screen state<br/>ig.detect_screen_state()"]:::actionNode
+    STATE{Screen<br/>state?}:::decisionNode
+    ALREADY(["✅ Already<br/>logged in"]):::successNode
+    CHALLENGE(["⚠️ Challenge screen<br/>manual intervention"]):::failNode
+    SIGNUP["📝 Handle signup screen<br/>→ navigate to login"]:::actionNode
+    CREDS["⌨️ Enter credentials<br/>ig.enter_credentials(<br/>username, password)"]:::actionNode
+    CREDS_OK{Credentials<br/>entered?}:::decisionNode
+    WAIT1["⏱️ Wait 6 seconds"]:::actionNode
+    TWO_FA_CHECK{"2FA screen<br/>detected?"}:::decisionNode
+    HAS_TOKEN{2FA token<br/>provided?}:::decisionNode
+    GET_CODE["🔑 Get 2FA code<br/>TwoFALiveClient or pyotp"]:::externalNode
+    CODE_OK{Code<br/>retrieved?}:::decisionNode
+    ENTER_2FA["⌨️ Enter 2FA code<br/>ig.enter_2fa_code(code)"]:::actionNode
+    ENTER_OK{Code<br/>accepted?}:::decisionNode
+    SECOND_CHECK{"Double-check:<br/>still on 2FA?"}:::decisionNode
+    SECOND_2FA["🔄 Second 2FA attempt<br/>get new code + enter"]:::retryNode
+    POST_LOGIN["🔔 Handle post-login:<br/>• Save login info prompt<br/>• Notification prompt<br/>• Dismiss modals"]:::actionNode
+    VERIFY{"Verify login<br/>ig.verify_logged_in()"}:::decisionNode
+    SUCCESS(["✅ Login<br/>successful"]):::successNode
+    FAIL(["❌ Login<br/>failed"]):::failNode
+
+    START --> OPEN
+    OPEN --> OPEN_OK
+    OPEN_OK -->|No| FAIL
+    OPEN_OK -->|Yes| DETECT
+    DETECT --> STATE
+    STATE -->|logged_in| ALREADY
+    STATE -->|challenge| CHALLENGE
+    STATE -->|signup| SIGNUP
+    STATE -->|login/other| CREDS
+    SIGNUP --> CREDS
+    CREDS --> CREDS_OK
+    CREDS_OK -->|No| FAIL
+    CREDS_OK -->|Yes| WAIT1
+    WAIT1 --> TWO_FA_CHECK
+    TWO_FA_CHECK -->|No| SECOND_CHECK
+    TWO_FA_CHECK -->|Yes| HAS_TOKEN
+    HAS_TOKEN -->|No| FAIL
+    HAS_TOKEN -->|Yes| GET_CODE
+    GET_CODE --> CODE_OK
+    CODE_OK -->|No| FAIL
+    CODE_OK -->|Yes| ENTER_2FA
+    ENTER_2FA --> ENTER_OK
+    ENTER_OK -->|No| FAIL
+    ENTER_OK -->|Yes| SECOND_CHECK
+    SECOND_CHECK -->|Still on 2FA| SECOND_2FA
+    SECOND_CHECK -->|No| POST_LOGIN
+    SECOND_2FA -->|Success| POST_LOGIN
+    SECOND_2FA -->|Fail| FAIL
+    POST_LOGIN --> VERIFY
+    VERIFY -->|Yes| SUCCESS
+    VERIFY -->|Inconclusive| SUCCESS
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 3: Feed Post Posting -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-post">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-post">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(79,168,213,0.15); color:var(--blue);">
+                <i class="fas fa-image"></i>
+            </div>
+            <div>
+                <h5>Feed Post (Image) Posting</h5>
+                <span class="flow-source-link">automation/actions/post_content.py → _post_feed_post()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-info">Content</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-post">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Posts a feed post (image + caption + optional location). The flow first pushes media to the device via ADB,
+                then navigates IG's UI: tap "+" → select "Post" → pick media from gallery → Next (skip filters) → enter caption → add location → Share → wait for upload confirmation.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>_post_feed_post()"))):::startNode
+    CREATE["➕ Tap create/+ button<br/>5 methods: desc, rid,<br/>text, XML, center-bottom"]:::actionNode
+    CREATE_OK{Button<br/>found?}:::decisionNode
+    SELECT_TYPE["📋 Select 'Post' from<br/>content type picker<br/>(text → desc → XML)"]:::actionNode
+    TYPE_OK{Post<br/>selected?}:::decisionNode
+    GALLERY["🖼️ Select media from gallery<br/>→ _select_media_from_gallery()"]:::actionNode
+    GAL_OK{Media<br/>selected?}:::decisionNode
+    NEXT1["➡️ Tap 'Next'<br/>(past gallery selection)"]:::actionNode
+    NEXT1_OK{Next<br/>found?}:::decisionNode
+    NEXT2["➡️ Tap 'Next' again<br/>(skip filters screen)"]:::actionNode
+    CAPTION{"Caption<br/>provided?"}:::decisionNode
+    ENTER_CAP["📝 Enter caption + hashtags<br/>rid → hint → EditText → ADB<br/>then press Back (hide KB)"]:::actionNode
+    LOCATION{"Location<br/>provided?"}:::decisionNode
+    ADD_LOC["📍 Add location<br/>tap → search → select 1st"]:::actionNode
+    SHARE["📤 Tap 'Share' / 'Post'<br/>text → desc → rid → XML"]:::actionNode
+    SHARE_OK{Share<br/>tapped?}:::decisionNode
+    WAIT_UPLOAD["⏳ Wait for upload<br/>(up to 60s, poll XML<br/>every 3s for home feed<br/>or confirmation text)"]:::actionNode
+    UPLOAD_OK{Upload<br/>complete?}:::decisionNode
+    SUCCESS(["✅ Posted"]):::successNode
+    FAIL(["❌ Failed"]):::failNode
+
+    START --> CREATE
+    CREATE --> CREATE_OK
+    CREATE_OK -->|No| FAIL
+    CREATE_OK -->|Yes| SELECT_TYPE
+    SELECT_TYPE --> TYPE_OK
+    TYPE_OK -->|No| FAIL
+    TYPE_OK -->|Yes| GALLERY
+    GALLERY --> GAL_OK
+    GAL_OK -->|No| FAIL
+    GAL_OK -->|Yes| NEXT1
+    NEXT1 --> NEXT1_OK
+    NEXT1_OK -->|No| FAIL
+    NEXT1_OK -->|Yes| NEXT2
+    NEXT2 --> CAPTION
+    CAPTION -->|Yes| ENTER_CAP
+    CAPTION -->|No| LOCATION
+    ENTER_CAP --> LOCATION
+    LOCATION -->|Yes| ADD_LOC
+    LOCATION -->|No| SHARE
+    ADD_LOC --> SHARE
+    SHARE --> SHARE_OK
+    SHARE_OK -->|No| FAIL
+    SHARE_OK -->|Yes| WAIT_UPLOAD
+    WAIT_UPLOAD --> UPLOAD_OK
+    UPLOAD_OK -->|Yes| SUCCESS
+    UPLOAD_OK -->|Error/Timeout| FAIL
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 4: Reel Posting -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-reel">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-reel">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(231,76,111,0.15); color:var(--red);">
+                <i class="fas fa-film"></i>
+            </div>
+            <div>
+                <h5>Reel Posting</h5>
+                <span class="flow-source-link">automation/actions/post_content.py → _post_reel()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-danger">Content</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-reel">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Posts a reel (video + caption + optional music). Includes unique features: Recents/app-switcher detection
+                with automatic recovery (pressing Home, re-opening IG, retrying once), "About Reels" modal dismissal,
+                and "Add" button fallback for different IG versions. Max 1 retry on Recents detection.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>_post_reel()"))):::startNode
+    CREATE["➕ Tap create/+ button"]:::actionNode
+    CREATE_OK{Found?}:::decisionNode
+    SELECT_REEL["🎬 Select 'Reel' option<br/>(text: Reel/Reels/Short video)"]:::actionNode
+    REEL_OK{Selected?}:::decisionNode
+    GALLERY["🖼️ Select video<br/>from gallery"]:::actionNode
+    GAL_OK{Video<br/>selected?}:::decisionNode
+    RECENTS_CHECK{"Check XML:<br/>app switcher /<br/>Recents visible?"}:::decisionNode
+    RECENTS_RECOVER["🔄 Recovery: Home →<br/>re-open IG → retry<br/>(max 1 retry)"]:::retryNode
+    RETRY_OK{Retry<br/>count ≤ 1?}:::decisionNode
+    NEXT1["➡️ Tap 'Next'<br/>(video trimming)"]:::actionNode
+    ADD_FALLBACK{"'Next' found?"}:::decisionNode
+    TAP_ADD["Tap 'Add' button<br/>(fallback for some IG)"]:::retryNode
+    MUSIC{"Music search<br/>query set?"}:::decisionNode
+    ADD_MUSIC["🎵 Add music:<br/>tap Music → search →<br/>select first → Done"]:::actionNode
+    NEXT2["➡️ Tap 'Next'<br/>(to caption screen)"]:::actionNode
+    CAPTION{"Caption<br/>provided?"}:::decisionNode
+    ENTER_CAP["📝 Enter caption<br/>+ dismiss keyboard"]:::actionNode
+    NEXT3["➡️ Tap 'Next'<br/>(final confirmation)"]:::actionNode
+    ABOUT_REELS{"'About Reels'<br/>modal?"}:::decisionNode
+    DISMISS_MODAL["📋 Dismiss modal:<br/>tap Share on<br/>'About Reels'"]:::actionNode
+    SHARE["📤 Tap 'Share'"]:::actionNode
+    SHARE_OK{Share<br/>tapped?}:::decisionNode
+    WAIT_UPLOAD["⏳ Wait for upload<br/>(60s timeout)"]:::actionNode
+    SUCCESS(["✅ Reel posted"]):::successNode
+    FAIL(["❌ Failed"]):::failNode
+
+    START --> CREATE
+    CREATE --> CREATE_OK
+    CREATE_OK -->|No| FAIL
+    CREATE_OK -->|Yes| SELECT_REEL
+    SELECT_REEL --> REEL_OK
+    REEL_OK -->|No| FAIL
+    REEL_OK -->|Yes| GALLERY
+    GALLERY --> GAL_OK
+    GAL_OK -->|No| FAIL
+    GAL_OK -->|Yes| RECENTS_CHECK
+    RECENTS_CHECK -->|Yes - app switcher!| RECENTS_RECOVER
+    RECENTS_CHECK -->|No - normal| NEXT1
+    RECENTS_RECOVER --> RETRY_OK
+    RETRY_OK -->|Yes| START
+    RETRY_OK -->|No - limit reached| FAIL
+    NEXT1 --> ADD_FALLBACK
+    ADD_FALLBACK -->|Yes| MUSIC
+    ADD_FALLBACK -->|No Next| TAP_ADD
+    TAP_ADD --> MUSIC
+    MUSIC -->|Yes| ADD_MUSIC
+    MUSIC -->|No| NEXT2
+    ADD_MUSIC --> NEXT2
+    NEXT2 --> CAPTION
+    CAPTION -->|Yes| ENTER_CAP
+    CAPTION -->|No| NEXT3
+    ENTER_CAP --> NEXT3
+    NEXT3 --> ABOUT_REELS
+    ABOUT_REELS -->|Yes| DISMISS_MODAL
+    ABOUT_REELS -->|No| SHARE
+    DISMISS_MODAL --> SHARE
+    SHARE --> SHARE_OK
+    SHARE_OK -->|No| FAIL
+    SHARE_OK -->|Yes| WAIT_UPLOAD
+    WAIT_UPLOAD --> SUCCESS
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 5: Story Posting -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-story">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-story">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(240,160,64,0.15); color:var(--orange);">
+                <i class="fas fa-circle-notch"></i>
+            </div>
+            <div>
+                <h5>Story Posting</h5>
+                <span class="flow-source-link">automation/actions/post_content.py → _post_story()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-warning text-dark">Content</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-story">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Posts a story (image/video + optional mention sticker + optional link sticker).
+                Has a dual entry path: tries "Your story" circle at top-left first, falls back to create button → Story option.
+                Gallery opening in story mode uses swipe-up gesture as a fallback.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>_post_story()"))):::startNode
+    STORY_CREATE{"Tap 'Your story'<br/>circle at top-left?<br/>(desc → rid → coords)"}:::decisionNode
+    FALLBACK_CREATE["➕ Fallback: tap create<br/>button → select 'Story'"]:::retryNode
+    FB_OK{Story<br/>mode entered?}:::decisionNode
+    STORY_GALLERY["📸 Open gallery in<br/>story camera mode:<br/>• Gallery/Recent desc<br/>• gallery_preview rid<br/>• Swipe up fallback"]:::actionNode
+    SELECT_MEDIA["🖼️ Select most recent<br/>media (our pushed file)<br/>rid → ImageView → coords"]:::actionNode
+    MEDIA_OK{Media<br/>selected?}:::decisionNode
+    MENTION{"Mention<br/>username set?"}:::decisionNode
+    ADD_MENTION["👤 Add mention sticker:<br/>sticker btn → 'Mention' →<br/>type username → select"]:::actionNode
+    LINK{"Link URL<br/>set?"}:::decisionNode
+    ADD_LINK["🔗 Add link sticker:<br/>sticker btn → 'Link' →<br/>enter URL → Done"]:::actionNode
+    PUBLISH["📤 Publish story:<br/>'Your story' / 'Share to' /<br/>'Done' / 'Post'"]:::actionNode
+    PUB_OK{Published?}:::decisionNode
+    SUCCESS(["✅ Story posted"]):::successNode
+    FAIL(["❌ Failed"]):::failNode
+
+    START --> STORY_CREATE
+    STORY_CREATE -->|Yes| STORY_GALLERY
+    STORY_CREATE -->|No| FALLBACK_CREATE
+    FALLBACK_CREATE --> FB_OK
+    FB_OK -->|No| FAIL
+    FB_OK -->|Yes| STORY_GALLERY
+    STORY_GALLERY --> SELECT_MEDIA
+    SELECT_MEDIA --> MEDIA_OK
+    MEDIA_OK -->|No| FAIL
+    MEDIA_OK -->|Yes| MENTION
+    MENTION -->|Yes| ADD_MENTION
+    MENTION -->|No| LINK
+    ADD_MENTION --> LINK
+    LINK -->|Yes| ADD_LINK
+    LINK -->|No| PUBLISH
+    ADD_LINK --> PUBLISH
+    PUBLISH --> PUB_OK
+    PUB_OK -->|Yes| SUCCESS
+    PUB_OK -->|No| FAIL
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 6: Media Upload (ADB Push + Scan) -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-media-upload">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-media-upload">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(162,155,254,0.15); color:var(--accent-light);">
+                <i class="fas fa-upload"></i>
+            </div>
+            <div>
+                <h5>Media Upload (ADB Push + MediaStore Scan)</h5>
+                <span class="flow-source-link">automation/actions/post_content.py → _push_media_to_device()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-secondary">ADB</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-media-upload">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Pushes media from PC to the Android device via ADB and registers it in the MediaStore so Instagram's
+                gallery picker can see it. Uses the modern <code>content call --method scan_file</code> API (Android 10+),
+                with a fallback to the deprecated <code>MEDIA_SCANNER_SCAN_FILE</code> broadcast. Also handles cleanup
+                after posting.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>_push_media_to_device()"))):::startNode
+    DETECT_MIME["🔍 Detect MIME type<br/>from file extension<br/>(.jpg→image/jpeg,<br/>.mp4→video/mp4, etc.)"]:::actionNode
+    MKDIR["📁 ADB: mkdir -p<br/>/sdcard/Pictures"]:::externalNode
+    PUSH["📤 ADB push<br/>local_path → /sdcard/Pictures/<br/>(timeout: 120s)"]:::externalNode
+    PUSH_OK{Push<br/>succeeded?}:::decisionNode
+    SCAN["📡 MediaStore scan:<br/>adb shell content call<br/>--uri content://media<br/>--method scan_file<br/>--arg /storage/emulated/0/..."]:::externalNode
+    SCAN_OK{"scan_file<br/>returned<br/>content:// URI?"}:::decisionNode
+    FALLBACK_SCAN["🔄 Fallback broadcast:<br/>MEDIA_SCANNER_SCAN_FILE<br/>(deprecated but works)"]:::retryNode
+    WAIT["⏱️ Wait 2s for<br/>gallery refresh"]:::actionNode
+    DONE(["✅ Remote path<br/>returned"]):::successNode
+    FAIL(["❌ Push failed<br/>returns None"]):::failNode
+
+    CLEANUP_START((("Cleanup<br/>_cleanup_device_media()"))):::startNode
+    RM["🗑️ ADB: rm -f<br/>{remote_path}"]:::externalNode
+    CLEANUP_DONE(["✅ Cleaned up"]):::successNode
+
+    START --> DETECT_MIME
+    DETECT_MIME --> MKDIR
+    MKDIR --> PUSH
+    PUSH --> PUSH_OK
+    PUSH_OK -->|No| FAIL
+    PUSH_OK -->|Yes| SCAN
+    SCAN --> SCAN_OK
+    SCAN_OK -->|Yes| WAIT
+    SCAN_OK -->|No| FALLBACK_SCAN
+    FALLBACK_SCAN --> WAIT
+    WAIT --> DONE
+
+    CLEANUP_START --> RM
+    RM --> CLEANUP_DONE
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 7: Gallery Selection -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-gallery">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-gallery">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(79,168,213,0.15); color:var(--blue);">
+                <i class="fas fa-th"></i>
+            </div>
+            <div>
+                <h5>Gallery Selection</h5>
+                <span class="flow-source-link">automation/actions/post_content.py → _select_media_from_gallery()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-info">UI</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-gallery">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Selects the most recently pushed media file from Instagram's gallery grid.
+                Uses a waterfall of strategies: first dismisses any album picker bottom sheet,
+                then tries resource-ID based selection, falls back to XML thumbnail scanning
+                (filters by size &gt;100px and position above nav bar), and lastly taps an estimated grid coordinate.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>_select_media_from_gallery()"))):::startNode
+    ALBUM_CHECK{"Album picker<br/>bottom sheet<br/>visible?"}:::decisionNode
+    DISMISS_ALBUM["📋 Dismiss album picker:<br/>• 'Select album' → Back<br/>• album_filter → Back<br/>• 'Recents' context menu"]:::actionNode
+    TRY_RID["🔍 Try resource IDs:<br/>gallery_grid_item_thumbnail,<br/>gallery_grid_item_image,<br/>media_thumbnail,<br/>gallery_image_view"]:::actionNode
+    RID_OK{Found &<br/>clicked?}:::decisionNode
+    TRY_XML["🔍 XML fallback: find<br/>clickable ImageView/View<br/>with bounds > 100×100px<br/>above nav bar"]:::actionNode
+    XML_OK{Thumbnail<br/>found?}:::decisionNode
+    FALLBACK_TAP["📍 Coordinate fallback:<br/>tap (16% × width,<br/>50% × height)"]:::retryNode
+    SUCCESS(["✅ Media<br/>selected"]):::successNode
+
+    START --> ALBUM_CHECK
+    ALBUM_CHECK -->|Yes| DISMISS_ALBUM
+    ALBUM_CHECK -->|No| TRY_RID
+    DISMISS_ALBUM --> TRY_RID
+    TRY_RID --> RID_OK
+    RID_OK -->|Yes| SUCCESS
+    RID_OK -->|No| TRY_XML
+    TRY_XML --> XML_OK
+    XML_OK -->|Yes| SUCCESS
+    XML_OK -->|No| FALLBACK_TAP
+    FALLBACK_TAP --> SUCCESS
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 8: Popup/Modal Dismissal -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-popups">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-popups">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(240,160,64,0.15); color:var(--orange);">
+                <i class="fas fa-window-close"></i>
+            </div>
+            <div>
+                <h5>Popup / Modal Dismissal</h5>
+                <span class="flow-source-link">automation/ig_controller.py → dismiss_popups()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-warning text-dark">Recovery</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-popups">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Iterative popup dismissal loop (up to 5 attempts). First checks for IG's Location Services screen
+                (taps Continue then Deny), then detects Android permission dialogs (Allow for camera/mic, Deny for location),
+                then falls through a priority-ordered list of dismiss button texts. Also used by the IGNavigator helper
+                class in actions/helpers.py with its own dismiss_any_popup() method.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>dismiss_popups()<br/>max 5 attempts"))):::startNode
+    LOOP["🔄 Attempt loop<br/>(0 to max_attempts)"]:::actionNode
+    DUMP_XML["📋 Dump XML hierarchy"]:::actionNode
+    LOC_CHECK{"'Location Services'<br/>in XML?"}:::decisionNode
+    LOC_CONTINUE["Click 'Continue'<br/>(IG's location screen)"]:::actionNode
+    LOC_DENY["Click 'Deny'<br/>(Android permission)"]:::actionNode
+    PERM_CHECK{"Android permission<br/>dialog detected?<br/>(camera/mic/storage<br/>/location)"}:::decisionNode
+    IS_LOCATION{"Is location<br/>permission?"}:::decisionNode
+    PERM_DENY["Click 'Deny'<br/>(location)"]:::actionNode
+    PERM_ALLOW["Click 'While using<br/>the app' or 'Allow'"]:::actionNode
+    TEXT_SCAN["🔍 Scan for dismiss buttons<br/>in priority order:<br/>1. While using the app<br/>2. Not Now<br/>3. Allow / Deny<br/>4. Cancel / Skip<br/>5. Dismiss / Close<br/>6. Continue<br/>7. No Thanks<br/>8. Maybe Later<br/>9. OK / Got it"]:::actionNode
+    FOUND{Button<br/>found?}:::decisionNode
+    CLICK_BTN["👆 Click dismiss button<br/>+ wait 1.5s"]:::actionNode
+    NO_MORE(["✅ No more popups<br/>return dismissed count"]):::successNode
+    INCREMENT["dismissed++<br/>continue loop"]:::actionNode
+
+    START --> LOOP
+    LOOP --> DUMP_XML
+    DUMP_XML --> LOC_CHECK
+    LOC_CHECK -->|Yes| LOC_CONTINUE
+    LOC_CONTINUE --> LOC_DENY
+    LOC_DENY --> INCREMENT
+    LOC_CHECK -->|No| PERM_CHECK
+    PERM_CHECK -->|Yes| IS_LOCATION
+    IS_LOCATION -->|Yes| PERM_DENY
+    IS_LOCATION -->|No| PERM_ALLOW
+    PERM_DENY --> INCREMENT
+    PERM_ALLOW --> INCREMENT
+    PERM_CHECK -->|No| TEXT_SCAN
+    TEXT_SCAN --> FOUND
+    FOUND -->|Yes| CLICK_BTN
+    CLICK_BTN --> INCREMENT
+    FOUND -->|No| NO_MORE
+    INCREMENT --> LOOP
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 9: Content Posting Orchestrator (execute()) -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-orchestrator">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-orchestrator">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(0,210,160,0.15); color:var(--green);">
+                <i class="fas fa-play-circle"></i>
+            </div>
+            <div>
+                <h5>Content Posting Orchestrator</h5>
+                <span class="flow-source-link">automation/actions/post_content.py → PostContentAction.execute()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-success">Orchestrator</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-orchestrator">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                The top-level execute() method that wraps all content posting. Validates media file exists,
+                pushes it to the device, stops other IG clones (isolation), opens IG, dismisses popups,
+                navigates to home, then dispatches to the appropriate content-type handler (_post_feed_post,
+                _post_reel, or _post_story). Always cleans up device media and attempts recovery in the finally block.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start<br/>execute()"))):::startNode
+    VALIDATE{"Media file<br/>exists on PC?"}:::decisionNode
+    PUSH["📤 _push_media_to_device()<br/>ADB push + MediaStore scan"]:::externalNode
+    PUSH_OK{Push<br/>success?}:::decisionNode
+    STOP_CLONES["🔒 Stop other IG clones<br/>force-stop all packages<br/>except current one"]:::actionNode
+    ENSURE_APP["📱 Open IG clone<br/>ctrl.ensure_app()"]:::actionNode
+    DISMISS["🚫 Dismiss popups<br/>ctrl.dismiss_popups()"]:::actionNode
+    NAV_HOME["🏠 Navigate to<br/>Home Feed"]:::actionNode
+    DISPATCH{"Content<br/>type?"}:::decisionNode
+    POST["📷 _post_feed_post()"]:::actionNode
+    REEL["🎬 _post_reel()"]:::actionNode
+    STORY["📱 _post_story()"]:::actionNode
+    RESULT{Success?}:::decisionNode
+    LOG_OK["📝 log_action(<br/>success=True)"]:::actionNode
+    LOG_FAIL["📝 log_action(<br/>success=False)"]:::actionNode
+    FINALLY["🧹 Finally block:<br/>• cleanup_device_media()<br/>• _recover() to home"]:::actionNode
+    SUCCESS(["✅ Result: success"]):::successNode
+    FAIL(["❌ Result: failed<br/>+ error_message"]):::failNode
+
+    START --> VALIDATE
+    VALIDATE -->|No| FAIL
+    VALIDATE -->|Yes| PUSH
+    PUSH --> PUSH_OK
+    PUSH_OK -->|No| FAIL
+    PUSH_OK -->|Yes| STOP_CLONES
+    STOP_CLONES --> ENSURE_APP
+    ENSURE_APP --> DISMISS
+    DISMISS --> NAV_HOME
+    NAV_HOME --> DISPATCH
+    DISPATCH -->|post| POST
+    DISPATCH -->|reel| REEL
+    DISPATCH -->|story| STORY
+    POST --> RESULT
+    REEL --> RESULT
+    STORY --> RESULT
+    RESULT -->|Yes| LOG_OK
+    RESULT -->|No| LOG_FAIL
+    LOG_OK --> FINALLY
+    LOG_FAIL --> FINALLY
+    FINALLY --> SUCCESS
+    FINALLY --> FAIL
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mermaid JS -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+    // Initialize Mermaid with dark theme
+    mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+            darkMode: true,
+            background: '#12121a',
+            primaryColor: '#1a3a5c',
+            primaryTextColor: '#e0e0e8',
+            primaryBorderColor: '#4fa8d5',
+            lineColor: '#555566',
+            secondaryColor: '#3d3520',
+            tertiaryColor: '#2a2040',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '13px',
+        },
+        flowchart: {
+            htmlLabels: true,
+            curve: 'basis',
+            padding: 15,
+            nodeSpacing: 30,
+            rankSpacing: 40,
+        },
+        securityLevel: 'loose',
+    });
+
+    // Render all mermaid diagrams
+    async function renderDiagrams() {
+        const diagrams = document.querySelectorAll('.mermaid');
+        for (let i = 0; i < diagrams.length; i++) {
+            const el = diagrams[i];
+            const id = 'mermaid-' + i;
+            try {
+                const { svg } = await mermaid.render(id, el.textContent.trim());
+                el.innerHTML = svg;
+            } catch (err) {
+                console.error('Mermaid render error for diagram', i, err);
+                el.innerHTML = '<div class="text-danger p-3"><i class="fas fa-exclamation-triangle me-2"></i>Diagram render error: ' + err.message + '</div>';
+            }
+        }
+    }
+
+    // Render visible diagrams on page load + when collapsed sections open
+    document.addEventListener('DOMContentLoaded', () => {
+        renderDiagrams();
+
+        // Toggle chevron rotation on collapse events
+        document.querySelectorAll('.flow-card-header').forEach(header => {
+            const target = header.getAttribute('data-bs-target');
+            if (target) {
+                const collapseEl = document.querySelector(target);
+                if (collapseEl) {
+                    collapseEl.addEventListener('shown.bs.collapse', () => {
+                        header.classList.remove('collapsed');
+                        // Re-render mermaid in case it wasn't rendered while hidden
+                        renderDiagrams();
+                    });
+                    collapseEl.addEventListener('hidden.bs.collapse', () => {
+                        header.classList.add('collapsed');
+                    });
+                }
+            }
+        });
+    });
+
+    function expandAll() {
+        document.querySelectorAll('.flow-card .collapse').forEach(el => {
+            const bsCollapse = new bootstrap.Collapse(el, { toggle: false });
+            bsCollapse.show();
+        });
+        setTimeout(renderDiagrams, 300);
+    }
+
+    function collapseAll() {
+        document.querySelectorAll('.flow-card .collapse.show').forEach(el => {
+            const bsCollapse = new bootstrap.Collapse(el, { toggle: false });
+            bsCollapse.hide();
+        });
+    }
+</script>
+{% endblock %}
