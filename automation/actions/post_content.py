@@ -224,8 +224,19 @@ class PostContentAction:
                       self.device_serial, result.stderr[:200])
             return None
 
-        # Register in MediaStore via content insert (works on Android 10+)
-        # This is the reliable replacement for the deprecated MEDIA_SCANNER_SCAN_FILE broadcast
+        # Register in MediaStore — use media scanner which auto-extracts
+        # video duration, resolution etc. The content insert method doesn't
+        # populate duration, causing videos to show as 0:00 in gallery.
+
+        # Method 1: MediaScannerConnection via am broadcast (most reliable for metadata)
+        subprocess.run(
+            ['adb', '-s', adb_serial, 'shell',
+             'am', 'broadcast', '-a',
+             'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+             '-d', f'file://{remote_path}'],
+            capture_output=True, timeout=10)
+
+        # Method 2: Also try 'content insert' as backup for gallery visibility
         insert_result = subprocess.run(
             ['adb', '-s', adb_serial, 'shell', 'content', 'insert',
              '--uri', media_uri,
@@ -234,22 +245,19 @@ class PostContentAction:
              '--bind', f'mime_type:s:{mime_type}'],
             capture_output=True, text=True, timeout=15)
 
-        if insert_result.returncode != 0:
-            log.warning("[%s] CONTENT: MediaStore insert failed (%s), trying legacy broadcast",
-                        self.device_serial, insert_result.stderr[:100])
-            # Fallback: legacy broadcast (works on Android <10)
-            subprocess.run(
-                ['adb', '-s', adb_serial, 'shell',
-                 'am', 'broadcast', '-a',
-                 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
-                 '-d', f'file://{remote_path}'],
-                capture_output=True, timeout=10)
-        else:
+        if insert_result.returncode == 0:
             log.info("[%s] CONTENT: Registered %s in MediaStore",
                      self.device_serial, filename)
 
-        # Give media system a moment to index
-        time.sleep(2)
+        # Method 3: Trigger full media scan on the file path
+        # This ensures the media scanner reads actual video metadata (duration etc.)
+        subprocess.run(
+            ['adb', '-s', adb_serial, 'shell',
+             'cmd', 'media.scanner', 'scan', real_remote_path],
+            capture_output=True, timeout=15)
+
+        # Give media system time to index and extract metadata
+        time.sleep(3)
 
         return remote_path
 
