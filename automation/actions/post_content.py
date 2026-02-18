@@ -294,21 +294,54 @@ class PostContentAction:
                       self.device_serial, result.stderr[:200])
             return None
 
-        # Make file visible in gallery via media scanner broadcast.
-        # No content insert — it creates broken entries without metadata.
-        # The media scanner reads the actual file and IG reads duration itself.
+        # Register in MediaStore with FULL metadata so gallery shows it immediately.
+        # On Android 10+ the MEDIA_SCANNER_SCAN_FILE broadcast is deprecated and
+        # doesn't reliably extract metadata. We do content insert with all fields.
+        file_size = os.path.getsize(local_path)
+
+        insert_binds = [
+            '--bind', f'_data:s:{real_remote_path}',
+            '--bind', f'_display_name:s:{filename}',
+            '--bind', f'mime_type:s:{mime_type}',
+            '--bind', f'_size:l:{file_size}',
+        ]
+
+        if is_video:
+            duration_ms = self._get_video_duration_ms(local_path)
+            if duration_ms and duration_ms > 0:
+                insert_binds += ['--bind', f'duration:l:{duration_ms}']
+                log.info("[%s] CONTENT: Video duration from header: %dms",
+                         self.device_serial, duration_ms)
+
+        # Remove any existing entry for this file first (avoid duplicates)
         subprocess.run(
-            ['adb', '-s', adb_serial, 'shell',
-             'am', 'broadcast', '-a',
-             'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
-             '-d', f'file://{remote_path}'],
+            ['adb', '-s', adb_serial, 'shell', 'content', 'delete',
+             '--uri', media_uri,
+             '--where', f"_data='{real_remote_path}'"],
             capture_output=True, timeout=10)
 
-        log.info("[%s] CONTENT: Registered %s in MediaStore",
-                 self.device_serial, filename)
+        # Insert with full metadata
+        insert_cmd = ['adb', '-s', adb_serial, 'shell', 'content', 'insert',
+                      '--uri', media_uri] + insert_binds
+        insert_result = subprocess.run(
+            insert_cmd, capture_output=True, text=True, timeout=15)
 
-        # Give media scanner time to index
-        time.sleep(3)
+        if insert_result.returncode == 0:
+            log.info("[%s] CONTENT: Registered %s in MediaStore with full metadata",
+                     self.device_serial, filename)
+        else:
+            log.warning("[%s] CONTENT: content insert failed: %s, falling back to broadcast",
+                        self.device_serial, insert_result.stderr[:100])
+            # Fallback to broadcast
+            subprocess.run(
+                ['adb', '-s', adb_serial, 'shell',
+                 'am', 'broadcast', '-a',
+                 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+                 '-d', f'file://{remote_path}'],
+                capture_output=True, timeout=10)
+
+        # Brief pause for MediaStore to settle
+        time.sleep(2)
 
         return remote_path
 
