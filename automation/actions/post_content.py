@@ -498,11 +498,20 @@ class PostContentAction:
         # Step 7: Enter caption
         if self.full_caption:
             self._enter_caption(self.full_caption)
-            # Dismiss keyboard so Share button is visible
+            # Dismiss keyboard so Next/Share button is visible
             self.device.press('back')
             random_sleep(1, 2, label="after_caption_dismiss_keyboard")
 
-        # Step 8: Tap "Share"
+        # Step 8: Tap "Next" on caption screen (goes to final confirmation)
+        # Some IG versions go directly to Share, others show "Next" first
+        next_on_caption = self._tap_next()
+        if next_on_caption:
+            random_sleep(1.5, 3, label="reel_final_confirmation")
+
+        # Step 9: Handle "About Reels" modal if it appears
+        self._dismiss_about_reels_modal()
+
+        # Step 10: Tap "Share"
         if not self._tap_share():
             log.warning("[%s] CONTENT: Could not tap Share for reel",
                         self.device_serial)
@@ -994,16 +1003,19 @@ class PostContentAction:
                 try:
                     el.set_text(caption_text)
                     time.sleep(1)
-                    log.debug("[%s] CONTENT: Entered caption via rid='%s'",
-                              self.device_serial, rid)
+                    log.info("[%s] CONTENT: Entered caption via rid='%s'",
+                             self.device_serial, rid)
                     return True
                 except Exception:
                     pass  # Fall through to ADB input
 
         # Method 2: Text hint "Write a caption..."
-        for hint in ["Write a caption", "Add a caption", "Caption"]:
+        for hint in ["Write a caption", "Add a caption", "Caption",
+                      "Write a caption and add hashtags"]:
             el = self.device(textContains=hint)
             if el.exists(timeout=3):
+                log.info("[%s] CONTENT: Found caption field via hint='%s'",
+                         self.device_serial, hint)
                 el.click()
                 time.sleep(1)
                 break
@@ -1016,8 +1028,8 @@ class PostContentAction:
             try:
                 edit.set_text(caption_text)
                 time.sleep(1)
-                log.debug("[%s] CONTENT: Entered caption via EditText",
-                          self.device_serial)
+                log.info("[%s] CONTENT: Entered caption via EditText",
+                         self.device_serial)
                 return True
             except Exception:
                 pass
@@ -1322,6 +1334,41 @@ class PostContentAction:
                     return True
 
         self.ctrl.press_back()
+        return False
+
+    def _dismiss_about_reels_modal(self):
+        """
+        Handle the 'About Reels' modal that appears before sharing.
+
+        Modal text: "Your reel will be shared to Reels, where anyone can
+        discover it." with Share (blue), Cancel, Learn more buttons.
+        We tap Share on this modal to proceed.
+        """
+        # Check if the modal is present
+        modal = self.device(textContains="About Reels")
+        if not modal.exists(timeout=3):
+            # Also check for the modal body text
+            modal = self.device(textContains="will be shared to Reels")
+            if not modal.exists(timeout=2):
+                log.debug("[%s] CONTENT: No 'About Reels' modal detected",
+                          self.device_serial)
+                return False
+
+        log.info("[%s] CONTENT: 'About Reels' modal detected, tapping Share",
+                 self.device_serial)
+
+        # The modal has its own Share button — tap it
+        share_btn = self.device(text="Share")
+        if share_btn.exists(timeout=3):
+            share_btn.click()
+            time.sleep(2)
+            log.info("[%s] CONTENT: Dismissed 'About Reels' modal",
+                     self.device_serial)
+            return True
+
+        # Fallback: try clicking the blue button area
+        log.warning("[%s] CONTENT: Could not find Share on 'About Reels' modal",
+                    self.device_serial)
         return False
 
     def _tap_share(self):
