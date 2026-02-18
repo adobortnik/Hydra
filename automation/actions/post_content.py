@@ -162,6 +162,46 @@ class PostContentAction:
         return result
 
     # ------------------------------------------------------------------
+    # Video Duration Helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _get_video_duration_ms(filepath):
+        """Read video duration from MP4 moov/mvhd atom. No external deps."""
+        import struct
+        try:
+            with open(filepath, 'rb') as f:
+                while True:
+                    header = f.read(8)
+                    if len(header) < 8:
+                        break
+                    size = struct.unpack('>I', header[:4])[0]
+                    atom_type = header[4:8]
+                    if size == 0:
+                        break
+                    if atom_type == b'moov':
+                        # Recurse into moov
+                        continue
+                    if atom_type == b'mvhd':
+                        # mvhd: version(1) + flags(3) + create(4) + modify(4) + timescale(4) + duration(4)
+                        data = f.read(min(size - 8, 100))
+                        version = data[0]
+                        if version == 0:
+                            timescale = struct.unpack('>I', data[12:16])[0]
+                            duration = struct.unpack('>I', data[16:20])[0]
+                        else:
+                            timescale = struct.unpack('>I', data[20:24])[0]
+                            duration = struct.unpack('>Q', data[24:32])[0]
+                        if timescale > 0:
+                            return int((duration / timescale) * 1000)
+                        return None
+                    # Skip to next atom
+                    f.seek(size - 8, 1)
+        except Exception as e:
+            log.debug("Could not read video duration from %s: %s", filepath, e)
+        return None
+
+    # ------------------------------------------------------------------
     # Clone Isolation
     # ------------------------------------------------------------------
 
@@ -224,12 +264,34 @@ class PostContentAction:
                       self.device_serial, result.stderr[:200])
             return None
 
-        # Register in MediaStore via media scanner only (NOT content insert).
-        # content insert creates entries without duration metadata, making
-        # videos show as 0:00 and un-selectable in IG gallery.
-        # Media scanner reads the actual file and extracts all metadata.
+        # Register in MediaStore: content insert + update duration for videos.
+        # Media scanner broadcasts don't reliably extract metadata on all devices.
+        insert_result = subprocess.run(
+            ['adb', '-s', adb_serial, 'shell', 'content', 'insert',
+             '--uri', media_uri,
+             '--bind', f'_data:s:{real_remote_path}',
+             '--bind', f'_display_name:s:{filename}',
+             '--bind', f'mime_type:s:{mime_type}'],
+            capture_output=True, text=True, timeout=15)
 
-        # Trigger media scan — this extracts duration, resolution, etc.
+        if insert_result.returncode == 0:
+            log.info("[%s] CONTENT: Registered %s in MediaStore",
+                     self.device_serial, filename)
+
+        # For videos: read duration from MP4 header and update MediaStore
+        if is_video:
+            duration_ms = self._get_video_duration_ms(local_path)
+            if duration_ms and duration_ms > 0:
+                subprocess.run(
+                    ['adb', '-s', adb_serial, 'shell', 'content', 'update',
+                     '--uri', media_uri,
+                     '--bind', f'duration:i:{duration_ms}',
+                     '--where', f"_data='{real_remote_path}'"],
+                    capture_output=True, timeout=10)
+                log.info("[%s] CONTENT: Set video duration to %dms",
+                         self.device_serial, duration_ms)
+
+        # Also trigger media scanner as backup
         subprocess.run(
             ['adb', '-s', adb_serial, 'shell',
              'am', 'broadcast', '-a',
@@ -237,17 +299,8 @@ class PostContentAction:
              '-d', f'file://{remote_path}'],
             capture_output=True, timeout=10)
 
-        # Also try the newer cmd interface
-        subprocess.run(
-            ['adb', '-s', adb_serial, 'shell',
-             'cmd', 'media.scanner', 'scan', real_remote_path],
-            capture_output=True, timeout=15)
-
-        log.info("[%s] CONTENT: Registered %s via media scanner",
-                 self.device_serial, filename)
-
-        # Give media scanner time to index and extract metadata
-        time.sleep(4)
+        # Give media system time to process
+        time.sleep(3)
 
         return remote_path
 
