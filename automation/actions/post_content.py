@@ -98,22 +98,25 @@ class PostContentAction:
                 raise FileNotFoundError(
                     f"Media file not found: {self.media_path}")
 
-            # Force-stop OTHER IG clones so they don't steal focus
-            self._stop_other_ig_clones()
-
-            # Ensure IG is open and on home screen
-            self.ctrl.ensure_app()
-            self.ctrl.dismiss_popups()
-            self.ctrl.navigate_to(Screen.HOME_FEED)
-            time.sleep(2)
-
-            # Push media to device
+            # Push media to device FIRST (before opening IG)
             self._remote_media_path = self._push_media_to_device(self.media_path)
             if not self._remote_media_path:
                 raise RuntimeError("Failed to push media to device")
 
             log.info("[%s] CONTENT: Pushed media to %s",
                      self.device_serial, self._remote_media_path)
+
+            # Verify video is indexed in MediaStore with duration
+            ext = os.path.splitext(self.media_path)[1].lower()
+            if ext in ('.mp4', '.mov', '.avi', '.webm'):
+                self._verify_media_indexed()
+
+            # NOW open IG and start the flow
+            self._stop_other_ig_clones()
+            self.ctrl.ensure_app()
+            self.ctrl.dismiss_popups()
+            self.ctrl.navigate_to(Screen.HOME_FEED)
+            time.sleep(2)
 
             # Dispatch to content-type handler
             if self.content_type == 'post':
@@ -200,6 +203,33 @@ class PostContentAction:
         except Exception as e:
             log.debug("Could not read video duration from %s: %s", filepath, e)
         return None
+
+    def _verify_media_indexed(self, max_wait=10):
+        """Wait until pushed video appears in MediaStore."""
+        adb_serial = self.device_serial.replace('_', ':')
+        filename = os.path.basename(self._remote_media_path)
+
+        for attempt in range(max_wait // 2):
+            result = subprocess.run(
+                ['adb', '-s', adb_serial, 'shell', 'content', 'query',
+                 '--uri', 'content://media/external/video/media',
+                 '--projection', '_display_name:duration',
+                 '--where', f"_display_name='{filename}'"],
+                capture_output=True, text=True, timeout=10)
+
+            output = result.stdout.strip()
+            if output and 'No result' not in output:
+                log.info("[%s] CONTENT: Video indexed in MediaStore: %s",
+                         self.device_serial, output.split('\n')[0][:100])
+                return True
+
+            log.debug("[%s] CONTENT: Video not in MediaStore yet (attempt %d)",
+                      self.device_serial, attempt + 1)
+            time.sleep(2)
+
+        log.warning("[%s] CONTENT: Video not confirmed in MediaStore after %ds, proceeding anyway",
+                    self.device_serial, max_wait)
+        return False
 
     # ------------------------------------------------------------------
     # Clone Isolation
