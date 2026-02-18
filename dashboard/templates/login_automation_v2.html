@@ -46,6 +46,12 @@
 <div class="card bg-dark border-secondary mb-4">
     <div class="card-body d-flex align-items-center gap-3 flex-wrap">
         <div>
+            <label class="form-label mb-0 small">Filter by Group</label>
+            <select id="groupFilter" class="form-select form-select-sm bg-dark text-white border-secondary" style="width:180px" onchange="onGroupFilterChange()">
+                <option value="">All Groups</option>
+            </select>
+        </div>
+        <div>
             <label class="form-label mb-0 small">Filter by Device</label>
             <select id="deviceFilter" class="form-select form-select-sm bg-dark text-white border-secondary" style="width:250px" onchange="loadAccounts()">
                 <option value="">All Devices</option>
@@ -281,24 +287,64 @@ function recoverActiveBatch() {
     });
 }
 
+let allDevicesData = [];
+
 function loadDevices() {
     $.get('/api/login-v2/devices', function(data) {
         if (data.status !== 'success') return;
-        let html = '<option value="">All Devices</option>';
-        data.devices.forEach(d => {
-            html += `<option value="${d.device_serial}">${d.device_name || d.device_serial}</option>`;
-        });
-        $('#deviceFilter').html(html);
+        allDevicesData = data.devices;
+        populateGroupFilter();
+        populateDeviceFilter();
     });
+}
+
+function populateGroupFilter() {
+    const groups = [...new Set(allDevicesData.map(d => d.device_group || '').filter(g => g))].sort();
+    let html = '<option value="">All Groups</option>';
+    groups.forEach(g => {
+        const cnt = allDevicesData.filter(d => (d.device_group || '') === g).length;
+        html += `<option value="${g}">${g} (${cnt} devices)</option>`;
+    });
+    const cur = $('#groupFilter').val();
+    $('#groupFilter').html(html);
+    if (cur) $('#groupFilter').val(cur);
+}
+
+function populateDeviceFilter(filterGroup) {
+    let devices = allDevicesData;
+    if (filterGroup) {
+        devices = devices.filter(d => (d.device_group || '') === filterGroup);
+    }
+    let html = '<option value="">All Devices</option>';
+    devices.forEach(d => {
+        html += `<option value="${d.device_serial}">${d.device_name || d.device_serial}</option>`;
+    });
+    $('#deviceFilter').html(html);
+}
+
+function onGroupFilterChange() {
+    const group = $('#groupFilter').val();
+    populateDeviceFilter(group);
+    $('#deviceFilter').val('');
+    loadAccounts();
 }
 
 function loadAccounts() {
     const device = $('#deviceFilter').val();
+    const group = $('#groupFilter').val();
     const url = '/api/login-v2/pending' + (device ? `?device_serial=${device}` : '');
 
     $.get(url, function(data) {
         if (data.status !== 'success') return;
-        allAccounts = data.accounts;
+        let accounts = data.accounts;
+
+        // Client-side group filter: if group selected but no specific device, filter by group's devices
+        if (group && !device) {
+            const groupDevices = allDevicesData.filter(d => (d.device_group || '') === group).map(d => d.device_serial);
+            accounts = accounts.filter(a => groupDevices.includes(a.device_serial));
+        }
+
+        allAccounts = accounts;
 
         let pending = 0, failed = 0, running = 0;
         let html = '';
