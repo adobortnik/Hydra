@@ -576,9 +576,10 @@ def _get_adb_devices():
 
 def _get_installed_ig_clones(serial):
     """Get list of installed IG clone packages on a device."""
+    adb_serial = serial.replace('_', ':') if '_' in serial else serial
     try:
         result = subprocess.run(
-            ["adb", "-s", serial, "shell", "pm", "list", "packages", "com.instagram.androi"],
+            ["adb", "-s", adb_serial, "shell", "pm", "list", "packages", "com.instagram.androi"],
             capture_output=True, text=True, timeout=15
         )
         installed = []
@@ -601,12 +602,13 @@ def _grant_permissions_one_device(serial, packages_filter=None):
     if not installed:
         return 0
 
+    adb_serial = serial.replace('_', ':') if '_' in serial else serial
     granted = 0
     for pkg in installed:
         cmds = " ; ".join([f"pm grant {pkg} {p} 2>/dev/null" for p in _GRANT_PERMISSIONS])
         try:
             subprocess.run(
-                ["adb", "-s", serial, "shell", cmds],
+                ["adb", "-s", adb_serial, "shell", cmds],
                 capture_output=True, text=True, timeout=30
             )
             granted += 1
