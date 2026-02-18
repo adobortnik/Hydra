@@ -47,6 +47,7 @@ class PostContentAction:
         self.account_id = account_info['id']
 
         pkg = account_info.get('package', package)
+        self.package = pkg
         self.ctrl = IGController(device, device_serial, pkg)
 
         # Parse schedule item fields
