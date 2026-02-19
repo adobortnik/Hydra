@@ -85,22 +85,40 @@ def api_dm_devices():
             ORDER BY d.created_at ASC, d.device_serial
         """).fetchall())
 
-        # Attach bot_status info if available
+        # Attach bot_status — detect from log files (most reliable)
+        import os as _os
+        from datetime import datetime as _dt, timedelta as _td
+        logs_dir = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), 'logs')
+        today_str = _dt.utcnow().strftime('%Y-%m-%d')
+        hung_threshold = _td(minutes=10)  # no log activity for 10min = hung
+
         for dev in devices:
+            serial = dev['device_serial']
+            dev['bot_status'] = 'stopped'
+            dev['bot_pid'] = None
+            dev['bot_started_at'] = None
+            dev['bot_last_check'] = None
+
+            # Check today's log file modification time
+            log_file = _os.path.join(logs_dir, f"{serial}_{today_str}.log")
+            if _os.path.exists(log_file):
+                mtime = _dt.utcfromtimestamp(_os.path.getmtime(log_file))
+                age = _dt.utcnow() - mtime
+                if age < hung_threshold:
+                    dev['bot_status'] = 'active'
+                elif age < _td(hours=2):
+                    dev['bot_status'] = 'hung'
+                # else stays 'stopped'
+                dev['bot_last_check'] = mtime.isoformat()
+
+            # Also check bot_status table for PID info
             bs = conn.execute(
-                "SELECT status, pid, started_at, last_check_at FROM bot_status WHERE device_serial = ?",
-                (dev['device_serial'],)
+                "SELECT pid, started_at FROM bot_status WHERE device_serial = ?",
+                (serial,)
             ).fetchone()
             if bs:
-                dev['bot_status'] = bs['status']
                 dev['bot_pid'] = bs['pid']
                 dev['bot_started_at'] = bs['started_at']
-                dev['bot_last_check'] = bs['last_check_at']
-            else:
-                dev['bot_status'] = 'stopped'
-                dev['bot_pid'] = None
-                dev['bot_started_at'] = None
-                dev['bot_last_check'] = None
 
         return jsonify({'devices': devices, 'total': len(devices)})
     except Exception as e:
@@ -127,11 +145,24 @@ def api_dm_device_detail(serial):
         # Get accounts with stats
         accounts = _get_accounts_with_stats(conn, serial, target_date=target_date)
 
-        # Get bot status
+        # Get bot status — detect from log files
+        import os as _os2
+        from datetime import datetime as _dt2, timedelta as _td2
+        logs_dir2 = _os2.path.join(_os2.path.dirname(_os2.path.dirname(__file__)), 'logs')
+        today_log = _os2.path.join(logs_dir2, f"{serial}_{_dt2.utcnow().strftime('%Y-%m-%d')}.log")
+        bot_stat = 'stopped'
+        if _os2.path.exists(today_log):
+            age2 = _dt2.utcnow() - _dt2.utcfromtimestamp(_os2.path.getmtime(today_log))
+            if age2 < _td2(minutes=10):
+                bot_stat = 'active'
+            elif age2 < _td2(hours=2):
+                bot_stat = 'hung'
         bs = conn.execute(
             "SELECT * FROM bot_status WHERE device_serial = ?", (serial,)
         ).fetchone()
-        device['bot_status'] = _row_to_dict(bs) if bs else {'status': 'stopped'}
+        bot_info = _row_to_dict(bs) if bs else {}
+        bot_info['status'] = bot_stat
+        device['bot_status'] = bot_info
 
         return jsonify({
             'device': device,
