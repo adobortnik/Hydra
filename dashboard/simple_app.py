@@ -83,6 +83,7 @@ from device_manager_routes import device_manager_bp
 from deploy_routes import deploy_bp
 from comment_routes import comment_bp
 from flow_map_routes import flow_map_bp
+from source_quality_routes import source_quality_bp
 
 # Database paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2633,6 +2634,7 @@ app.register_blueprint(device_manager_bp)
 app.register_blueprint(deploy_bp)
 app.register_blueprint(comment_bp)
 app.register_blueprint(flow_map_bp)
+app.register_blueprint(source_quality_bp)
 
 # ── Documentation routes ─────────────────────────────────────────────
 DOCS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs')

@@ -69,7 +69,7 @@ def get_db():
 
 def log_action(session_id, device_serial, username, action_type,
                target_username=None, target_post_id=None, success=True,
-               error_message=None):
+               error_message=None, source_username=None):
     """Log an action to action_history table."""
     try:
         conn = get_db()
@@ -77,11 +77,12 @@ def log_action(session_id, device_serial, username, action_type,
         conn.execute("""
             INSERT INTO action_history
                 (session_id, device_serial, username, action_type,
-                 target_username, target_post_id, success, timestamp, error_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 target_username, target_post_id, success, timestamp,
+                 error_message, source_username)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (session_id, device_serial, username, action_type,
               target_username, target_post_id, 1 if success else 0,
-              now, error_message))
+              now, error_message, source_username))
         conn.commit()
         conn.close()
     except Exception as e:

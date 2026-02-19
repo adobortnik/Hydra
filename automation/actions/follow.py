@@ -272,10 +272,11 @@ class FollowAction:
                             self.tag_already_followed.add(target_user)
                         log_action(
                             self.session_id, self.device_serial, self.username,
-                            'follow', target_username=target_user, success=True)
-                        log.info("[%s] Followed @%s (%d/%d)",
+                            'follow', target_username=target_user, success=True,
+                            source_username=source_username)
+                        log.info("[%s] Followed @%s (%d/%d) [source: @%s]",
                                 self.device_serial, target_user,
-                                counts['followed'], max_follows)
+                                counts['followed'], max_follows, source_username)
                         action_delay("follow")
                     elif followed is False:
                         counts['skipped'] += 1
@@ -288,7 +289,8 @@ class FollowAction:
                     log_action(
                         self.session_id, self.device_serial, self.username,
                         'follow', target_username=target_user, success=False,
-                        error_message=str(e)[:200])
+                        error_message=str(e)[:200],
+                        source_username=source_username)
 
             # Scroll to see more
             self.ctrl.scroll_list("down")
