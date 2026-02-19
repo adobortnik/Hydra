@@ -371,6 +371,43 @@
         padding: 60px;
         color: #9ca3af;
     }
+
+    /* Collapsible Advanced sections */
+    .sp-advanced-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: #1a1d2180;
+        border: 1px dashed #2d3238;
+        border-radius: 8px;
+        color: #6c757d;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        user-select: none;
+        margin-top: 8px;
+    }
+    .sp-advanced-toggle:hover {
+        color: #9ca3af;
+        border-color: #6366f1;
+        background: #1e222880;
+    }
+    .sp-advanced-toggle .chevron {
+        transition: transform 0.2s;
+        font-size: 0.7rem;
+    }
+    .sp-advanced-toggle.open .chevron {
+        transform: rotate(90deg);
+    }
+    .sp-advanced-body {
+        display: none;
+        margin-top: 12px;
+    }
+    .sp-advanced-body.open {
+        display: block;
+    }
 </style>
 {% endblock %}
 
@@ -515,7 +552,6 @@
         <!-- Tab buttons -->
         <div class="sp-tabs" id="spTabs">
             <button class="sp-tab-btn active" data-tab="overview"><i class="fas fa-user me-1"></i>Overview</button>
-            <button class="sp-tab-btn" data-tab="timer"><i class="fas fa-clock me-1"></i>Timer</button>
             <button class="sp-tab-btn" data-tab="follow"><i class="fas fa-user-plus me-1"></i>Follow</button>
             <button class="sp-tab-btn" data-tab="unfollow"><i class="fas fa-user-minus me-1"></i>Unfollow</button>
             <button class="sp-tab-btn" data-tab="like"><i class="fas fa-heart me-1"></i>Like</button>
@@ -570,7 +606,27 @@
                             <label class="form-label">Followers</label>
                             <input type="text" class="form-control" id="sp_followers" readonly>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label"><i class="fas fa-tag me-1"></i>Tag</label>
+                            <input type="text" class="form-control sp-acct-setting" id="sp_tag" data-acct-key="tag"
+                                placeholder="e.g. niche-fitness, client-A">
+                            <div class="form-text">Accounts with the same tag won't follow the same users (dedup)</div>
+                        </div>
                     </div>
+                </div>
+                <div class="sp-section">
+                    <h6><i class="fas fa-clock me-1"></i> Active Hours</h6>
+                    <div class="sp-range-row">
+                        <div>
+                            <label class="form-label">Start Hour</label>
+                            <input type="number" class="form-control sp-acct-setting" id="sp_start_time" data-acct-key="start_time" min="0" max="23" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="form-label">End Hour</label>
+                            <input type="number" class="form-control sp-acct-setting" id="sp_end_time" data-acct-key="end_time" min="0" max="23" placeholder="23">
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">Bot will only run between these hours (0-23). Leave empty = run all day.</div>
                 </div>
                 <div class="sp-section">
                     <h6><i class="fas fa-toggle-on me-1"></i> Master Toggles</h6>
@@ -613,49 +669,7 @@
                 </div>
             </div>
 
-            <!-- ─── Timer Tab ─── -->
-            <div class="sp-pane" data-pane="timer">
-                <div class="sp-section">
-                    <h6><i class="fas fa-clock me-1"></i> Active Hours</h6>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Start Hour</label>
-                            <input type="number" class="form-control sp-acct-setting" id="sp_start_time" data-acct-key="start_time" min="0" max="23">
-                        </div>
-                        <div>
-                            <label class="form-label">End Hour</label>
-                            <input type="number" class="form-control sp-acct-setting" id="sp_end_time" data-acct-key="end_time" min="0" max="23">
-                        </div>
-                    </div>
-                    <div class="form-text mt-2">Bot will only run between these hours (0-23)</div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-random me-1"></i> Random Action Delay</h6>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Min Actions</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_random_action" data-key="min_random_action" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Actions</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_random_action" data-key="max_random_action" min="1">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-hourglass-half me-1"></i> Random Delay Between Actions</h6>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Min Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_random_delay" data-key="min_random_delay" min="0">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_random_delay" data-key="max_random_delay" min="0">
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Timer tab removed - Active Hours merged into Overview -->
 
             <!-- ─── Follow Tab ─── -->
             <div class="sp-pane" data-pane="follow">
@@ -679,43 +693,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_default_action_limit_perday" data-key="default_action_limit_perday" min="0">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range &amp; Delay</h6>
-                    <div class="sp-range-row mb-3">
-                        <div>
-                            <label class="form-label">Min Follow Actions</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_follow_action" data-key="min_follow_action" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Follow Actions</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_follow_action" data-key="max_follow_action" min="1">
-                        </div>
-                    </div>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Min Follow Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_follow_delay" data-key="min_follow_delay" min="0">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Follow Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_follow_delay" data-key="max_follow_delay" min="0">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-clock me-1"></i> Follow Timer</h6>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Follow Timer Min Hour</label>
-                            <input type="number" class="form-control sp-setting" id="sp_follow_timer_min_hour" data-key="follow_timer_min_hour" min="0" max="23">
-                        </div>
-                        <div>
-                            <label class="form-label">Follow Timer Max Hour</label>
-                            <input type="number" class="form-control sp-setting" id="sp_follow_timer_max_hour" data-key="follow_timer_max_hour" min="0" max="23">
+                            <input type="number" class="form-control sp-setting" id="sp_default_action_limit_perday" data-key="default_action_limit_perday" min="0" placeholder="60">
                         </div>
                     </div>
                 </div>
@@ -728,35 +706,77 @@
                         <i class="fas fa-save me-1"></i> Save Sources
                     </button>
                 </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cogs me-1"></i> Advanced</h6>
-                    <div class="sp-toggle-row">
-                        <label>Mute After Follow</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_mute_after_follow" data-key="mute_after_follow">
+                <!-- Collapsible Advanced -->
+                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
+                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
+                </div>
+                <div class="sp-advanced-body">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range &amp; Delay</h6>
+                        <div class="sp-range-row mb-3">
+                            <div>
+                                <label class="form-label">Min Follow per Session</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_follow_action" data-key="min_follow_action" min="1" placeholder="10">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Follow per Session</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_follow_action" data-key="max_follow_action" min="1" placeholder="20">
+                            </div>
+                        </div>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Min Delay Between Follows (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_follow_delay" data-key="min_follow_delay" min="0" placeholder="30">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Delay Between Follows (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_follow_delay" data-key="max_follow_delay" min="0" placeholder="90">
+                            </div>
                         </div>
                     </div>
-                    <div class="sp-toggle-row">
-                        <label>Don't Follow Private Accounts</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_follow_private" data-key="dont_follow_private_accounts_using_followfollowers">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-clock me-1"></i> Follow Timer</h6>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Follow Timer Min Hour</label>
+                                <input type="number" class="form-control sp-setting" id="sp_follow_timer_min_hour" data-key="follow_timer_min_hour" min="0" max="23" placeholder="0">
+                            </div>
+                            <div>
+                                <label class="form-label">Follow Timer Max Hour</label>
+                                <input type="number" class="form-control sp-setting" id="sp_follow_timer_max_hour" data-key="follow_timer_max_hour" min="0" max="23" placeholder="23">
+                            </div>
                         </div>
                     </div>
-                    <div class="sp-toggle-row">
-                        <label>Follow Only If Story Exists</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_follow_only_story" data-key="enable_follow_only_if_story_exist">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
+                        <div class="sp-toggle-row">
+                            <label>Mute After Follow</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_mute_after_follow" data-key="mute_after_follow">
+                            </div>
                         </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Followings Limit Enabled</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_followings_limit" data-key="enable_followings_limit">
+                        <div class="sp-toggle-row">
+                            <label>Don't Follow Private Accounts</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_follow_private" data-key="dont_follow_private_accounts_using_followfollowers">
+                            </div>
                         </div>
-                    </div>
-                    <div class="mt-2">
-                        <label class="form-label">Followings Limit</label>
-                        <input type="number" class="form-control sp-setting" id="sp_followings_limit" data-key="followings_limit" min="0">
+                        <div class="sp-toggle-row">
+                            <label>Follow Only If Story Exists</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_follow_only_story" data-key="enable_follow_only_if_story_exist">
+                            </div>
+                        </div>
+                        <div class="sp-toggle-row">
+                            <label>Followings Limit Enabled</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_followings_limit" data-key="enable_followings_limit">
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label">Followings Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_followings_limit" data-key="followings_limit" min="0" placeholder="7500">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -782,63 +802,69 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_unfollow_limit_perday" data-key="unfollow_limit_perday" min="0">
+                            <input type="number" class="form-control sp-setting" id="sp_unfollow_limit_perday" data-key="unfollow_limit_perday" min="0" placeholder="40">
                         </div>
                     </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range &amp; Delay</h6>
-                    <div class="sp-range-row mb-3">
-                        <div>
-                            <label class="form-label">Min Unfollow Actions</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_unfollow_action" data-key="min_unfollow_action" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Unfollow Actions</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_unfollow_action" data-key="max_unfollow_action" min="1">
-                        </div>
-                    </div>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Min Unfollow Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_unfollow_delay" data-key="min_unfollow_delay" min="0">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Unfollow Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_unfollow_delay" data-key="max_unfollow_delay" min="0">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-calendar-day me-1"></i> Unfollow Timing</h6>
-                    <div class="sp-range-row mb-3">
-                        <div>
-                            <label class="form-label">Unfollow Timer Min Hour</label>
-                            <input type="number" class="form-control sp-setting" id="sp_unfollow_timer_min_hour" data-key="unfollow_timer_min_hour" min="0" max="23">
-                        </div>
-                        <div>
-                            <label class="form-label">Unfollow Timer Max Hour</label>
-                            <input type="number" class="form-control sp-setting" id="sp_unfollow_timer_max_hour" data-key="unfollow_timer_max_hour" min="0" max="23">
-                        </div>
-                    </div>
-                    <div>
+                    <div class="mt-3">
                         <label class="form-label">Unfollow Delay Days</label>
-                        <input type="number" class="form-control sp-setting" id="sp_unfollow_delay_day" data-key="unfollow_delay_day" min="0">
+                        <input type="number" class="form-control sp-setting" id="sp_unfollow_delay_day" data-key="unfollow_delay_day" min="0" placeholder="3">
                         <div class="form-text">Wait N days before unfollowing someone you followed</div>
                     </div>
                 </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cogs me-1"></i> Advanced</h6>
-                    <div class="sp-toggle-row">
-                        <label>Don't Unfollow Followers</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_unfollow_followers" data-key="dont_unfollow_followers">
+                <!-- Collapsible Advanced -->
+                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
+                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
+                </div>
+                <div class="sp-advanced-body">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range &amp; Delay</h6>
+                        <div class="sp-range-row mb-3">
+                            <div>
+                                <label class="form-label">Min Unfollow per Session</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_unfollow_action" data-key="min_unfollow_action" min="1" placeholder="5">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Unfollow per Session</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_unfollow_action" data-key="max_unfollow_action" min="1" placeholder="15">
+                            </div>
+                        </div>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Min Delay (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_unfollow_delay" data-key="min_unfollow_delay" min="0" placeholder="30">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Delay (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_unfollow_delay" data-key="max_unfollow_delay" min="0" placeholder="90">
+                            </div>
                         </div>
                     </div>
-                    <div class="sp-toggle-row">
-                        <label>Prioritize Unfollow Action</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_prioritize_unfollow" data-key="enable_prioritize_unfollow_action">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-clock me-1"></i> Unfollow Timer</h6>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Timer Min Hour</label>
+                                <input type="number" class="form-control sp-setting" id="sp_unfollow_timer_min_hour" data-key="unfollow_timer_min_hour" min="0" max="23" placeholder="0">
+                            </div>
+                            <div>
+                                <label class="form-label">Timer Max Hour</label>
+                                <input type="number" class="form-control sp-setting" id="sp_unfollow_timer_max_hour" data-key="unfollow_timer_max_hour" min="0" max="23" placeholder="23">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sp-section">
+                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
+                        <div class="sp-toggle-row">
+                            <label>Don't Unfollow Followers</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_unfollow_followers" data-key="dont_unfollow_followers">
+                            </div>
+                        </div>
+                        <div class="sp-toggle-row">
+                            <label>Prioritize Unfollow Action</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_prioritize_unfollow" data-key="enable_prioritize_unfollow_action">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -865,30 +891,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_like_limit_perday" data-key="like_limit_perday" min="0">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range</h6>
-                    <div class="sp-range-row mb-3">
-                        <div>
-                            <label class="form-label">Min Like Actions</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_likepost_action" data-key="min_likepost_action" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Like Actions</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_likepost_action" data-key="max_likepost_action" min="1">
-                        </div>
-                    </div>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Min Posts to Like</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_post_to_like" data-key="min_post_to_like" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Posts to Like</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_post_to_like" data-key="max_post_to_like" min="1">
+                            <input type="number" class="form-control sp-setting" id="sp_like_limit_perday" data-key="like_limit_perday" min="0" placeholder="100">
                         </div>
                     </div>
                 </div>
@@ -899,6 +902,35 @@
                     <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('like_sources', 'sp_like_sources')">
                         <i class="fas fa-save me-1"></i> Save Sources
                     </button>
+                </div>
+                <!-- Collapsible Advanced -->
+                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
+                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
+                </div>
+                <div class="sp-advanced-body">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range</h6>
+                        <div class="sp-range-row mb-3">
+                            <div>
+                                <label class="form-label">Min Like Actions per Session</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_likepost_action" data-key="min_likepost_action" min="1" placeholder="3">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Like Actions per Session</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_likepost_action" data-key="max_likepost_action" min="1" placeholder="5">
+                            </div>
+                        </div>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Min Posts to Like</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_post_to_like" data-key="min_post_to_like" min="1" placeholder="1">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Posts to Like</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_post_to_like" data-key="max_post_to_like" min="1" placeholder="3">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -911,52 +943,16 @@
                     </div>
                 </div>
                 <div class="sp-section">
-                    <h6><i class="fas fa-hashtag me-1"></i> Reels Count</h6>
-                    <div class="sp-range-row mb-3">
-                        <div>
-                            <label class="form-label">Min Reels to Watch</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_reels_to_watch" data-key="min_reels_to_watch" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Reels to Watch</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_reels_to_watch" data-key="max_reels_to_watch" min="1">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="form-label">Daily Reel Watch Limit</label>
-                        <input type="number" class="form-control sp-setting" id="sp_watch_reel_limit_perday" data-key="watch_reel_limit_perday" min="0">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-stopwatch me-1"></i> Watch Duration (seconds)</h6>
+                    <h6><i class="fas fa-hashtag me-1"></i> Reels per Session</h6>
                     <div class="sp-range-row">
                         <div>
-                            <label class="form-label">Min Duration</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_sec_reel_watch" data-key="min_sec_reel_watch" min="1">
+                            <label class="form-label">Min Reels</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_reels_to_watch" data-key="min_reels_to_watch" min="1" placeholder="15">
                         </div>
                         <div>
-                            <label class="form-label">Max Duration</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_sec_reel_watch" data-key="max_sec_reel_watch" min="1">
+                            <label class="form-label">Max Reels</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_reels_to_watch" data-key="max_reels_to_watch" min="1" placeholder="20">
                         </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cogs me-1"></i> Options</h6>
-                    <div class="sp-toggle-row">
-                        <label>Save Reels After Watching</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_save_reels" data-key="enable_save_reels_after_watching">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Like Reel</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_like_reel" data-key="enable_like_reel">
-                        </div>
-                    </div>
-                    <div class="mt-2">
-                        <label class="form-label">Like Reel Percent</label>
-                        <input type="number" class="form-control sp-setting" id="sp_like_reel_percent" data-key="like_reel_percent" min="0" max="100">
                     </div>
                 </div>
                 <div class="sp-section">
@@ -966,6 +962,48 @@
                     <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('watch_reels_sources', 'sp_reels_sources')">
                         <i class="fas fa-save me-1"></i> Save Sources
                     </button>
+                </div>
+                <!-- Collapsible Advanced -->
+                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
+                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
+                </div>
+                <div class="sp-advanced-body">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-cog me-1"></i> Limits &amp; Duration</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Daily Reel Watch Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_watch_reel_limit_perday" data-key="watch_reel_limit_perday" min="0" placeholder="100">
+                        </div>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Min Watch Duration (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_sec_reel_watch" data-key="min_sec_reel_watch" min="1" placeholder="5">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Watch Duration (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_sec_reel_watch" data-key="max_sec_reel_watch" min="1" placeholder="30">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sp-section">
+                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
+                        <div class="sp-toggle-row">
+                            <label>Save Reels After Watching</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_save_reels" data-key="enable_save_reels_after_watching">
+                            </div>
+                        </div>
+                        <div class="sp-toggle-row">
+                            <label>Like Reel</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_like_reel" data-key="enable_like_reel">
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label">Like Reel Percent</label>
+                            <input type="number" class="form-control sp-setting" id="sp_like_reel_percent" data-key="like_reel_percent" min="0" max="100" placeholder="30">
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -982,49 +1020,11 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_shared_post_limit_perday" data-key="shared_post_limit_perday" min="0">
+                            <input type="number" class="form-control sp-setting" id="sp_shared_post_limit_perday" data-key="shared_post_limit_perday" min="0" placeholder="5">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Limit Per Source Per Day</label>
-                            <input type="number" class="form-control sp-setting" id="sp_shared_post_limit_persource_perday" data-key="shared_post_limit_persource_perday" min="0">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cogs me-1"></i> Share Options</h6>
-                    <div class="sp-toggle-row">
-                        <label>Enable Shared Post</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_shared_post" data-key="enable_shared_post">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Enable Repost</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_repost_post" data-key="enable_repost_post">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Add Link to Story</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_add_link" data-key="enable_add_link_to_story">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Add Mention to Story</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_mention" data-key="enable_mention_to_story">
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label class="form-label">Post Type to Share</label>
-                            <select class="form-select sp-setting" id="sp_post_type_to_share" data-key="post_type_to_share">
-                                <option value="photo">Photo</option>
-                                <option value="video">Video</option>
-                                <option value="reel">Reel</option>
-                                <option value="all">All</option>
-                            </select>
+                            <input type="number" class="form-control sp-setting" id="sp_shared_post_limit_persource_perday" data-key="shared_post_limit_persource_perday" min="0" placeholder="2">
                         </div>
                     </div>
                 </div>
@@ -1035,6 +1035,50 @@
                     <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('share_sources', 'sp_share_sources')">
                         <i class="fas fa-save me-1"></i> Save Sources
                     </button>
+                </div>
+                <!-- Collapsible Advanced -->
+                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
+                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
+                </div>
+                <div class="sp-advanced-body">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-cogs me-1"></i> Share Options</h6>
+                        <div class="sp-toggle-row">
+                            <label>Enable Shared Post</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_shared_post" data-key="enable_shared_post">
+                            </div>
+                        </div>
+                        <div class="sp-toggle-row">
+                            <label>Enable Repost</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_repost_post" data-key="enable_repost_post">
+                            </div>
+                        </div>
+                        <div class="sp-toggle-row">
+                            <label>Add Link to Story</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_add_link" data-key="enable_add_link_to_story">
+                            </div>
+                        </div>
+                        <div class="sp-toggle-row">
+                            <label>Add Mention to Story</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_mention" data-key="enable_mention_to_story">
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Post Type to Share</label>
+                                <select class="form-select sp-setting" id="sp_post_type_to_share" data-key="post_type_to_share">
+                                    <option value="photo">Photo</option>
+                                    <option value="video">Video</option>
+                                    <option value="reel">Reel</option>
+                                    <option value="all">All</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1059,38 +1103,47 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_story_viewer_daily_limit" data-key="story_viewer_daily_limit" min="0">
-                        </div>
-                    </div>
-                    <div class="sp-range-row mt-3">
-                        <div>
-                            <label class="form-label">Min Stories to View</label>
-                            <input type="number" class="form-control sp-setting" id="sp_story_viewer_min" data-key="story_viewer_min" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Stories to View</label>
-                            <input type="number" class="form-control sp-setting" id="sp_story_viewer_max" data-key="story_viewer_max" min="1">
+                            <input type="number" class="form-control sp-setting" id="sp_story_viewer_daily_limit" data-key="story_viewer_daily_limit" min="0" placeholder="50">
                         </div>
                     </div>
                 </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cogs me-1"></i> Options</h6>
-                    <div class="sp-toggle-row">
-                        <label>Like Story After Viewing</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_like_story_after_viewing" data-key="like_story_after_viewing">
+                <!-- Collapsible Advanced -->
+                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
+                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
+                </div>
+                <div class="sp-advanced-body">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-tachometer-alt me-1"></i> Stories per Session</h6>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Min Stories to View</label>
+                                <input type="number" class="form-control sp-setting" id="sp_story_viewer_min" data-key="story_viewer_min" min="1" placeholder="5">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Stories to View</label>
+                                <input type="number" class="form-control sp-setting" id="sp_story_viewer_max" data-key="story_viewer_max" min="1" placeholder="15">
+                            </div>
                         </div>
                     </div>
-                    <div class="sp-toggle-row">
-                        <label>Don't View Same Account Twice</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_view_same_twice" data-key="dont_view_same_account_twice">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
+                        <div class="sp-toggle-row">
+                            <label>Like Story After Viewing</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_like_story_after_viewing" data-key="like_story_after_viewing">
+                            </div>
                         </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>View Home Feed Stories</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_viewhomefeedstory" data-key="enable_viewhomefeedstory">
+                        <div class="sp-toggle-row">
+                            <label>Don't View Same Account Twice</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_view_same_twice" data-key="dont_view_same_account_twice">
+                            </div>
+                        </div>
+                        <div class="sp-toggle-row">
+                            <label>View Home Feed Stories</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_viewhomefeedstory" data-key="enable_viewhomefeedstory">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1116,27 +1169,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_comment_limit_perday" data-key="comment_limit_perday" min="0">
-                        </div>
-                    </div>
-                    <div class="sp-range-row mt-3">
-                        <div>
-                            <label class="form-label">Min Comments</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_comment" data-key="min_comment" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Comments</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_comment" data-key="max_comment" min="1">
-                        </div>
-                    </div>
-                    <div class="sp-range-row mt-3">
-                        <div>
-                            <label class="form-label">Min Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_comment_min_delay" data-key="comment_min_delay" min="0">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_comment_max_delay" data-key="comment_max_delay" min="0">
+                            <input type="number" class="form-control sp-setting" id="sp_comment_limit_perday" data-key="comment_limit_perday" min="0" placeholder="20">
                         </div>
                     </div>
                 </div>
@@ -1147,6 +1180,35 @@
                     <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('comment_sources', 'sp_comment_sources')">
                         <i class="fas fa-save me-1"></i> Save Sources
                     </button>
+                </div>
+                <!-- Collapsible Advanced -->
+                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
+                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
+                </div>
+                <div class="sp-advanced-body">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-tachometer-alt me-1"></i> Comments per Session &amp; Delay</h6>
+                        <div class="sp-range-row mb-3">
+                            <div>
+                                <label class="form-label">Min Comments per Session</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_comment" data-key="min_comment" min="1" placeholder="2">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Comments per Session</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_comment" data-key="max_comment" min="1" placeholder="5">
+                            </div>
+                        </div>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Min Delay (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_comment_min_delay" data-key="comment_min_delay" min="0" placeholder="30">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Delay (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_comment_max_delay" data-key="comment_max_delay" min="0" placeholder="60">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1170,58 +1232,67 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_directmessage_daily_limit" data-key="directmessage_daily_limit" min="0">
-                        </div>
-                    </div>
-                    <div class="sp-range-row mt-3">
-                        <div>
-                            <label class="form-label">Min DMs per Batch</label>
-                            <input type="number" class="form-control sp-setting" id="sp_directmessage_min" data-key="directmessage_min" min="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Max DMs per Batch</label>
-                            <input type="number" class="form-control sp-setting" id="sp_directmessage_max" data-key="directmessage_max" min="1">
-                        </div>
-                    </div>
-                    <div class="sp-range-row mt-3">
-                        <div>
-                            <label class="form-label">Min Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_directmessage_min_delay" data-key="directmessage_min_delay" min="0">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Delay (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_directmessage_max_delay" data-key="directmessage_max_delay" min="0">
+                            <input type="number" class="form-control sp-setting" id="sp_directmessage_daily_limit" data-key="directmessage_daily_limit" min="0" placeholder="20">
                         </div>
                     </div>
                 </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cogs me-1"></i> Options</h6>
-                    <div class="sp-toggle-row">
-                        <label>Enable OpenAI DM</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_openai_dm" data-key="enable_openai_dm">
+                <!-- Collapsible Advanced -->
+                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
+                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
+                </div>
+                <div class="sp-advanced-body">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-tachometer-alt me-1"></i> Batch Size &amp; Delay</h6>
+                        <div class="sp-range-row mb-3">
+                            <div>
+                                <label class="form-label">Min DMs per Batch</label>
+                                <input type="number" class="form-control sp-setting" id="sp_directmessage_min" data-key="directmessage_min" min="1" placeholder="3">
+                            </div>
+                            <div>
+                                <label class="form-label">Max DMs per Batch</label>
+                                <input type="number" class="form-control sp-setting" id="sp_directmessage_max" data-key="directmessage_max" min="1" placeholder="5">
+                            </div>
+                        </div>
+                        <div class="sp-range-row">
+                            <div>
+                                <label class="form-label">Min Delay (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_directmessage_min_delay" data-key="directmessage_min_delay" min="0" placeholder="30">
+                            </div>
+                            <div>
+                                <label class="form-label">Max Delay (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_directmessage_max_delay" data-key="directmessage_max_delay" min="0" placeholder="90">
+                            </div>
                         </div>
                     </div>
-                    <div class="sp-toggle-row">
-                        <label>Skip If DM Already Exists (New Followers)</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_skip_dm_new" data-key="enable_skip_if_dm_exists_directmessage_new_followers">
+                    <div class="sp-section">
+                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
+                        <div class="sp-toggle-row">
+                            <label>Enable OpenAI DM</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_openai_dm" data-key="enable_openai_dm">
+                            </div>
                         </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Skip If DM Already Exists (Specific User)</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_skip_dm_specific" data-key="enable_skip_if_dm_exists_directmessage_specificuser">
+                        <div class="sp-toggle-row">
+                            <label>Skip If DM Already Exists (New Followers)</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_skip_dm_new" data-key="enable_skip_if_dm_exists_directmessage_new_followers">
+                            </div>
                         </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label class="form-label">New Followers Limit/Day</label>
-                            <input type="number" class="form-control sp-setting" id="sp_dm_new_followers_limit" data-key="directmessage_new_followers_limitperday" min="0">
+                        <div class="sp-toggle-row">
+                            <label>Skip If DM Already Exists (Specific User)</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input sp-setting" type="checkbox" id="sp_skip_dm_specific" data-key="enable_skip_if_dm_exists_directmessage_specificuser">
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Specific User Limit/Day</label>
-                            <input type="number" class="form-control sp-setting" id="sp_dm_specific_limit" data-key="directmessage_specific_user_limitperday" min="0">
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-6">
+                                <label class="form-label">New Followers Limit/Day</label>
+                                <input type="number" class="form-control sp-setting" id="sp_dm_new_followers_limit" data-key="directmessage_new_followers_limitperday" min="0" placeholder="10">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Specific User Limit/Day</label>
+                                <input type="number" class="form-control sp-setting" id="sp_dm_specific_limit" data-key="directmessage_specific_user_limitperday" min="0" placeholder="10">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1558,6 +1629,13 @@ function openAccountSettings(deviceSerial, username) {
         });
 }
 
+// ── Toggle Advanced sections ──
+function toggleAdvanced(toggleEl) {
+    toggleEl.classList.toggle('open');
+    const body = toggleEl.nextElementSibling;
+    if (body) body.classList.toggle('open');
+}
+
 // ── Populate Settings into Form ──
 function populateSettings(settings, accountData) {
     // Overview - readonly account info
@@ -1566,8 +1644,9 @@ function populateSettings(settings, accountData) {
     document.getElementById('sp_status').value = accountData.status || '';
     document.getElementById('sp_instagram_package').value = accountData.instagram_package || '';
     document.getElementById('sp_followers').value = accountData.followers || '0';
+    document.getElementById('sp_tag').value = accountData.tag || '';
 
-    // Timer - from account data
+    // Active Hours - from account data (now in Overview tab)
     document.getElementById('sp_start_time').value = accountData.start_time || '';
     document.getElementById('sp_end_time').value = accountData.end_time || '';
 
