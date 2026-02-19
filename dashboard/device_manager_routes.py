@@ -816,3 +816,86 @@ def api_grant_permissions_status():
             'started_at': _grant_state['started_at'],
             'finished_at': _grant_state['finished_at'],
         })
+
+
+# ── Follower Growth Tracking ─────────────────────────────────────────
+
+@device_manager_bp.route('/api/device-manager/<serial>/follower-history')
+def api_follower_history(serial):
+    """
+    Get follower history for an account on a device.
+    Query params:
+      username (required) - Instagram username
+      days (optional, default 30) - Number of days of history
+    Returns daily snapshots and growth metrics.
+    """
+    username = request.args.get('username', '').strip()
+    if not username:
+        return jsonify({'error': 'username is required'}), 400
+
+    days = int(request.args.get('days', '30'))
+    if days < 1:
+        days = 1
+    elif days > 365:
+        days = 365
+
+    try:
+        conn = _get_conn()
+        since = (datetime.utcnow() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        # Get daily snapshots (latest per day)
+        rows = conn.execute("""
+            SELECT
+                DATE(captured_at) AS date,
+                MAX(followers) AS followers,
+                MAX(following) AS following,
+                MAX(posts_count) AS posts
+            FROM follower_snapshots
+            WHERE username = ? AND device_serial = ?
+              AND captured_at >= ?
+            GROUP BY DATE(captured_at)
+            ORDER BY date ASC
+        """, (username, serial, since)).fetchall()
+
+        history = [
+            {
+                'date': r['date'],
+                'followers': r['followers'] or 0,
+                'following': r['following'] or 0,
+                'posts': r['posts'] or 0,
+            }
+            for r in rows
+        ]
+
+        # Calculate growth metrics
+        growth = {'today': 0, 'week': 0, 'month': 0}
+
+        if len(history) >= 2:
+            latest = history[-1]['followers']
+
+            # Today's growth (latest vs yesterday)
+            if len(history) >= 2:
+                growth['today'] = latest - history[-2]['followers']
+
+            # Week growth
+            week_ago = (datetime.utcnow() - timedelta(days=7)).strftime('%Y-%m-%d')
+            week_rows = [h for h in history if h['date'] <= week_ago]
+            if week_rows:
+                growth['week'] = latest - week_rows[-1]['followers']
+            elif len(history) >= 2:
+                growth['week'] = latest - history[0]['followers']
+
+            # Month growth
+            if len(history) >= 2:
+                growth['month'] = latest - history[0]['followers']
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'history': history,
+            'growth': growth,
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

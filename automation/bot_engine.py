@@ -1013,6 +1013,9 @@ class BotEngine:
 
         actions = []
 
+        # Always check profile first for follower tracking
+        actions.append(('check_profile', self._action_check_profile))
+
         # Check scheduled content FIRST (time-sensitive, highest priority)
         scheduled = self._check_scheduled_content()
         if scheduled:
@@ -1087,14 +1090,25 @@ class BotEngine:
         if not actions:
             actions.append(('engage', self._action_engage))
 
-        # Randomize order slightly (but keep engage first)
+        # Randomize order slightly (but keep check_profile first, engage second)
         if len(actions) > 1:
+            profile_actions = [a for a in actions if a[0] == 'check_profile']
             engage_actions = [a for a in actions if a[0] == 'engage']
-            other_actions = [a for a in actions if a[0] != 'engage']
+            other_actions = [a for a in actions if a[0] not in ('engage', 'check_profile')]
             random.shuffle(other_actions)
-            actions = engage_actions + other_actions
+            actions = profile_actions + engage_actions + other_actions
 
         return actions
+
+    def _action_check_profile(self):
+        """Run profile check for follower tracking."""
+        from automation.actions.check_profile import CheckProfileAction
+        action = CheckProfileAction(
+            self._device, self.device_serial,
+            self.account, self.session_id,
+            pkg=self.account.get('package', 'com.instagram.android'),
+        )
+        return action.execute()
 
     def _action_follow(self):
         """Run follow action."""

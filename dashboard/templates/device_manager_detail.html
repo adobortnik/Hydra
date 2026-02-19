@@ -614,6 +614,38 @@
                         </div>
                     </div>
                 </div>
+                <!-- ─── Growth Tracking Card ─── -->
+                <div class="sp-section" id="growthSection">
+                    <h6><i class="fas fa-chart-line me-1"></i> 📈 Growth</h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-4">
+                            <div style="background:#1a1d21;border-radius:8px;padding:12px;text-align:center;border:1px solid #2d3238;">
+                                <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Followers</div>
+                                <div id="growth_followers" style="font-size:1.3rem;font-weight:700;color:#fff;margin:4px 0;">—</div>
+                                <div id="growth_followers_delta" style="font-size:0.75rem;color:#6c757d;">—</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="background:#1a1d21;border-radius:8px;padding:12px;text-align:center;border:1px solid #2d3238;">
+                                <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Following</div>
+                                <div id="growth_following" style="font-size:1.3rem;font-weight:700;color:#fff;margin:4px 0;">—</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="background:#1a1d21;border-radius:8px;padding:12px;text-align:center;border:1px solid #2d3238;">
+                                <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Posts</div>
+                                <div id="growth_posts" style="font-size:1.3rem;font-weight:700;color:#fff;margin:4px 0;">—</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="height:180px;position:relative;">
+                        <canvas id="growthChart"></canvas>
+                    </div>
+                    <div id="growthNoData" style="display:none;text-align:center;color:#6c757d;padding:20px;font-size:0.85rem;">
+                        <i class="fas fa-chart-area me-1"></i> No growth data yet — snapshots are captured each session
+                    </div>
+                </div>
+
                 <div class="sp-section">
                     <h6><i class="fas fa-clock me-1"></i> Active Hours</h6>
                     <div class="sp-range-row">
@@ -1320,8 +1352,10 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
 const DEVICE_SERIAL = {{ device_serial | tojson }};
+let growthChartInstance = null;
 let accountsData = [];
 
 // ── Date Navigation State ──
@@ -1627,6 +1661,9 @@ function openAccountSettings(deviceSerial, username) {
             loadSources('share_sources', 'sp_share_sources');
             loadSources('comment_sources', 'sp_comment_sources');
 
+            // Load follower growth chart
+            loadFollowerGrowth(deviceSerial, username);
+
             document.getElementById('spLoading').style.display = 'none';
             document.getElementById('spContent').style.display = 'block';
         })
@@ -1834,6 +1871,141 @@ function showSpToast(msg, type) {
     toast.className = 'sp-toast ' + (type || 'success');
     requestAnimationFrame(() => toast.classList.add('show'));
     setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ── Follower Growth Chart ──
+function formatNum(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(n);
+}
+
+function formatDelta(n) {
+    if (n > 0) return `<span style="color:#22c55e;font-weight:600;">+${formatNum(n)}</span>`;
+    if (n < 0) return `<span style="color:#ef4444;font-weight:600;">${formatNum(n)}</span>`;
+    return `<span style="color:#6c757d;">±0</span>`;
+}
+
+function loadFollowerGrowth(deviceSerial, username) {
+    const chartCanvas = document.getElementById('growthChart');
+    const noDataEl = document.getElementById('growthNoData');
+
+    fetch(`/api/device-manager/${encodeURIComponent(deviceSerial)}/follower-history?username=${encodeURIComponent(username)}&days=30`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.history || data.history.length === 0) {
+                // No data — show placeholder
+                chartCanvas.style.display = 'none';
+                noDataEl.style.display = 'block';
+                document.getElementById('growth_followers').textContent = '—';
+                document.getElementById('growth_following').textContent = '—';
+                document.getElementById('growth_posts').textContent = '—';
+                document.getElementById('growth_followers_delta').innerHTML = '—';
+                return;
+            }
+
+            chartCanvas.style.display = 'block';
+            noDataEl.style.display = 'none';
+
+            const history = data.history;
+            const growth = data.growth || {};
+            const latest = history[history.length - 1];
+
+            // Update stat cards
+            document.getElementById('growth_followers').textContent = formatNum(latest.followers);
+            document.getElementById('growth_following').textContent = formatNum(latest.following);
+            document.getElementById('growth_posts').textContent = formatNum(latest.posts);
+
+            // Delta indicators
+            let deltaHtml = '';
+            if (growth.today !== undefined && growth.today !== 0) {
+                deltaHtml += formatDelta(growth.today) + ' today';
+            }
+            if (growth.week !== undefined && growth.week !== 0) {
+                if (deltaHtml) deltaHtml += ' · ';
+                deltaHtml += formatDelta(growth.week) + ' /wk';
+            }
+            if (!deltaHtml) deltaHtml = '<span style="color:#6c757d;">no change</span>';
+            document.getElementById('growth_followers_delta').innerHTML = deltaHtml;
+
+            // Render chart
+            const labels = history.map(h => {
+                const d = new Date(h.date + 'T00:00:00');
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            const followerData = history.map(h => h.followers);
+
+            // Destroy previous chart instance
+            if (growthChartInstance) {
+                growthChartInstance.destroy();
+                growthChartInstance = null;
+            }
+
+            growthChartInstance = new Chart(chartCanvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Followers',
+                        data: followerData,
+                        borderColor: '#22c55e',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: history.length > 14 ? 0 : 3,
+                        pointHoverRadius: 5,
+                        pointBackgroundColor: '#22c55e',
+                        tension: 0.3,
+                        fill: true,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1a1d21',
+                            titleColor: '#e5e7eb',
+                            bodyColor: '#a0aec0',
+                            borderColor: '#2d3748',
+                            borderWidth: 1,
+                            padding: 10,
+                            callbacks: {
+                                label: ctx => `Followers: ${ctx.parsed.y.toLocaleString()}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#2d3748', drawBorder: false },
+                            ticks: {
+                                color: '#a0aec0',
+                                font: { size: 10 },
+                                maxTicksLimit: 8,
+                            }
+                        },
+                        y: {
+                            grid: { color: '#2d3748', drawBorder: false },
+                            ticks: {
+                                color: '#a0aec0',
+                                font: { size: 10 },
+                                callback: val => formatNum(val),
+                            },
+                            beginAtZero: false,
+                        }
+                    }
+                }
+            });
+        })
+        .catch(err => {
+            console.warn('Failed to load follower growth:', err);
+            chartCanvas.style.display = 'none';
+            noDataEl.style.display = 'block';
+        });
 }
 </script>
 {% endblock %}
