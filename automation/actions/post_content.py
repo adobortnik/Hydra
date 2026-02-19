@@ -509,14 +509,16 @@ class PostContentAction:
             random_sleep(1.5, 3, label="reel_final_confirmation")
 
         # Step 9: Handle "About Reels" modal if it appears
-        self._dismiss_about_reels_modal()
+        # If modal found, its Share button IS the final share — skip _tap_share
+        modal_shared = self._dismiss_about_reels_modal()
 
-        # Step 10: Tap "Share"
-        if not self._tap_share():
-            log.warning("[%s] CONTENT: Could not tap Share for reel",
-                        self.device_serial)
-            self._go_back(4)
-            return False
+        # Step 10: Tap "Share" (only if modal didn't already share)
+        if not modal_shared:
+            if not self._tap_share():
+                log.warning("[%s] CONTENT: Could not tap Share for reel",
+                            self.device_serial)
+                self._go_back(4)
+                return False
 
         # Step 9: Wait for upload
         return self._wait_for_upload_complete()
@@ -1419,7 +1421,18 @@ class PostContentAction:
             time.sleep(3)
             return True
 
-        log.warning("[%s] CONTENT: Share/Post button not found", self.device_serial)
+        # Dump XML so we can see what screen we're stuck on
+        try:
+            xml = self.ctrl.dump_xml("share_button_missing")
+            # Log first 500 chars of text content for debugging
+            import re as _re
+            texts = _re.findall(r'text="([^"]+)"', xml)
+            visible_texts = [t for t in texts if t and t != 'false' and t != 'true']
+            log.warning("[%s] CONTENT: Share/Post button not found. Screen texts: %s",
+                        self.device_serial, visible_texts[:15])
+        except Exception:
+            log.warning("[%s] CONTENT: Share/Post button not found (no XML dump)",
+                        self.device_serial)
         return False
 
     def _tap_story_share(self):
