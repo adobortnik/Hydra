@@ -1225,7 +1225,7 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">DM Method</label>
-                            <select class="form-select sp-setting" id="sp_directmessage_method" data-key="directmessage_method">
+                            <select class="form-select sp-setting" id="sp_directmessage_method" data-key="directmessage_method" onchange="toggleDmSpecificUsers()">
                                 <option value="dm-new-followers">DM New Followers</option>
                                 <option value="dm-specific-users">DM Specific Users</option>
                             </select>
@@ -1234,6 +1234,12 @@
                             <label class="form-label">Daily Limit</label>
                             <input type="number" class="form-control sp-setting" id="sp_directmessage_daily_limit" data-key="directmessage_daily_limit" min="0" placeholder="20">
                         </div>
+                    </div>
+                    <!-- Specific Users List (shown when DM Specific Users selected) -->
+                    <div id="dmSpecificUsersSection" style="display:none; margin-top: 12px;">
+                        <label class="form-label">Target Usernames <small class="text-muted">(one per line)</small></label>
+                        <textarea class="form-control sp-setting" id="sp_dm_specific_usernames" data-key="directmessage_specific_usernames" rows="4" placeholder="username1&#10;username2&#10;username3" style="background: #1a1d23; color: #e2e8f0; border-color: #2d3748; font-family: monospace; font-size: 0.85rem;"></textarea>
+                        <small class="text-muted">Enter Instagram usernames to DM. One username per line.</small>
                     </div>
                 </div>
                 <!-- Collapsible Advanced -->
@@ -1636,6 +1642,14 @@ function toggleAdvanced(toggleEl) {
     if (body) body.classList.toggle('open');
 }
 
+function toggleDmSpecificUsers() {
+    var method = document.getElementById('sp_directmessage_method').value;
+    var section = document.getElementById('dmSpecificUsersSection');
+    if (section) {
+        section.style.display = (method === 'dm-specific-users') ? 'block' : 'none';
+    }
+}
+
 // ── Populate Settings into Form ──
 function populateSettings(settings, accountData) {
     // Overview - readonly account info
@@ -1667,6 +1681,9 @@ function populateSettings(settings, accountData) {
             el.value = (val !== undefined && val !== null) ? val : '';
         }
     });
+
+    // Show/hide conditional sections
+    toggleDmSpecificUsers();
 }
 
 // ── Collect Settings from Form ──
