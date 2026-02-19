@@ -31,6 +31,91 @@ profile_automation_bp = Blueprint('profile_automation', __name__, url_prefix='/a
 # Initialize automation
 automation = TagBasedAutomation()
 
+@profile_automation_bp.route('/ai-config', methods=['GET'])
+def get_ai_config_endpoint():
+    """Get AI configuration for frontend use"""
+    try:
+        ai_config = get_ai_config()
+        # Mask the key for display but return enough to know it's set
+        api_key = ai_config.get('api_key', '')
+        return jsonify({
+            'status': 'success',
+            'api_key': api_key,
+            'provider': ai_config.get('provider', 'openai'),
+            'enabled': ai_config.get('enabled', False),
+            'has_key': bool(api_key)
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/upload-picture-url', methods=['POST'])
+def upload_picture_from_url():
+    """Download an image from a URL and save it as a profile picture"""
+    try:
+        import requests as req
+        import time as _time
+        from profile_automation_db import add_profile_picture, PROFILE_PICTURES_DIR
+
+        data = request.get_json()
+        url = data.get('url', '').strip()
+        gender = data.get('gender', 'neutral')
+
+        if not url:
+            return jsonify({'status': 'error', 'message': 'URL is required'}), 400
+
+        # Download the image
+        resp = req.get(url, timeout=15, stream=True, headers={
+            'User-Agent': 'Mozilla/5.0'
+        })
+        resp.raise_for_status()
+
+        # Determine extension from content type
+        content_type = resp.headers.get('Content-Type', '')
+        ext_map = {
+            'image/jpeg': '.jpg', 'image/jpg': '.jpg',
+            'image/png': '.png', 'image/gif': '.gif',
+            'image/webp': '.webp'
+        }
+        ext = ext_map.get(content_type.split(';')[0].strip(), '.jpg')
+
+        # Save to uploaded folder
+        upload_dir = PROFILE_PICTURES_DIR / "uploaded"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"{_time.time()}{ext}"
+        save_path = upload_dir / filename
+
+        with open(str(save_path), 'wb') as f:
+            for chunk in resp.iter_content(8192):
+                f.write(chunk)
+
+        # Register in DB
+        pic_id = add_profile_picture(
+            filename=filename,
+            original_path=str(save_path),
+            category='uploaded',
+            gender=gender,
+            notes=f'Fetched from URL: {url[:100]}'
+        )
+
+        return jsonify({
+            'status': 'success',
+            'picture_id': pic_id,
+            'filename': filename,
+            'message': 'Picture fetched and uploaded successfully'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
 @profile_automation_bp.route('/tags', methods=['GET'])
 def get_tags():
     """Get all tags with account counts"""
@@ -477,9 +562,9 @@ def quick_campaign():
         strategies = {}
 
         if actions.get('change_picture', True):
-            # Use 'gallery_auto' strategy to automatically pick from phone gallery
-            # This skips the library check and just uses first/last photo from gallery
-            strategies['profile_picture'] = 'gallery_auto'
+            # Use the picture strategy from frontend (rotate or random)
+            picture_strategy = data.get('picture_strategy', 'rotate')
+            strategies['profile_picture'] = picture_strategy
 
         if actions.get('change_bio', True):
             strategies['bio'] = 'ai' if use_ai else 'template'
