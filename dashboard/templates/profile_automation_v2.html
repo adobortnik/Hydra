@@ -105,6 +105,79 @@
 
     /* ── Slider ── */
     input[type="range"] { accent-color: var(--accent); }
+
+    /* ── Mode Toggle ── */
+    .mode-toggle { display: flex; gap: 0; margin-bottom: 1.5rem; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+    .mode-toggle .mode-btn {
+        flex: 1; text-align: center; padding: 12px 16px; cursor: pointer;
+        background: var(--bg-card); border: none; color: var(--text-dim);
+        font-weight: 600; font-size: 0.95rem; transition: all 0.2s;
+    }
+    .mode-toggle .mode-btn:first-child { border-right: 1px solid var(--border); }
+    .mode-toggle .mode-btn.active { background: rgba(108,92,231,0.2); color: var(--accent-light); }
+    .mode-toggle .mode-btn:hover:not(.active) { background: var(--bg-hover); }
+
+    /* ── Unique Personas Wizard ── */
+    .persona-wizard-steps { display: flex; gap: 4px; margin-bottom: 1.5rem; }
+    .persona-wizard-step {
+        flex: 1; text-align: center; padding: 10px 6px; border-radius: 8px;
+        background: var(--bg-card); border: 1px solid var(--border);
+        cursor: pointer; transition: all 0.2s; font-size: 0.82rem;
+    }
+    .persona-wizard-step.active { background: rgba(0,210,160,0.15); border-color: var(--green); color: var(--green); }
+    .persona-wizard-step.done { background: rgba(108,92,231,0.12); border-color: var(--accent); color: var(--accent-light); }
+    .persona-wizard-step .pstep-num {
+        display: inline-block; width: 22px; height: 22px; line-height: 22px;
+        border-radius: 50%; background: var(--border); font-weight: 700; font-size: 0.72rem; margin-right: 3px;
+    }
+    .persona-wizard-step.active .pstep-num { background: var(--green); color: #000; }
+    .persona-wizard-step.done .pstep-num { background: var(--accent); color: #fff; }
+    .persona-step-panel { display: none; }
+    .persona-step-panel.active { display: block; }
+
+    /* ── Gender slider ── */
+    .gender-slider-container { position: relative; }
+    .gender-slider-labels { display: flex; justify-content: space-between; font-size: 0.85rem; }
+
+    /* ── Preview table ── */
+    .persona-preview-table { font-size: 0.82rem; }
+    .persona-preview-table td { vertical-align: middle; }
+    .persona-preview-table .bio-preview {
+        max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        cursor: help;
+    }
+    .persona-preview-table .editable-cell {
+        cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.15s;
+    }
+    .persona-preview-table .editable-cell:hover { background: rgba(108,92,231,0.15); }
+
+    /* ── Category bars ── */
+    .cat-bar-container { margin-bottom: 0.5rem; }
+    .cat-bar-label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px; }
+    .cat-bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+    .cat-bar .cat-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    .cat-bar-fill.face_selfie { background: #6c5ce7; }
+    .cat-bar-fill.full_body_lifestyle { background: #00cec9; }
+    .cat-bar-fill.aesthetic_artistic { background: #fd79a8; }
+    .cat-bar-fill.mirror_selfie_gym { background: #fdcb6e; }
+    .cat-bar-fill.back_view_silhouette { background: #e17055; }
+    .cat-bar-fill.other_diverse { background: #74b9ff; }
+
+    /* ── Pic upload categories ── */
+    .pic-cat-drop { border: 2px dashed var(--border); border-radius: 10px; padding: 1rem; text-align: center; transition: all 0.2s; cursor: pointer; min-height: 80px; }
+    .pic-cat-drop:hover, .pic-cat-drop.dragover { border-color: var(--accent); background: rgba(108,92,231,0.05); }
+
+    /* ── Badge colors for pic categories ── */
+    .badge-face_selfie { background: rgba(108,92,231,0.2); color: #a29bfe; }
+    .badge-full_body_lifestyle { background: rgba(0,206,201,0.2); color: #55efc4; }
+    .badge-aesthetic_artistic { background: rgba(253,121,168,0.2); color: #fd79a8; }
+    .badge-mirror_selfie_gym { background: rgba(253,203,110,0.2); color: #fdcb6e; }
+    .badge-back_view_silhouette { background: rgba(225,112,85,0.2); color: #e17055; }
+    .badge-other_diverse { background: rgba(116,185,255,0.2); color: #74b9ff; }
+
+    .gender-badge { font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; }
+    .gender-badge.female { background: rgba(253,121,168,0.2); color: #fd79a8; }
+    .gender-badge.male { background: rgba(116,185,255,0.2); color: #74b9ff; }
 </style>
 {% endblock %}
 
@@ -125,7 +198,19 @@
 </div>
 
 <!-- ═══════════════════════════════════════ -->
-<!-- SECTION A: CAMPAIGN WIZARD             -->
+<!-- MODE TOGGLE                             -->
+<!-- ═══════════════════════════════════════ -->
+<div class="mode-toggle" id="modeToggle">
+    <button class="mode-btn active" data-mode="clones" onclick="switchMode('clones')">
+        <i class="fas fa-clone me-2"></i>Mother Account Clones
+    </button>
+    <button class="mode-btn" data-mode="personas" onclick="switchMode('personas')">
+        <i class="fas fa-users-cog me-2"></i>Unique Personas 🇸🇰🇨🇿
+    </button>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION A: CAMPAIGN WIZARD (CLONES)    -->
 <!-- ═══════════════════════════════════════ -->
 <div class="card bg-dark border-secondary mb-4" id="wizardCard">
     <div class="card-body">
@@ -401,6 +486,384 @@
                 <button class="btn btn-success btn-lg" onclick="createTasks()" id="createTasksBtn">
                     <i class="fas fa-rocket me-2"></i>Create Tasks & Execute
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SECTION A2: UNIQUE PERSONAS WIZARD      -->
+<!-- ═══════════════════════════════════════ -->
+<div class="card bg-dark border-secondary mb-4" id="personaWizardCard" style="display:none;">
+    <div class="card-body">
+        <!-- Persona Wizard Steps Bar -->
+        <div class="persona-wizard-steps" id="personaWizardSteps">
+            <div class="persona-wizard-step active" data-pstep="1" onclick="goToPersonaStep(1)">
+                <span class="pstep-num">1</span> Configure
+            </div>
+            <div class="persona-wizard-step" data-pstep="2" onclick="goToPersonaStep(2)">
+                <span class="pstep-num">2</span> Select Accounts
+            </div>
+            <div class="persona-wizard-step" data-pstep="3" onclick="goToPersonaStep(3)">
+                <span class="pstep-num">3</span> Preview
+            </div>
+            <div class="persona-wizard-step" data-pstep="4" onclick="goToPersonaStep(4)">
+                <span class="pstep-num">4</span> Pictures
+            </div>
+            <div class="persona-wizard-step" data-pstep="5" onclick="goToPersonaStep(5)">
+                <span class="pstep-num">5</span> Execute
+            </div>
+        </div>
+
+        <!-- ══════════════ PERSONA STEP 1: Configuration ══════════════ -->
+        <div id="pstep1" class="persona-step-panel active">
+            <h5 class="mb-3"><i class="fas fa-cog me-2 text-info"></i>Step 1: Configuration</h5>
+
+            <div class="row g-4">
+                <!-- Gender Split -->
+                <div class="col-md-6">
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-body">
+                            <label class="form-label"><i class="fas fa-venus-mars me-1 text-accent"></i> Gender Split</label>
+                            <div class="gender-slider-container">
+                                <input type="range" class="form-range" min="0" max="100" value="70" id="genderSlider"
+                                    oninput="updateGenderSlider()">
+                                <div class="gender-slider-labels">
+                                    <span class="text-pink">♀ Female: <strong id="genderFemalePct">70%</strong></span>
+                                    <span class="text-info">♂ Male: <strong id="genderMalePct">30%</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Target Audience -->
+                <div class="col-md-3">
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-body">
+                            <label class="form-label"><i class="fas fa-globe me-1 text-warning"></i> Target Audience</label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="targetAudience">
+                                <option value="sk_cz" selected>Slovak/Czech 🇸🇰🇨🇿</option>
+                            </select>
+                            <small class="text-muted mt-1 d-block">More regions coming soon</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Age Range -->
+                <div class="col-md-3">
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-body">
+                            <label class="form-label"><i class="fas fa-birthday-cake me-1 text-success"></i> Age Range</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                    id="ageMin" value="18" min="16" max="40" style="width:70px">
+                                <span class="text-muted">to</span>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                    id="ageMax" value="28" min="16" max="40" style="width:70px">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-primary" onclick="goToPersonaStep(2)">
+                    Next: Select Accounts <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ══════════════ PERSONA STEP 2: Select Accounts ══════════════ -->
+        <div id="pstep2" class="persona-step-panel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="fas fa-users me-2 text-warning"></i>Step 2: Select Accounts</h5>
+                <div>
+                    <span class="badge bg-info me-2" id="personaSelectionCount">0 of 0 selected</span>
+                    <button class="btn btn-sm btn-outline-success" onclick="personaSelectAll()">Select All</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="personaDeselectAll()">Deselect All</button>
+                </div>
+            </div>
+
+            <!-- Search -->
+            <div class="mb-3">
+                <input type="text" class="search-bar" id="personaAccountSearch" placeholder="🔍 Search accounts by username, device..." oninput="personaFilterAccounts()">
+            </div>
+
+            <!-- Device / Account List -->
+            <div id="personaAccountList" style="max-height: 450px; overflow-y: auto;">
+                <div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...</div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToPersonaStep(1)"><i class="fas fa-arrow-left me-1"></i>Back</button>
+                <button class="btn btn-primary" onclick="goToPersonaStep(3)" id="pstep2Next" disabled>
+                    Next: Preview Assignments <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ══════════════ PERSONA STEP 3: Preview Assignments ══════════════ -->
+        <div id="pstep3" class="persona-step-panel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="fas fa-list-alt me-2 text-accent"></i>Step 3: Preview Assignments</h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-info me-2" onclick="generatePersonaPreview()" id="generatePreviewBtn">
+                        <i class="fas fa-magic me-1"></i>Generate Preview
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="regenerateAllPersonas()" id="regenAllBtn" style="display:none;">
+                        <i class="fas fa-sync-alt me-1"></i>Regenerate All
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats row -->
+            <div class="row g-3 mb-3" id="personaStatsRow" style="display:none;">
+                <div class="col-md-3">
+                    <div class="stat-card-sm" style="background: rgba(108,92,231,0.1); border: 1px solid rgba(108,92,231,0.3);">
+                        <h3 class="text-accent" id="pStatTotal">0</h3>
+                        <small class="text-muted">Total</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card-sm" style="background: rgba(253,121,168,0.1); border: 1px solid rgba(253,121,168,0.3);">
+                        <h3 style="color:#fd79a8" id="pStatFemale">0</h3>
+                        <small class="text-muted">Female</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card-sm" style="background: rgba(116,185,255,0.1); border: 1px solid rgba(116,185,255,0.3);">
+                        <h3 style="color:#74b9ff" id="pStatMale">0</h3>
+                        <small class="text-muted">Male</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card-sm" style="background: rgba(0,210,160,0.1); border: 1px solid rgba(0,210,160,0.3);">
+                        <h3 class="text-success" id="pStatUnique">0</h3>
+                        <small class="text-muted">Unique Names</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview info -->
+            <div id="personaPreviewEmpty" class="text-center text-muted py-5">
+                <i class="fas fa-magic fa-3x mb-3" style="opacity:0.3"></i>
+                <p>Click <strong>"Generate Preview"</strong> to create persona assignments for <span id="previewCountLabel">0</span> selected accounts</p>
+            </div>
+
+            <!-- Preview table with pagination -->
+            <div id="personaPreviewContainer" style="display:none;">
+                <!-- Pagination controls -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted">Showing <span id="previewShowRange">0-0</span> of <span id="previewTotalRows">0</span></small>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-xs btn-outline-secondary" onclick="personaPreviewPage(-1)" id="prevPageBtn"><i class="fas fa-chevron-left"></i></button>
+                        <span class="badge bg-secondary align-self-center" id="previewPageLabel">1/1</span>
+                        <button class="btn btn-xs btn-outline-secondary" onclick="personaPreviewPage(1)" id="nextPageBtn"><i class="fas fa-chevron-right"></i></button>
+                        <select class="form-select form-select-sm bg-dark text-white border-secondary ms-2" id="previewPageSize" onchange="renderPersonaPreview()" style="width:80px">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="9999">All</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                    <table class="table table-dark table-sm persona-preview-table mb-0">
+                        <thead style="position:sticky;top:0;background:#12121a;z-index:1">
+                            <tr>
+                                <th style="width:40px">#</th>
+                                <th>Device</th>
+                                <th>Current Username</th>
+                                <th><i class="fas fa-arrow-right text-accent"></i></th>
+                                <th>New Username</th>
+                                <th>Bio Preview</th>
+                                <th>Pic Category</th>
+                                <th>Gender</th>
+                                <th style="width:40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="personaPreviewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToPersonaStep(2)"><i class="fas fa-arrow-left me-1"></i>Back</button>
+                <button class="btn btn-primary" onclick="goToPersonaStep(4)" id="pstep3Next" disabled>
+                    Next: Pictures <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ══════════════ PERSONA STEP 4: Profile Pictures ══════════════ -->
+        <div id="pstep4" class="persona-step-panel">
+            <h5 class="mb-3"><i class="fas fa-images me-2 text-warning"></i>Step 4: Profile Pictures</h5>
+
+            <!-- Category Distribution -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-body">
+                            <h6 class="mb-3">Assigned Category Distribution</h6>
+                            <div id="picCategoryBars">
+                                <div class="text-muted small text-center py-3">Generate preview first</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-body">
+                            <h6 class="mb-3">Available Photos per Category</h6>
+                            <div id="picAvailableBars">
+                                <div class="text-muted small text-center py-3">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stock Photo Download -->
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body">
+                    <h6 class="mb-3"><i class="fas fa-download me-2 text-info"></i>Download Stock Photos</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small">Unsplash API Key</label>
+                            <input type="password" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                id="unsplashKey" placeholder="Access Key...">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Pexels API Key</label>
+                            <input type="password" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                id="pexelsKey" placeholder="API Key...">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Per Category</label>
+                            <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                id="stockPerCategory" value="50" min="10" max="200">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-sm btn-outline-info w-100" onclick="downloadStockPhotos()">
+                                <i class="fas fa-cloud-download-alt me-1"></i>Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Upload -->
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body">
+                    <h6 class="mb-3"><i class="fas fa-upload me-2 text-success"></i>Upload Photos by Category</h6>
+                    <div class="row g-2" id="picCategoryUploadZones">
+                        <!-- Upload zones generated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToPersonaStep(3)"><i class="fas fa-arrow-left me-1"></i>Back</button>
+                <button class="btn btn-primary" onclick="goToPersonaStep(5)">
+                    Next: Execute <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ══════════════ PERSONA STEP 5: Execute ══════════════ -->
+        <div id="pstep5" class="persona-step-panel">
+            <h5 class="mb-3"><i class="fas fa-rocket me-2 text-success"></i>Step 5: Execute</h5>
+
+            <!-- Summary -->
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h4 class="text-white mb-0" id="execSummaryAccounts">0</h4>
+                            <small class="text-muted">Accounts</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-info mb-0" id="execSummaryActions">-</h4>
+                            <small class="text-muted">Actions</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 style="color:#fd79a8" class="mb-0" id="execSummaryFemale">0</h4>
+                            <small class="text-muted">Female</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 style="color:#74b9ff" class="mb-0" id="execSummaryMale">0</h4>
+                            <small class="text-muted">Male</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-dark border-secondary h-100">
+                        <div class="card-body">
+                            <h6 class="mb-3">What to Change</h6>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="personaChangeUsername" checked>
+                                <label class="form-check-label" for="personaChangeUsername">👤 Username</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="personaChangeBio" checked>
+                                <label class="form-check-label" for="personaChangeBio">📝 Bio</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="personaChangePicture" checked>
+                                <label class="form-check-label" for="personaChangePicture">📷 Profile Picture</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-dark border-secondary h-100">
+                        <div class="card-body">
+                            <h6 class="mb-3">Timing</h6>
+                            <label class="form-label small d-flex justify-content-between">
+                                <span>Delay between changes</span>
+                                <span class="text-muted" id="personaDelayVal">10s</span>
+                            </label>
+                            <input type="range" class="form-range" min="5" max="30" value="10" id="personaDelay"
+                                oninput="document.getElementById('personaDelayVal').textContent=this.value+'s'">
+                            <label class="form-label small d-flex justify-content-between mt-2">
+                                <span>Delay between batches</span>
+                                <span class="text-muted" id="personaBatchDelayVal">10m</span>
+                            </label>
+                            <input type="range" class="form-range" min="5" max="30" value="10" id="personaBatchDelay"
+                                oninput="document.getElementById('personaBatchDelayVal').textContent=this.value+'m'">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-dark border-secondary h-100">
+                        <div class="card-body">
+                            <h6 class="mb-3">Batching</h6>
+                            <label class="form-label small d-flex justify-content-between">
+                                <span>Batch size</span>
+                                <span class="text-muted" id="personaBatchSizeVal">15</span>
+                            </label>
+                            <input type="range" class="form-range" min="10" max="20" value="15" id="personaBatchSize"
+                                oninput="document.getElementById('personaBatchSizeVal').textContent=this.value">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" onclick="goToPersonaStep(4)"><i class="fas fa-arrow-left me-1"></i>Back</button>
+                <div>
+                    <button class="btn btn-outline-info me-2" onclick="savePersonaManifest()">
+                        <i class="fas fa-save me-1"></i>Save Manifest
+                    </button>
+                    <button class="btn btn-success btn-lg" onclick="executePersonas()" id="execPersonasBtn">
+                        <i class="fas fa-rocket me-2"></i>Start Automation
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -1355,6 +1818,599 @@ function grantPermissions() {
             }
         },
         error: function() { showToast('Failed to grant permissions', 'error'); }
+    });
+}
+
+// ═══════════════════════════════════════════════
+// UNIQUE PERSONAS MODE
+// ═══════════════════════════════════════════════
+let currentMode = 'clones';
+let personaSelectedAccounts = new Set();
+let personaSearchQuery = '';
+let personaAssignments = [];
+let personaCurrentStep = 1;
+let personaPreviewCurrentPage = 0;
+
+const PIC_CATEGORIES = {
+    face_selfie: { label: 'Face Selfie', icon: '🤳', color: '#6c5ce7' },
+    full_body_lifestyle: { label: 'Full Body / Lifestyle', icon: '🌴', color: '#00cec9' },
+    aesthetic_artistic: { label: 'Aesthetic / Artistic', icon: '🎨', color: '#fd79a8' },
+    mirror_selfie_gym: { label: 'Mirror / Gym Selfie', icon: '💪', color: '#fdcb6e' },
+    back_view_silhouette: { label: 'Back View / Silhouette', icon: '🌅', color: '#e17055' },
+    other_diverse: { label: 'Other / Creative', icon: '✨', color: '#74b9ff' }
+};
+
+// ── Mode switching ──
+function switchMode(mode) {
+    currentMode = mode;
+    $('.mode-btn').removeClass('active');
+    $(`.mode-btn[data-mode="${mode}"]`).addClass('active');
+
+    if (mode === 'clones') {
+        $('#wizardCard').show();
+        $('#personaWizardCard').hide();
+    } else {
+        $('#wizardCard').hide();
+        $('#personaWizardCard').show();
+        // Load accounts if not already loaded
+        if (allAccounts.length > 0) {
+            renderPersonaAccountList();
+        }
+        renderPicCategoryUploadZones();
+        loadPicCategoryFiles();
+    }
+}
+
+// ── Gender slider ──
+function updateGenderSlider() {
+    const val = parseInt($('#genderSlider').val());
+    $('#genderFemalePct').text(val + '%');
+    $('#genderMalePct').text((100 - val) + '%');
+}
+
+// ── Persona wizard navigation ──
+function goToPersonaStep(step) {
+    if (step === 3 && personaSelectedAccounts.size === 0) {
+        showToast('Please select at least one account', 'warning');
+        return;
+    }
+
+    personaCurrentStep = step;
+    $('.persona-wizard-step').each(function() {
+        const s = parseInt($(this).data('pstep'));
+        $(this).removeClass('active done');
+        if (s === step) $(this).addClass('active');
+        else if (s < step) $(this).addClass('done');
+    });
+    $('.persona-step-panel').removeClass('active');
+    $(`#pstep${step}`).addClass('active');
+
+    // Step-specific actions
+    if (step === 3) {
+        $('#previewCountLabel').text(personaSelectedAccounts.size);
+    }
+    if (step === 4) {
+        renderPicCategoryDistribution();
+        loadPicCategoryFiles();
+    }
+    if (step === 5) {
+        updateExecSummary();
+    }
+}
+
+// ── Account selection for Personas ──
+function renderPersonaAccountList() {
+    const container = $('#personaAccountList');
+    let filtered = allAccounts;
+
+    if (personaSearchQuery) {
+        filtered = filtered.filter(a =>
+            (a.username || '').toLowerCase().includes(personaSearchQuery) ||
+            (a.device_serial || '').toLowerCase().includes(personaSearchQuery) ||
+            (a.device_name || '').toLowerCase().includes(personaSearchQuery)
+        );
+    }
+
+    // Group by device
+    const groups = {};
+    filtered.forEach(a => {
+        const key = a.device_serial;
+        if (!groups[key]) groups[key] = { device_serial: key, device_name: a.device_name || key, accounts: [] };
+        groups[key].accounts.push(a);
+    });
+
+    if (Object.keys(groups).length === 0) {
+        container.html('<div class="text-center text-muted py-4">No accounts found</div>');
+        return;
+    }
+
+    let html = '';
+    Object.values(groups).forEach(group => {
+        const allSelected = group.accounts.every(a => personaSelectedAccounts.has(a.id));
+        html += `<div class="device-group mb-2">`;
+        html += `<div class="device-group-header d-flex justify-content-between align-items-center" onclick="toggleDeviceGroup(this)">
+            <div>
+                <i class="fas fa-mobile-alt me-2 text-warning"></i>
+                <strong>${group.device_name || group.device_serial}</strong>
+                <span class="text-muted ms-2">${group.device_serial}</span>
+                <span class="badge bg-secondary ms-2">${group.accounts.length}</span>
+            </div>
+            <div>
+                <button class="btn btn-xs btn-outline-success me-2" onclick="event.stopPropagation(); personaSelectDevice('${group.device_serial}')">
+                    ${allSelected ? '<i class="fas fa-check-double"></i>' : 'Select All'}
+                </button>
+                <i class="fas fa-chevron-down text-muted"></i>
+            </div>
+        </div>`;
+        html += `<div class="device-accounts" style="display:none;">`;
+        group.accounts.forEach(a => {
+            const sel = personaSelectedAccounts.has(a.id);
+            html += `<div class="account-row d-flex align-items-center ${sel ? 'selected' : ''}" data-pid="${a.id}" onclick="personaToggleAccount(${a.id})">
+                <input type="checkbox" class="form-check-input me-3" ${sel ? 'checked' : ''} onclick="event.stopPropagation(); personaToggleAccount(${a.id})">
+                <div class="flex-grow-1">
+                    <strong class="me-2">${a.username || '(unnamed)'}</strong>
+                    <small class="text-muted">${a.app_package || ''}</small>
+                </div>
+            </div>`;
+        });
+        html += `</div></div>`;
+    });
+
+    container.html(html);
+}
+
+function personaFilterAccounts() {
+    personaSearchQuery = $('#personaAccountSearch').val().toLowerCase();
+    renderPersonaAccountList();
+}
+
+function personaToggleAccount(accountId) {
+    if (personaSelectedAccounts.has(accountId)) personaSelectedAccounts.delete(accountId);
+    else personaSelectedAccounts.add(accountId);
+    const row = $(`.account-row[data-pid="${accountId}"]`);
+    row.toggleClass('selected', personaSelectedAccounts.has(accountId));
+    row.find('input[type="checkbox"]').prop('checked', personaSelectedAccounts.has(accountId));
+    updatePersonaSelectionCount();
+}
+
+function personaSelectDevice(deviceSerial) {
+    const deviceAccounts = allAccounts.filter(a => a.device_serial === deviceSerial);
+    const allSelected = deviceAccounts.every(a => personaSelectedAccounts.has(a.id));
+    deviceAccounts.forEach(a => {
+        if (allSelected) personaSelectedAccounts.delete(a.id);
+        else personaSelectedAccounts.add(a.id);
+    });
+    renderPersonaAccountList();
+    updatePersonaSelectionCount();
+}
+
+function personaSelectAll() {
+    allAccounts.forEach(a => personaSelectedAccounts.add(a.id));
+    renderPersonaAccountList();
+    updatePersonaSelectionCount();
+}
+
+function personaDeselectAll() {
+    personaSelectedAccounts.clear();
+    renderPersonaAccountList();
+    updatePersonaSelectionCount();
+}
+
+function updatePersonaSelectionCount() {
+    const total = allAccounts.length;
+    const sel = personaSelectedAccounts.size;
+    $('#personaSelectionCount').text(`${sel} of ${total} selected`);
+    $('#pstep2Next').prop('disabled', sel === 0);
+}
+
+// ── Generate Preview ──
+function generatePersonaPreview() {
+    if (personaSelectedAccounts.size === 0) {
+        showToast('No accounts selected', 'warning');
+        return;
+    }
+
+    const btn = $('#generatePreviewBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Generating...');
+
+    const genderSplit = parseInt($('#genderSlider').val()) / 100;
+    const ageRange = [parseInt($('#ageMin').val()), parseInt($('#ageMax').val())];
+
+    $.ajax({
+        url: '/api/profile_automation/generate-personas',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            account_ids: Array.from(personaSelectedAccounts),
+            gender_split: genderSplit,
+            age_range: ageRange
+        }),
+        success: function(data) {
+            btn.prop('disabled', false).html('<i class="fas fa-magic me-1"></i>Generate Preview');
+            if (data.status === 'success') {
+                personaAssignments = data.assignments;
+                showToast(`Generated ${data.assignments.length} persona assignments`, 'success');
+
+                // Update stats
+                $('#personaStatsRow').show();
+                $('#pStatTotal').text(data.stats.total);
+                $('#pStatFemale').text(data.stats.gender.female);
+                $('#pStatMale').text(data.stats.gender.male);
+                const uniqueNames = new Set(data.assignments.map(a => a.new_username)).size;
+                $('#pStatUnique').text(uniqueNames);
+
+                // Show preview
+                $('#personaPreviewEmpty').hide();
+                $('#personaPreviewContainer').show();
+                $('#regenAllBtn').show();
+                personaPreviewCurrentPage = 0;
+                renderPersonaPreview();
+
+                // Enable next step
+                $('#pstep3Next').prop('disabled', false);
+            } else {
+                showToast(data.message || 'Generation failed', 'error');
+            }
+        },
+        error: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-magic me-1"></i>Generate Preview');
+            showToast('Preview generation failed', 'error');
+        }
+    });
+}
+
+function renderPersonaPreview() {
+    const pageSize = parseInt($('#previewPageSize').val()) || 50;
+    const totalPages = Math.ceil(personaAssignments.length / pageSize);
+    if (personaPreviewCurrentPage >= totalPages) personaPreviewCurrentPage = totalPages - 1;
+    if (personaPreviewCurrentPage < 0) personaPreviewCurrentPage = 0;
+
+    const start = personaPreviewCurrentPage * pageSize;
+    const end = Math.min(start + pageSize, personaAssignments.length);
+    const pageItems = personaAssignments.slice(start, end);
+
+    // Update pagination labels
+    $('#previewShowRange').text(`${start + 1}-${end}`);
+    $('#previewTotalRows').text(personaAssignments.length);
+    $('#previewPageLabel').text(`${personaPreviewCurrentPage + 1}/${totalPages}`);
+    $('#prevPageBtn').prop('disabled', personaPreviewCurrentPage === 0);
+    $('#nextPageBtn').prop('disabled', personaPreviewCurrentPage >= totalPages - 1);
+
+    const tbody = $('#personaPreviewBody');
+    let html = '';
+    pageItems.forEach((a, i) => {
+        const idx = start + i;
+        const bioPreview = (a.new_bio || '').replace(/\n/g, ' ').substring(0, 50);
+        const bioFull = (a.new_bio || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const catInfo = PIC_CATEGORIES[a.pic_category] || { label: a.pic_category, icon: '📷' };
+
+        html += `<tr data-idx="${idx}">
+            <td class="text-muted">${idx + 1}</td>
+            <td><small class="text-muted">${(a.device_name || a.device_serial || '').substring(0, 15)}</small></td>
+            <td><strong>${a.current_username || '?'}</strong></td>
+            <td><i class="fas fa-arrow-right text-accent" style="font-size:0.7rem"></i></td>
+            <td>
+                <span class="editable-cell text-success" onclick="editPersonaField(${idx}, 'new_username')" title="Click to edit">
+                    @${a.new_username}
+                </span>
+            </td>
+            <td>
+                <span class="bio-preview editable-cell" title="${bioFull}" onclick="editPersonaField(${idx}, 'new_bio')">
+                    ${bioPreview || '<em class="text-muted">(empty)</em>'}${(a.new_bio || '').length > 50 ? '...' : ''}
+                </span>
+            </td>
+            <td>
+                <span class="badge badge-${a.pic_category}" style="font-size:0.7rem">
+                    ${catInfo.icon} ${catInfo.label}
+                </span>
+            </td>
+            <td>
+                <span class="gender-badge ${a.gender}">
+                    ${a.gender === 'female' ? '♀' : '♂'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-xs btn-outline-secondary" onclick="regenerateSinglePersona(${idx})" title="Regenerate">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </td>
+        </tr>`;
+    });
+    tbody.html(html);
+}
+
+function personaPreviewPage(delta) {
+    personaPreviewCurrentPage += delta;
+    renderPersonaPreview();
+}
+
+// ── Edit persona field inline ──
+function editPersonaField(idx, field) {
+    const a = personaAssignments[idx];
+    const currentVal = a[field] || '';
+    let newVal;
+
+    if (field === 'new_bio') {
+        newVal = prompt('Edit bio:', currentVal);
+    } else if (field === 'new_username') {
+        newVal = prompt('Edit username (a-z, 0-9, dots, underscores only):', currentVal);
+        if (newVal) {
+            newVal = newVal.toLowerCase().replace(/[^a-z0-9._]/g, '').substring(0, 30);
+            // Check for duplicates
+            const isDuplicate = personaAssignments.some((pa, i) => i !== idx && pa.new_username === newVal);
+            if (isDuplicate) {
+                showToast('This username is already assigned to another account!', 'warning');
+                return;
+            }
+        }
+    }
+
+    if (newVal !== null && newVal !== undefined) {
+        personaAssignments[idx][field] = newVal;
+        renderPersonaPreview();
+        showToast('Assignment updated', 'success');
+    }
+}
+
+// ── Regenerate single persona ──
+function regenerateSinglePersona(idx) {
+    const a = personaAssignments[idx];
+    const existingUsernames = personaAssignments.map(pa => pa.new_username);
+
+    $.ajax({
+        url: '/api/profile_automation/regenerate-single-persona',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            gender: a.gender,
+            existing_usernames: existingUsernames
+        }),
+        success: function(data) {
+            if (data.status === 'success') {
+                personaAssignments[idx].new_username = data.new_username;
+                personaAssignments[idx].persona_name = data.persona_name;
+                personaAssignments[idx].new_bio = data.new_bio;
+                personaAssignments[idx].pic_category = data.pic_category;
+                renderPersonaPreview();
+                showToast(`Regenerated: @${data.new_username}`, 'success');
+            }
+        }
+    });
+}
+
+// ── Regenerate all ──
+function regenerateAllPersonas() {
+    if (!confirm(`Regenerate all ${personaAssignments.length} persona assignments? This will replace all current assignments.`)) return;
+    generatePersonaPreview();
+}
+
+// ── Pic category distribution ──
+function renderPicCategoryDistribution() {
+    if (!personaAssignments.length) return;
+
+    const counts = {};
+    personaAssignments.forEach(a => {
+        counts[a.pic_category] = (counts[a.pic_category] || 0) + 1;
+    });
+
+    const total = personaAssignments.length;
+    let html = '';
+    for (const [cat, info] of Object.entries(PIC_CATEGORIES)) {
+        const count = counts[cat] || 0;
+        const pct = (count / total * 100).toFixed(1);
+        html += `<div class="cat-bar-container">
+            <div class="cat-bar-label">
+                <span>${info.icon} ${info.label}</span>
+                <span>${count} (${pct}%)</span>
+            </div>
+            <div class="cat-bar">
+                <div class="cat-bar-fill ${cat}" style="width:${pct}%"></div>
+            </div>
+        </div>`;
+    }
+    $('#picCategoryBars').html(html);
+}
+
+function loadPicCategoryFiles() {
+    $.get('/api/profile_automation/pic-category-files', function(data) {
+        if (data.status !== 'success') return;
+
+        const cats = data.categories;
+        const maxCount = Math.max(...Object.values(cats).map(c => c.count), 1);
+
+        let html = '';
+        for (const [cat, info] of Object.entries(PIC_CATEGORIES)) {
+            const catData = cats[cat] || { count: 0 };
+            const pct = (catData.count / maxCount * 100).toFixed(1);
+            html += `<div class="cat-bar-container">
+                <div class="cat-bar-label">
+                    <span>${info.icon} ${info.label}</span>
+                    <span class="${catData.count > 0 ? 'text-success' : 'text-danger'}">${catData.count} photos</span>
+                </div>
+                <div class="cat-bar">
+                    <div class="cat-bar-fill ${cat}" style="width:${pct}%"></div>
+                </div>
+            </div>`;
+        }
+        html += `<div class="text-muted small mt-2">Total available: ${data.total_available} photos (+ ${data.uploaded_count} uploaded)</div>`;
+        $('#picAvailableBars').html(html);
+    });
+}
+
+function renderPicCategoryUploadZones() {
+    let html = '';
+    for (const [cat, info] of Object.entries(PIC_CATEGORIES)) {
+        html += `<div class="col-md-4 col-lg-2 mb-2">
+            <div class="pic-cat-drop" data-category="${cat}"
+                 ondragover="event.preventDefault(); this.classList.add('dragover')"
+                 ondragleave="this.classList.remove('dragover')"
+                 ondrop="handleCategoryDrop(event, '${cat}')"
+                 onclick="document.getElementById('catFileInput_${cat}').click()">
+                <div style="font-size:1.5rem">${info.icon}</div>
+                <small class="d-block">${info.label}</small>
+                <small class="text-muted">Drop here</small>
+                <input type="file" id="catFileInput_${cat}" multiple accept="image/*" style="display:none"
+                    onchange="handleCategoryFiles(this.files, '${cat}')">
+            </div>
+        </div>`;
+    }
+    $('#picCategoryUploadZones').html(html);
+}
+
+function handleCategoryDrop(event, category) {
+    event.preventDefault();
+    event.currentTarget.classList.remove('dragover');
+    handleCategoryFiles(event.dataTransfer.files, category);
+}
+
+function handleCategoryFiles(files, category) {
+    if (!files || files.length === 0) return;
+
+    let uploaded = 0;
+    const total = files.length;
+
+    Array.from(files).forEach(file => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('gender', 'neutral');
+        formData.append('category', category);
+
+        $.ajax({
+            url: '/api/profile_automation/upload-picture',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function() {
+                uploaded++;
+                if (uploaded === total) {
+                    showToast(`Uploaded ${total} photos to ${category}`, 'success');
+                    loadPicCategoryFiles();
+                }
+            },
+            error: function() {
+                uploaded++;
+                if (uploaded === total) loadPicCategoryFiles();
+            }
+        });
+    });
+}
+
+function downloadStockPhotos() {
+    const unsplashKey = $('#unsplashKey').val().trim();
+    const pexelsKey = $('#pexelsKey').val().trim();
+    const count = parseInt($('#stockPerCategory').val()) || 50;
+
+    if (!unsplashKey && !pexelsKey) {
+        showToast('Please enter at least one API key', 'warning');
+        return;
+    }
+
+    $.ajax({
+        url: '/api/profile_automation/download-stock-photos',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            api_keys: { unsplash: unsplashKey, pexels: pexelsKey },
+            count_per_category: count
+        }),
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message || 'Download failed', 'error');
+            }
+        },
+        error: function() { showToast('Failed to start download', 'error'); }
+    });
+}
+
+// ── Execute summary ──
+function updateExecSummary() {
+    $('#execSummaryAccounts').text(personaAssignments.length);
+
+    const actions = [];
+    if ($('#personaChangeUsername').is(':checked')) actions.push('👤');
+    if ($('#personaChangeBio').is(':checked')) actions.push('📝');
+    if ($('#personaChangePicture').is(':checked')) actions.push('📷');
+    $('#execSummaryActions').text(actions.join(' ') || '-');
+
+    const femaleCount = personaAssignments.filter(a => a.gender === 'female').length;
+    const maleCount = personaAssignments.filter(a => a.gender === 'male').length;
+    $('#execSummaryFemale').text(femaleCount);
+    $('#execSummaryMale').text(maleCount);
+}
+
+// ── Save manifest ──
+function savePersonaManifest() {
+    if (!personaAssignments.length) { showToast('No assignments to save', 'warning'); return; }
+
+    $.ajax({
+        url: '/api/profile_automation/save-manifest',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ assignments: personaAssignments }),
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.message || 'Save failed', 'error');
+            }
+        },
+        error: function() { showToast('Failed to save manifest', 'error'); }
+    });
+}
+
+// ── Execute personas ──
+function executePersonas() {
+    if (!personaAssignments.length) { showToast('No assignments to execute', 'warning'); return; }
+
+    const changeUsername = $('#personaChangeUsername').is(':checked');
+    const changeBio = $('#personaChangeBio').is(':checked');
+    const changePicture = $('#personaChangePicture').is(':checked');
+
+    if (!changeUsername && !changeBio && !changePicture) {
+        showToast('Select at least one action to perform', 'warning');
+        return;
+    }
+
+    if (!confirm(`Execute profile changes for ${personaAssignments.length} accounts?\n\nChanges: ${changeUsername ? 'Username ' : ''}${changeBio ? 'Bio ' : ''}${changePicture ? 'Picture' : ''}`)) return;
+
+    const btn = $('#execPersonasBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Creating Tasks...');
+
+    $.ajax({
+        url: '/api/profile_automation/execute-personas',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            assignments: personaAssignments,
+            options: {
+                change_username: changeUsername,
+                change_bio: changeBio,
+                change_picture: changePicture,
+                delay_between_changes: parseInt($('#personaDelay').val()),
+                batch_size: parseInt($('#personaBatchSize').val()),
+                delay_between_batches: parseInt($('#personaBatchDelay').val())
+            }
+        }),
+        success: function(data) {
+            btn.prop('disabled', false).html('<i class="fas fa-rocket me-2"></i>Start Automation');
+            if (data.status === 'success') {
+                showToast(`Created ${data.tasks_created} tasks! Check execution dashboard below.`, 'success');
+                addLogEntry(`[Personas] Created ${data.tasks_created} tasks for unique persona automation`, 'info');
+                refreshExecution();
+                // Save manifest too
+                savePersonaManifest();
+            } else {
+                showToast(data.message || 'Execution failed', 'error');
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fas fa-rocket me-2"></i>Start Automation');
+            const msg = xhr.responseJSON ? xhr.responseJSON.message : 'Request failed';
+            showToast(msg, 'error');
+        }
     });
 }
 </script>

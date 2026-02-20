@@ -6,8 +6,10 @@ Add these routes to your simple_app.py
 
 import sys
 import os
+import json
 import sqlite3
 from pathlib import Path
+from datetime import datetime
 
 # Add uiAutomator to path (now inside dashboard folder)
 sys.path.insert(0, str(Path(__file__).parent / "uiAutomator"))
@@ -1563,4 +1565,440 @@ To add these routes to your simple_app.py:
    - POST /api/profile_automation/quick_campaign (RECOMMENDED - One-click automation!)
    - GET  /api/profile_automation/tasks
    - And more...
+
+   Unique Personas Mode endpoints:
+   - POST /api/profile_automation/generate-personas
+   - POST /api/profile_automation/regenerate-single-persona
+   - POST /api/profile_automation/save-manifest
+   - POST /api/profile_automation/execute-personas
+   - GET  /api/profile_automation/persona-status
+   - POST /api/profile_automation/download-stock-photos
+   - GET  /api/profile_automation/pic-category-files
 """
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# UNIQUE PERSONAS MODE ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════
+
+@profile_automation_bp.route('/generate-personas', methods=['POST'])
+def generate_personas_endpoint():
+    """
+    Generate unique persona assignments for selected accounts.
+
+    POST body:
+    {
+        "account_ids": [1, 2, 3, ...],
+        "gender_split": 0.7,
+        "age_range": [18, 28]
+    }
+
+    Returns preview data (username, bio, pic_category per account).
+    Ensures NO duplicate usernames across all assignments.
+    """
+    try:
+        from persona_generator import generate_personas, get_pic_category_stats, get_gender_stats
+
+        data = request.get_json()
+        account_ids = data.get('account_ids', [])
+        gender_split = data.get('gender_split', 0.7)
+        age_range = data.get('age_range', [18, 28])
+
+        if not account_ids:
+            return jsonify({'status': 'error', 'message': 'No account IDs provided'}), 400
+
+        # Generate persona assignments
+        assignments = generate_personas(
+            account_ids=account_ids,
+            gender_split=gender_split,
+            age_range=age_range
+        )
+
+        # Get account details from DB to enrich assignments
+        phone_farm_db = Path(__file__).parent.parent / "db" / "phone_farm.db"
+        conn = sqlite3.connect(str(phone_farm_db))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Build lookup
+        if account_ids:
+            placeholders = ','.join('?' * len(account_ids))
+            cursor.execute(f"""
+                SELECT a.id, a.username, a.device_serial, d.device_name
+                FROM accounts a
+                LEFT JOIN devices d ON a.device_serial = d.device_serial
+                WHERE a.id IN ({placeholders})
+            """, account_ids)
+
+            account_lookup = {}
+            for row in cursor.fetchall():
+                account_lookup[row['id']] = {
+                    'current_username': row['username'],
+                    'device_serial': row['device_serial'],
+                    'device_name': row['device_name'] or row['device_serial']
+                }
+            conn.close()
+
+            # Enrich assignments
+            for a in assignments:
+                info = account_lookup.get(a['account_id'], {})
+                a['current_username'] = info.get('current_username', '')
+                a['device_serial'] = info.get('device_serial', '')
+                a['device_name'] = info.get('device_name', '')
+
+        return jsonify({
+            'status': 'success',
+            'assignments': assignments,
+            'stats': {
+                'total': len(assignments),
+                'gender': get_gender_stats(assignments),
+                'pic_categories': get_pic_category_stats(assignments),
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@profile_automation_bp.route('/regenerate-single-persona', methods=['POST'])
+def regenerate_single_persona_endpoint():
+    """
+    Regenerate a single persona assignment (for the "regenerate" button per row).
+
+    POST body:
+    {
+        "gender": "female",
+        "existing_usernames": ["username1", "username2", ...]
+    }
+    """
+    try:
+        from persona_generator import regenerate_single
+
+        data = request.get_json()
+        gender = data.get('gender', 'female')
+        existing_usernames = set(data.get('existing_usernames', []))
+
+        result = regenerate_single(gender=gender, existing_usernames=existing_usernames)
+
+        return jsonify({
+            'status': 'success',
+            **result
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/save-manifest', methods=['POST'])
+def save_manifest_endpoint():
+    """
+    Save the reviewed/edited persona assignments to a manifest file.
+
+    POST body:
+    {
+        "assignments": [
+            {
+                "account_id": 1,
+                "device_serial": "...",
+                "current_username": "...",
+                "new_username": "...",
+                "new_bio": "...",
+                "pic_category": "...",
+                "gender": "female",
+                "persona_name": "..."
+            },
+            ...
+        ]
+    }
+    """
+    try:
+        data = request.get_json()
+        assignments = data.get('assignments', [])
+
+        if not assignments:
+            return jsonify({'status': 'error', 'message': 'No assignments provided'}), 400
+
+        manifest = {
+            'campaign': 'unique_personas',
+            'created': datetime.now().isoformat(),
+            'version': '2.0',
+            'total_accounts': len(assignments),
+            'assignments': assignments
+        }
+
+        # Save to data directory
+        manifest_path = Path(__file__).parent.parent / "data" / "persona_manifest_active.json"
+        with open(manifest_path, 'w', encoding='utf-8') as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Manifest saved with {len(assignments)} assignments',
+            'path': str(manifest_path)
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/execute-personas', methods=['POST'])
+def execute_personas_endpoint():
+    """
+    Create profile_update tasks for all persona assignments.
+
+    POST body:
+    {
+        "assignments": [...],
+        "options": {
+            "change_username": true,
+            "change_bio": true,
+            "change_picture": true,
+            "delay_between_changes": 10,
+            "batch_size": 15,
+            "delay_between_batches": 10
+        }
+    }
+    """
+    try:
+        from profile_automation_db import PROFILE_AUTOMATION_DB
+
+        data = request.get_json()
+        assignments = data.get('assignments', [])
+        options = data.get('options', {})
+
+        if not assignments:
+            return jsonify({'status': 'error', 'message': 'No assignments provided'}), 400
+
+        change_username = options.get('change_username', True)
+        change_bio = options.get('change_bio', True)
+        change_picture = options.get('change_picture', True)
+
+        conn = sqlite3.connect(str(PROFILE_AUTOMATION_DB))
+        cursor = conn.cursor()
+
+        # Get account details for each assignment
+        phone_farm_db = Path(__file__).parent.parent / "db" / "phone_farm.db"
+        farm_conn = sqlite3.connect(str(phone_farm_db))
+        farm_conn.row_factory = sqlite3.Row
+        farm_cursor = farm_conn.cursor()
+
+        tasks_created = 0
+
+        for assignment in assignments:
+            account_id = assignment.get('account_id')
+            device_serial = assignment.get('device_serial', '')
+            current_username = assignment.get('current_username', '')
+
+            # Get instagram package for this account
+            farm_cursor.execute(
+                "SELECT instagram_package FROM accounts WHERE id = ?",
+                (account_id,)
+            )
+            row = farm_cursor.fetchone()
+            instagram_package = row['instagram_package'] if row else 'com.instagram.android'
+
+            new_username = assignment.get('new_username') if change_username else None
+            new_bio = assignment.get('new_bio') if change_bio else None
+            # For picture, we just store the category for now
+            # The actual picture assignment happens separately
+            profile_picture_id = None
+            if change_picture:
+                # Try to find an available picture in the category
+                pic_category = assignment.get('pic_category', 'face_selfie')
+                # For now, store None - pictures need to be uploaded/downloaded first
+                profile_picture_id = None
+
+            # Only create task if there's something to change
+            if new_username or new_bio or profile_picture_id:
+                cursor.execute("""
+                    INSERT INTO profile_updates
+                    (device_serial, username, instagram_package, new_username, new_bio,
+                     profile_picture_id, mother_account, status, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'))
+                """, (
+                    device_serial,
+                    current_username,
+                    instagram_package,
+                    new_username,
+                    new_bio,
+                    profile_picture_id,
+                    'unique_personas'
+                ))
+                tasks_created += 1
+
+        conn.commit()
+        conn.close()
+        farm_conn.close()
+
+        return jsonify({
+            'status': 'success',
+            'tasks_created': tasks_created,
+            'message': f'Created {tasks_created} profile update tasks'
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@profile_automation_bp.route('/persona-status', methods=['GET'])
+def persona_status_endpoint():
+    """
+    Get progress of persona execution: how many done, pending, failed.
+    """
+    try:
+        from profile_automation_db import get_all_tasks
+
+        all_tasks = get_all_tasks()
+
+        # Filter to persona tasks only (mother_account = 'unique_personas')
+        persona_tasks = [t for t in all_tasks if t.get('mother_account') == 'unique_personas']
+
+        stats = {
+            'total': len(persona_tasks),
+            'pending': len([t for t in persona_tasks if t['status'] == 'pending']),
+            'processing': len([t for t in persona_tasks if t['status'] in ('processing', 'in_progress')]),
+            'completed': len([t for t in persona_tasks if t['status'] == 'completed']),
+            'failed': len([t for t in persona_tasks if t['status'] == 'failed']),
+        }
+
+        return jsonify({
+            'status': 'success',
+            'stats': stats
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/download-stock-photos', methods=['POST'])
+def download_stock_photos_endpoint():
+    """
+    Trigger stock photo download script.
+
+    POST body:
+    {
+        "api_keys": {
+            "unsplash": "...",
+            "pexels": "..."
+        },
+        "count_per_category": 50
+    }
+    """
+    try:
+        import subprocess
+        import threading
+
+        data = request.get_json()
+        api_keys = data.get('api_keys', {})
+        count_per_category = data.get('count_per_category', 50)
+
+        script_path = Path(__file__).parent.parent / "data" / "download_profile_pics.py"
+
+        if not script_path.exists():
+            return jsonify({
+                'status': 'error',
+                'message': 'download_profile_pics.py not found in data directory'
+            }), 404
+
+        # Build environment with API keys
+        env = os.environ.copy()
+        if api_keys.get('unsplash'):
+            env['UNSPLASH_API_KEY'] = api_keys['unsplash']
+        if api_keys.get('pexels'):
+            env['PEXELS_API_KEY'] = api_keys['pexels']
+
+        # Run in background thread
+        def run_download():
+            try:
+                subprocess.run(
+                    ['python', str(script_path),
+                     '--count', str(count_per_category)],
+                    cwd=str(script_path.parent),
+                    env=env,
+                    timeout=600
+                )
+            except Exception as e:
+                print(f"[PersonaGenerator] Stock photo download error: {e}")
+
+        thread = threading.Thread(target=run_download, daemon=True)
+        thread.start()
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Started downloading stock photos ({count_per_category} per category)'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@profile_automation_bp.route('/pic-category-files', methods=['GET'])
+def get_pic_category_files():
+    """
+    Get available profile picture files per category.
+    Scans the profile_pics directory structure.
+    """
+    try:
+        from profile_automation_db import PROFILE_PICTURES_DIR
+
+        categories = {
+            'face_selfie': {'target_pct': 30, 'count': 0, 'files': []},
+            'full_body_lifestyle': {'target_pct': 20, 'count': 0, 'files': []},
+            'aesthetic_artistic': {'target_pct': 15, 'count': 0, 'files': []},
+            'mirror_selfie_gym': {'target_pct': 15, 'count': 0, 'files': []},
+            'back_view_silhouette': {'target_pct': 10, 'count': 0, 'files': []},
+            'other_diverse': {'target_pct': 10, 'count': 0, 'files': []},
+        }
+
+        # Check profile_pics directory for categorized photos
+        pic_base = Path(__file__).parent.parent / "data" / "profile_pics"
+
+        for cat_name in categories:
+            cat_dir = pic_base / cat_name
+            if cat_dir.exists():
+                files = [f.name for f in cat_dir.iterdir()
+                         if f.is_file() and f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.gif'}]
+                categories[cat_name]['count'] = len(files)
+                categories[cat_name]['files'] = files[:20]  # First 20 for preview
+
+        # Also check the uploaded directory in uiAutomator
+        uploaded_dir = PROFILE_PICTURES_DIR / "uploaded" if PROFILE_PICTURES_DIR.exists() else None
+        uploaded_count = 0
+        if uploaded_dir and uploaded_dir.exists():
+            uploaded_count = len([f for f in uploaded_dir.iterdir()
+                                  if f.is_file() and f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.gif'}])
+
+        return jsonify({
+            'status': 'success',
+            'categories': categories,
+            'uploaded_count': uploaded_count,
+            'total_available': sum(c['count'] for c in categories.values()) + uploaded_count
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
