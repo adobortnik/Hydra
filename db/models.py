@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS devices (
     status          TEXT    DEFAULT 'disconnected',  -- connected | disconnected | error
     last_seen       TEXT,                      -- ISO timestamp
     notes           TEXT,
+    hardware_serial TEXT,                      -- ro.serialno for network-move sync
+    hardware_fingerprint TEXT,                 -- JSON blob of all identifiers
     created_at      TEXT    DEFAULT (datetime('now')),
     updated_at      TEXT    DEFAULT (datetime('now'))
 );
