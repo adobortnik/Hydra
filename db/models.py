@@ -499,6 +499,7 @@ CREATE TABLE IF NOT EXISTS action_history (
     success         INTEGER DEFAULT 1,
     timestamp       TEXT    DEFAULT (datetime('now')),
     error_message   TEXT,
+    source_username TEXT,
     FOREIGN KEY (session_id) REFERENCES account_sessions(id)
 );
 
@@ -698,8 +699,56 @@ def init_db(db_path=None):
     conn = get_connection(db_path)
     conn.executescript(SCHEMA_SQL)
     conn.commit()
+    # Run migrations for columns that might be missing on older DBs
+    _run_migrations(conn)
     conn.close()
     return db_path or DB_PATH
+
+
+# ===================================================================
+#  AUTO-MIGRATIONS — adds missing columns to existing tables
+# ===================================================================
+
+# (table, column, type_and_default)
+_MIGRATIONS = [
+    ("action_history", "source_username", "TEXT"),
+    ("accounts", "warmup", "TEXT"),
+    ("accounts", "warmup_until", "TEXT"),
+    ("accounts", "tag", "TEXT"),
+    ("accounts", "followers", "TEXT"),
+    ("devices", "device_group", "TEXT"),
+    ("devices", "hardware_serial", "TEXT"),
+    ("devices", "hardware_fingerprint", "TEXT"),
+    ("bot_status", "pid", "INTEGER"),
+    ("bot_status", "accounts_run_today", "INTEGER DEFAULT 0"),
+    ("bot_status", "actions_today", "INTEGER DEFAULT 0"),
+    ("bot_logs", "module", "TEXT"),
+    ("bot_logs", "created_at", "TEXT"),
+    ("job_orders", "comment_list_id", "INTEGER"),
+    ("job_orders", "ai_mode", "TEXT"),
+    ("job_orders", "vision_ai", "TEXT"),
+    ("profile_updates", "ai_api_key", "TEXT"),
+    ("profile_updates", "ai_provider", "TEXT DEFAULT 'openai'"),
+    ("profile_updates", "mother_account", "TEXT"),
+    ("content_schedule", "batch_id", "TEXT"),
+    ("account_inventory", "assigned_to_device_serial", "TEXT"),
+    ("account_inventory", "assigned_to_account_id", "INTEGER"),
+    ("account_inventory", "warmup_stage", "TEXT"),
+    ("account_inventory", "assigned_at", "TEXT"),
+]
+
+
+def _run_migrations(conn):
+    """Add any missing columns. Safe to call repeatedly — skips existing."""
+    for table, column, col_type in _MIGRATIONS:
+        try:
+            cols = {c[1] for c in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+            if column not in cols:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+                conn.commit()
+                print(f"[MIGRATE] Added {table}.{column} ({col_type})")
+        except Exception:
+            pass  # table doesn't exist yet, will be created by SCHEMA_SQL
 
 
 # ===================================================================
