@@ -159,6 +159,59 @@
     .search-count.filtered {
         color: #f59e0b;
     }
+
+    /* Batch operation banner */
+    .batch-banner {
+        background: linear-gradient(145deg, #1a1d21, #22262b);
+        border: 1px solid #2d3238;
+        border-radius: 10px;
+        padding: 16px 24px;
+        display: none;
+        align-items: center;
+        gap: 16px;
+    }
+    .batch-banner.active { display: flex; }
+    .batch-banner .batch-info { flex: 1; }
+    .batch-banner .batch-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+    .batch-banner .batch-detail { font-size: 0.8rem; color: #9ca3af; }
+    .batch-progress {
+        flex: 2;
+        background: #2d3238;
+        border-radius: 8px;
+        height: 28px;
+        overflow: hidden;
+        position: relative;
+    }
+    .batch-progress-bar {
+        height: 100%;
+        border-radius: 8px;
+        transition: width 0.5s ease;
+        background: linear-gradient(90deg, #22c55e, #16a34a);
+    }
+    .batch-progress-bar.stopping {
+        background: linear-gradient(90deg, #ef4444, #dc2626);
+    }
+    .batch-progress-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #fff;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .batch-banner .btn-cancel {
+        background: #52525b;
+        color: #e4e4e7;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 16px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .batch-banner .btn-cancel:hover { background: #71717a; }
 </style>
 {% endblock %}
 
@@ -166,6 +219,12 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-server me-2 text-warning"></i>Device Manager</h2>
     <div>
+        <button class="btn btn-success me-2" onclick="startAllBots()" id="startAllBtn">
+            <i class="fas fa-play me-1"></i> Start All
+        </button>
+        <button class="btn btn-secondary me-2" onclick="stopAllBots()" id="stopAllBtn">
+            <i class="fas fa-stop me-1"></i> Stop All
+        </button>
         <button class="btn btn-success me-2" onclick="discoverDevices()">
             <i class="fas fa-search me-1"></i> Discover Devices
         </button>
@@ -193,6 +252,19 @@
         </button>
     </div>
     <div class="card-body" id="discoveryBody"></div>
+</div>
+
+<!-- Batch Operation Progress -->
+<div class="batch-banner mb-4" id="batchBanner">
+    <div class="batch-info">
+        <div class="batch-title" id="batchTitle">Starting all bots...</div>
+        <div class="batch-detail" id="batchDetail">0 / 0 devices</div>
+    </div>
+    <div class="batch-progress">
+        <div class="batch-progress-bar" id="batchProgressBar" style="width:0%"></div>
+        <div class="batch-progress-text" id="batchProgressText">0%</div>
+    </div>
+    <button class="btn-cancel" onclick="cancelBatchOperation()"><i class="fas fa-times me-1"></i>Cancel</button>
 </div>
 
 <!-- Stats Row -->
@@ -594,6 +666,144 @@ function stopBot(serial) {
             btn.innerHTML = originalHtml;
             btn.disabled = false;
         });
+}
+
+// ============================================================
+// BATCH START / STOP ALL
+// ============================================================
+let batchCancelled = false;
+let batchRunning = false;
+
+function updateBatchUI(title, done, total, type) {
+    const banner = document.getElementById('batchBanner');
+    const bar = document.getElementById('batchProgressBar');
+    const text = document.getElementById('batchProgressText');
+    const detail = document.getElementById('batchDetail');
+    const titleEl = document.getElementById('batchTitle');
+
+    banner.classList.add('active');
+    titleEl.textContent = title;
+    detail.textContent = `${done} / ${total} devices`;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    bar.style.width = pct + '%';
+    bar.className = 'batch-progress-bar' + (type === 'stop' ? ' stopping' : '');
+    text.textContent = pct + '%';
+}
+
+function hideBatchUI() {
+    document.getElementById('batchBanner').classList.remove('active');
+}
+
+function cancelBatchOperation() {
+    batchCancelled = true;
+    showToast('Batch operation cancelled', 'warning');
+}
+
+async function startAllBots() {
+    if (batchRunning) return showToast('Batch operation already running', 'warning');
+
+    // Get devices that aren't running
+    const stoppedDevices = devicesData.filter(d =>
+        d.status === 'connected' && d.bot_status !== 'active' && d.account_count > 0
+    );
+
+    if (!stoppedDevices.length) {
+        return showToast('No stopped devices with accounts to start', 'info');
+    }
+
+    const delay = parseInt(prompt(
+        `Start ${stoppedDevices.length} bots gradually.\n\nDelay between each start (seconds):`,
+        '5'
+    ));
+    if (isNaN(delay) || delay < 0) return;
+
+    batchRunning = true;
+    batchCancelled = false;
+    document.getElementById('startAllBtn').disabled = true;
+
+    let done = 0, ok = 0, fail = 0;
+    const total = stoppedDevices.length;
+    updateBatchUI('Starting all bots...', 0, total, 'start');
+
+    for (const dev of stoppedDevices) {
+        if (batchCancelled) break;
+
+        try {
+            const resp = await fetch(`/api/bot/launch/${encodeURIComponent(dev.device_serial)}`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) ok++; else fail++;
+        } catch (e) {
+            fail++;
+        }
+        done++;
+        updateBatchUI(`Starting bots... (${ok} ✓ ${fail} ✗)`, done, total, 'start');
+
+        // Wait between starts (unless last one or cancelled)
+        if (done < total && !batchCancelled && delay > 0) {
+            await new Promise(r => setTimeout(r, delay * 1000));
+        }
+    }
+
+    batchRunning = false;
+    document.getElementById('startAllBtn').disabled = false;
+
+    const msg = batchCancelled
+        ? `Cancelled after ${done}/${total} — ${ok} started, ${fail} failed`
+        : `Done! ${ok} started, ${fail} failed`;
+    showToast(msg, fail > 0 ? 'warning' : 'success');
+
+    setTimeout(() => { hideBatchUI(); refreshDevices(); }, 2000);
+}
+
+async function stopAllBots() {
+    if (batchRunning) return showToast('Batch operation already running', 'warning');
+
+    const activeDevices = devicesData.filter(d =>
+        d.bot_status === 'active' || d.bot_status === 'hung'
+    );
+
+    if (!activeDevices.length) {
+        return showToast('No active bots to stop', 'info');
+    }
+
+    if (!confirm(`Stop ${activeDevices.length} running bots?`)) return;
+
+    batchRunning = true;
+    batchCancelled = false;
+    document.getElementById('stopAllBtn').disabled = true;
+
+    let done = 0, ok = 0, fail = 0;
+    const total = activeDevices.length;
+    updateBatchUI('Stopping all bots...', 0, total, 'stop');
+
+    // Stop can be more aggressive — 1 second delay
+    for (const dev of activeDevices) {
+        if (batchCancelled) break;
+
+        try {
+            const resp = await fetch(`/api/bot/stop/${encodeURIComponent(dev.device_serial)}`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) ok++; else fail++;
+        } catch (e) {
+            fail++;
+        }
+        done++;
+        updateBatchUI(`Stopping bots... (${ok} ✓ ${fail} ✗)`, done, total, 'stop');
+
+        if (done < total && !batchCancelled) {
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
+
+    batchRunning = false;
+    document.getElementById('stopAllBtn').disabled = false;
+
+    const msg = batchCancelled
+        ? `Cancelled after ${done}/${total} — ${ok} stopped, ${fail} failed`
+        : `Done! ${ok} stopped, ${fail} failed`;
+    showToast(msg, fail > 0 ? 'warning' : 'success');
+
+    setTimeout(() => { hideBatchUI(); refreshDevices(); }, 2000);
 }
 
 function showToast(message, type = 'info') {
