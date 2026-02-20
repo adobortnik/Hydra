@@ -355,7 +355,7 @@ class TagBasedAutomation:
 
         return campaign_id
 
-    def execute_campaign(self, campaign_id):
+    def execute_campaign(self, campaign_id, uploaded_picture_id=None):
         """
         Execute a campaign - create profile update tasks for all tagged accounts
         """
@@ -381,15 +381,16 @@ class TagBasedAutomation:
                 'tasks': []
             }
 
-        return self._execute_for_accounts(campaign_id, campaign, accounts)
+        return self._execute_for_accounts(campaign_id, campaign, accounts, uploaded_picture_id=uploaded_picture_id)
 
-    def execute_campaign_for_accounts(self, campaign_id, selected_accounts):
+    def execute_campaign_for_accounts(self, campaign_id, selected_accounts, uploaded_picture_id=None):
         """
         Execute a campaign for specific selected accounts only
 
         Args:
             campaign_id: Campaign ID
             selected_accounts: List of dicts with device_serial and username
+            uploaded_picture_id: Direct picture ID from upload (simplified flow)
         """
         from profile_automation_db import PROFILE_AUTOMATION_DB
 
@@ -412,9 +413,9 @@ class TagBasedAutomation:
             for acc in selected_accounts
         ]
 
-        return self._execute_for_accounts(campaign_id, campaign, accounts)
+        return self._execute_for_accounts(campaign_id, campaign, accounts, uploaded_picture_id=uploaded_picture_id)
 
-    def _execute_for_accounts(self, campaign_id, campaign, accounts):
+    def _execute_for_accounts(self, campaign_id, campaign, accounts, uploaded_picture_id=None):
         """Internal method to execute campaign for given accounts"""
         from profile_automation_db import PROFILE_AUTOMATION_DB, auto_import_profile_pictures
 
@@ -427,7 +428,7 @@ class TagBasedAutomation:
             print(f"✓ Imported {import_result['imported']} new profile picture(s)")
 
         # Generate profile data based on strategies
-        profile_data = self._generate_profile_data(campaign, accounts)
+        profile_data = self._generate_profile_data(campaign, accounts, uploaded_picture_id=uploaded_picture_id)
 
         # Create tasks
         created_tasks = []
@@ -479,7 +480,7 @@ class TagBasedAutomation:
             'tasks': created_tasks
         }
 
-    def _generate_profile_data(self, campaign, accounts):
+    def _generate_profile_data(self, campaign, accounts, uploaded_picture_id=None):
         """Generate profile data based on campaign strategies"""
         profile_data = []
 
@@ -500,7 +501,10 @@ class TagBasedAutomation:
             data = {}
 
             # Profile picture strategy
-            if campaign['profile_picture_strategy'] == 'gallery_auto':
+            if campaign['profile_picture_strategy'] == 'uploaded' and uploaded_picture_id:
+                # Simplified flow: same uploaded picture for all accounts
+                data['profile_picture_id'] = uploaded_picture_id
+            elif campaign['profile_picture_strategy'] == 'gallery_auto':
                 # Use special marker to indicate automatic gallery selection
                 # The profile manager will pick first/last photo from phone gallery
                 data['profile_picture_id'] = 'AUTO_GALLERY'
@@ -537,13 +541,14 @@ class TagBasedAutomation:
 
         return profile_data
 
-    def _generate_creative_username(self, name_shortcuts, index):
+    def _generate_creative_username(self, name_shortcuts, index, exclude_private=False):
         """
         Generate creative username using shortcuts and extensions
 
         Args:
             name_shortcuts: List like ['chantall', 'chantie', 'chan']
             index: Account index for variation
+            exclude_private: If True, exclude 'private' and related words from extensions
 
         Returns:
             str: Creative username like 'chantie.private', 'chan.fit', etc.
@@ -562,6 +567,10 @@ class TagBasedAutomation:
             'insider', 'secret', 'mystique', 'enigma',
             'goddess', 'queen', 'star', 'icon', 'legend'
         ]
+
+        if exclude_private:
+            private_words = {'private', 'priv', 'finsta', 'spam', 'alt', 'backup', 'secret'}
+            extensions = [e for e in extensions if e.lower() not in private_words]
 
         # Select shortcut (rotate through them)
         shortcut = name_shortcuts[index % len(name_shortcuts)]

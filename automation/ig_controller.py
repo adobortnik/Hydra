@@ -576,6 +576,16 @@ class IGController:
                     btn = self.device(description=match_val)
 
                 if btn.exists(timeout=1):
+                    # Skip permanent IG feed elements (dismiss_button on home feed)
+                    try:
+                        info = btn.info
+                        res_id = info.get('resourceName', '') or ''
+                        if 'dismiss_button' in res_id:
+                            log.debug("[%s] Skipping permanent dismiss_button (not a popup)", self.device_serial)
+                            continue
+                    except Exception:
+                        pass
+
                     try:
                         btn.click()
                         dismissed += 1

@@ -4,25 +4,18 @@
 
 {% block extra_css %}
 <style>
-    /* â"€â"€â"€ Stats Cards â"€â"€â"€ */
+    /* â"€â"€â"€ Stats Cards (matches Device Manager style) â"€â"€â"€ */
     .stat-card {
+        background: linear-gradient(145deg, #1a1d21, #22262b);
         border-radius: 10px;
-        padding: 1.25rem;
-        background: #2c3034;
-        border-left: 4px solid;
-        transition: transform 0.2s;
+        padding: 20px 24px;
+        text-align: center;
+        border: 1px solid #2d3238;
+        transition: transform 0.2s, box-shadow 0.2s;
     }
-    .stat-card:hover { transform: translateY(-2px); }
-    .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
-    .stat-card .stat-label { font-size: 0.85rem; opacity: 0.7; }
-    .stat-yellow  { border-color: #ffc107; }
-    .stat-cyan    { border-color: #0dcaf0; }
-    .stat-green   { border-color: #198754; }
-    .stat-purple  { border-color: #6f42c1; }
-    .stat-yellow  .stat-value { color: #ffc107; }
-    .stat-cyan    .stat-value { color: #0dcaf0; }
-    .stat-green   .stat-value { color: #198754; }
-    .stat-purple  .stat-value { color: #6f42c1; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat-card .stat-label { font-size: 0.75rem; color: #9ca3af; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 
     /* â"€â"€â"€ Table â"€â"€â"€ */
     .jobs-table th { cursor: pointer; user-select: none; white-space: nowrap; }
@@ -115,27 +108,27 @@
 <!-- â•â•â•â•â•â•â•â•â•â•â• STATS ROW â•â•â•â•â•â•â•â•â•â•â• -->
 <div class="row g-3 mb-4">
     <div class="col-xl-3 col-md-6">
-        <div class="stat-card stat-yellow">
-            <div class="stat-value" id="statActive">-</div>
-            <div class="stat-label"><i class="fas fa-bolt me-1"></i>Active Jobs</div>
+        <div class="stat-card">
+            <div class="stat-value text-warning" id="statActive">-</div>
+            <div class="stat-label">Active Jobs</div>
         </div>
     </div>
     <div class="col-xl-3 col-md-6">
-        <div class="stat-card stat-cyan">
-            <div class="stat-value" id="statAccounts">-</div>
-            <div class="stat-label"><i class="fas fa-users me-1"></i>Assigned Accounts</div>
+        <div class="stat-card">
+            <div class="stat-value text-info" id="statAccounts">-</div>
+            <div class="stat-label">Assigned Accounts</div>
         </div>
     </div>
     <div class="col-xl-3 col-md-6">
-        <div class="stat-card stat-green">
-            <div class="stat-value" id="statActions">-</div>
-            <div class="stat-label"><i class="fas fa-check-circle me-1"></i>Actions Today</div>
+        <div class="stat-card">
+            <div class="stat-value text-success" id="statActions">-</div>
+            <div class="stat-label">Actions Today</div>
         </div>
     </div>
     <div class="col-xl-3 col-md-6">
-        <div class="stat-card stat-purple">
-            <div class="stat-value" id="statCompleted">-</div>
-            <div class="stat-label"><i class="fas fa-flag-checkered me-1"></i>Completed Jobs</div>
+        <div class="stat-card">
+            <div class="stat-value text-primary" id="statCompleted">-</div>
+            <div class="stat-label">Completed Jobs</div>
         </div>
     </div>
 </div>

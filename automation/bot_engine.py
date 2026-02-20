@@ -13,6 +13,7 @@ For a given device + account:
 """
 
 import logging
+import os
 import random
 import time
 import datetime
@@ -172,7 +173,10 @@ class BotEngine:
             self._check_pending_login_tasks()
 
             # Check proxy status (SuperProxy VPN must be running)
-            proxy_ok = self._check_proxy_status()
+            skip_proxy = os.environ.get('HYDRA_SKIP_PROXY', '').lower() in ('1', 'true', 'yes')
+            proxy_ok = True if skip_proxy else self._check_proxy_status()
+            if skip_proxy:
+                log.info("[%s] Proxy check SKIPPED (HYDRA_SKIP_PROXY=1)", self.device_serial)
             if not proxy_ok:
                 # Try to reconnect Surfshark VPN automatically
                 log.warning("[%s] %s: Proxy not active — attempting Surfshark reconnect...",

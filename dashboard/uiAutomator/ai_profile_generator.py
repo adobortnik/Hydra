@@ -37,7 +37,7 @@ class AIProfileGenerator:
         else:
             self.api_endpoint = None
 
-    def generate_username(self, mother_account, current_username=None, variations_count=5):
+    def generate_username(self, mother_account, current_username=None, variations_count=5, name_shortcuts=None):
         """
         Generate username based on mother account
 
@@ -45,6 +45,7 @@ class AIProfileGenerator:
             mother_account: Username of the mother account to base on
             current_username: Current username (optional, for context)
             variations_count: Number of variations to generate
+            name_shortcuts: Optional list of name variations to use as base
 
         Returns:
             str: Generated username
@@ -53,7 +54,7 @@ class AIProfileGenerator:
             # Fallback to algorithmic generation
             return self._generate_username_fallback(mother_account)
 
-        prompt = self._create_username_prompt(mother_account, current_username, variations_count)
+        prompt = self._create_username_prompt(mother_account, current_username, variations_count, name_shortcuts)
 
         try:
             response = self._call_ai_api(prompt)
@@ -62,11 +63,59 @@ class AIProfileGenerator:
             # Validate Instagram username rules
             username = self._validate_username(username)
 
+            # Safety check: if validation stripped it to something too short/just numbers, use fallback
+            if len(username) < 4 or username.isdigit():
+                print(f"AI returned invalid username after validation: '{username}', using fallback")
+                return self._generate_username_fallback(mother_account)
+
             return username
 
         except Exception as e:
             print(f"AI username generation failed: {e}")
             return self._generate_username_fallback(mother_account)
+
+    def generate_usernames_batch(self, mother_account, count=5, name_shortcuts=None):
+        """
+        Generate multiple usernames in a single AI call.
+
+        Args:
+            mother_account: Username of the mother account to base on
+            count: Number of usernames to generate
+            name_shortcuts: Optional list of name variations to use as base
+
+        Returns:
+            list: List of generated usernames
+        """
+        if not self.api_key or not self.api_endpoint:
+            # Fallback to algorithmic generation
+            return [self._generate_username_fallback(mother_account, index=i) for i in range(count)]
+
+        prompt = self._create_username_prompt(mother_account, None, count, name_shortcuts)
+
+        try:
+            response = self._call_ai_api(prompt)
+            usernames = self._extract_usernames_batch_from_response(response)
+
+            # Validate each username
+            validated = []
+            for u in usernames:
+                v = self._validate_username(u)
+                if len(v) >= 4 and not v.isdigit():
+                    validated.append(v)
+
+            # If we got enough valid ones, return them
+            if len(validated) >= count:
+                return validated[:count]
+
+            # Fill remaining with fallbacks
+            for i in range(count - len(validated)):
+                validated.append(self._generate_username_fallback(mother_account, index=len(validated) + i))
+
+            return validated[:count]
+
+        except Exception as e:
+            print(f"AI batch username generation failed: {e}")
+            return [self._generate_username_fallback(mother_account, index=i) for i in range(count)]
 
     def generate_bio(self, mother_account, mother_bio=None, account_number=None):
         """
@@ -100,26 +149,39 @@ class AIProfileGenerator:
             print(f"AI bio generation failed: {e}")
             return self._generate_bio_fallback(mother_bio)
 
-    def _create_username_prompt(self, mother_account, current_username, count):
+    def _create_username_prompt(self, mother_account, current_username, count, name_shortcuts=None):
         """Create prompt for username generation"""
-        prompt = f"""Generate {count} Instagram username variations based on: {mother_account}
-
-Requirements:
-- Create usernames inspired by the theme/keywords provided
-- Must be valid Instagram usernames (letters, numbers, periods, underscores only)
-- Cannot start or end with a period
-- Maximum 30 characters
-- Should look natural and authentic like a real person's account
-- NEVER use these words: private, real, official, backup, finsta, spam, alt, second, fake, main, priv, offical
-
-Good patterns: name.style, firstname.lastname, name_xx, thename, namee, xname
-Bad patterns: name_official, name.real, name_private, realname, officialname
+        prompt = f"""Generate exactly {count} unique Instagram username variations inspired by: {mother_account}
 
 """
-        if current_username:
-            prompt += f"Current username is: {current_username}\n"
+        if name_shortcuts:
+            prompt += f"""Use these name variations as base elements: {', '.join(name_shortcuts)}
+Mix these names with creative suffixes, prefixes, dots, and underscores to create natural-looking handles.
 
-        prompt += "Provide just one username variation (the best one). Return ONLY the username, nothing else."
+"""
+
+        prompt += f"""Requirements:
+- Must be valid Instagram usernames (lowercase letters, numbers, periods, underscores only)
+- Cannot start or end with a period
+- Between 6 and 20 characters preferred
+- Should look like a REAL person's Instagram handle - creative, trendy, authentic
+- Mix dots and underscores naturally (e.g. name.vibe, name_era, x.name)
+- NEVER use these words: private, real, official, backup, finsta, spam, alt, second, fake, main, priv, offical, fan, backup, secret
+
+Great examples of natural-looking usernames:
+- chantie.vibes, xchantall, chantie_mood, chan.life
+- its.chantie, hey.chan, chantall.era, chan_szn
+- justchan_, oh.chantie, chantie.gram, chanverse
+
+Bad examples (DO NOT generate these):
+- chantall_official, real.chantall, chantall_private
+- user123, chantall1, generic_name_42
+
+Return ONLY a JSON array of {count} usernames, nothing else. Example format:
+["name.vibes", "xname", "its.namee", "name_mood", "nameszn"]"""
+
+        if current_username:
+            prompt += f"\n\nNote: current username is {current_username}, avoid returning the same one."
 
         return prompt
 
@@ -165,11 +227,11 @@ Requirements:
         data = {
             "model": "gpt-4",
             "messages": [
-                {"role": "system", "content": "You are a creative Instagram username and bio generator."},
+                {"role": "system", "content": "You are a creative Instagram username generator. You create trendy, authentic-looking usernames that real people would use. Always respond with valid JSON when asked for arrays."},
                 {"role": "user", "content": prompt}
             ],
-            "temperature": 0.8,
-            "max_tokens": 100
+            "temperature": 0.9,
+            "max_tokens": 300
         }
 
         response = requests.post(self.api_endpoint, headers=headers, json=data, timeout=30)
@@ -214,8 +276,48 @@ Requirements:
 
         return response.json()
 
+    def _extract_usernames_batch_from_response(self, response):
+        """Extract multiple usernames from AI JSON array response"""
+        if self.provider == "openai":
+            text = response['choices'][0]['message']['content'].strip()
+        elif self.provider == "anthropic":
+            text = response['content'][0]['text'].strip()
+        else:
+            text = response.get('text', response.get('response', '')).strip()
+
+        # Try to parse as JSON array
+        try:
+            # Find JSON array in the response
+            start = text.find('[')
+            end = text.rfind(']') + 1
+            if start >= 0 and end > start:
+                usernames = json.loads(text[start:end])
+                if isinstance(usernames, list):
+                    return [str(u).strip().lower() for u in usernames if u]
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Fallback: split by newlines or commas
+        usernames = []
+        for line in text.replace(',', '\n').split('\n'):
+            line = line.strip().strip('"\'`[]- ').strip()
+            if line and len(line) >= 3:
+                # Remove numbering like "1. " or "1) "
+                import re
+                line = re.sub(r'^\d+[\.\)]\s*', '', line).strip()
+                if line:
+                    usernames.append(line.lower())
+
+        return usernames
+
     def _extract_username_from_response(self, response):
-        """Extract username from AI response"""
+        """Extract a single username from AI response"""
+        # Try batch extraction first (prompt now asks for JSON array)
+        batch = self._extract_usernames_batch_from_response(response)
+        if batch:
+            return batch[0]
+
+        # Legacy single extraction
         if self.provider == "openai":
             text = response['choices'][0]['message']['content'].strip()
         elif self.provider == "anthropic":
@@ -258,46 +360,119 @@ Requirements:
 
     def _validate_username(self, username):
         """Validate and clean username according to Instagram rules"""
+        if not username:
+            return self._generate_username_fallback('user')
+
+        # Remove @ prefix if present
+        username = username.lstrip('@')
+
         # Remove invalid characters
         valid_chars = 'abcdefghijklmnopqrstuvwxyz0123456789._'
         username = ''.join(c for c in username.lower() if c in valid_chars)
 
-        # Remove leading/trailing periods
-        username = username.strip('.')
+        # Remove leading/trailing periods and underscores
+        username = username.strip('._')
 
         # Remove consecutive periods
         while '..' in username:
             username = username.replace('..', '.')
 
+        # Remove consecutive underscores
+        while '__' in username:
+            username = username.replace('__', '_')
+
         # Limit length
         username = username[:30]
 
-        # Ensure it's not empty
-        if not username:
-            username = f"user{random.randint(1000, 9999)}"
+        # Ensure it's not empty or too short or just numbers
+        if not username or len(username) < 3 or username.isdigit():
+            return self._generate_username_fallback('user')
 
         return username
 
-    def _generate_username_fallback(self, mother_account):
-        """Fallback username generation without AI"""
-        # Extract base name
-        base = mother_account.split('.')[0].split('_')[0]
+    def _generate_username_fallback(self, mother_account, index=None):
+        """
+        Fallback username generation without AI.
+        Generates creative, Instagram-style usernames.
 
-        # Generate variation - avoid words like official, real, private
-        patterns = [
-            f"{base}.ig",
-            f"{base}_{random.randint(1, 999)}",
-            f"{base}.{random.randint(1, 99)}",
-            f"the.{base}",
-            f"{base}x",
-            f"{base}.x",
-            f"its.{base}",
-            f"{base}{random.randint(10, 99)}",
-            f"x{base}x",
-            f"{base}.life"
+        Args:
+            mother_account: Base account name to derive from
+            index: Optional index for deterministic variety across batch calls
+        """
+        if not mother_account or mother_account.strip() == '':
+            mother_account = 'user'
+
+        # Extract base name - get the name part
+        base = mother_account.split('.')[0].split('_')[0].strip().lower()
+        if not base or len(base) < 2:
+            base = 'nova'
+
+        # Creative suffixes (trendy Instagram style)
+        suffixes = [
+            'vibes', 'mood', 'era', 'szn', 'way', 'ish', 'gram', 'feed',
+            'daily', 'core', 'zone', 'verse', 'tales', 'world', 'life',
+            'glow', 'aura', 'flow', 'wave', 'lane', 'crew', 'club',
+            'diaries', 'hq', 'hub', 'land', 'luxe', 'edit', 'flex'
         ]
 
-        return random.choice(patterns)
+        # Creative prefixes
+        prefixes = [
+            'its', 'the', 'hey', 'im', 'just', 'so', 'oh', 'ya',
+            'not', 'hi', 'ur', 'bb', 'lil', 'miss', 'sir', 'x'
+        ]
+
+        # Separators
+        seps = ['.', '_', '']
+
+        # Build a large pool of patterns
+        all_patterns = []
+
+        for suf in suffixes:
+            sep = random.choice(seps)
+            all_patterns.append(f"{base}{sep}{suf}")
+
+        for pre in prefixes:
+            sep = random.choice(seps)
+            all_patterns.append(f"{pre}{sep}{base}")
+
+        # Double-name combos
+        for suf in suffixes[:15]:
+            all_patterns.append(f"{base}.{suf}")
+            all_patterns.append(f"{base}_{suf}")
+
+        for pre in prefixes[:10]:
+            all_patterns.append(f"{pre}.{base}")
+            all_patterns.append(f"{pre}_{base}")
+
+        # With short numbers (2 digits only, not single digits)
+        num = random.randint(10, 99)
+        all_patterns.extend([
+            f"{base}.x{num}",
+            f"x{base}{num}",
+            f"{base}{num}x",
+            f"{base}.{num}",
+        ])
+
+        # Extra creative combos
+        all_patterns.extend([
+            f"x{base}x",
+            f"{base}xo",
+            f"{base}ee",
+            f"{base}y",
+            f"{base}.bb",
+            f"bb.{base}",
+            f"{base}.xo",
+        ])
+
+        if index is not None:
+            # Deterministic selection based on index to avoid duplicates in batch
+            pattern_idx = index % len(all_patterns)
+            # Shuffle with a seed derived from index to spread patterns
+            rng = random.Random(index * 7 + 42)
+            rng.shuffle(all_patterns)
+            return all_patterns[pattern_idx]
+        else:
+            return random.choice(all_patterns)
 
     def _generate_bio_fallback(self, mother_bio):
         """Fallback bio generation without AI"""

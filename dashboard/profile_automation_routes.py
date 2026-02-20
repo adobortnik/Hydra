@@ -558,13 +558,15 @@ def quick_campaign():
                 'message': 'tag and mother_account are required'
             }), 400
 
+        # Get uploaded picture ID for simplified picture handling
+        uploaded_picture_id = data.get('uploaded_picture_id')
+
         # Build strategies based on action checkboxes
         strategies = {}
 
         if actions.get('change_picture', True):
-            # Use the picture strategy from frontend (rotate or random)
-            picture_strategy = data.get('picture_strategy', 'rotate')
-            strategies['profile_picture'] = picture_strategy
+            # Use uploaded picture directly (simplified: single picture for all accounts)
+            strategies['profile_picture'] = 'uploaded'
 
         if actions.get('change_bio', True):
             strategies['bio'] = 'ai' if use_ai else 'template'
@@ -585,10 +587,14 @@ def quick_campaign():
         )
 
         # Execute campaign with selected accounts if provided
+        extra_kwargs = {}
+        if uploaded_picture_id:
+            extra_kwargs['uploaded_picture_id'] = uploaded_picture_id
+
         if selected_accounts:
-            result = automation.execute_campaign_for_accounts(campaign_id, selected_accounts)
+            result = automation.execute_campaign_for_accounts(campaign_id, selected_accounts, **extra_kwargs)
         else:
-            result = automation.execute_campaign(campaign_id)
+            result = automation.execute_campaign(campaign_id, **extra_kwargs)
 
         return jsonify({
             'status': 'success',
@@ -1155,27 +1161,37 @@ def preview_ai_generation():
         ai_config = get_ai_config()
         api_key = data.get('ai_api_key') or ai_config.get('api_key', '')
 
+        username_source = data.get('username_source', 'creative')
+        exclude_private = data.get('exclude_private', True)
+
         samples = []
 
         if preview_type == 'username':
-            if name_shortcuts:
+            if username_source == 'creative' and name_shortcuts:
                 # Use creative generation
                 tba = TagBasedAutomation()
                 for i in range(count):
-                    username = tba._generate_creative_username(name_shortcuts, i)
+                    username = tba._generate_creative_username(name_shortcuts, i, exclude_private=exclude_private)
                     samples.append(username)
             elif api_key and mother_account:
-                # Use AI
+                # Use AI - single batch call instead of N separate calls
                 generator = CampaignAIGenerator(api_key=api_key, provider='openai')
-                for i in range(count):
-                    username = generator.generator.generate_username(mother_account)
-                    samples.append(username)
+                try:
+                    samples = generator.generator.generate_usernames_batch(
+                        mother_account, count=count, name_shortcuts=name_shortcuts
+                    )
+                except Exception as e:
+                    print(f"AI batch generation failed: {e}")
+                    # Fallback
+                    from ai_profile_generator import AIProfileGenerator
+                    gen = AIProfileGenerator()
+                    samples = [gen._generate_username_fallback(mother_account or 'user', index=i) for i in range(count)]
             else:
                 # Fallback
                 from ai_profile_generator import AIProfileGenerator
                 gen = AIProfileGenerator()
                 for i in range(count):
-                    samples.append(gen._generate_username_fallback(mother_account or 'user'))
+                    samples.append(gen._generate_username_fallback(mother_account or 'user', index=i))
         elif preview_type == 'bio':
             if api_key and mother_account:
                 generator = CampaignAIGenerator(api_key=api_key, provider='openai')

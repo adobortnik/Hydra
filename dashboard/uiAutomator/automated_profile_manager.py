@@ -366,7 +366,8 @@ class AutomatedProfileManager:
 
     def transfer_image_to_device(self, image_path, device_serial):
         """
-        Transfer image file to device's Pictures directory
+        Transfer image file to device's Pictures directory using ADB push
+        and register via MediaStore scan_file (same method as post_content.py).
 
         Args:
             image_path: Local path to image file
@@ -377,62 +378,68 @@ class AutomatedProfileManager:
         """
         try:
             # Convert device serial format for ADB (underscore to colon)
-            # Database uses: 10.1.10.183_5555
-            # ADB needs: 10.1.10.183:5555
             adb_serial = device_serial.replace('_', ':')
 
-            # Generate unique filename to avoid conflicts
-            timestamp = int(time.time())
-            filename = f"profile_pic_{timestamp}.jpg"
-            device_path = f"/sdcard/DCIM/Camera/{filename}"
+            # Use /sdcard/Pictures for profile pics (clean, reliable location)
+            remote_dir = "/sdcard/Pictures"
+            filename = "profile_pic.jpg"
+            device_path = f"{remote_dir}/{filename}"
+            # MediaStore needs the real /storage/emulated/0 path, not /sdcard
+            real_device_path = f"/storage/emulated/0/Pictures/{filename}"
 
-            print(f"Transferring image to device: {device_path}")
+            print(f"Pushing image to device: {device_path}")
 
-            # Use ADB to push file to device
+            # Create remote directory
+            subprocess.run(
+                ['adb', '-s', adb_serial, 'shell', 'mkdir', '-p', remote_dir],
+                capture_output=True, timeout=10
+            )
+
+            # Push the file via ADB
             result = subprocess.run(
                 ['adb', '-s', adb_serial, 'push', str(image_path), device_path],
-                capture_output=True,
-                text=True,
-                check=True
+                capture_output=True, text=True, timeout=120
             )
 
-            print(f"Image transferred successfully: {device_path}")
+            if result.returncode != 0:
+                print(f"ADB push failed: {result.stderr[:200]}")
+                return None
 
-            # Trigger media scan so gallery apps can see the file
-            # Method 1: Broadcast scan for specific file
-            print("Triggering media scanner...")
-            subprocess.run(
-                ['adb', '-s', adb_serial, 'shell', 'am', 'broadcast',
-                 '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
-                 '-d', f'file://{device_path}'],
-                capture_output=True
-            )
+            print(f"Image pushed successfully: {device_path}")
 
-            # Method 2: Also trigger full media rescan (more reliable)
-            subprocess.run(
-                ['adb', '-s', adb_serial, 'shell', 'am', 'broadcast',
-                 '-a', 'android.intent.action.MEDIA_MOUNTED',
-                 '-d', 'file:///sdcard'],
-                capture_output=True
-            )
-
-            # Method 3: Use media scanner service directly
-            subprocess.run(
+            # Register in MediaStore using scan_file (Android 10+ proper API)
+            # This triggers MediaScannerConnection.scanFile() internally
+            print("Registering in MediaStore via scan_file...")
+            scan_result = subprocess.run(
                 ['adb', '-s', adb_serial, 'shell',
-                 f'am startservice -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{device_path}'],
-                capture_output=True
+                 'content', 'call', '--uri', 'content://media',
+                 '--method', 'scan_file',
+                 '--arg', real_device_path],
+                capture_output=True, text=True, timeout=20
             )
 
-            print("Waiting for media scanner to process...")
-            time.sleep(5)  # Increased wait time for media scanner
+            if scan_result.returncode == 0 and 'content://' in scan_result.stdout:
+                print(f"✓ Scanned into MediaStore: {scan_result.stdout.strip()[:100]}")
+            else:
+                print(f"⚠ scan_file result: {(scan_result.stdout + scan_result.stderr)[:200]}")
+                # Fallback: deprecated broadcast (better than nothing)
+                subprocess.run(
+                    ['adb', '-s', adb_serial, 'shell',
+                     'am', 'broadcast', '-a',
+                     'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+                     '-d', f'file://{device_path}'],
+                    capture_output=True, timeout=10
+                )
+
+            # Brief pause for gallery to refresh
+            time.sleep(2)
 
             # Verify file exists on device
             verify_result = subprocess.run(
-                ['adb', '-s', adb_serial, 'shell', f'ls -la {device_path}'],
-                capture_output=True,
-                text=True
+                ['adb', '-s', adb_serial, 'shell', 'ls', '-la', device_path],
+                capture_output=True, text=True, timeout=10
             )
-            if device_path in verify_result.stdout:
+            if 'profile_pic' in verify_result.stdout:
                 print(f"✓ Verified: Image exists on device at {device_path}")
             else:
                 print(f"⚠ Warning: Could not verify image on device")
@@ -1190,6 +1197,17 @@ class AutomatedProfileManager:
             return False
 
         finally:
+            # Clean up pushed profile picture from device
+            try:
+                adb_serial = device_serial.replace('_', ':')
+                subprocess.run(
+                    ['adb', '-s', adb_serial, 'shell', 'rm', '-f',
+                     '/sdcard/Pictures/profile_pic.jpg'],
+                    capture_output=True, timeout=10
+                )
+            except Exception:
+                pass
+
             # ALWAYS disconnect device to release UIAutomator for other tools (like Onimator)
             if self.device is not None:
                 print(f"\n🔌 Disconnecting device to release UIAutomator...")
