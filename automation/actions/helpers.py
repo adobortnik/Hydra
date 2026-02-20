@@ -57,13 +57,29 @@ def action_delay(action_type="default"):
 # DB Helpers
 # ---------------------------------------------------------------------------
 
+_db_migrated = False
+
 def get_db():
     """Get a thread-safe DB connection."""
     import sqlite3
+    global _db_migrated
     path = _get_db_path()
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+
+    # Auto-migrate missing columns (runs once per process)
+    if not _db_migrated:
+        _db_migrated = True
+        try:
+            cols = {c[1] for c in conn.execute("PRAGMA table_info(action_history)").fetchall()}
+            if 'source_username' not in cols:
+                conn.execute("ALTER TABLE action_history ADD COLUMN source_username TEXT")
+                conn.commit()
+                log.info("Auto-migrated: added source_username to action_history")
+        except Exception as e:
+            log.debug("DB migration check: %s", e)
+
     return conn
 
 
