@@ -2452,13 +2452,14 @@ AUTH_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'aut
 def _load_auth_config():
     """Load auth config from JSON file, creating defaults if missing."""
     if not os.path.exists(AUTH_CONFIG_PATH):
+        _default_pw = os.environ.get('HYDRA_ADMIN_PASSWORD', 'changeme')
         default_config = {
-            'username': 'admin',
-            'password_hash': generate_password_hash('hydra2026')
+            'username': os.environ.get('HYDRA_ADMIN_USER', 'admin'),
+            'password_hash': generate_password_hash(_default_pw)
         }
         with open(AUTH_CONFIG_PATH, 'w') as f:
             json.dump(default_config, f, indent=2)
-        _logger.info("Created default auth_config.json (admin/hydra2026)")
+        _logger.info("Created default auth_config.json (set HYDRA_ADMIN_PASSWORD env var)")
         return default_config
     with open(AUTH_CONFIG_PATH, 'r') as f:
         return json.load(f)
