@@ -585,9 +585,20 @@
                 </div>
             </div>
 
-            <!-- Search -->
-            <div class="mb-3">
-                <input type="text" class="search-bar" id="personaAccountSearch" placeholder="🔍 Search accounts by username, device..." oninput="personaFilterAccounts()">
+            <!-- Filters -->
+            <div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+                <div class="flex-grow-1">
+                    <input type="text" class="search-bar" id="personaAccountSearch" placeholder="🔍 Search accounts by username, device..." oninput="personaFilterAccounts()">
+                </div>
+                <select id="personaTagFilter" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="personaFilterAccounts()" style="width:160px;height:42px">
+                    <option value="">All Tags</option>
+                </select>
+                <select id="personaGroupFilter" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="personaFilterAccounts()" style="width:160px;height:42px">
+                    <option value="">All Groups</option>
+                </select>
+                <button class="btn btn-sm btn-outline-warning" onclick="personaSelectFiltered()" title="Select all visible/filtered accounts" style="height:42px">
+                    <i class="fas fa-check-double me-1"></i>Select Filtered
+                </button>
             </div>
 
             <!-- Device / Account List -->
@@ -1064,6 +1075,7 @@ function loadAccounts() {
         allAccounts = data.accounts;
         renderAccountList();
         updateSelectionCount();
+        populatePersonaFilters();
     }).fail(() => showToast('Failed to load accounts', 'error'));
 }
 
@@ -1854,6 +1866,7 @@ function switchMode(mode) {
         $('#personaWizardCard').show();
         // Load accounts if not already loaded
         if (allAccounts.length > 0) {
+            populatePersonaFilters();
             renderPersonaAccountList();
         }
         renderPicCategoryUploadZones();
@@ -1899,9 +1912,42 @@ function goToPersonaStep(step) {
 }
 
 // ── Account selection for Personas ──
-function renderPersonaAccountList() {
-    const container = $('#personaAccountList');
+function populatePersonaFilters() {
+    const tagSet = new Set();
+    const groupSet = new Set();
+    allAccounts.forEach(a => {
+        if (a.account_tag) tagSet.add(a.account_tag);
+        if (a.device_group) groupSet.add(a.device_group);
+    });
+
+    const tagSelect = $('#personaTagFilter');
+    const curTag = tagSelect.val();
+    tagSelect.find('option:not(:first)').remove();
+    [...tagSet].sort().forEach(t => tagSelect.append(`<option value="${t}">${t}</option>`));
+    if (curTag) tagSelect.val(curTag);
+
+    const groupSelect = $('#personaGroupFilter');
+    const curGroup = groupSelect.val();
+    groupSelect.find('option:not(:first)').remove();
+    [...groupSet].sort().forEach(g => groupSelect.append(`<option value="${g}">${g}</option>`));
+    if (curGroup) groupSelect.val(curGroup);
+}
+
+function personaSelectFiltered() {
+    const filtered = getPersonaFilteredAccounts();
+    const allSel = filtered.every(a => personaSelectedAccounts.has(a.id));
+    filtered.forEach(a => {
+        if (allSel) personaSelectedAccounts.delete(a.id);
+        else personaSelectedAccounts.add(a.id);
+    });
+    renderPersonaAccountList();
+    updatePersonaSelectionCount();
+}
+
+function getPersonaFilteredAccounts() {
     let filtered = allAccounts;
+    const tagFilter = $('#personaTagFilter').val();
+    const groupFilter = $('#personaGroupFilter').val();
 
     if (personaSearchQuery) {
         filtered = filtered.filter(a =>
@@ -1910,12 +1956,24 @@ function renderPersonaAccountList() {
             (a.device_name || '').toLowerCase().includes(personaSearchQuery)
         );
     }
+    if (tagFilter) {
+        filtered = filtered.filter(a => a.account_tag === tagFilter);
+    }
+    if (groupFilter) {
+        filtered = filtered.filter(a => a.device_group === groupFilter);
+    }
+    return filtered;
+}
+
+function renderPersonaAccountList() {
+    const container = $('#personaAccountList');
+    let filtered = getPersonaFilteredAccounts();
 
     // Group by device
     const groups = {};
     filtered.forEach(a => {
         const key = a.device_serial;
-        if (!groups[key]) groups[key] = { device_serial: key, device_name: a.device_name || key, accounts: [] };
+        if (!groups[key]) groups[key] = { device_serial: key, device_name: a.device_name || key, device_group: a.device_group || '', accounts: [] };
         groups[key].accounts.push(a);
     });
 
@@ -1933,6 +1991,7 @@ function renderPersonaAccountList() {
                 <i class="fas fa-mobile-alt me-2 text-warning"></i>
                 <strong>${group.device_name || group.device_serial}</strong>
                 <span class="text-muted ms-2">${group.device_serial}</span>
+                ${group.device_group ? `<span class="badge bg-info ms-2">${group.device_group}</span>` : ''}
                 <span class="badge bg-secondary ms-2">${group.accounts.length}</span>
             </div>
             <div>
@@ -1949,7 +2008,8 @@ function renderPersonaAccountList() {
                 <input type="checkbox" class="form-check-input me-3" ${sel ? 'checked' : ''} onclick="event.stopPropagation(); personaToggleAccount(${a.id})">
                 <div class="flex-grow-1">
                     <strong class="me-2">${a.username || '(unnamed)'}</strong>
-                    <small class="text-muted">${a.app_package || ''}</small>
+                    ${a.account_tag ? `<span class="badge bg-warning text-dark" style="font-size:0.65rem">${a.account_tag}</span>` : ''}
+                    <small class="text-muted ms-2">${a.app_package || ''}</small>
                 </div>
             </div>`;
         });
@@ -1962,6 +2022,10 @@ function renderPersonaAccountList() {
 function personaFilterAccounts() {
     personaSearchQuery = $('#personaAccountSearch').val().toLowerCase();
     renderPersonaAccountList();
+    // Update filtered count
+    const filtered = getPersonaFilteredAccounts();
+    const selInFiltered = filtered.filter(a => personaSelectedAccounts.has(a.id)).length;
+    $('#personaSelectionCount').text(`${personaSelectedAccounts.size} selected (${filtered.length} shown)`);
 }
 
 function personaToggleAccount(accountId) {

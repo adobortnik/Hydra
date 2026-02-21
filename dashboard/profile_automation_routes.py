@@ -1086,8 +1086,8 @@ def get_accounts_with_details():
         cursor.execute("""
             SELECT
                 a.id, a.device_serial, a.username, a.password, a.email,
-                a.status, a.instagram_package,
-                d.device_name, d.device_serial as d_serial,
+                a.status, a.instagram_package, a.tag as account_tag,
+                d.device_name, d.device_serial as d_serial, d.device_group,
                 s.settings_json
             FROM accounts a
             LEFT JOIN devices d ON a.device_serial = d.device_serial
@@ -1121,6 +1121,8 @@ def get_accounts_with_details():
             account.pop('d_serial', None)
             account['app_package'] = account.pop('instagram_package', 'com.instagram.android')
             account['tags'] = tags
+            account['account_tag'] = account.get('account_tag', '')
+            account['device_group'] = account.get('device_group', '')
             account['enable_tags'] = enable_tags
             account['mother_mention'] = mother_mention
             account['work_hours'] = work_hours
