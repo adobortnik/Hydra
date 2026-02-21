@@ -944,10 +944,21 @@ class IGController:
 
         time.sleep(1)
 
-        # Click on search bar
+        # Click on search bar — Explore page may need an extra tap to reveal it
         search_bar = self.find_element(resource_id='action_bar_search_edit_text', timeout=3)
         if search_bar is None:
             search_bar = self.find_element(class_name='android.widget.EditText', timeout=3)
+        if search_bar is None:
+            # Explore page: tap the search icon/area at top to reveal search input
+            search_icon = self.device(descriptionContains="Search")
+            if not search_icon.exists(timeout=2):
+                search_icon = self.device(resourceIdMatches=".*search.*bar.*|.*search.*container.*")
+            if search_icon.exists(timeout=2):
+                search_icon.click()
+                time.sleep(1.5)
+                search_bar = self.find_element(resource_id='action_bar_search_edit_text', timeout=3)
+                if search_bar is None:
+                    search_bar = self.find_element(class_name='android.widget.EditText', timeout=3)
         if search_bar is None:
             log.warning("[%s] Search bar not found", self.device_serial)
             return False
