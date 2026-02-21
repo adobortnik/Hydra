@@ -120,29 +120,32 @@ def api_dm_devices():
                 dev['bot_pid'] = bs['pid']
                 dev['bot_started_at'] = bs['started_at']
 
-                # Verify PID is actually running — if not, mark as stopped
-                if dev['bot_status'] in ('active', 'hung') and bs['pid']:
+            # Verify PID is actually running — if not, mark as stopped
+            if dev['bot_status'] in ('active', 'hung'):
+                pid = bs['pid'] if bs else None
+                process_alive = False
+                if pid:
                     try:
-                        import psutil
-                        if not psutil.pid_exists(bs['pid']):
-                            dev['bot_status'] = 'stopped'
-                            # Clean up stale bot_status
-                            conn.execute(
-                                "UPDATE bot_status SET status='stopped', pid=NULL WHERE device_serial=?",
-                                (serial,)
-                            )
-                            conn.commit()
-                    except ImportError:
-                        # psutil not available, check with os
+                        import ctypes
+                        kernel32 = ctypes.windll.kernel32
+                        handle = kernel32.OpenProcess(0x1000, False, pid)
+                        if handle:
+                            kernel32.CloseHandle(handle)
+                            process_alive = True
+                    except Exception:
                         try:
-                            _os.kill(bs['pid'], 0)
+                            _os.kill(pid, 0)
+                            process_alive = True
                         except (OSError, ProcessLookupError):
-                            dev['bot_status'] = 'stopped'
-                            conn.execute(
-                                "UPDATE bot_status SET status='stopped', pid=NULL WHERE device_serial=?",
-                                (serial,)
-                            )
-                            conn.commit()
+                            pass
+
+                if not process_alive:
+                    dev['bot_status'] = 'stopped'
+                    conn.execute(
+                        "UPDATE bot_status SET status='stopped', pid=NULL WHERE device_serial=?",
+                        (serial,)
+                    )
+                    conn.commit()
 
         return jsonify({'devices': devices, 'total': len(devices)})
     except Exception as e:
