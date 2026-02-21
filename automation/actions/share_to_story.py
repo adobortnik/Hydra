@@ -394,151 +394,184 @@ class ShareToStoryAction:
         return False
 
     def _add_story_mention(self, source_username):
-        """Add @mention to story in the editor. (Task 2a)
+        """Add @mention sticker to story via sticker picker.
         
-        DISCOVERED SELECTORS (live-tested 2025-01-24):
-        - Text tool button: rid=add_text_button, desc='Add text'
-        - Text input field: rid=text_overlay_edit_text, class=EditText
-        - Mention picker:   rid=text_mention_picker, desc='Mention'
-        - Done button:      rid=done_button, desc='Done'
-        
-        Flow: tap Add text → type @username → tap Done.
-        Alternative: tap Add text → tap Mention picker → search user.
+        Same flow as link sticker (2026-02-22):
+        1. Open sticker picker (swipe up OR tap sticker button)
+        2. Search "mention" in search bar
+        3. Tap first result (MENTION sticker)
+        4. Mention form: type username, tap first suggestion, Done
         """
         mention_target = self.mention_target or source_username
         if not mention_target:
             return False
 
-        log.info("[%s] Adding mention @%s to story", self.device_serial, mention_target)
+        log.info("[%s] Adding mention @%s via sticker picker", self.device_serial, mention_target)
 
-        # Find and tap text tool — confirmed selectors from live discovery
-        text_tool_found = False
+        # Step 1: Open sticker picker — swipe up first, fallback to button
+        sticker_found = False
+        w, h = self.device.window_size()
+        self.device.swipe(w // 2, int(h * 0.5), w // 2, int(h * 0.15), duration=0.3)
+        time.sleep(2)
+
+        if self.device(className="android.widget.EditText").exists(timeout=2):
+            sticker_found = True
+            log.debug("[%s] Opened sticker picker via swipe up", self.device_serial)
+
+        if not sticker_found:
+            for selector in [
+                self.device(description="Emojis and stickers"),
+                self.device(resourceIdMatches=".*asset_button.*"),
+                self.device(descriptionContains="sticker"),
+            ]:
+                if selector.exists(timeout=2):
+                    selector.click()
+                    time.sleep(3)
+                    sticker_found = True
+                    log.debug("[%s] Opened sticker picker via button", self.device_serial)
+                    break
+
+        if not sticker_found:
+            log.warning("[%s] Could not open sticker picker for mention", self.device_serial)
+            return False
+
+        # Step 2: Search "mention" in sticker search bar
+        search = self.device(className="android.widget.EditText")
+        if not search.exists(timeout=3):
+            search = self.device(resourceIdMatches=".*search.*edit.*text.*")
+
+        if search.exists(timeout=3):
+            search.click()
+            time.sleep(0.5)
+            search.set_text("mention")
+            time.sleep(3)
+            log.debug("[%s] Typed 'mention' in sticker search", self.device_serial)
+        else:
+            log.warning("[%s] Sticker search bar not found for mention", self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Step 3: Tap first result — MENTION sticker
+        mention_clicked = False
+
+        for desc_val in ["Mention Sticker", "MENTION"]:
+            el = self.device(description=desc_val)
+            if el.exists(timeout=2):
+                el.click()
+                time.sleep(2)
+                mention_clicked = True
+                log.debug("[%s] Clicked MENTION sticker via desc='%s'", self.device_serial, desc_val)
+                break
+
+        if not mention_clicked:
+            for text_val in ["MENTION", "Mention"]:
+                el = self.device(text=text_val)
+                if el.exists(timeout=2):
+                    el.click()
+                    time.sleep(2)
+                    mention_clicked = True
+                    log.debug("[%s] Clicked MENTION sticker via text='%s'", self.device_serial, text_val)
+                    break
+
+        # XML fallback
+        if not mention_clicked:
+            xml = self.ctrl.dump_xml("mention_sticker_search")
+            for pattern in [r'description="Mention Sticker"', r'text="MENTION"', r'text="Mention"']:
+                match = re.search(
+                    pattern + r'[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+                if match:
+                    x = (int(match.group(1)) + int(match.group(3))) // 2
+                    y = (int(match.group(2)) + int(match.group(4))) // 2
+                    self.device.click(x, y)
+                    time.sleep(2)
+                    mention_clicked = True
+                    log.debug("[%s] Clicked MENTION sticker via XML bounds (%d,%d)",
+                              self.device_serial, x, y)
+                    break
+
+        if not mention_clicked:
+            log.warning("[%s] MENTION sticker not found in search results", self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Step 4: Enter username in mention form and select from suggestions
+        time.sleep(1)
+        username_field = self.device(className="android.widget.EditText")
+        if username_field.exists(timeout=3):
+            username_field.click()
+            time.sleep(0.5)
+            username_field.set_text(mention_target)
+            time.sleep(3)  # Wait for suggestions to load
+            log.debug("[%s] Typed username: %s", self.device_serial, mention_target)
+
+            # Click first suggestion (exact match should be first)
+            suggestion_clicked = False
+            target_lower = mention_target.lower()
+
+            # Try clicking the exact username in suggestions
+            for selector in [
+                self.device(textContains=mention_target),
+                self.device(descriptionContains=mention_target),
+            ]:
+                if selector.exists(timeout=2):
+                    count = min(selector.count, 5)
+                    for i in range(count):
+                        try:
+                            text = (selector[i].get_text() or "").strip().lower()
+                            if text == target_lower or target_lower in text:
+                                selector[i].click()
+                                time.sleep(1.5)
+                                suggestion_clicked = True
+                                log.info("[%s] Clicked mention suggestion: '%s'",
+                                         self.device_serial, mention_target)
+                                break
+                        except Exception:
+                            continue
+                    if suggestion_clicked:
+                        break
+
+            if not suggestion_clicked:
+                # XML fallback for suggestion
+                xml = self.ctrl.dump_xml("mention_suggestions")
+                match = re.search(
+                    r'text="' + re.escape(mention_target) + r'"[^>]*'
+                    r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                    xml, re.IGNORECASE)
+                if match:
+                    x = (int(match.group(1)) + int(match.group(3))) // 2
+                    y = (int(match.group(2)) + int(match.group(4))) // 2
+                    self.device.click(x, y)
+                    time.sleep(1.5)
+                    suggestion_clicked = True
+                    log.info("[%s] Clicked mention suggestion via XML", self.device_serial)
+
+            if not suggestion_clicked:
+                log.warning("[%s] Could not find suggestion for @%s — tapping Done anyway",
+                            self.device_serial, mention_target)
+        else:
+            log.warning("[%s] Username input field not found in mention form", self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Step 5: Tap Done
+        done_clicked = False
         for selector in [
-            self.device(resourceId="com.instagram.androie:id/add_text_button"),
-            self.device(description="Add text"),
-            self.device(descriptionContains="Aa"),
+            self.device(text="Done"),
+            self.device(description="Done"),
+            self.device(resourceIdMatches=".*done_button.*"),
         ]:
             if selector.exists(timeout=2):
                 selector.click()
                 time.sleep(2)
-                text_tool_found = True
-                log.debug("[%s] Tapped text tool (Add text)", self.device_serial)
+                done_clicked = True
+                log.debug("[%s] Confirmed mention sticker with Done", self.device_serial)
                 break
 
-        if not text_tool_found:
-            log.warning("[%s] Text tool not found in story editor", self.device_serial)
-            return False
-
-        # Type the mention into the text input field
-        mention_text = f"@{mention_target}"
-        time.sleep(1)
-
-        # Find and use EditText for typing
-        import subprocess
-        edit_field = self.device(className="android.widget.EditText")
-        
-        if edit_field.exists(timeout=3):
-            try:
-                edit_field.set_text(mention_text)
-                time.sleep(1)
-                log.debug("[%s] Typed mention via EditText", self.device_serial)
-            except Exception:
-                subprocess.run(
-                    ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
-                     mention_text.replace(' ', '%s')],
-                    capture_output=True, timeout=10
-                )
-                time.sleep(1)
-        else:
-            try:
-                subprocess.run(
-                    ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
-                     mention_text.replace(' ', '%s')],
-                    capture_output=True, timeout=10
-                )
-                time.sleep(1)
-            except Exception as e:
-                log.error("[%s] Failed to type mention: %s", self.device_serial, e)
-                return False
-
-        # Wait for IG to show mention suggestions dropdown
-        time.sleep(2)
-
-        # Click on the correct suggestion to make it a real mention (not just text)
-        # IG shows suggestions like: jaggerprime, jagger_prime8..., jagger_primeau
-        # We need to click the exact match
-        suggestion_clicked = False
-        target_lower = mention_target.lower()
-
-        # Method 1: Look for suggestion with exact username text
-        for selector in [
-            self.device(textContains=mention_target),
-            self.device(descriptionContains=mention_target),
-        ]:
-            if selector.exists(timeout=2):
-                count = min(selector.count, 5)
-                for i in range(count):
-                    try:
-                        text = (selector[i].get_text() or "").strip().lower()
-                        desc = ""
-                        try:
-                            desc = (selector[i].info.get('contentDescription', '') or '').lower()
-                        except Exception:
-                            pass
-                        # Match exact username (not partial like jagger_primeau)
-                        if text == target_lower or desc == target_lower:
-                            selector[i].click()
-                            time.sleep(1.5)
-                            suggestion_clicked = True
-                            log.info("[%s] Clicked mention suggestion: '%s'",
-                                     self.device_serial, mention_target)
-                            break
-                    except Exception:
-                        continue
-                if suggestion_clicked:
-                    break
-
-        # Method 2: Click first item in suggestion list by position
-        if not suggestion_clicked:
-            # Suggestions typically appear below the text input area
-            # Try clicking the first suggestion row
-            xml = self.ctrl.dump_xml("mention_suggestions")
-            # Look for mention suggestion container or user rows
-            import re as _re
-            suggestion_match = _re.search(
-                r'text="(' + _re.escape(mention_target) + r')"[^>]*'
-                r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
-                xml, _re.IGNORECASE
-            )
-            if suggestion_match:
-                x = (int(suggestion_match.group(2)) + int(suggestion_match.group(4))) // 2
-                y = (int(suggestion_match.group(3)) + int(suggestion_match.group(5))) // 2
-                self.device.click(x, y)
-                time.sleep(1.5)
-                suggestion_clicked = True
-                log.info("[%s] Clicked mention suggestion via XML bounds",
-                         self.device_serial)
-
-        if not suggestion_clicked:
-            log.warning("[%s] Could not find mention suggestion for @%s — "
-                        "mention will be plain text only",
-                        self.device_serial, mention_target)
-
-        # Tap Done button
-        done_btn = self.device(text="Done")
-        if not done_btn.exists(timeout=2):
-            done_btn = self.device(description="Done")
-
-        if done_btn.exists(timeout=3):
-            done_btn.click()
-            time.sleep(1)
-            log.debug("[%s] Confirmed mention with Done button", self.device_serial)
-        else:
-            w, h = self.device.window_size()
-            self.device.click(int(w * 0.5), int(h * 0.3))
+        if not done_clicked:
+            self.device.press('enter')
             time.sleep(1)
 
-        log.info("[%s] Mention @%s added to story", self.device_serial, mention_target)
+        log.info("[%s] Mention @%s added to story via sticker", self.device_serial, mention_target)
         return True
 
     def _add_link_sticker(self, url):
