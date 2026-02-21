@@ -544,37 +544,49 @@ class ShareToStoryAction:
     def _add_link_sticker(self, url):
         """Add link sticker to story in the editor.
         
-        Live-tested flow (2026-02-21 screenshot):
-        1. Tap sticker button (desc='Emojis and stickers')
-        2. Type "link" in search bar at top
-        3. Under "Stickers" section, tap the blue "LINK" button (text='LINK')
-        4. Link form opens with URL field + optional name field
-        5. Enter URL, tap Done
+        Live-tested flow (2026-02-21):
+        1. Open sticker picker (swipe up OR tap sticker button)
+        2. Type "link" in search bar
+        3. Tap first result under "Stickers" heading (the blue LINK button)
+        4. Link form: enter URL in first field, tap Done
         """
         if not url:
             return False
 
         log.info("[%s] Adding link sticker: %s", self.device_serial, url[:50])
 
-        # Step 1: Tap sticker icon
+        # Step 1: Open sticker picker — try swipe up first (more reliable), fallback to button
         sticker_found = False
-        for selector in [
-            self.device(description="Emojis and stickers"),
-            self.device(resourceIdMatches=".*asset_button.*"),
-            self.device(descriptionContains="sticker"),
-        ]:
-            if selector.exists(timeout=2):
-                selector.click()
-                time.sleep(3)
-                sticker_found = True
-                log.debug("[%s] Tapped sticker button", self.device_serial)
-                break
+
+        # Method A: Swipe up from center to open sticker picker
+        w, h = self.device.window_size()
+        self.device.swipe(w // 2, int(h * 0.5), w // 2, int(h * 0.15), duration=0.3)
+        time.sleep(2)
+        
+        # Check if sticker picker opened (search bar should appear)
+        if self.device(className="android.widget.EditText").exists(timeout=2):
+            sticker_found = True
+            log.debug("[%s] Opened sticker picker via swipe up", self.device_serial)
+        
+        # Method B: Tap sticker button
+        if not sticker_found:
+            for selector in [
+                self.device(description="Emojis and stickers"),
+                self.device(resourceIdMatches=".*asset_button.*"),
+                self.device(descriptionContains="sticker"),
+            ]:
+                if selector.exists(timeout=2):
+                    selector.click()
+                    time.sleep(3)
+                    sticker_found = True
+                    log.debug("[%s] Opened sticker picker via button", self.device_serial)
+                    break
 
         if not sticker_found:
-            log.warning("[%s] Sticker button not found", self.device_serial)
+            log.warning("[%s] Could not open sticker picker", self.device_serial)
             return False
 
-        # Step 2: Search "link" in the sticker search bar
+        # Step 2: Type "link" in search bar
         search = self.device(className="android.widget.EditText")
         if not search.exists(timeout=3):
             search = self.device(resourceIdMatches=".*search.*edit.*text.*")
@@ -583,78 +595,76 @@ class ShareToStoryAction:
             search.click()
             time.sleep(0.5)
             search.set_text("link")
-            time.sleep(2.5)  # Wait for search results
+            time.sleep(3)  # Wait for search results to load
             log.debug("[%s] Typed 'link' in sticker search", self.device_serial)
         else:
             log.warning("[%s] Sticker search bar not found", self.device_serial)
             self.ctrl.press_back()
             return False
 
-        # Step 3: Tap the LINK sticker from results
-        # Screenshot shows: under "Stickers" heading, blue "LINK" button with chain icon
+        # Step 3: Tap first result — the LINK sticker
+        # From screenshot: appears as blue "LINK" button under "Stickers" heading
+        # It's the FIRST clickable result after searching "link"
         link_clicked = False
 
-        # Try text="LINK" (exact, uppercase as shown in screenshot)
-        for text_val in ["LINK", "Link"]:
-            el = self.device(text=text_val)
+        # Try description first (worked on .190 after search)
+        for desc_val in ["Link Sticker", "LINK"]:
+            el = self.device(description=desc_val)
             if el.exists(timeout=2):
                 el.click()
                 time.sleep(2)
                 link_clicked = True
-                log.debug("[%s] Clicked LINK sticker via text='%s'", self.device_serial, text_val)
+                log.debug("[%s] Clicked LINK sticker via desc='%s'", self.device_serial, desc_val)
                 break
 
-        # Try by description
+        # Try exact text match
         if not link_clicked:
-            for desc_val in ["Link Sticker", "LINK", "Link"]:
-                el = self.device(description=desc_val)
+            for text_val in ["LINK", "Link"]:
+                el = self.device(text=text_val)
                 if el.exists(timeout=2):
                     el.click()
                     time.sleep(2)
                     link_clicked = True
-                    log.debug("[%s] Clicked LINK sticker via desc='%s'", self.device_serial, desc_val)
+                    log.debug("[%s] Clicked LINK sticker via text='%s'", self.device_serial, text_val)
                     break
 
-        # XML fallback: find "LINK" text near top of results (under Stickers heading)
+        # XML fallback — find first "LINK" or "Link Sticker" in bounds
         if not link_clicked:
             xml = self.ctrl.dump_xml("sticker_search_results")
-            match = re.search(
-                r'text="LINK"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
-            if not match:
+            for pattern in [r'description="Link Sticker"', r'text="LINK"', r'text="Link"']:
                 match = re.search(
-                    r'text="Link"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
-            if match:
-                x = (int(match.group(1)) + int(match.group(3))) // 2
-                y = (int(match.group(2)) + int(match.group(4))) // 2
-                self.device.click(x, y)
-                time.sleep(2)
-                link_clicked = True
-                log.debug("[%s] Clicked LINK sticker via XML bounds (%d,%d)",
-                          self.device_serial, x, y)
+                    pattern + r'[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+                if match:
+                    x = (int(match.group(1)) + int(match.group(3))) // 2
+                    y = (int(match.group(2)) + int(match.group(4))) // 2
+                    self.device.click(x, y)
+                    time.sleep(2)
+                    link_clicked = True
+                    log.debug("[%s] Clicked LINK sticker via XML bounds (%d,%d)",
+                              self.device_serial, x, y)
+                    break
 
         if not link_clicked:
             log.warning("[%s] LINK sticker not found in search results", self.device_serial)
             self.ctrl.press_back()
             return False
 
-        # Step 4: Enter URL in the link form (has URL field + optional name field)
+        # Step 4: Enter URL in the link form
+        # Form has 2 EditText fields: URL (first) + name/label (second, optional)
         time.sleep(1)
         url_fields = self.device(className="android.widget.EditText")
         if url_fields.exists(timeout=3):
-            # First EditText = URL field
             url_fields[0].click()
             time.sleep(0.5)
             url_fields[0].set_text(url)
             time.sleep(1)
             log.debug("[%s] Entered URL: %s", self.device_serial, url[:50])
-
-            # Optional: second EditText = sticker name/label (leave default)
         else:
             log.warning("[%s] URL input field not found", self.device_serial)
             self.ctrl.press_back()
             return False
 
-        # Step 5: Tap Done to confirm link sticker
+        # Step 5: Tap Done to confirm
         done_clicked = False
         for selector in [
             self.device(text="Done"),
@@ -669,7 +679,6 @@ class ShareToStoryAction:
                 break
 
         if not done_clicked:
-            # Try tapping checkmark or submit area
             self.device.press('enter')
             time.sleep(1)
 
@@ -817,39 +826,54 @@ class ShareToStoryAction:
         #   "Your story" is the correct publish button.
 
         # Method 1: "Your story" button (primary — confirmed correct)
-        # Try multiple times with increasing wait — editor may still be loading
+        # IMPORTANT: Publish button is on the BOTTOM action bar (y > 75% of screen).
+        # After adding link sticker, "story" text may appear in overlay — must verify
+        # the element is in the bottom bar, not in the middle of the editor.
+        w, h = self.device.window_size()
+        bottom_threshold = int(h * 0.70)  # Publish bar is at bottom
+
         for attempt in range(3):
-            # Try by content-desc (most reliable)
+            # Try by content-desc (most reliable — unique to the button)
             el = self.device(description="Your story")
             if el.exists(timeout=3):
-                el.click()
-                time.sleep(3)
-                log.info("[%s] Published story via desc='Your story' (attempt %d)",
-                         self.device_serial, attempt + 1)
-                return True
+                try:
+                    info = el.info
+                    bounds = info.get('bounds', {})
+                    el_y = bounds.get('top', 0)
+                    if el_y >= bottom_threshold:
+                        el.click()
+                        time.sleep(3)
+                        log.info("[%s] Published story via desc='Your story' y=%d (attempt %d)",
+                                 self.device_serial, el_y, attempt + 1)
+                        return True
+                    else:
+                        log.debug("[%s] desc='Your story' found but y=%d < %d (not publish bar)",
+                                  self.device_serial, el_y, bottom_threshold)
+                except Exception:
+                    el.click()
+                    time.sleep(3)
+                    log.info("[%s] Published story via desc='Your story' (attempt %d)",
+                             self.device_serial, attempt + 1)
+                    return True
 
-            # Try by text
+            # Try by text — also verify it's in bottom bar
             el = self.device(text="Your story")
             if el.exists(timeout=2):
-                el.click()
-                time.sleep(3)
-                log.info("[%s] Published story via text='Your story' (attempt %d)",
-                         self.device_serial, attempt + 1)
-                return True
-
-            # Try by textContains (handles variations like "Your Story")
-            el = self.device(textContains="Your story")
-            if not el.exists(timeout=1):
-                el = self.device(textContains="our story")
-            if el.exists(timeout=1):
-                el.click()
-                time.sleep(3)
-                log.info("[%s] Published story via textContains (attempt %d)",
-                         self.device_serial, attempt + 1)
-                return True
+                try:
+                    info = el.info
+                    bounds = info.get('bounds', {})
+                    el_y = bounds.get('top', 0)
+                    if el_y >= bottom_threshold:
+                        el.click()
+                        time.sleep(3)
+                        log.info("[%s] Published story via text='Your story' y=%d (attempt %d)",
+                                 self.device_serial, el_y, attempt + 1)
+                        return True
+                except Exception:
+                    pass
 
             if attempt < 2:
-                log.debug("[%s] 'Your story' not found, waiting before retry %d...",
+                log.debug("[%s] 'Your story' not found in bottom bar, waiting before retry %d...",
                           self.device_serial, attempt + 2)
                 time.sleep(3)
 
