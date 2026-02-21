@@ -610,32 +610,47 @@ def get_profile_info(device, device_serial):
             info['username'] = action_bar_title.get_text() or ''
 
         # Parse followers/following/posts counts
-        # They often appear as: "X posts  Y followers  Z following"
-        count_pattern = re.compile(
-            r'(\d[\d,.]*[KkMmBb]?)\s*(?:posts?|followers?|following)',
-            re.IGNORECASE
-        )
+        # Method 1: Direct text from resource IDs (most reliable)
+        for rid_pattern in ['row_profile_header_textview_followers_count',
+                            'profile_header_followers_stacked_familiar']:
+            m = re.search(r'resource-id="[^"]*' + rid_pattern + r'"[^/]*text="([^"]*)"', xml)
+            if m and m.group(1) and any(c.isdigit() for c in m.group(1)):
+                info['followers'] = parse_number(m.group(1))
+                break
+        else:
+            # Fallback: content-desc like "250followers" or "135Kfollowers"
+            m = re.search(r'content-desc="([\d,.]+[KkMmBb]?)followers?"', xml)
+            if m:
+                info['followers'] = parse_number(m.group(1))
 
-        matches = count_pattern.findall(xml)
-        # Usually in order: posts, followers, following
-        if len(matches) >= 3:
-            info['posts'] = parse_number(matches[0])
-            info['followers'] = parse_number(matches[1])
-            info['following'] = parse_number(matches[2])
-        elif len(matches) >= 1:
-            # Try individual parsing
-            for m in re.finditer(
-                r'(\d[\d,.]*[KkMmBb]?)\s*(posts?|followers?|following)',
-                xml, re.IGNORECASE
-            ):
-                val = parse_number(m.group(1))
-                label = m.group(2).lower()
-                if 'post' in label:
-                    info['posts'] = val
-                elif 'follower' in label and 'following' not in label:
-                    info['followers'] = val
-                elif 'following' in label:
-                    info['following'] = val
+        for rid_pattern in ['row_profile_header_textview_following_count',
+                            'profile_header_following_stacked_familiar']:
+            m = re.search(r'resource-id="[^"]*' + rid_pattern + r'"[^/]*text="([^"]*)"', xml)
+            if m and m.group(1) and any(c.isdigit() for c in m.group(1)):
+                info['following'] = parse_number(m.group(1))
+                break
+        else:
+            m = re.search(r'content-desc="([\d,.]+[KkMmBb]?)following"', xml)
+            if m:
+                info['following'] = parse_number(m.group(1))
+
+        for rid_pattern in ['row_profile_header_textview_post_count']:
+            m = re.search(r'resource-id="[^"]*' + rid_pattern + r'"[^/]*text="([^"]*)"', xml)
+            if m and m.group(1) and any(c.isdigit() for c in m.group(1)):
+                info['posts'] = parse_number(m.group(1))
+                break
+
+        # Fallback: old regex approach if nothing found above
+        if info['followers'] == 0 and info['following'] == 0:
+            count_pattern = re.compile(
+                r'(\d[\d,.]*[KkMmBb]?)\s*(?:posts?|followers?|following)',
+                re.IGNORECASE
+            )
+            matches = count_pattern.findall(xml)
+            if len(matches) >= 3:
+                info['posts'] = parse_number(matches[0])
+                info['followers'] = parse_number(matches[1])
+                info['following'] = parse_number(matches[2])
 
         # Story ring detection
         info['has_story'] = ('story_ring' in xml_lower or
