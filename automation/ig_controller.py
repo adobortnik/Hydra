@@ -1875,21 +1875,57 @@ class IGController:
                         break
 
         # Followers count from content-desc
-        followers_el = self._find_in_xml(xml, resource_id='profile_header_followers_stacked_familiar')
-        if followers_el:
-            desc = followers_el.get('content_desc', '')
-            # Pattern: "698Mfollowers" or "1,234followers"
-            m = re.match(r'([\d,.]+[KMBkmb]?)\s*followers?', desc)
-            if m:
-                info['followers'] = self._parse_number(m.group(1))
+        # Followers count - try multiple resource IDs (IG changes these across versions)
+        for rid in ['row_profile_header_textview_followers_count',
+                     'profile_header_followers_stacked_familiar']:
+            el = self._find_in_xml(xml, resource_id=rid)
+            if el:
+                text = el.get('text', '')
+                if text and any(c.isdigit() for c in text):
+                    info['followers'] = self._parse_number(text)
+                    break
+                desc = el.get('content_desc', '')
+                if desc:
+                    m = re.match(r'([\d,.]+[KMBkmb]?)\s*followers?', desc)
+                    if m:
+                        info['followers'] = self._parse_number(m.group(1))
+                        break
+        else:
+            # Fallback: container content-desc like "250followers"
+            el = self._find_in_xml(xml, resource_id='row_profile_header_followers_container')
+            if el:
+                desc = el.get('content_desc', '')
+                m = re.match(r'([\d,.]+[KMBkmb]?)\s*followers?', desc)
+                if m:
+                    info['followers'] = self._parse_number(m.group(1))
+            else:
+                # Last resort: regex on raw XML
+                m = re.search(r'content-desc="([\d,.]+[KMBkmb]?)followers?"', xml)
+                if m:
+                    info['followers'] = self._parse_number(m.group(1))
 
-        # Following count
-        following_el = self._find_in_xml(xml, resource_id='profile_header_following_stacked_familiar')
-        if following_el:
-            desc = following_el.get('content_desc', '')
-            m = re.match(r'([\d,.]+[KMBkmb]?)\s*following', desc)
-            if m:
-                info['following'] = self._parse_number(m.group(1))
+        # Following count - same multi-ID approach
+        for rid in ['row_profile_header_textview_following_count',
+                     'profile_header_following_stacked_familiar']:
+            el = self._find_in_xml(xml, resource_id=rid)
+            if el:
+                text = el.get('text', '')
+                if text and any(c.isdigit() for c in text):
+                    info['following'] = self._parse_number(text)
+                    break
+                desc = el.get('content_desc', '')
+                if desc:
+                    m = re.match(r'([\d,.]+[KMBkmb]?)\s*following', desc)
+                    if m:
+                        info['following'] = self._parse_number(m.group(1))
+                        break
+        else:
+            el = self._find_in_xml(xml, resource_id='row_profile_header_following_container')
+            if el:
+                desc = el.get('content_desc', '')
+                m = re.match(r'([\d,.]+[KMBkmb]?)\s*following', desc)
+                if m:
+                    info['following'] = self._parse_number(m.group(1))
 
         return info
 
