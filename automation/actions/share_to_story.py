@@ -542,30 +542,25 @@ class ShareToStoryAction:
         return True
 
     def _add_link_sticker(self, url):
-        """Add link sticker to story in the editor. (Task 2b)
+        """Add link sticker to story in the editor.
         
-        DISCOVERED SELECTORS (live-tested 2025-01-24):
-        - Sticker button: rid=asset_button, desc='Emojis and stickers'
-        - Search bar:     rid=row_search_edit_text, class=EditText
-        - Link Sticker:   desc='Link Sticker'
-        - Mention Sticker: desc='Mention Sticker'
-        
-        Sticker picker shows: LOCATION, MENTION, MUSIC, PHOTO, GIF,
-        ADD YOURS, FRAMES, QUESTIONS, CUTOUTS, AVATAR, ADD YOURS TEMPLATES,
-        POLL, LINK, HASHTAG, DONATION, COUNTDOWN
-        
-        Flow: tap sticker button → tap Link Sticker (or search) → enter URL.
+        Live-tested flow (2026-02-21 screenshot):
+        1. Tap sticker button (desc='Emojis and stickers')
+        2. Type "link" in search bar at top
+        3. Under "Stickers" section, tap the blue "LINK" button (text='LINK')
+        4. Link form opens with URL field + optional name field
+        5. Enter URL, tap Done
         """
         if not url:
             return False
 
         log.info("[%s] Adding link sticker: %s", self.device_serial, url[:50])
 
-        # Tap sticker icon — confirmed: rid=asset_button, desc='Emojis and stickers'
+        # Step 1: Tap sticker icon
         sticker_found = False
         for selector in [
-            self.device(resourceId="com.instagram.androie:id/asset_button"),
             self.device(description="Emojis and stickers"),
+            self.device(resourceIdMatches=".*asset_button.*"),
             self.device(descriptionContains="sticker"),
         ]:
             if selector.exists(timeout=2):
@@ -579,55 +574,104 @@ class ShareToStoryAction:
             log.warning("[%s] Sticker button not found", self.device_serial)
             return False
 
-        # Method 1: Directly tap "Link Sticker" (visible in picker grid)
-        link_sticker = self.device(description="Link Sticker")
-        if link_sticker.exists(timeout=3):
-            log.debug("[%s] Found Link Sticker directly, clicking...", self.device_serial)
-            link_sticker.click()
-            time.sleep(2)
-        else:
-            # Method 2: Search for it
-            search = self.device(resourceId="com.instagram.androie:id/row_search_edit_text")
-            if not search.exists(timeout=2):
-                search = self.device(className="android.widget.EditText")
-            
-            if search.exists(timeout=3):
-                search.click()
-                time.sleep(0.5)
-                search.set_text("Link")
-                time.sleep(2)
-                
-                # Tap the Link sticker from search results
-                link_result = self.device(description="Link Sticker")
-                if not link_result.exists(timeout=3):
-                    link_result = self.device(descriptionContains="Link")
-                if link_result.exists(timeout=2):
-                    link_result.click()
-                    time.sleep(2)
-                else:
-                    log.warning("[%s] Link sticker not found in search", self.device_serial)
-                    self.ctrl.press_back()
-                    return False
-            else:
-                log.warning("[%s] Sticker search bar not found", self.device_serial)
-                self.ctrl.press_back()
-                return False
-
-        # Enter the URL in the link sticker dialog
-        url_field = self.device(className="android.widget.EditText")
-        if url_field.exists(timeout=3):
-            url_field.click()
+        # Step 2: Search "link" in the sticker search bar
+        search = self.device(className="android.widget.EditText")
+        if not search.exists(timeout=3):
+            search = self.device(resourceIdMatches=".*search.*edit.*text.*")
+        
+        if search.exists(timeout=3):
+            search.click()
             time.sleep(0.5)
-            url_field.set_text(url)
-            time.sleep(1)
+            search.set_text("link")
+            time.sleep(2.5)  # Wait for search results
+            log.debug("[%s] Typed 'link' in sticker search", self.device_serial)
+        else:
+            log.warning("[%s] Sticker search bar not found", self.device_serial)
+            self.ctrl.press_back()
+            return False
 
-            # Confirm
-            done = self.device(text="Done")
-            if not done.exists(timeout=2):
-                done = self.device(description="Done")
-            if done.exists(timeout=2):
-                done.click()
-                time.sleep(1)
+        # Step 3: Tap the LINK sticker from results
+        # Screenshot shows: under "Stickers" heading, blue "LINK" button with chain icon
+        link_clicked = False
+
+        # Try text="LINK" (exact, uppercase as shown in screenshot)
+        for text_val in ["LINK", "Link"]:
+            el = self.device(text=text_val)
+            if el.exists(timeout=2):
+                el.click()
+                time.sleep(2)
+                link_clicked = True
+                log.debug("[%s] Clicked LINK sticker via text='%s'", self.device_serial, text_val)
+                break
+
+        # Try by description
+        if not link_clicked:
+            for desc_val in ["Link Sticker", "LINK", "Link"]:
+                el = self.device(description=desc_val)
+                if el.exists(timeout=2):
+                    el.click()
+                    time.sleep(2)
+                    link_clicked = True
+                    log.debug("[%s] Clicked LINK sticker via desc='%s'", self.device_serial, desc_val)
+                    break
+
+        # XML fallback: find "LINK" text near top of results (under Stickers heading)
+        if not link_clicked:
+            xml = self.ctrl.dump_xml("sticker_search_results")
+            match = re.search(
+                r'text="LINK"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+            if not match:
+                match = re.search(
+                    r'text="Link"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+            if match:
+                x = (int(match.group(1)) + int(match.group(3))) // 2
+                y = (int(match.group(2)) + int(match.group(4))) // 2
+                self.device.click(x, y)
+                time.sleep(2)
+                link_clicked = True
+                log.debug("[%s] Clicked LINK sticker via XML bounds (%d,%d)",
+                          self.device_serial, x, y)
+
+        if not link_clicked:
+            log.warning("[%s] LINK sticker not found in search results", self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Step 4: Enter URL in the link form (has URL field + optional name field)
+        time.sleep(1)
+        url_fields = self.device(className="android.widget.EditText")
+        if url_fields.exists(timeout=3):
+            # First EditText = URL field
+            url_fields[0].click()
+            time.sleep(0.5)
+            url_fields[0].set_text(url)
+            time.sleep(1)
+            log.debug("[%s] Entered URL: %s", self.device_serial, url[:50])
+
+            # Optional: second EditText = sticker name/label (leave default)
+        else:
+            log.warning("[%s] URL input field not found", self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Step 5: Tap Done to confirm link sticker
+        done_clicked = False
+        for selector in [
+            self.device(text="Done"),
+            self.device(description="Done"),
+            self.device(resourceIdMatches=".*done_button.*"),
+        ]:
+            if selector.exists(timeout=2):
+                selector.click()
+                time.sleep(2)
+                done_clicked = True
+                log.debug("[%s] Confirmed link sticker with Done", self.device_serial)
+                break
+
+        if not done_clicked:
+            # Try tapping checkmark or submit area
+            self.device.press('enter')
+            time.sleep(1)
 
         log.info("[%s] Link sticker added: %s", self.device_serial, url[:50])
         return True
