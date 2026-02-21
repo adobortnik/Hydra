@@ -513,6 +513,7 @@
                         <th>Start</th>
                         <th>End</th>
                         <th>Username</th>
+                        <th>Biz</th>
                         <th>Package</th>
                         <th>Followers</th>
                         <th>Following</th>
@@ -560,6 +561,7 @@
             <button class="sp-tab-btn" data-tab="story"><i class="fas fa-eye me-1"></i>Story</button>
             <button class="sp-tab-btn" data-tab="comment"><i class="fas fa-comment me-1"></i>Comment</button>
             <button class="sp-tab-btn" data-tab="dm"><i class="fas fa-envelope me-1"></i>DM</button>
+            <button class="sp-tab-btn" data-tab="insights"><i class="fas fa-chart-bar me-1"></i>📊 Insights</button>
         </div>
 
         <!-- Loading -->
@@ -643,6 +645,35 @@
                     </div>
                     <div id="growthNoData" style="display:none;text-align:center;color:#6c757d;padding:20px;font-size:0.85rem;">
                         <i class="fas fa-chart-area me-1"></i> No growth data yet — snapshots are captured each session
+                    </div>
+                </div>
+
+                <!-- ─── Business Profile Card ─── -->
+                <div class="sp-section" id="businessProfileSection">
+                    <h6><i class="fas fa-briefcase me-1"></i> 📊 Business Profile</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <label class="form-label mb-0" style="color:#d1d5db;">Business Profile Active</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_is_business_profile" data-key="is_business_profile">
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Category</label>
+                            <input type="text" class="form-control sp-setting" id="sp_business_category" data-key="business_category"
+                                placeholder="Digital creator">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Switched At</label>
+                            <input type="text" class="form-control" id="sp_business_switched_at" readonly
+                                value="" style="background:#2d3238;color:#9ca3af;border-color:#495057;">
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-3">
+                        <button class="btn btn-sm btn-outline-primary" id="btn-switch-business" onclick="switchToBusiness()">
+                            🔄 Switch to Business Profile
+                        </button>
+                        <small class="text-muted" id="switchBusinessStatus"></small>
                     </div>
                 </div>
 
@@ -1336,6 +1367,59 @@
                 </div>
             </div>
 
+            <!-- ─── Insights Tab ─── -->
+            <div class="sp-pane" data-pane="insights">
+                <div class="row g-3 mb-4">
+                    <div class="col-4">
+                        <div style="background:#1a1d21;border-radius:8px;padding:16px;text-align:center;border:1px solid #2d3238;">
+                            <div style="font-size:1.5rem;font-weight:700;color:#17a2b8;" id="insight-reached">—</div>
+                            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Accounts Reached</div>
+                            <div style="font-size:0.75rem;" id="insight-reached-delta"></div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div style="background:#1a1d21;border-radius:8px;padding:16px;text-align:center;border:1px solid #2d3238;">
+                            <div style="font-size:1.5rem;font-weight:700;color:#28a745;" id="insight-engaged">—</div>
+                            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Accounts Engaged</div>
+                            <div style="font-size:0.75rem;" id="insight-engaged-delta"></div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div style="background:#1a1d21;border-radius:8px;padding:16px;text-align:center;border:1px solid #2d3238;">
+                            <div style="font-size:1.5rem;font-weight:700;color:#ffc107;" id="insight-visits">—</div>
+                            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Profile Visits</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sp-section">
+                    <h6><i class="fas fa-users me-1"></i> Audience Demographics</h6>
+                    <div style="height:220px;position:relative;">
+                        <canvas id="demographicsChart"></canvas>
+                    </div>
+                    <div id="demographicsNoData" style="display:none;text-align:center;color:#6c757d;padding:30px;font-size:0.85rem;">
+                        <i class="fas fa-chart-pie me-1"></i> No demographic data — requires Business profile with 100+ followers
+                    </div>
+                </div>
+
+                <div class="sp-section">
+                    <h6><i class="fas fa-clock me-1"></i> Most Active Times</h6>
+                    <div style="height:180px;position:relative;">
+                        <canvas id="activeTimesChart"></canvas>
+                    </div>
+                    <div id="activeTimesNoData" style="display:none;text-align:center;color:#6c757d;padding:30px;font-size:0.85rem;">
+                        <i class="fas fa-clock me-1"></i> No active times data yet
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-3 mt-3">
+                    <button class="btn btn-sm btn-outline-info" id="btn-scrape-insights" onclick="scrapeInsights()">
+                        🔄 Scrape Latest Insights
+                    </button>
+                    <small class="text-muted" id="insights-last-scraped">Last scraped: Never</small>
+                </div>
+            </div>
+
             <!-- Save bar -->
             <div class="sp-save-bar">
                 <span class="save-status" id="spSaveStatus"></span>
@@ -1480,7 +1564,7 @@ function renderAccounts(accounts) {
     const tbody = document.getElementById('accountsTableBody');
 
     if (!accounts.length) {
-        tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted py-4">
+        tbody.innerHTML = `<tr><td colspan="14" class="text-center text-muted py-4">
             <i class="fas fa-inbox me-2"></i>No accounts on this device
         </td></tr>`;
         return;
@@ -1489,6 +1573,9 @@ function renderAccounts(accounts) {
     tbody.innerHTML = accounts.map(a => {
         const healthClass = getHealthClass(a.status);
         const healthTitle = a.status || 'unknown';
+        const bizBadge = a.is_business_profile
+            ? `<span class="badge bg-primary" title="Business: ${escHtml(a.business_category || '')}"><i class="fas fa-briefcase" style="font-size:0.65rem"></i> BIZ</span>`
+            : `<span class="badge bg-dark text-muted" style="font-size:0.65rem;">Personal</span>`;
 
         return `<tr>
             <td>${formatHour(a.start_time)}</td>
@@ -1497,6 +1584,7 @@ function renderAccounts(accounts) {
                 <span class="health-badge ${healthClass}" title="${healthTitle}"></span>
                 ${escHtml(a.username)}
             </td>
+            <td>${bizBadge}</td>
             <td><small class="text-muted">${a.instagram_package ? a.instagram_package.replace('com.instagram.', '') : '-'}</small></td>
             <td>${statWithDelta(a.followers, a.followers_delta)}</td>
             <td>${statWithDelta(a.following, a.following_delta)}</td>
@@ -1653,6 +1741,10 @@ function openAccountSettings(deviceSerial, username) {
                 return;
             }
             populateSettings(data.settings || {}, data.account_data || {});
+            populateBusinessFields(data.account_data || {});
+
+            // Load insights data in background
+            loadInsights(deviceSerial, username);
 
             // Load sources in background
             loadSources('sources', 'sp_follow_sources');
@@ -2006,6 +2098,238 @@ function loadFollowerGrowth(deviceSerial, username) {
             chartCanvas.style.display = 'none';
             noDataEl.style.display = 'block';
         });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Business Profile & Insights
+// ═══════════════════════════════════════════════════════════
+
+let demographicsChartInstance = null;
+let activeTimesChartInstance = null;
+
+function populateBusinessFields(accountData) {
+    // Update business profile fields from account data
+    const isBiz = accountData.is_business_profile ? true : false;
+    const checkbox = document.getElementById('sp_is_business_profile');
+    if (checkbox) checkbox.checked = isBiz;
+
+    const catField = document.getElementById('sp_business_category');
+    if (catField) catField.value = accountData.business_category || '';
+
+    const switchedAt = document.getElementById('sp_business_switched_at');
+    if (switchedAt) switchedAt.value = accountData.business_switched_at || 'Not yet';
+
+    // Disable switch button if already business
+    const switchBtn = document.getElementById('btn-switch-business');
+    if (switchBtn) switchBtn.disabled = isBiz;
+}
+
+function switchToBusiness() {
+    if (!spCurrentDevice || !spCurrentAccount) return;
+    const category = document.getElementById('sp_business_category').value.trim() || 'Digital creator';
+
+    const btn = document.getElementById('btn-switch-business');
+    const statusEl = document.getElementById('switchBusinessStatus');
+    btn.disabled = true;
+    statusEl.textContent = 'Creating task...';
+    statusEl.style.color = '#ffc107';
+
+    fetch(`/api/device-manager/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/switch-business`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: category })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(data.message, 'success');
+            statusEl.textContent = '✓ Task queued — will run on next bot session';
+            statusEl.style.color = '#28a745';
+        } else {
+            showSpToast(data.error || 'Failed', 'error');
+            statusEl.textContent = data.error || 'Failed';
+            statusEl.style.color = '#dc3545';
+            btn.disabled = false;
+        }
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err, 'error');
+        statusEl.textContent = 'Error';
+        statusEl.style.color = '#dc3545';
+        btn.disabled = false;
+    });
+}
+
+function loadInsights(deviceSerial, username) {
+    fetch(`/api/insights/${encodeURIComponent(deviceSerial)}/${encodeURIComponent(username)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.insights) {
+                document.getElementById('insight-reached').textContent = '—';
+                document.getElementById('insight-engaged').textContent = '—';
+                document.getElementById('insight-visits').textContent = '—';
+                document.getElementById('insight-reached-delta').textContent = '';
+                document.getElementById('insight-engaged-delta').textContent = '';
+                document.getElementById('insights-last-scraped').textContent = 'Last scraped: Never';
+                document.getElementById('demographicsNoData').style.display = 'block';
+                document.getElementById('demographicsChart').style.display = 'none';
+                document.getElementById('activeTimesNoData').style.display = 'block';
+                document.getElementById('activeTimesChart').style.display = 'none';
+                return;
+            }
+
+            const ins = data.insights;
+            document.getElementById('insight-reached').textContent = formatNum(ins.accounts_reached || 0);
+            document.getElementById('insight-engaged').textContent = formatNum(ins.accounts_engaged || 0);
+            document.getElementById('insight-visits').textContent = formatNum(ins.profile_visits || 0);
+
+            // Deltas
+            const reachedDelta = ins.accounts_reached_delta || 0;
+            document.getElementById('insight-reached-delta').innerHTML =
+                reachedDelta > 0 ? `<span style="color:#22c55e">▲${reachedDelta.toFixed(1)}%</span>` :
+                reachedDelta < 0 ? `<span style="color:#ef4444">▼${Math.abs(reachedDelta).toFixed(1)}%</span>` : '';
+
+            const engagedDelta = ins.accounts_engaged_delta || 0;
+            document.getElementById('insight-engaged-delta').innerHTML =
+                engagedDelta > 0 ? `<span style="color:#22c55e">▲${engagedDelta.toFixed(1)}%</span>` :
+                engagedDelta < 0 ? `<span style="color:#ef4444">▼${Math.abs(engagedDelta).toFixed(1)}%</span>` : '';
+
+            // Last scraped
+            if (ins.captured_at) {
+                const d = new Date(ins.captured_at);
+                document.getElementById('insights-last-scraped').textContent =
+                    'Last scraped: ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+            }
+
+            // Demographics chart
+            const demo = ins.follower_demographics || {};
+            renderDemographicsChart(demo);
+            renderActiveTimesChart(demo);
+        })
+        .catch(err => console.warn('Failed to load insights:', err));
+}
+
+function renderDemographicsChart(demo) {
+    const canvas = document.getElementById('demographicsChart');
+    const noData = document.getElementById('demographicsNoData');
+
+    const ageRanges = demo.age_ranges || {};
+    const labels = Object.keys(ageRanges);
+
+    if (!labels.length) {
+        canvas.style.display = 'none';
+        noData.style.display = 'block';
+        return;
+    }
+
+    canvas.style.display = 'block';
+    noData.style.display = 'none';
+
+    if (demographicsChartInstance) {
+        demographicsChartInstance.destroy();
+        demographicsChartInstance = null;
+    }
+
+    demographicsChartInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Age Distribution %',
+                data: labels.map(l => ageRanges[l] || 0),
+                backgroundColor: 'rgba(99, 102, 241, 0.6)',
+                borderColor: '#6366f1',
+                borderWidth: 1,
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: '#2d3748' }, ticks: { color: '#a0aec0', font: { size: 10 } } },
+                y: { grid: { color: '#2d3748' }, ticks: { color: '#a0aec0', font: { size: 10 }, callback: v => v + '%' }, beginAtZero: true }
+            }
+        }
+    });
+}
+
+function renderActiveTimesChart(demo) {
+    const canvas = document.getElementById('activeTimesChart');
+    const noData = document.getElementById('activeTimesNoData');
+
+    const activeHours = demo.most_active_hours || [];
+    const activeDays = demo.most_active_days || [];
+
+    if (!activeHours.length && !activeDays.length) {
+        canvas.style.display = 'none';
+        noData.style.display = 'block';
+        return;
+    }
+
+    canvas.style.display = 'block';
+    noData.style.display = 'none';
+
+    if (activeTimesChartInstance) {
+        activeTimesChartInstance.destroy();
+        activeTimesChartInstance = null;
+    }
+
+    // Build 24-hour activity data (mark active hours)
+    const hourLabels = Array.from({length: 24}, (_, i) => i + ':00');
+    const hourData = hourLabels.map((_, i) => activeHours.includes(i) ? 1 : 0.15);
+
+    activeTimesChartInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: hourLabels,
+            datasets: [{
+                label: 'Activity',
+                data: hourData,
+                backgroundColor: hourData.map(v => v > 0.5 ? 'rgba(40, 167, 69, 0.7)' : 'rgba(108, 117, 125, 0.2)'),
+                borderRadius: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 8 }, maxTicksLimit: 12 } },
+                y: { display: false }
+            }
+        }
+    });
+}
+
+function scrapeInsights() {
+    if (!spCurrentDevice || !spCurrentAccount) return;
+
+    const btn = document.getElementById('btn-scrape-insights');
+    const statusEl = document.getElementById('insights-last-scraped');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scraping...';
+
+    fetch(`/api/insights/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/scrape`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period: '7d' })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(data.message, 'success');
+            statusEl.textContent = '✓ Scrape task queued';
+        } else {
+            showSpToast(data.error || 'Failed', 'error');
+        }
+    })
+    .catch(err => showSpToast('Error: ' + err, 'error'))
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '🔄 Scrape Latest Insights';
+    });
 }
 </script>
 {% endblock %}

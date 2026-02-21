@@ -1044,6 +1044,11 @@ class BotEngine:
         # Always check profile first for follower tracking
         actions.append(('check_profile', self._action_check_profile))
 
+        # Switch to Business Profile (one-time action, if enabled)
+        if (self.settings.get('auto_switch_business', False)
+                and not self.account.get('is_business_profile')):
+            actions.append(('switch_to_business', self._action_switch_to_business))
+
         # Check scheduled content FIRST (time-sensitive, highest priority)
         scheduled = self._check_scheduled_content()
         if scheduled:
@@ -1137,6 +1142,46 @@ class BotEngine:
             pkg=self.account.get('package', 'com.instagram.android'),
         )
         return action.execute()
+
+    def _action_switch_to_business(self):
+        """Switch account to Business profile (one-time action)."""
+        from automation.actions.switch_to_business import SwitchToBusinessAction
+        category = self.settings.get('business_category', 'Digital creator')
+        action = SwitchToBusinessAction(
+            self._device, self.device_serial,
+            self.account, self.session_id,
+            pkg=self.account.get('package', 'com.instagram.android'),
+            category=category,
+        )
+        result = action.execute()
+        if result.get('success'):
+            # Disable auto_switch so it doesn't run again
+            self.settings['auto_switch_business'] = False
+            # Reload account data to pick up is_business_profile=1
+            self._load_account()
+        else:
+            # Mark attempted so we don't retry every session
+            # (set a flag in settings_json)
+            self.settings['auto_switch_business'] = False
+            try:
+                from automation.actions.helpers import get_db
+                import json as _json
+                conn = get_db()
+                row = conn.execute(
+                    "SELECT settings_json FROM account_settings WHERE account_id=?",
+                    (self.account_id,)).fetchone()
+                if row:
+                    sj = _json.loads(row['settings_json'] or '{}')
+                    sj['auto_switch_business'] = False
+                    sj['switch_business_failed_at'] = datetime.datetime.now().isoformat()
+                    conn.execute(
+                        "UPDATE account_settings SET settings_json=? WHERE account_id=?",
+                        (_json.dumps(sj), self.account_id))
+                    conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        return result
 
     def _action_follow(self):
         """Run follow action."""

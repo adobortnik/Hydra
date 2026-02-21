@@ -34,6 +34,73 @@ def _ensure_columns():
             conn.commit()
         except Exception:
             pass  # Column already exists
+
+        # ── Business Profile columns on accounts table ──
+        for col_def in [
+            "ALTER TABLE accounts ADD COLUMN is_business_profile INTEGER DEFAULT 0",
+            "ALTER TABLE accounts ADD COLUMN business_category TEXT DEFAULT ''",
+            "ALTER TABLE accounts ADD COLUMN business_switched_at TEXT",
+        ]:
+            try:
+                conn.execute(col_def)
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
+
+        # ── Insights tables ──
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS account_insights (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                username TEXT NOT NULL,
+                device_serial TEXT NOT NULL,
+                period_type TEXT NOT NULL DEFAULT '7d',
+                accounts_reached INTEGER DEFAULT 0,
+                accounts_reached_delta REAL DEFAULT 0,
+                accounts_engaged INTEGER DEFAULT 0,
+                accounts_engaged_delta REAL DEFAULT 0,
+                profile_visits INTEGER DEFAULT 0,
+                website_clicks INTEGER DEFAULT 0,
+                email_clicks INTEGER DEFAULT 0,
+                follower_demographics TEXT DEFAULT '{}',
+                engagement_breakdown TEXT DEFAULT '{}',
+                captured_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_insights_username ON account_insights(username);
+            CREATE INDEX IF NOT EXISTS idx_insights_captured ON account_insights(captured_at);
+            CREATE INDEX IF NOT EXISTS idx_insights_account ON account_insights(account_id);
+
+            CREATE TABLE IF NOT EXISTS content_insights (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                username TEXT NOT NULL,
+                device_serial TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                content_id TEXT,
+                reach INTEGER DEFAULT 0,
+                impressions INTEGER DEFAULT 0,
+                likes INTEGER DEFAULT 0,
+                comments INTEGER DEFAULT 0,
+                shares INTEGER DEFAULT 0,
+                saves INTEGER DEFAULT 0,
+                plays INTEGER DEFAULT 0,
+                profile_visits INTEGER DEFAULT 0,
+                follows INTEGER DEFAULT 0,
+                exits INTEGER DEFAULT 0,
+                forwards INTEGER DEFAULT 0,
+                backwards INTEGER DEFAULT 0,
+                replies INTEGER DEFAULT 0,
+                captured_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_content_insights_username ON content_insights(username);
+            CREATE INDEX IF NOT EXISTS idx_content_insights_captured ON content_insights(captured_at);
+        """)
+        conn.commit()
+
         conn.close()
     except Exception:
         pass

@@ -14,6 +14,7 @@ API endpoints:
 
 import os
 import sys
+import json
 import sqlite3
 import subprocess
 import threading
@@ -226,6 +227,7 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
                a.start_time, a.end_time, a.instagram_package,
                a.follow_enabled, a.unfollow_enabled, a.like_enabled,
                a.comment_enabled, a.story_enabled,
+               a.is_business_profile, a.business_category,
                COALESCE(snap_today.followers, a.followers, 0) as followers,
                COALESCE(snap_today.following, 0) as following,
                snap_yesterday.followers as prev_followers,
@@ -907,3 +909,160 @@ def api_follower_history(serial):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Business Profile & Insights API
+# ══════════════════════════════════════════════════════════════════════
+
+@device_manager_bp.route('/api/device-manager/<path:serial>/<username>/switch-business', methods=['POST'])
+def api_switch_to_business(serial, username):
+    """Create a task to switch an account to Business profile."""
+    data = request.get_json(silent=True) or {}
+    category = data.get('category', 'Digital creator')
+
+    conn = _get_conn()
+    try:
+        account = conn.execute(
+            "SELECT id FROM accounts WHERE device_serial=? AND username=?",
+            (serial, username)
+        ).fetchone()
+
+        if not account:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+
+        account_id = account['id']
+        now = datetime.utcnow().isoformat()
+
+        conn.execute("""
+            INSERT INTO tasks (account_id, device_serial, task_type, status, priority, params_json, created_at, updated_at)
+            VALUES (?, ?, 'switch_business', 'pending', 5, ?, ?, ?)
+        """, (account_id, serial, json.dumps({'category': category}), now, now))
+        conn.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Business switch task created for @{username} (category: {category})'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@device_manager_bp.route('/api/insights/<path:serial>/<username>')
+def api_get_insights(serial, username):
+    """Get latest insights data for an account."""
+    conn = _get_conn()
+    try:
+        row = conn.execute("""
+            SELECT * FROM account_insights
+            WHERE device_serial = ? AND username = ?
+            ORDER BY captured_at DESC
+            LIMIT 1
+        """, (serial, username)).fetchone()
+
+        if not row:
+            return jsonify({
+                'success': True,
+                'insights': None,
+                'message': 'No insights data yet'
+            })
+
+        insights = dict(row)
+        # Parse JSON fields
+        try:
+            insights['follower_demographics'] = json.loads(insights.get('follower_demographics', '{}'))
+        except (json.JSONDecodeError, TypeError):
+            insights['follower_demographics'] = {}
+        try:
+            insights['engagement_breakdown'] = json.loads(insights.get('engagement_breakdown', '{}'))
+        except (json.JSONDecodeError, TypeError):
+            insights['engagement_breakdown'] = {}
+
+        return jsonify({
+            'success': True,
+            'insights': insights
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@device_manager_bp.route('/api/insights/<path:serial>/<username>/scrape', methods=['POST'])
+def api_scrape_insights(serial, username):
+    """Create a task to scrape insights for an account."""
+    data = request.get_json(silent=True) or {}
+    period = data.get('period', '7d')
+
+    conn = _get_conn()
+    try:
+        account = conn.execute(
+            "SELECT id, is_business_profile FROM accounts WHERE device_serial=? AND username=?",
+            (serial, username)
+        ).fetchone()
+
+        if not account:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+
+        if not account['is_business_profile']:
+            return jsonify({
+                'success': False,
+                'error': 'Account is not a Business profile. Switch to Business first.'
+            }), 400
+
+        account_id = account['id']
+        now = datetime.utcnow().isoformat()
+
+        conn.execute("""
+            INSERT INTO tasks (account_id, device_serial, task_type, status, priority, params_json, created_at, updated_at)
+            VALUES (?, ?, 'scrape_insights', 'pending', 3, ?, ?, ?)
+        """, (account_id, serial, json.dumps({'period': period}), now, now))
+        conn.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Insights scrape task created for @{username}'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@device_manager_bp.route('/api/insights/<path:serial>/<username>/history')
+def api_insights_history(serial, username):
+    """Get historical insights data for an account."""
+    days = int(request.args.get('days', '30'))
+    if days < 1:
+        days = 1
+    elif days > 365:
+        days = 365
+
+    conn = _get_conn()
+    try:
+        since = (datetime.utcnow() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        rows = conn.execute("""
+            SELECT id, accounts_reached, accounts_reached_delta,
+                   accounts_engaged, accounts_engaged_delta,
+                   profile_visits, website_clicks, email_clicks,
+                   period_type, captured_at
+            FROM account_insights
+            WHERE device_serial = ? AND username = ?
+              AND captured_at >= ?
+            ORDER BY captured_at ASC
+        """, (serial, username, since)).fetchall()
+
+        history = [dict(r) for r in rows]
+
+        return jsonify({
+            'success': True,
+            'history': history,
+            'total': len(history)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
