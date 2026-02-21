@@ -24,7 +24,7 @@ from automation.actions.helpers import (
     check_dead_source, record_dead_source, clear_dead_source
 )
 from automation.ig_controller import IGController, Screen
-from automation.tag_dedup import is_tag_dedup_enabled, get_same_tag_followed_set
+from automation.tag_dedup import is_tag_dedup_enabled, get_same_tag_followed_set, record_tag_follow
 
 log = logging.getLogger(__name__)
 
@@ -270,6 +270,11 @@ class FollowAction:
                         already_followed.add(target_user)
                         if self.tag_dedup_enabled:
                             self.tag_already_followed.add(target_user)
+                            # Write to DB immediately — other devices see it instantly
+                            record_tag_follow(
+                                self.account_id, target_user,
+                                device_serial=self.device_serial,
+                                username=self.username)
                         log_action(
                             self.session_id, self.device_serial, self.username,
                             'follow', target_username=target_user, success=True,
