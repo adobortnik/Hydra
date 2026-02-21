@@ -458,11 +458,18 @@ def stop_single(serial):
     procs = _find_process_for_serial(serial_db)
 
     if not procs:
+        # No process found — clean up stale bot_status in DB
+        try:
+            update_device_status(serial_db, 'disconnected')
+        except Exception:
+            pass
         return jsonify({
-            'success': False,
+            'success': True,
             'error': 'not_running',
-            'message': f'No bot process found for {serial_db}',
-        }), 404
+            'message': f'No bot process found for {serial_db} (status cleaned up)',
+            'stopped': 0,
+            'status': 'stopped',
+        })
 
     stopped = 0
     for p in procs:

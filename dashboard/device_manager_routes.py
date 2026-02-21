@@ -120,6 +120,30 @@ def api_dm_devices():
                 dev['bot_pid'] = bs['pid']
                 dev['bot_started_at'] = bs['started_at']
 
+                # Verify PID is actually running — if not, mark as stopped
+                if dev['bot_status'] in ('active', 'hung') and bs['pid']:
+                    try:
+                        import psutil
+                        if not psutil.pid_exists(bs['pid']):
+                            dev['bot_status'] = 'stopped'
+                            # Clean up stale bot_status
+                            conn.execute(
+                                "UPDATE bot_status SET status='stopped', pid=NULL WHERE device_serial=?",
+                                (serial,)
+                            )
+                            conn.commit()
+                    except ImportError:
+                        # psutil not available, check with os
+                        try:
+                            _os.kill(bs['pid'], 0)
+                        except (OSError, ProcessLookupError):
+                            dev['bot_status'] = 'stopped'
+                            conn.execute(
+                                "UPDATE bot_status SET status='stopped', pid=NULL WHERE device_serial=?",
+                                (serial,)
+                            )
+                            conn.commit()
+
         return jsonify({'devices': devices, 'total': len(devices)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

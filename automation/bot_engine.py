@@ -316,7 +316,11 @@ class BotEngine:
         """
         Check if current local time is within account's active time window.
 
-        Rules:
+        Supports multiple time windows via comma-separated values:
+        - start="2,16" end="4,18" → two windows: 2-4 AND 16-18
+        - start="8"    end="20"   → single window: 8-20
+
+        Rules per window:
         - start=0, end=0  → DISABLED (never run)
         - start=0, end=2  → midnight to 2am
         - start=22, end=4 → 10pm to 4am (wraps midnight)
@@ -326,25 +330,45 @@ class BotEngine:
             start_str = str(self.account.get('start_time', '0'))
             end_str = str(self.account.get('end_time', '0'))
 
-            start_hour = int(start_str) if start_str.isdigit() else 0
-            end_hour = int(end_str) if end_str.isdigit() else 0
+            # Parse comma-separated time windows
+            start_parts = [s.strip() for s in start_str.split(',')]
+            end_parts = [s.strip() for s in end_str.split(',')]
 
-            # 0,0 means DISABLED - account should not run
-            if start_hour == 0 and end_hour == 0:
-                return False
-            
-            # Same non-zero hour means always active (24h)
-            if start_hour == end_hour:
-                return True
+            # If unequal lengths, pad the shorter one with its last value
+            while len(end_parts) < len(start_parts):
+                end_parts.append(end_parts[-1] if end_parts else '0')
+            while len(start_parts) < len(end_parts):
+                start_parts.append(start_parts[-1] if start_parts else '0')
 
             current_hour = datetime.datetime.now().hour
 
-            if start_hour < end_hour:
-                # Normal range (e.g., 8-16)
-                return start_hour <= current_hour < end_hour
-            else:
-                # Wraps midnight (e.g., 22-4)
-                return current_hour >= start_hour or current_hour < end_hour
+            # Check each time window — if ANY matches, account is active
+            all_disabled = True
+            for s_str, e_str in zip(start_parts, end_parts):
+                start_hour = int(s_str) if s_str.isdigit() else 0
+                end_hour = int(e_str) if e_str.isdigit() else 0
+
+                # 0,0 means this window is disabled
+                if start_hour == 0 and end_hour == 0:
+                    continue
+
+                all_disabled = False
+
+                # Same non-zero hour means always active (24h)
+                if start_hour == end_hour:
+                    return True
+
+                if start_hour < end_hour:
+                    # Normal range (e.g., 8-16)
+                    if start_hour <= current_hour < end_hour:
+                        return True
+                else:
+                    # Wraps midnight (e.g., 22-4)
+                    if current_hour >= start_hour or current_hour < end_hour:
+                        return True
+
+            # If all windows were disabled (0,0), return False
+            return not all_disabled if not all_disabled else False
 
         except Exception as e:
             log.warning("[%s] Time window check error: %s", self.device_serial, e)
