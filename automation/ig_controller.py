@@ -967,14 +967,16 @@ class IGController:
 
         # --- Inline-only approach (no Enter/submit) ---
         # Instagram shows results as you type - more human-like to click directly
-        for attempt in range(3):
-            time.sleep(1.5 if attempt == 0 else 1)  # Wait for results to populate
+        # Wait longer on first attempt — clone apps load results slowly
+        for attempt in range(4):
+            wait = [3.0, 2.0, 2.0, 1.5][attempt]  # More patience on first try
+            time.sleep(wait)
             
             inline_match = self._try_click_inline_result(target_lower)
             if inline_match:
                 return True
             
-            if attempt < 2:
+            if attempt < 3:
                 log.debug("[%s] Inline attempt %d failed for '%s', retrying...",
                          self.device_serial, attempt + 1, username)
                 # Small scroll in case user is just off-screen in dropdown
