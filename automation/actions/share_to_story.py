@@ -433,10 +433,9 @@ class ShareToStoryAction:
         mention_text = f"@{mention_target}"
         time.sleep(1)
 
-        # Method 1: Use the discovered EditText (rid=text_overlay_edit_text)
-        edit_field = self.device(resourceId="com.instagram.androie:id/text_overlay_edit_text")
-        if not edit_field.exists(timeout=2):
-            edit_field = self.device(className="android.widget.EditText")
+        # Find and use EditText for typing
+        import subprocess
+        edit_field = self.device(className="android.widget.EditText")
         
         if edit_field.exists(timeout=3):
             try:
@@ -444,8 +443,6 @@ class ShareToStoryAction:
                 time.sleep(1)
                 log.debug("[%s] Typed mention via EditText", self.device_serial)
             except Exception:
-                # Fallback: ADB input
-                import subprocess
                 subprocess.run(
                     ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
                      mention_text.replace(' ', '%s')],
@@ -453,8 +450,6 @@ class ShareToStoryAction:
                 )
                 time.sleep(1)
         else:
-            # Fallback: ADB input if no EditText found
-            import subprocess
             try:
                 subprocess.run(
                     ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
@@ -466,19 +461,79 @@ class ShareToStoryAction:
                 log.error("[%s] Failed to type mention: %s", self.device_serial, e)
                 return False
 
-        # Tap Done button — confirmed: rid=done_button, desc='Done'
-        done_btn = self.device(resourceId="com.instagram.androie:id/done_button")
+        # Wait for IG to show mention suggestions dropdown
+        time.sleep(2)
+
+        # Click on the correct suggestion to make it a real mention (not just text)
+        # IG shows suggestions like: jaggerprime, jagger_prime8..., jagger_primeau
+        # We need to click the exact match
+        suggestion_clicked = False
+        target_lower = mention_target.lower()
+
+        # Method 1: Look for suggestion with exact username text
+        for selector in [
+            self.device(textContains=mention_target),
+            self.device(descriptionContains=mention_target),
+        ]:
+            if selector.exists(timeout=2):
+                count = min(selector.count, 5)
+                for i in range(count):
+                    try:
+                        text = (selector[i].get_text() or "").strip().lower()
+                        desc = ""
+                        try:
+                            desc = (selector[i].info.get('contentDescription', '') or '').lower()
+                        except Exception:
+                            pass
+                        # Match exact username (not partial like jagger_primeau)
+                        if text == target_lower or desc == target_lower:
+                            selector[i].click()
+                            time.sleep(1.5)
+                            suggestion_clicked = True
+                            log.info("[%s] Clicked mention suggestion: '%s'",
+                                     self.device_serial, mention_target)
+                            break
+                    except Exception:
+                        continue
+                if suggestion_clicked:
+                    break
+
+        # Method 2: Click first item in suggestion list by position
+        if not suggestion_clicked:
+            # Suggestions typically appear below the text input area
+            # Try clicking the first suggestion row
+            xml = self.ctrl.dump_xml("mention_suggestions")
+            # Look for mention suggestion container or user rows
+            import re as _re
+            suggestion_match = _re.search(
+                r'text="(' + _re.escape(mention_target) + r')"[^>]*'
+                r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                xml, _re.IGNORECASE
+            )
+            if suggestion_match:
+                x = (int(suggestion_match.group(2)) + int(suggestion_match.group(4))) // 2
+                y = (int(suggestion_match.group(3)) + int(suggestion_match.group(5))) // 2
+                self.device.click(x, y)
+                time.sleep(1.5)
+                suggestion_clicked = True
+                log.info("[%s] Clicked mention suggestion via XML bounds",
+                         self.device_serial)
+
+        if not suggestion_clicked:
+            log.warning("[%s] Could not find mention suggestion for @%s — "
+                        "mention will be plain text only",
+                        self.device_serial, mention_target)
+
+        # Tap Done button
+        done_btn = self.device(text="Done")
         if not done_btn.exists(timeout=2):
             done_btn = self.device(description="Done")
-        if not done_btn.exists(timeout=2):
-            done_btn = self.device(text="Done")
 
         if done_btn.exists(timeout=3):
             done_btn.click()
             time.sleep(1)
-            log.debug("[%s] Confirmed text with Done button", self.device_serial)
+            log.debug("[%s] Confirmed mention with Done button", self.device_serial)
         else:
-            # Tap outside the text area to deselect
             w, h = self.device.window_size()
             self.device.click(int(w * 0.5), int(h * 0.3))
             time.sleep(1)
