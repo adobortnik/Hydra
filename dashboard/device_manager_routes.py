@@ -220,24 +220,32 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
         today = _today()
         yesterday = _yesterday()
 
-    # Get base account info + followers/following from account_stats
+    # Get base account info + followers/following from follower_snapshots (latest per account)
     rows = conn.execute("""
         SELECT a.id, a.device_serial, a.username, a.status,
                a.start_time, a.end_time, a.instagram_package,
                a.follow_enabled, a.unfollow_enabled, a.like_enabled,
                a.comment_enabled, a.story_enabled,
-               COALESCE(s_today.followers, '0') as followers,
-               COALESCE(s_today.following, '0') as following,
-               s_yesterday.followers as prev_followers,
-               s_yesterday.following as prev_following
+               COALESCE(snap_today.followers, a.followers, 0) as followers,
+               COALESCE(snap_today.following, 0) as following,
+               snap_yesterday.followers as prev_followers,
+               snap_yesterday.following as prev_following
         FROM accounts a
-        LEFT JOIN account_stats s_today
-            ON s_today.account_id = a.id AND s_today.date = ?
-        LEFT JOIN account_stats s_yesterday
-            ON s_yesterday.account_id = a.id AND s_yesterday.date = ?
+        LEFT JOIN (
+            SELECT account_id, followers, following,
+                   ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY captured_at DESC) as rn
+            FROM follower_snapshots
+            WHERE captured_at >= ?
+        ) snap_today ON snap_today.account_id = a.id AND snap_today.rn = 1
+        LEFT JOIN (
+            SELECT account_id, followers, following,
+                   ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY captured_at DESC) as rn
+            FROM follower_snapshots
+            WHERE captured_at >= ? AND captured_at < ?
+        ) snap_yesterday ON snap_yesterday.account_id = a.id AND snap_yesterday.rn = 1
         WHERE a.device_serial = ?
         ORDER BY CAST(COALESCE(a.start_time, '0') AS INTEGER), a.username
-    """, (today, yesterday, device_serial)).fetchall()
+    """, (today, yesterday, today, device_serial)).fetchall()
 
     # Get action counts for the target date from action_history
     next_day = (datetime.strptime(today, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
