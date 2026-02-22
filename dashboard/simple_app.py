@@ -2494,6 +2494,21 @@ _load_auth_config()
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024  # 512 MB per request
 
+# ── Hydra Version ────────────────────────────────────────────────────
+def _load_version():
+    try:
+        vf = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'VERSION')
+        with open(vf) as f:
+            return f.read().strip()
+    except Exception:
+        return '0.0'
+
+HYDRA_VERSION = _load_version()
+
+@app.context_processor
+def inject_version():
+    return {'hydra_version': HYDRA_VERSION}
+
 # ── Flask error logging ──────────────────────────────────────────────
 @app.errorhandler(Exception)
 def _handle_exception(e):

@@ -69,7 +69,7 @@
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="/accounts"><i class="fas fa-user-circle me-2"></i>Accounts</a></li>
                             <li><a class="dropdown-item" href="/account-health"><i class="fas fa-heartbeat me-2 text-danger"></i>Account Health</a></li>
-                            <li><a class="dropdown-item" href="/account-inventory"><i class="fas fa-user-shield me-2"></i>Account Inventory</a></li>
+                            <!-- hidden: old version <li><a class="dropdown-item" href="/account-inventory"><i class="fas fa-user-shield me-2"></i>Account Inventory</a></li> -->
                             <li><a class="dropdown-item" href="/inventory"><i class="fas fa-warehouse me-2 text-info"></i>Inventory V2</a></li>
                         </ul>
                     </li>
@@ -96,8 +96,8 @@
                             <li><a class="dropdown-item" href="/bot-settings"><i class="fas fa-sliders-h me-2"></i>Bot Settings</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/profile-automation-v2"><i class="fas fa-magic me-2 text-info"></i>Profile Automation V2</a></li>
-                            <li><a class="dropdown-item" href="/profile-automation"><i class="fas fa-magic me-2"></i>Profile Automation (old)</a></li>
-                            <li><a class="dropdown-item" href="/login-automation"><i class="fas fa-sign-in-alt me-2"></i>Login Automation</a></li>
+                            <!-- hidden: old version <li><a class="dropdown-item" href="/profile-automation"><i class="fas fa-magic me-2"></i>Profile Automation (old)</a></li> -->
+                            <!-- hidden: old version <li><a class="dropdown-item" href="/login-automation"><i class="fas fa-sign-in-alt me-2"></i>Login Automation</a></li> -->
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/automation-flows"><i class="fas fa-project-diagram me-2 text-info"></i>Automation Flows</a></li>
                             <li><a class="dropdown-item" href="/automation-docs"><i class="fas fa-book me-2 text-warning"></i>Feature Docs</a></li>
@@ -166,6 +166,7 @@
     <footer class="footer mt-5 py-3">
         <div class="container text-center">
             <span>&copy; 2026 Hydra - Phone Farm Control Center</span>
+            <span class="ms-3 text-muted" style="font-size:0.8rem; opacity:0.6;">v{{ hydra_version }}</span>
         </div>
     </footer>
 
