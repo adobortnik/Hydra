@@ -42,11 +42,55 @@ def _get_conn():
 
 # Auto-create missing tables on import
 try:
+    import sys as _sys
+    _migrations_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _migrations_dir not in _sys.path:
+        _sys.path.insert(0, _migrations_dir)
     from db.migrations import ensure_schema
     ensure_schema()
 except Exception as _e:
-    import logging as _log
-    _log.getLogger(__name__).warning("Migration check failed: %s", _e)
+    # Fallback: create the most critical missing table inline
+    try:
+        _conn = sqlite3.connect(DB_PATH)
+        _conn.executescript("""
+            CREATE TABLE IF NOT EXISTS follower_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                username TEXT,
+                followers INTEGER DEFAULT 0,
+                following INTEGER DEFAULT 0,
+                posts INTEGER DEFAULT 0,
+                captured_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            );
+            CREATE TABLE IF NOT EXISTS job_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_name TEXT, job_type TEXT NOT NULL, target TEXT,
+                target_count INTEGER DEFAULT 0, completed_count INTEGER DEFAULT 0,
+                limit_per_hour INTEGER DEFAULT 50, limit_per_day INTEGER DEFAULT 200,
+                comment_text TEXT, status TEXT DEFAULT 'active', priority INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')), updated_at TEXT,
+                report_reason TEXT, comment_list_id INTEGER, ai_mode TEXT,
+                vision_ai INTEGER DEFAULT 0, finished_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS job_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL, account_id INTEGER NOT NULL,
+                device_serial TEXT, username TEXT, status TEXT DEFAULT 'assigned',
+                completed_count INTEGER DEFAULT 0, last_action_at TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS job_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL, account_id INTEGER NOT NULL,
+                action_type TEXT, target TEXT, status TEXT, error_message TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        _conn.commit()
+        _conn.close()
+    except Exception:
+        pass
 
 
 def _row_to_dict(row):
