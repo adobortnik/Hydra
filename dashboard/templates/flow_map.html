@@ -1497,48 +1497,64 @@ flowchart TD
     <div class="collapse" id="body-insights">
         <div class="flow-card-body">
             <p class="flow-description">
-                Scrapes analytics data from the Professional Dashboard on Business/Professional Instagram profiles.
-                Navigates to the Insights screen and extracts Views, Interactions, Followers, and Content shared
-                using content-description attributes from the UI XML hierarchy. Requires
-                <code>is_business_profile=True</code>.
+                Full drill-down scraper for Professional Dashboard analytics. Navigates through each insights section
+                (Views, Interactions, Followers) extracting detailed metrics via <code>dump_hierarchy()</code> + regex.
+                Supports quick overview mode (<code>scrape_insights_overview</code>) and full drill-down (<code>scrape_insights</code>).
+                Stores results in <code>account_insights_v2</code> table. See <a href="/automation-docs#instagram-insights-scraper" style="color:var(--accent-light);">full docs</a>.
             </p>
             <div class="mermaid">
 flowchart TD
-    START((("Start Insights Scraping"))):::startNode
-    CHECK_BIZ{"is_business_profile == true?"}:::decisionNode
-    SKIP(["Skip — not a business profile"]):::skipNode
+    START((("Start scrape_insights"))):::startNode
     NAV_PROFILE["Navigate to Profile tab"]:::actionNode
-    FIND_DASH{"Find 'Professional dashboard' text"}:::decisionNode
+    FIND_DASH{"Find 'Professional dashboard'?"}:::decisionNode
     TAP_DASH["Tap 'Professional dashboard'"]:::actionNode
-    DASH_OK{"Dashboard screen loaded?"}:::decisionNode
-    DUMP_XML["Dump XML hierarchy"]:::externalNode
-    PARSE_VIEWS["Parse Views: desc matching 'X Views' pattern"]:::actionNode
-    PARSE_INTERACT["Parse Interactions: desc matching 'X Interactions' pattern"]:::actionNode
-    PARSE_FOLLOWERS["Parse Followers: desc matching 'X Followers' pattern"]:::actionNode
-    PARSE_CONTENT["Parse Content shared: text scan for posts/reels/stories count"]:::actionNode
-    PARSE_DATE["Parse date range: text matching 'Last 30 days' or 'Jan 22 - Feb 20' pattern"]:::actionNode
-    STORE_DB["Store metrics in DB with timestamp"]:::externalNode
-    NAV_BACK["Navigate back to Profile"]:::actionNode
-    SUCCESS(["Insights scraped"]):::successNode
-    FAIL(["Failed to scrape"]):::failNode
+    OVERVIEW["Dump XML → parse overview: Views, Interactions, New followers, Content shared, Date range"]:::actionNode
+    
+    VIEWS_TAP["Tap 'Views' → wait 4s"]:::actionNode
+    VIEWS_XML["Dump XML → extract: total views from desc, followers/non-followers %, accounts reached"]:::actionNode
+    VIEWS_SCROLL["Scroll down → extract: content type %, profile visits, external link taps, comparison period"]:::actionNode
+    VIEWS_BACK["Press back → dashboard"]:::actionNode
+    
+    INTER_TAP["Tap 'Interactions' → wait 4s"]:::actionNode
+    INTER_XML["Dump XML → extract: total, followers/non-followers %, scroll for likes, content type"]:::actionNode
+    INTER_BACK["Press back → dashboard"]:::actionNode
+    
+    FOL_TAP["Tap 'New followers' → wait 4s"]:::actionNode
+    FOL_XML["Dump XML → extract total followers from desc"]:::actionNode
+    FOL_CHECK{"Total ≥ 100?"}:::decisionNode
+    FOL_DEMO["Scroll & scrape: Top cities, countries, age range, gender, most active times"]:::actionNode
+    FOL_SKIP["demographics_available = False"]:::retryNode
+    FOL_BACK["Press back → dashboard → back → profile"]:::actionNode
+    
+    SAVE["save_insights_to_db → account_insights_v2"]:::externalNode
+    SUCCESS(["Full scrape complete"]):::successNode
+    FAIL(["Failed"]):::failNode
 
-    START --> CHECK_BIZ
-    CHECK_BIZ -->|No| SKIP
-    CHECK_BIZ -->|Yes| NAV_PROFILE
+    START --> NAV_PROFILE
     NAV_PROFILE --> FIND_DASH
     FIND_DASH -->|No| FAIL
     FIND_DASH -->|Yes| TAP_DASH
-    TAP_DASH --> DASH_OK
-    DASH_OK -->|No| FAIL
-    DASH_OK -->|Yes| DUMP_XML
-    DUMP_XML --> PARSE_VIEWS
-    PARSE_VIEWS --> PARSE_INTERACT
-    PARSE_INTERACT --> PARSE_FOLLOWERS
-    PARSE_FOLLOWERS --> PARSE_CONTENT
-    PARSE_CONTENT --> PARSE_DATE
-    PARSE_DATE --> STORE_DB
-    STORE_DB --> NAV_BACK
-    NAV_BACK --> SUCCESS
+    TAP_DASH --> OVERVIEW
+    
+    OVERVIEW --> VIEWS_TAP
+    VIEWS_TAP --> VIEWS_XML
+    VIEWS_XML --> VIEWS_SCROLL
+    VIEWS_SCROLL --> VIEWS_BACK
+    
+    VIEWS_BACK --> INTER_TAP
+    INTER_TAP --> INTER_XML
+    INTER_XML --> INTER_BACK
+    
+    INTER_BACK --> FOL_TAP
+    FOL_TAP --> FOL_XML
+    FOL_XML --> FOL_CHECK
+    FOL_CHECK -->|Yes| FOL_DEMO
+    FOL_CHECK -->|No| FOL_SKIP
+    FOL_DEMO --> FOL_BACK
+    FOL_SKIP --> FOL_BACK
+    
+    FOL_BACK --> SAVE
+    SAVE --> SUCCESS
 
     classDef startNode fill:#555,stroke:#888,color:#fff
     classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8

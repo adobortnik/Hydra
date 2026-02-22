@@ -2611,6 +2611,13 @@ def settings_page():
     return render_template('settings_auth.html')
 
 
+# ── Automation Documentation (template-based) ──────────────────────
+@app.route('/automation-docs')
+def automation_docs_page():
+    """Automation features documentation page."""
+    return render_template('docs.html')
+
+
 # Media folder watcher is in a separate script
 
 # Register blueprints
