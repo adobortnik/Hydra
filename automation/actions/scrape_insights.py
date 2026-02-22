@@ -71,18 +71,33 @@ def _extract_number_from_desc(xml, pattern):
     return None
 
 
-def _extract_percentage(xml, label, search_range=500):
+def _extract_percentage(xml, label, search_range=1000):
     """Extract percentage value near a given label in XML.
     
-    Finds the label, then looks for the nearest percentage text within
-    search_range characters after it.
+    Looks both BEFORE and AFTER the label, because on some screens
+    the percentage text appears in a sibling node before the label text.
+    (e.g. "6%" node comes before "Followers" node in Views detail)
+    Searches for text="LABEL" specifically to avoid resource-id matches.
     """
-    # Find the label position
-    label_match = re.search(re.escape(label), xml, re.IGNORECASE)
+    # Search specifically for text="LABEL" 
+    label_pattern = r'text="%s"' % re.escape(label)
+    label_match = re.search(label_pattern, xml)
+    if not label_match:
+        label_pattern = r'content-desc="%s"' % re.escape(label)
+        label_match = re.search(label_pattern, xml)
     if not label_match:
         return None
     
-    # Search for percentage in the vicinity after the label
+    # Search BEFORE the label (within search_range chars)
+    before_start = max(0, label_match.start() - search_range)
+    before_region = xml[before_start:label_match.start()]
+    
+    # Find the LAST percentage before the label (closest one)
+    pcts_before = re.findall(r'text="([\d.]+)%"', before_region)
+    if pcts_before:
+        return _safe_float(pcts_before[-1])  # last = closest to label
+    
+    # Search AFTER the label
     start = label_match.end()
     end = min(start + search_range, len(xml))
     region = xml[start:end]
@@ -99,9 +114,20 @@ def _extract_percentage(xml, label, search_range=500):
     return None
 
 
-def _extract_value_near_label(xml, label, search_range=500):
-    """Extract a numeric value from the text element nearest after a label."""
-    label_match = re.search(re.escape(label), xml, re.IGNORECASE)
+def _extract_value_near_label(xml, label, search_range=2000):
+    """Extract a numeric value from the text element nearest after a label.
+    
+    Uses a large search_range (2000) because on dashboard overview,
+    sibling nodes (ImageView etc.) can push the value 1000+ chars away.
+    Searches specifically for text="LABEL" to avoid matching resource-ids.
+    """
+    # Search specifically for text="LABEL" attribute to avoid resource-id matches
+    label_pattern = r'text="%s"' % re.escape(label)
+    label_match = re.search(label_pattern, xml)
+    if not label_match:
+        # Fallback: try content-desc="LABEL"
+        label_pattern = r'content-desc="%s"' % re.escape(label)
+        label_match = re.search(label_pattern, xml)
     if not label_match:
         return None
     
@@ -114,15 +140,23 @@ def _extract_value_near_label(xml, label, search_range=500):
     if val_match:
         return _safe_int(val_match.group(1))
     
+    # Also try content-desc="NNN"
+    val_match = re.search(r'content-desc="([\d,]+)"', region)
+    if val_match:
+        return _safe_int(val_match.group(1))
+    
     return None
 
 
-def _extract_change_pct_near_label(xml, label, search_range=800):
-    """Extract change percentage (e.g. "300%") near a label.
+def _extract_percentage_after(xml, label, search_range=1000):
+    """Extract percentage value that appears AFTER a label only.
     
-    Looks for percentage patterns after the label's value.
+    Unlike _extract_percentage which checks before+after, this only looks
+    after the label. Used for content type breakdown where each label
+    is followed by its own percentage.
     """
-    label_match = re.search(re.escape(label), xml, re.IGNORECASE)
+    label_pattern = r'text="%s"' % re.escape(label)
+    label_match = re.search(label_pattern, xml)
     if not label_match:
         return None
     
@@ -130,12 +164,34 @@ def _extract_change_pct_near_label(xml, label, search_range=800):
     end = min(start + search_range, len(xml))
     region = xml[start:end]
     
-    # Look for change percentage (could be "0%", "300%", etc.)
-    # Skip the first percentage if it's the followers/non-followers split
-    pcts = re.findall(r'text="([\d.]+)%"', region)
-    if pcts:
-        # Return the first percentage found
-        return _safe_float(pcts[0])
+    pct_match = re.search(r'text="([\d.]+)%"', region)
+    if pct_match:
+        return _safe_float(pct_match.group(1))
+    
+    return None
+
+
+def _extract_change_pct_near_label(xml, label, search_range=2000):
+    """Extract change percentage (e.g. "+300%") near a label.
+    
+    Looks for percentage patterns like "+300%" or "0%" after the label's value.
+    """
+    label_pattern = r'text="%s"' % re.escape(label)
+    label_match = re.search(label_pattern, xml)
+    if not label_match:
+        label_pattern = r'content-desc="%s"' % re.escape(label)
+        label_match = re.search(label_pattern, xml)
+    if not label_match:
+        return None
+    
+    start = label_match.end()
+    end = min(start + search_range, len(xml))
+    region = xml[start:end]
+    
+    # Look for change percentage with + or - prefix first
+    change_match = re.search(r'text="[+\-]?([\d.]+)%"', region)
+    if change_match:
+        return _safe_float(change_match.group(1))
     
     return None
 
@@ -516,49 +572,48 @@ def _scrape_views_detail(d, dashboard_xml=None):
         xml2 = d.dump_hierarchy()
         
         # Content type breakdown (Reels %, Posts %)
-        # Look for percentage values near "Reels" and "Posts" labels
-        all_pcts = re.findall(r'text="([\d.]+)%"', xml2)
-        if len(all_pcts) >= 2:
-            # Usually the content type percentages appear in order: higher first
-            pct_values = [_safe_float(p) for p in all_pcts]
-            # Find reels and posts percentages
-            reels_pct = _extract_percentage(xml2, "Reels")
-            posts_pct = _extract_percentage(xml2, "Posts")
-            
-            if reels_pct is not None:
-                detail['content_type']['reels_pct'] = reels_pct
-            if posts_pct is not None:
-                detail['content_type']['posts_pct'] = posts_pct
-            
-            # If we couldn't match by label, use the largest values
-            if detail['content_type']['reels_pct'] is None and pct_values:
-                # Sort descending — Reels usually has higher %
-                sorted_pcts = sorted(pct_values, reverse=True)
-                if len(sorted_pcts) >= 1:
-                    detail['content_type']['reels_pct'] = sorted_pcts[0]
-                if len(sorted_pcts) >= 2:
-                    detail['content_type']['posts_pct'] = sorted_pcts[1]
+        # Use AFTER-only search to avoid picking up wrong percentage
+        # Layout: text="Reels" ... text="99.3%" ... text="Posts" ... text="0.7%"
+        reels_pct = _extract_percentage_after(xml2, "Reels")
+        posts_pct = _extract_percentage_after(xml2, "Posts")
         
-        # Profile visits
-        detail['profile_visits'] = _extract_value_near_label(xml2, "Profile visits")
-        if detail['profile_visits'] is None:
-            # Try first XML too
-            detail['profile_visits'] = _extract_value_near_label(xml, "Profile visits")
+        if reels_pct is not None:
+            detail['content_type']['reels_pct'] = reels_pct
+        if posts_pct is not None:
+            detail['content_type']['posts_pct'] = posts_pct
         
-        detail['profile_visits_change_pct'] = _extract_change_pct_near_label(
-            xml2, "Profile visits")
+        # Scroll 2 more times — Profile visits, External link taps, and
+        # comparison period are 2-3 scrolls down from initial view
+        _scroll_down(d)
+        xml3 = d.dump_hierarchy()
+        _scroll_down(d)
+        xml4 = d.dump_hierarchy()
+        
+        all_xmls = [xml4, xml3, xml2, xml]
+        
+        # Profile visits (check all XML dumps, newest first)
+        for x in all_xmls:
+            if detail['profile_visits'] is None:
+                detail['profile_visits'] = _extract_value_near_label(x, "Profile visits")
+            if detail['profile_visits_change_pct'] is None:
+                detail['profile_visits_change_pct'] = _extract_change_pct_near_label(
+                    x, "Profile visits")
         
         # External link taps
-        detail['external_link_taps'] = _extract_value_near_label(xml2, "External link taps")
-        if detail['external_link_taps'] is None:
-            # Check if it's "--" (no data)
-            link_region = _find_region_around_label(xml2, "External link taps", 300)
-            if link_region and ('--' in link_region):
-                detail['external_link_taps'] = 0
+        for x in all_xmls:
+            if detail['external_link_taps'] is None:
+                val = _extract_value_near_label(x, "External link taps")
+                if val is not None:
+                    detail['external_link_taps'] = val
+                else:
+                    link_region = _find_region_around_label(x, "External link taps", 500)
+                    if link_region and ('--' in link_region):
+                        detail['external_link_taps'] = 0
         
-        # Try comparison period from scrolled view too
-        if detail['comparison_period'] is None:
-            detail['comparison_period'] = _extract_comparison_period(xml2)
+        # Try comparison period from all views
+        for x in all_xmls:
+            if detail['comparison_period'] is None:
+                detail['comparison_period'] = _extract_comparison_period(x)
         
         log.info("[insights] Views detail: total=%s, reached=%s, visits=%s",
                  detail['total'], detail['accounts_reached'], detail['profile_visits'])
