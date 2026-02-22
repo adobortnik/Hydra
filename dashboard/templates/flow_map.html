@@ -1211,6 +1211,348 @@ flowchart TD
     </div>
 </div>
 
+<!-- ============================================================== -->
+<!-- FLOW 13: Story Share with Mention Sticker -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-story-mention">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-story-mention">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(0,210,160,0.15); color:var(--green);">
+                <i class="fas fa-at"></i>
+            </div>
+            <div>
+                <h5>Story Share with @Mention Sticker</h5>
+                <span class="flow-source-link">automation/actions/share_to_story.py → _add_story_mention()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-success">Story</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-story-mention">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Adds a tappable @mention sticker to a story. Uses the sticker picker to search for the
+                "mention" sticker type, enters the target username, and critically clicks the suggestion
+                dropdown to create a real linked mention (not just plain text). Settings:
+                <code>story_mention_enabled=True</code>, <code>story_mention_target="username"</code>.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start _add_story_mention"))):::startNode
+    CHECK_SETTING{"story_mention_enabled &amp;&amp; story_mention_target?"}:::decisionNode
+    SKIP(["Skip — mention not configured"]):::skipNode
+    STICKER_BTN["Tap sticker button in story editor toolbar"]:::actionNode
+    BTN_OK{"Sticker picker opened?"}:::decisionNode
+    SEARCH["Type 'mention' in sticker search bar"]:::actionNode
+    WAIT_RESULTS["Wait 2s for search results"]:::actionNode
+    SELECT_MENTION["Click first 'Mention' sticker result"]:::actionNode
+    MENTION_OK{"Mention input field appeared?"}:::decisionNode
+    TYPE_USERNAME["Type target username (e.g. 'jaggerprime')"]:::actionNode
+    WAIT_SUGGEST["Wait 2-3s for suggestion dropdown"]:::actionNode
+    SUGGESTIONS{"Suggestion dropdown visible?"}:::decisionNode
+    CLICK_EXACT["Click exact username match from suggestions"]:::actionNode
+    CLICK_OK{"Suggestion clicked — linked mention created?"}:::decisionNode
+    FALLBACK_DONE["Fallback: tap Done without suggestion (plain text only)"]:::retryNode
+    DONE["Tap Done — mention sticker placed on story"]:::actionNode
+    SUCCESS(["Mention added"]):::successNode
+    FAIL(["Failed — continue without mention"]):::failNode
+
+    START --> CHECK_SETTING
+    CHECK_SETTING -->|No| SKIP
+    CHECK_SETTING -->|Yes| STICKER_BTN
+    STICKER_BTN --> BTN_OK
+    BTN_OK -->|No| FAIL
+    BTN_OK -->|Yes| SEARCH
+    SEARCH --> WAIT_RESULTS
+    WAIT_RESULTS --> SELECT_MENTION
+    SELECT_MENTION --> MENTION_OK
+    MENTION_OK -->|No| FAIL
+    MENTION_OK -->|Yes| TYPE_USERNAME
+    TYPE_USERNAME --> WAIT_SUGGEST
+    WAIT_SUGGEST --> SUGGESTIONS
+    SUGGESTIONS -->|Yes| CLICK_EXACT
+    SUGGESTIONS -->|No| FALLBACK_DONE
+    CLICK_EXACT --> CLICK_OK
+    CLICK_OK -->|Yes| DONE
+    CLICK_OK -->|No| FALLBACK_DONE
+    FALLBACK_DONE --> DONE
+    DONE --> SUCCESS
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+    classDef skipNode fill:#333,stroke:#888,color:#aaa
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 14: Story Share with Link Sticker -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-story-link">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-story-link">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(79,168,213,0.15); color:var(--blue);">
+                <i class="fas fa-link"></i>
+            </div>
+            <div>
+                <h5>Story Share with Link Sticker</h5>
+                <span class="flow-source-link">automation/actions/share_to_story.py → _add_link_sticker()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-info">Story</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-story-link">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Adds a native Link sticker to a story via the sticker picker. Searches for "link",
+                taps the blue LINK button (text="LINK"), enters the URL in the link form's first EditText,
+                and confirms. Settings: <code>story_link_sticker_enabled=True</code>,
+                <code>story_link_sticker_url="https://..."</code>.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start _add_link_sticker"))):::startNode
+    CHECK_SETTING{"story_link_sticker_enabled &amp;&amp; story_link_sticker_url?"}:::decisionNode
+    SKIP(["Skip — link sticker not configured"]):::skipNode
+    STICKER_BTN["Tap sticker button in story editor toolbar"]:::actionNode
+    BTN_OK{"Sticker picker opened?"}:::decisionNode
+    SEARCH["Type 'link' in sticker search bar"]:::actionNode
+    WAIT_RESULTS["Wait 2s for search results"]:::actionNode
+    FIND_LINK{"Find LINK button: text='LINK' under Stickers heading"}:::decisionNode
+    TAP_LINK["Tap the blue LINK sticker button"]:::actionNode
+    LINK_FORM{"Link form appeared? (EditText fields visible)"}:::decisionNode
+    ENTER_URL["Enter URL in first EditText field"]:::actionNode
+    LABEL_SKIP["Skip second EditText (optional label/name)"]:::actionNode
+    TAP_DONE["Tap Done to confirm link sticker"]:::actionNode
+    DONE_OK{"Link sticker placed on story?"}:::decisionNode
+    SUCCESS(["Link sticker added"]):::successNode
+    FAIL(["Failed — continue without link"]):::failNode
+
+    START --> CHECK_SETTING
+    CHECK_SETTING -->|No| SKIP
+    CHECK_SETTING -->|Yes| STICKER_BTN
+    STICKER_BTN --> BTN_OK
+    BTN_OK -->|No| FAIL
+    BTN_OK -->|Yes| SEARCH
+    SEARCH --> WAIT_RESULTS
+    WAIT_RESULTS --> FIND_LINK
+    FIND_LINK -->|No| FAIL
+    FIND_LINK -->|Yes| TAP_LINK
+    TAP_LINK --> LINK_FORM
+    LINK_FORM -->|No| FAIL
+    LINK_FORM -->|Yes| ENTER_URL
+    ENTER_URL --> LABEL_SKIP
+    LABEL_SKIP --> TAP_DONE
+    TAP_DONE --> DONE_OK
+    DONE_OK -->|Yes| SUCCESS
+    DONE_OK -->|No| FAIL
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+    classDef skipNode fill:#333,stroke:#888,color:#aaa
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 15: Business Profile Switch -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-business-switch">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-business-switch">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(240,160,64,0.15); color:var(--orange);">
+                <i class="fas fa-briefcase"></i>
+            </div>
+            <div>
+                <h5>Business Profile Switch (9-Step Flow)</h5>
+                <span class="flow-source-link">automation/actions/switch_to_business.py → SwitchToBusinessAction.execute()</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-warning text-dark">Profile</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-business-switch">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Automated 9-step flow to switch an Instagram account from Personal to Professional/Business profile.
+                Navigates through Settings → Account type → Professional switch wizard → Category selection →
+                Contact info → Facebook skip → Close. Handles clone-specific UI differences
+                (e.g., "Settings and activity" vs "Settings and privacy"). One-time action triggered
+                by <code>auto_switch_business=True</code> in account settings.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start SwitchToBusinessAction"))):::startNode
+    CHECK_FLAG{"auto_switch_business == true?"}:::decisionNode
+    SKIP(["Skip — flag not set"]):::skipNode
+    ALREADY{"is_business_profile == true?"}:::decisionNode
+    SKIP2(["Skip — already business"]):::skipNode
+
+    STEP1["Step 1: Tap Profile tab → Hamburger menu ☰ → 'Settings and activity'"]:::actionNode
+    S1_OK{"Settings opened?"}:::decisionNode
+
+    STEP2["Step 2: Scroll DOWN 6+ times to find 'Account type and tools'"]:::actionNode
+    S2_OK{"Found 'Account type and tools'?"}:::decisionNode
+    FALLBACK_EDIT["Fallback: Edit Profile → scroll to 'Switch to professional account'"]:::retryNode
+
+    STEP3["Step 3: Tap 'Switch to professional account'"]:::actionNode
+    S3_OK{"Switch screen appeared?"}:::decisionNode
+
+    STEP4["Step 4: Tap Next on intro screen (rid=bb_primary_action)"]:::actionNode
+
+    STEP5["Step 5: Select first category RadioButton (Artist/Blogger/etc.) → Tap 'Switch to professional account'"]:::actionNode
+    S5_OK{"Category confirmed?"}:::decisionNode
+
+    STEP6["Step 6: Contact info → Tap Next or 'Don't use my contact info'"]:::actionNode
+
+    STEP7["Step 7: Facebook → Always tap Skip"]:::actionNode
+
+    STEP8["Step 8: Setup complete → Tap Close (X) button"]:::actionNode
+
+    STEP9["Step 9: Navigate to Profile → Verify 'Professional dashboard' text"]:::actionNode
+    VERIFY_OK{"'Professional dashboard' found?"}:::decisionNode
+
+    UPDATE_DB["Update DB: is_business_profile=true, business_category, business_switched_at, auto_switch_business=false"]:::externalNode
+    SUCCESS(["Switch complete"]):::successNode
+    FAIL(["Switch failed — flag stays true for retry"]):::failNode
+
+    START --> CHECK_FLAG
+    CHECK_FLAG -->|No| SKIP
+    CHECK_FLAG -->|Yes| ALREADY
+    ALREADY -->|Yes| SKIP2
+    ALREADY -->|No| STEP1
+    STEP1 --> S1_OK
+    S1_OK -->|No| FAIL
+    S1_OK -->|Yes| STEP2
+    STEP2 --> S2_OK
+    S2_OK -->|No| FALLBACK_EDIT
+    S2_OK -->|Yes| STEP3
+    FALLBACK_EDIT --> STEP3
+    STEP3 --> S3_OK
+    S3_OK -->|No| FAIL
+    S3_OK -->|Yes| STEP4
+    STEP4 --> STEP5
+    STEP5 --> S5_OK
+    S5_OK -->|No| FAIL
+    S5_OK -->|Yes| STEP6
+    STEP6 --> STEP7
+    STEP7 --> STEP8
+    STEP8 --> STEP9
+    STEP9 --> VERIFY_OK
+    VERIFY_OK -->|Yes| UPDATE_DB
+    VERIFY_OK -->|No| FAIL
+    UPDATE_DB --> SUCCESS
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+    classDef skipNode fill:#333,stroke:#888,color:#aaa
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- FLOW 16: Instagram Insights Scraping -->
+<!-- ============================================================== -->
+<div class="flow-card" id="flow-insights">
+    <div class="flow-card-header collapsed" data-bs-toggle="collapse" data-bs-target="#body-insights">
+        <div class="d-flex align-items-center">
+            <div class="flow-icon" style="background:rgba(108,92,231,0.15); color:var(--accent);">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div>
+                <h5>Instagram Insights Scraping</h5>
+                <span class="flow-source-link">automation/actions/scrape_insights.py</span>
+            </div>
+        </div>
+        <div class="flow-meta">
+            <span class="badge bg-primary">Analytics</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+    </div>
+    <div class="collapse" id="body-insights">
+        <div class="flow-card-body">
+            <p class="flow-description">
+                Scrapes analytics data from the Professional Dashboard on Business/Professional Instagram profiles.
+                Navigates to the Insights screen and extracts Views, Interactions, Followers, and Content shared
+                using content-description attributes from the UI XML hierarchy. Requires
+                <code>is_business_profile=True</code>.
+            </p>
+            <div class="mermaid">
+flowchart TD
+    START((("Start Insights Scraping"))):::startNode
+    CHECK_BIZ{"is_business_profile == true?"}:::decisionNode
+    SKIP(["Skip — not a business profile"]):::skipNode
+    NAV_PROFILE["Navigate to Profile tab"]:::actionNode
+    FIND_DASH{"Find 'Professional dashboard' text"}:::decisionNode
+    TAP_DASH["Tap 'Professional dashboard'"]:::actionNode
+    DASH_OK{"Dashboard screen loaded?"}:::decisionNode
+    DUMP_XML["Dump XML hierarchy"]:::externalNode
+    PARSE_VIEWS["Parse Views: desc matching 'X Views' pattern"]:::actionNode
+    PARSE_INTERACT["Parse Interactions: desc matching 'X Interactions' pattern"]:::actionNode
+    PARSE_FOLLOWERS["Parse Followers: desc matching 'X Followers' pattern"]:::actionNode
+    PARSE_CONTENT["Parse Content shared: text scan for posts/reels/stories count"]:::actionNode
+    PARSE_DATE["Parse date range: text matching 'Last 30 days' or 'Jan 22 - Feb 20' pattern"]:::actionNode
+    STORE_DB["Store metrics in DB with timestamp"]:::externalNode
+    NAV_BACK["Navigate back to Profile"]:::actionNode
+    SUCCESS(["Insights scraped"]):::successNode
+    FAIL(["Failed to scrape"]):::failNode
+
+    START --> CHECK_BIZ
+    CHECK_BIZ -->|No| SKIP
+    CHECK_BIZ -->|Yes| NAV_PROFILE
+    NAV_PROFILE --> FIND_DASH
+    FIND_DASH -->|No| FAIL
+    FIND_DASH -->|Yes| TAP_DASH
+    TAP_DASH --> DASH_OK
+    DASH_OK -->|No| FAIL
+    DASH_OK -->|Yes| DUMP_XML
+    DUMP_XML --> PARSE_VIEWS
+    PARSE_VIEWS --> PARSE_INTERACT
+    PARSE_INTERACT --> PARSE_FOLLOWERS
+    PARSE_FOLLOWERS --> PARSE_CONTENT
+    PARSE_CONTENT --> PARSE_DATE
+    PARSE_DATE --> STORE_DB
+    STORE_DB --> NAV_BACK
+    NAV_BACK --> SUCCESS
+
+    classDef startNode fill:#555,stroke:#888,color:#fff
+    classDef actionNode fill:#1a3a5c,stroke:#4fa8d5,color:#e0e0e8
+    classDef decisionNode fill:#3d3520,stroke:#f0c040,color:#f0c040
+    classDef successNode fill:#0d3d2d,stroke:#00d2a0,color:#00d2a0
+    classDef failNode fill:#3d1525,stroke:#e74c6f,color:#e74c6f
+    classDef retryNode fill:#3d2a10,stroke:#f0a040,color:#f0a040
+    classDef externalNode fill:#2a2040,stroke:#a29bfe,color:#a29bfe
+    classDef skipNode fill:#333,stroke:#888,color:#aaa
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Mermaid JS -->
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
