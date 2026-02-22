@@ -1066,3 +1066,100 @@ def api_insights_history(serial, username):
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         conn.close()
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Insights V2 API (account_insights_v2 table)
+# ══════════════════════════════════════════════════════════════════════
+
+@device_manager_bp.route('/api/account/<username>/insights')
+def api_account_insights_v2(username):
+    """Get latest insights_v2 record for an account + business profile info."""
+    conn = _get_conn()
+    try:
+        # Check if account is business
+        acct = conn.execute(
+            "SELECT is_business_profile, business_category, business_switched_at FROM accounts WHERE username = ?",
+            (username,)
+        ).fetchone()
+
+        is_biz = bool(acct['is_business_profile']) if acct else False
+
+        if not is_biz:
+            return jsonify({
+                'success': True,
+                'is_business': False,
+                'insights': None,
+                'message': 'Switch to Business Profile to unlock insights'
+            })
+
+        # Get latest insights_v2 record
+        row = conn.execute("""
+            SELECT * FROM account_insights_v2
+            WHERE account_id = ?
+            ORDER BY scraped_at DESC
+            LIMIT 1
+        """, (username,)).fetchone()
+
+        if not row:
+            return jsonify({
+                'success': True,
+                'is_business': True,
+                'business_category': acct['business_category'],
+                'insights': None,
+                'message': 'No insights data scraped yet'
+            })
+
+        insights = dict(row)
+        # Parse JSON fields safely
+        for jfield in ('top_cities', 'top_countries', 'age_range', 'gender', 'most_active_times'):
+            try:
+                insights[jfield] = json.loads(insights.get(jfield) or '{}')
+            except (json.JSONDecodeError, TypeError):
+                insights[jfield] = {}
+
+        return jsonify({
+            'success': True,
+            'is_business': True,
+            'business_category': acct['business_category'],
+            'insights': insights
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@device_manager_bp.route('/api/account/<username>/insights/history')
+def api_account_insights_v2_history(username):
+    """Get insights_v2 history for charting."""
+    days = int(request.args.get('days', '30'))
+    days = max(1, min(days, 365))
+
+    conn = _get_conn()
+    try:
+        since = (datetime.utcnow() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        rows = conn.execute("""
+            SELECT id, scraped_at, date_range, views, interactions, new_followers,
+                   content_shared, accounts_reached, accounts_reached_change_pct,
+                   views_followers_pct, views_non_followers_pct,
+                   profile_visits, profile_visits_change_pct,
+                   external_link_taps, total_followers, comparison_period
+            FROM account_insights_v2
+            WHERE account_id = ?
+              AND scraped_at >= ?
+            ORDER BY scraped_at ASC
+        """, (username, since)).fetchall()
+
+        history = [dict(r) for r in rows]
+
+        return jsonify({
+            'success': True,
+            'history': history,
+            'total': len(history)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()

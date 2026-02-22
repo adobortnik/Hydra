@@ -1369,54 +1369,158 @@
 
             <!-- ─── Insights Tab ─── -->
             <div class="sp-pane" data-pane="insights">
-                <div class="row g-3 mb-4">
-                    <div class="col-4">
-                        <div style="background:#1a1d21;border-radius:8px;padding:16px;text-align:center;border:1px solid #2d3238;">
-                            <div style="font-size:1.5rem;font-weight:700;color:#17a2b8;" id="insight-reached">—</div>
-                            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Accounts Reached</div>
-                            <div style="font-size:0.75rem;" id="insight-reached-delta"></div>
+                <!-- Non-business placeholder -->
+                <div id="insights-not-business" style="display:none;text-align:center;padding:60px 20px;">
+                    <i class="fas fa-chart-line" style="font-size:3rem;color:#4b5563;margin-bottom:16px;display:block;"></i>
+                    <h5 style="color:#d1d5db;margin-bottom:8px;">Insights Unavailable</h5>
+                    <p style="color:#6b7280;font-size:0.9rem;max-width:360px;margin:0 auto 16px;">
+                        Switch to a <strong>Business Profile</strong> to unlock Instagram Insights — views, interactions, follower demographics, and more.
+                    </p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="document.querySelector('.sp-tab-btn[data-tab=&quot;overview&quot;]').click()">
+                        <i class="fas fa-briefcase me-1"></i> Go to Overview → Switch to Business
+                    </button>
+                </div>
+
+                <!-- Business insights content -->
+                <div id="insights-business-content" style="display:none;">
+                    <!-- Business badge -->
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <span style="display:inline-flex;align-items:center;gap:6px;background:#064e3b;color:#34d399;padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:600;">
+                                <span style="width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block;"></span>
+                                Business Profile
+                            </span>
+                            <span id="insights-biz-category" style="color:#9ca3af;font-size:0.8rem;margin-left:8px;"></span>
+                        </div>
+                        <div id="insights-comparison-period" style="color:#6b7280;font-size:0.75rem;"></div>
+                    </div>
+
+                    <!-- Overview row: Views | Interactions | New Followers | Content Shared -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-3">
+                            <div style="background:#1a1d21;border-radius:8px;padding:14px 10px;text-align:center;border:1px solid #2d3238;">
+                                <div style="font-size:1.3rem;font-weight:700;color:#60a5fa;" id="ins-views">—</div>
+                                <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Views</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#1a1d21;border-radius:8px;padding:14px 10px;text-align:center;border:1px solid #2d3238;">
+                                <div style="font-size:1.3rem;font-weight:700;color:#f472b6;" id="ins-interactions">—</div>
+                                <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Interactions</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#1a1d21;border-radius:8px;padding:14px 10px;text-align:center;border:1px solid #2d3238;">
+                                <div style="font-size:1.3rem;font-weight:700;color:#34d399;" id="ins-new-followers">—</div>
+                                <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">New Followers</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#1a1d21;border-radius:8px;padding:14px 10px;text-align:center;border:1px solid #2d3238;">
+                                <div style="font-size:1.3rem;font-weight:700;color:#fbbf24;" id="ins-content-shared">—</div>
+                                <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Content Shared</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-4">
-                        <div style="background:#1a1d21;border-radius:8px;padding:16px;text-align:center;border:1px solid #2d3238;">
-                            <div style="font-size:1.5rem;font-weight:700;color:#28a745;" id="insight-engaged">—</div>
-                            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Accounts Engaged</div>
-                            <div style="font-size:0.75rem;" id="insight-engaged-delta"></div>
+
+                    <!-- Views Breakdown -->
+                    <div class="sp-section">
+                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-eye me-1" style="color:#60a5fa;"></i> Views Breakdown</h6>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <div style="background:#1a1d21;border-radius:8px;padding:12px;border:1px solid #2d3238;">
+                                    <div style="font-size:1.1rem;font-weight:700;color:#17a2b8;" id="ins-accounts-reached">—</div>
+                                    <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;">Accounts Reached</div>
+                                    <div style="font-size:0.75rem;" id="ins-reached-change"></div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <!-- Followers vs Non-followers bar -->
+                                <div style="background:#1a1d21;border-radius:8px;padding:12px;border:1px solid #2d3238;">
+                                    <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;margin-bottom:6px;">Followers vs Non-Followers</div>
+                                    <div style="display:flex;height:20px;border-radius:4px;overflow:hidden;background:#2d3238;">
+                                        <div id="ins-bar-followers" style="background:#6366f1;height:100%;transition:width 0.5s;" title="Followers"></div>
+                                        <div id="ins-bar-nonfollowers" style="background:#a78bfa;height:100%;transition:width 0.5s;" title="Non-followers"></div>
+                                    </div>
+                                    <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                                        <small style="color:#6366f1;font-size:0.7rem;" id="ins-followers-pct-label">Followers —%</small>
+                                        <small style="color:#a78bfa;font-size:0.7rem;" id="ins-nonfollowers-pct-label">Non-followers —%</small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-4">
-                        <div style="background:#1a1d21;border-radius:8px;padding:16px;text-align:center;border:1px solid #2d3238;">
-                            <div style="font-size:1.5rem;font-weight:700;color:#ffc107;" id="insight-visits">—</div>
-                            <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Profile Visits</div>
+
+                    <!-- Profile Activity -->
+                    <div class="sp-section">
+                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-user-circle me-1" style="color:#f472b6;"></i> Profile Activity</h6>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <div style="background:#1a1d21;border-radius:8px;padding:12px;border:1px solid #2d3238;">
+                                    <div style="font-size:1.1rem;font-weight:700;color:#ffc107;" id="ins-profile-visits">—</div>
+                                    <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;">Profile Visits</div>
+                                    <div style="font-size:0.75rem;" id="ins-visits-change"></div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div style="background:#1a1d21;border-radius:8px;padding:12px;border:1px solid #2d3238;">
+                                    <div style="font-size:1.1rem;font-weight:700;color:#38bdf8;" id="ins-link-taps">—</div>
+                                    <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;">External Link Taps</div>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- Followers -->
+                    <div class="sp-section">
+                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-users me-1" style="color:#34d399;"></i> Followers</h6>
+                        <div style="background:#1a1d21;border-radius:8px;padding:14px;border:1px solid #2d3238;display:inline-block;">
+                            <div style="font-size:1.5rem;font-weight:700;color:#22c55e;" id="ins-total-followers">—</div>
+                            <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;">Total Followers</div>
+                        </div>
+                    </div>
+
+                    <!-- Audience Demographics -->
+                    <div class="sp-section">
+                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-chart-pie me-1" style="color:#a78bfa;"></i> Audience Demographics</h6>
+                        <div style="height:220px;position:relative;">
+                            <canvas id="demographicsChart"></canvas>
+                        </div>
+                        <div id="demographicsNoData" style="display:none;text-align:center;color:#6c757d;padding:30px;font-size:0.85rem;">
+                            <i class="fas fa-chart-pie me-1"></i> No demographic data — requires 100+ followers
+                        </div>
+                    </div>
+
+                    <!-- Most Active Times -->
+                    <div class="sp-section">
+                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-clock me-1" style="color:#fbbf24;"></i> Most Active Times</h6>
+                        <div style="height:180px;position:relative;">
+                            <canvas id="activeTimesChart"></canvas>
+                        </div>
+                        <div id="activeTimesNoData" style="display:none;text-align:center;color:#6c757d;padding:30px;font-size:0.85rem;">
+                            <i class="fas fa-clock me-1"></i> No active times data yet
+                        </div>
+                    </div>
+
+                    <!-- Footer: Scrape button + last scraped -->
+                    <div class="d-flex align-items-center gap-3 mt-3">
+                        <button class="btn btn-sm btn-outline-info" id="btn-scrape-insights" onclick="scrapeInsights()">
+                            🔄 Scrape Now
+                        </button>
+                        <small class="text-muted" id="insights-last-scraped">Last scraped: Never</small>
                     </div>
                 </div>
 
-                <div class="sp-section">
-                    <h6><i class="fas fa-users me-1"></i> Audience Demographics</h6>
-                    <div style="height:220px;position:relative;">
-                        <canvas id="demographicsChart"></canvas>
-                    </div>
-                    <div id="demographicsNoData" style="display:none;text-align:center;color:#6c757d;padding:30px;font-size:0.85rem;">
-                        <i class="fas fa-chart-pie me-1"></i> No demographic data — requires Business profile with 100+ followers
-                    </div>
-                </div>
-
-                <div class="sp-section">
-                    <h6><i class="fas fa-clock me-1"></i> Most Active Times</h6>
-                    <div style="height:180px;position:relative;">
-                        <canvas id="activeTimesChart"></canvas>
-                    </div>
-                    <div id="activeTimesNoData" style="display:none;text-align:center;color:#6c757d;padding:30px;font-size:0.85rem;">
-                        <i class="fas fa-clock me-1"></i> No active times data yet
-                    </div>
-                </div>
-
-                <div class="d-flex align-items-center gap-3 mt-3">
-                    <button class="btn btn-sm btn-outline-info" id="btn-scrape-insights" onclick="scrapeInsights()">
+                <!-- No data placeholder (business but no scraped data) -->
+                <div id="insights-no-data" style="display:none;text-align:center;padding:50px 20px;">
+                    <i class="fas fa-database" style="font-size:2.5rem;color:#4b5563;margin-bottom:12px;display:block;"></i>
+                    <h6 style="color:#d1d5db;">No Insights Data Yet</h6>
+                    <p style="color:#6b7280;font-size:0.85rem;max-width:320px;margin:0 auto 16px;">
+                        Your account is set up as a Business Profile. Scrape insights to start tracking performance.
+                    </p>
+                    <button class="btn btn-sm btn-outline-info" onclick="scrapeInsights()">
                         🔄 Scrape Latest Insights
                     </button>
-                    <small class="text-muted" id="insights-last-scraped">Last scraped: Never</small>
                 </div>
             </div>
 
@@ -2161,52 +2265,99 @@ function switchToBusiness() {
 }
 
 function loadInsights(deviceSerial, username) {
-    fetch(`/api/insights/${encodeURIComponent(deviceSerial)}/${encodeURIComponent(username)}`)
+    const notBizEl = document.getElementById('insights-not-business');
+    const bizContent = document.getElementById('insights-business-content');
+    const noDataEl = document.getElementById('insights-no-data');
+
+    // Hide all sections initially
+    notBizEl.style.display = 'none';
+    bizContent.style.display = 'none';
+    noDataEl.style.display = 'none';
+
+    fetch(`/api/account/${encodeURIComponent(username)}/insights`)
         .then(r => r.json())
         .then(data => {
-            if (!data.success || !data.insights) {
-                document.getElementById('insight-reached').textContent = '—';
-                document.getElementById('insight-engaged').textContent = '—';
-                document.getElementById('insight-visits').textContent = '—';
-                document.getElementById('insight-reached-delta').textContent = '';
-                document.getElementById('insight-engaged-delta').textContent = '';
-                document.getElementById('insights-last-scraped').textContent = 'Last scraped: Never';
-                document.getElementById('demographicsNoData').style.display = 'block';
-                document.getElementById('demographicsChart').style.display = 'none';
-                document.getElementById('activeTimesNoData').style.display = 'block';
-                document.getElementById('activeTimesChart').style.display = 'none';
+            if (!data.success) {
+                notBizEl.style.display = 'block';
                 return;
             }
 
-            const ins = data.insights;
-            document.getElementById('insight-reached').textContent = formatNum(ins.accounts_reached || 0);
-            document.getElementById('insight-engaged').textContent = formatNum(ins.accounts_engaged || 0);
-            document.getElementById('insight-visits').textContent = formatNum(ins.profile_visits || 0);
-
-            // Deltas
-            const reachedDelta = ins.accounts_reached_delta || 0;
-            document.getElementById('insight-reached-delta').innerHTML =
-                reachedDelta > 0 ? `<span style="color:#22c55e">▲${reachedDelta.toFixed(1)}%</span>` :
-                reachedDelta < 0 ? `<span style="color:#ef4444">▼${Math.abs(reachedDelta).toFixed(1)}%</span>` : '';
-
-            const engagedDelta = ins.accounts_engaged_delta || 0;
-            document.getElementById('insight-engaged-delta').innerHTML =
-                engagedDelta > 0 ? `<span style="color:#22c55e">▲${engagedDelta.toFixed(1)}%</span>` :
-                engagedDelta < 0 ? `<span style="color:#ef4444">▼${Math.abs(engagedDelta).toFixed(1)}%</span>` : '';
-
-            // Last scraped
-            if (ins.captured_at) {
-                const d = new Date(ins.captured_at);
-                document.getElementById('insights-last-scraped').textContent =
-                    'Last scraped: ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+            if (!data.is_business) {
+                notBizEl.style.display = 'block';
+                return;
             }
 
-            // Demographics chart
-            const demo = ins.follower_demographics || {};
+            if (!data.insights) {
+                noDataEl.style.display = 'block';
+                return;
+            }
+
+            // Show business content
+            bizContent.style.display = 'block';
+            const ins = data.insights;
+
+            // Business category badge
+            document.getElementById('insights-biz-category').textContent = data.business_category ? `· ${data.business_category}` : '';
+
+            // Overview cards
+            document.getElementById('ins-views').textContent = formatNum(ins.views || 0);
+            document.getElementById('ins-interactions').textContent = formatNum(ins.interactions || 0);
+            document.getElementById('ins-new-followers').textContent = formatNum(ins.new_followers || 0);
+            document.getElementById('ins-content-shared').textContent = formatNum(ins.content_shared || 0);
+
+            // Views breakdown
+            document.getElementById('ins-accounts-reached').textContent = formatNum(ins.accounts_reached || 0);
+            const reachedChg = ins.accounts_reached_change_pct || 0;
+            document.getElementById('ins-reached-change').innerHTML =
+                reachedChg > 0 ? `<span style="color:#22c55e">▲ ${reachedChg.toFixed(1)}%</span>` :
+                reachedChg < 0 ? `<span style="color:#ef4444">▼ ${Math.abs(reachedChg).toFixed(1)}%</span>` : '';
+
+            // Followers vs Non-followers bar
+            const fPct = ins.views_followers_pct || 0;
+            const nfPct = ins.views_non_followers_pct || 0;
+            document.getElementById('ins-bar-followers').style.width = fPct + '%';
+            document.getElementById('ins-bar-nonfollowers').style.width = nfPct + '%';
+            document.getElementById('ins-followers-pct-label').textContent = `Followers ${fPct.toFixed(0)}%`;
+            document.getElementById('ins-nonfollowers-pct-label').textContent = `Non-followers ${nfPct.toFixed(0)}%`;
+
+            // Profile Activity
+            document.getElementById('ins-profile-visits').textContent = formatNum(ins.profile_visits || 0);
+            const visitChg = ins.profile_visits_change_pct || 0;
+            document.getElementById('ins-visits-change').innerHTML =
+                visitChg > 0 ? `<span style="color:#22c55e">▲ ${visitChg.toFixed(1)}%</span>` :
+                visitChg < 0 ? `<span style="color:#ef4444">▼ ${Math.abs(visitChg).toFixed(1)}%</span>` : '';
+            document.getElementById('ins-link-taps').textContent = formatNum(ins.external_link_taps || 0);
+
+            // Total followers
+            document.getElementById('ins-total-followers').textContent = formatNum(ins.total_followers || 0);
+
+            // Comparison period
+            document.getElementById('insights-comparison-period').textContent =
+                ins.comparison_period ? `vs ${ins.comparison_period}` : (ins.date_range || '');
+
+            // Last scraped
+            if (ins.scraped_at) {
+                const d = new Date(ins.scraped_at);
+                document.getElementById('insights-last-scraped').textContent =
+                    'Last scraped: ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+            } else {
+                document.getElementById('insights-last-scraped').textContent = 'Last scraped: Never';
+            }
+
+            // Demographics & active times (from parsed JSON fields)
+            const demo = {
+                age_ranges: ins.age_range || {},
+                gender: ins.gender || {},
+                most_active_hours: (ins.most_active_times || {}).hours || [],
+                most_active_days: (ins.most_active_times || {}).days || []
+            };
             renderDemographicsChart(demo);
             renderActiveTimesChart(demo);
         })
-        .catch(err => console.warn('Failed to load insights:', err));
+        .catch(err => {
+            console.warn('Failed to load insights v2:', err);
+            notBizEl.style.display = 'block';
+        });
 }
 
 function renderDemographicsChart(demo) {
