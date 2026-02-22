@@ -40,6 +40,70 @@ def _get_conn():
     return conn
 
 
+def _ensure_tables():
+    """Create tables that may be missing on fresh installs."""
+    conn = _get_conn()
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS follower_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            username TEXT,
+            followers INTEGER DEFAULT 0,
+            following INTEGER DEFAULT 0,
+            posts INTEGER DEFAULT 0,
+            captured_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+        );
+        CREATE TABLE IF NOT EXISTS job_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_name TEXT,
+            job_type TEXT NOT NULL,
+            target TEXT,
+            target_count INTEGER DEFAULT 0,
+            completed_count INTEGER DEFAULT 0,
+            limit_per_hour INTEGER DEFAULT 50,
+            limit_per_day INTEGER DEFAULT 200,
+            comment_text TEXT,
+            status TEXT DEFAULT 'active',
+            priority INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT,
+            report_reason TEXT,
+            comment_list_id INTEGER,
+            ai_mode TEXT,
+            vision_ai INTEGER DEFAULT 0,
+            finished_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS job_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL,
+            account_id INTEGER NOT NULL,
+            device_serial TEXT,
+            username TEXT,
+            status TEXT DEFAULT 'assigned',
+            completed_count INTEGER DEFAULT 0,
+            last_action_at TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (job_id) REFERENCES job_orders(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS job_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL,
+            account_id INTEGER NOT NULL,
+            action_type TEXT,
+            target TEXT,
+            status TEXT,
+            error_message TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (job_id) REFERENCES job_orders(id) ON DELETE CASCADE
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+_ensure_tables()
+
+
 def _row_to_dict(row):
     return dict(row) if row else None
 
