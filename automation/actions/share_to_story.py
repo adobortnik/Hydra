@@ -28,6 +28,15 @@ from automation.source_manager import get_sources
 log = logging.getLogger(__name__)
 
 
+def _to_bool(val):
+    """Convert various truthy values to bool (settings may be str/int/bool)."""
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.lower() in ('true', '1', 'on', 'yes')
+    return bool(val)
+
+
 class ShareToStoryAction:
     """Share source users' content to our story."""
 
@@ -53,12 +62,12 @@ class ShareToStoryAction:
         self.min_watch = int(self.settings.get('min_sec_share_reel_watch', 5))
         self.max_watch = int(self.settings.get('max_sec_share_reel_watch', 10))
 
-        # Story editor features (Task 2)
-        self.enable_mention = self.settings.get('story_mention_enabled', False)
-        self.mention_target = self.settings.get('story_mention_target', '')  # @username per source
-        self.enable_link_sticker = self.settings.get('story_link_sticker_enabled', False)
-        self.link_sticker_url = self.settings.get('story_link_sticker_url', '')
-        self.enable_text_overlay = self.settings.get('story_text_overlay_enabled', False)
+        # Story editor features
+        self.enable_mention = _to_bool(self.settings.get('enable_mention_to_story', False))
+        self.mention_target = self.settings.get('sharepost_mention', '').strip()
+        self.enable_link_sticker = _to_bool(self.settings.get('enable_add_link_to_story', False))
+        self.link_sticker_url = self.settings.get('custom_link_text', '')
+        self.enable_text_overlay = _to_bool(self.settings.get('story_text_overlay_enabled', False))
         self.text_overlay = self.settings.get('story_text_overlay', '')
 
     def _handle_permission_dialogs(self):
@@ -193,8 +202,8 @@ class ShareToStoryAction:
 
         random_sleep(2, 4, label="on_profile")
 
-        # 2. Open first grid item (latest post/reel)
-        if not self._open_first_grid_item():
+        # 2. Open random grid item (post/reel based on post_type setting)
+        if not self._open_random_grid_item():
             log.warning("[%s] Could not open grid item for @%s",
                         self.device_serial, source_username)
             self.ctrl.press_back()
@@ -241,12 +250,214 @@ class ShareToStoryAction:
         self._go_back(3)
         return True
 
-    def _open_first_grid_item(self):
-        """Open the first post/reel in the profile grid."""
+    def _open_random_grid_item(self):
+        """Open a random post/reel from the profile grid based on post_type setting.
+
+        Checks self.post_type to decide which tab (Posts/Reels) to use,
+        optionally scrolls the grid for variety, then picks a random item.
+        Falls back to _open_first_grid_item_legacy() if no items found.
+        """
+        post_type = (self.post_type or 'posts').lower().strip()
+
+        # Decide which tab to use
+        if post_type in ('reels', 'reel'):
+            self._switch_to_reels_tab()
+        elif post_type in ('both', 'all', 'post_reels'):
+            if random.random() < 0.5:
+                log.info("[%s] post_type=%s → randomly chose Reels tab",
+                         self.device_serial, post_type)
+                self._switch_to_reels_tab()
+            else:
+                log.info("[%s] post_type=%s → randomly chose Posts tab",
+                         self.device_serial, post_type)
+        else:
+            log.debug("[%s] post_type=%s → staying on Posts tab",
+                      self.device_serial, post_type)
+
+        time.sleep(2)
+
+        # Random scroll to get variety (0-2 scrolls)
+        scroll_count = random.randint(0, 2)
+        if scroll_count:
+            log.debug("[%s] Scrolling grid %d time(s) for variety",
+                      self.device_serial, scroll_count)
+            for _ in range(scroll_count):
+                self.ctrl.scroll_feed("down", amount=0.3)
+                time.sleep(1.5)
+
+        # Dump XML and find all grid items
+        xml = self.ctrl.dump_xml("grid_items")
+        grid_items = self._find_grid_items(xml)
+
+        if not grid_items:
+            log.warning("[%s] No grid items found via XML parsing, falling back to legacy",
+                        self.device_serial)
+            return self._open_first_grid_item_legacy()
+
+        # Pick a random item
+        item = random.choice(grid_items)
+        desc_preview = (item.get('desc') or 'no-desc')[:60]
+        log.info("[%s] Picked random grid item (%d available): %s",
+                 self.device_serial, len(grid_items), desc_preview)
+
+        # Click the item by bounds center
+        x, y = item['cx'], item['cy']
+        self.device.click(x, y)
+        time.sleep(3)
+
+        # Verify we opened something (not still on profile)
+        screen = self.ctrl.detect_screen()
+        if screen != Screen.PROFILE:
+            return True
+
+        # If still on profile, try clicking again with slight offset
+        log.debug("[%s] Still on profile after click, retrying with offset", self.device_serial)
+        self.device.click(x + 5, y + 5)
+        time.sleep(3)
+        screen = self.ctrl.detect_screen()
+        if screen != Screen.PROFILE:
+            return True
+
+        log.warning("[%s] Could not open random grid item, falling back to legacy",
+                    self.device_serial)
+        return self._open_first_grid_item_legacy()
+
+    def _find_grid_items(self, xml):
+        """Parse XML to find all visible grid items (posts or reels).
+
+        Returns list of dicts: [{'desc': str, 'cx': int, 'cy': int, 'bounds': str}, ...]
+        """
+        items = []
+
+        # Pattern 1: content-desc with "Row X, Column Y" (standard IG grid items)
+        # e.g. content-desc="Photo by cristiano. 2 days ago. Row 1, Column 1"
+        row_col_pattern = re.compile(
+            r'content-desc="([^"]*[Rr]ow\s+\d+[^"]*[Cc]olumn\s+\d+[^"]*)"'
+            r'[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
+        )
+        for match in row_col_pattern.finditer(xml):
+            desc = match.group(1)
+            x1, y1, x2, y2 = int(match.group(2)), int(match.group(3)), int(match.group(4)), int(match.group(5))
+            items.append({
+                'desc': desc,
+                'cx': (x1 + x2) // 2,
+                'cy': (y1 + y2) // 2,
+                'bounds': f'[{x1},{y1}][{x2},{y2}]',
+            })
+
+        if items:
+            log.debug("[%s] Found %d grid items via Row/Column pattern",
+                      self.device_serial, len(items))
+            return items
+
+        # Pattern 2: Also try bounds-first format (some XML dumps have different attr order)
+        row_col_pattern2 = re.compile(
+            r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
+            r'[^>]*content-desc="([^"]*[Rr]ow\s+\d+[^"]*[Cc]olumn\s+\d+[^"]*)"'
+        )
+        for match in row_col_pattern2.finditer(xml):
+            x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+            desc = match.group(5)
+            items.append({
+                'desc': desc,
+                'cx': (x1 + x2) // 2,
+                'cy': (y1 + y2) // 2,
+                'bounds': f'[{x1},{y1}][{x2},{y2}]',
+            })
+
+        if items:
+            log.debug("[%s] Found %d grid items via Row/Column pattern (alt order)",
+                      self.device_serial, len(items))
+            return items
+
+        # Pattern 3: Clickable ImageViews in grid area (below ~40% of screen)
+        # These are typically the grid thumbnails
+        w, h = self.device.window_size()
+        grid_top_threshold = int(h * 0.35)  # Grid typically starts below 35% of screen
+
+        imageview_pattern = re.compile(
+            r'<node[^>]*class="android\.widget\.ImageView"[^>]*'
+            r'clickable="true"[^>]*'
+            r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
+        )
+        for match in imageview_pattern.finditer(xml):
+            x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+            # Filter: must be in grid area (below profile header) and reasonably sized
+            item_w = x2 - x1
+            item_h = y2 - y1
+            if y1 >= grid_top_threshold and item_w > 50 and item_h > 50 and item_w < w * 0.5:
+                items.append({
+                    'desc': f'ImageView at [{x1},{y1}][{x2},{y2}]',
+                    'cx': (x1 + x2) // 2,
+                    'cy': (y1 + y2) // 2,
+                    'bounds': f'[{x1},{y1}][{x2},{y2}]',
+                })
+
+        if items:
+            log.debug("[%s] Found %d grid items via ImageView pattern",
+                      self.device_serial, len(items))
+
+        return items
+
+    def _switch_to_reels_tab(self):
+        """Switch to Reels tab on a user's profile.
+
+        Profile tabs are typically: Posts | Reels | Tagged
+        Returns True if successfully switched.
+        """
+        log.debug("[%s] Switching to Reels tab", self.device_serial)
+
+        # Method 1: content-desc "Reels"
+        reels_tab = self.device(description="Reels")
+        if reels_tab.exists(timeout=3):
+            reels_tab.click()
+            time.sleep(2)
+            log.debug("[%s] Clicked Reels tab via desc='Reels'", self.device_serial)
+            return True
+
+        # Method 2: text "Reels"
+        reels_tab = self.device(text="Reels")
+        if reels_tab.exists(timeout=2):
+            reels_tab.click()
+            time.sleep(2)
+            log.debug("[%s] Clicked Reels tab via text='Reels'", self.device_serial)
+            return True
+
+        # Method 3: XML search for Reels tab in the tab row
+        xml = self.ctrl.dump_xml("reels_tab_search")
+        reels_match = re.search(
+            r'(?:content-desc="Reels"|text="Reels")[^>]*'
+            r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+            xml)
+        if not reels_match:
+            # Try reversed attr order
+            reels_match = re.search(
+                r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*'
+                r'(?:content-desc="Reels"|text="Reels")',
+                xml)
+        if reels_match:
+            x = (int(reels_match.group(1)) + int(reels_match.group(3))) // 2
+            y = (int(reels_match.group(2)) + int(reels_match.group(4))) // 2
+            self.device.click(x, y)
+            time.sleep(2)
+            log.debug("[%s] Clicked Reels tab via XML bounds (%d, %d)",
+                      self.device_serial, x, y)
+            return True
+
+        # Method 4: Try tapping the second tab icon in the tab bar area
+        # Profile tabs are typically between y=45%-55% of screen
+        w, h = self.device.window_size()
+        # Second tab is roughly at x=50% (center), y near the tab row
+        self.device.click(int(w * 0.5), int(h * 0.48))
+        time.sleep(2)
+        log.debug("[%s] Clicked estimated Reels tab position", self.device_serial)
+        return True
+
+    def _open_first_grid_item_legacy(self):
+        """Legacy fallback: open the first post/reel in the profile grid."""
         xml = self.ctrl.dump_xml()
 
         # Method 1: Content-desc pattern for grid items
-        # e.g. "Photo by cristiano. 2 days ago. Row 1, Column 1"
         pattern = r'content-desc="([^"]*[Rr]ow 1[^"]*[Cc]olumn 1[^"]*)"'
         match = re.search(pattern, xml)
         if match:
@@ -268,7 +479,6 @@ class ShareToStoryAction:
 
         # Method 3: Click center-right area where first grid item typically is
         w, h = self.device.window_size()
-        # Grid usually starts around y=60% of screen, first item at x=16%
         self.device.click(int(w * 0.16), int(h * 0.6))
         time.sleep(3)
 

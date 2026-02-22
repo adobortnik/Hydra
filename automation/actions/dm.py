@@ -68,6 +68,14 @@ class DMAction:
         pkg = account_info.get('package', package)
         self.ctrl = IGController(device, device_serial, pkg)
 
+        # Enable AdbKeyboard IME for reliable text input
+        try:
+            self.device.set_input_ime(True)
+            log.info("[%s] AdbKeyboard IME enabled", self.device_serial)
+        except Exception as e:
+            log.warning("[%s] Failed to enable AdbKeyboard IME: %s",
+                        self.device_serial, e)
+
         # Load settings & templates
         self.settings = get_account_settings(self.account_id)
         self._init_limits()
@@ -264,12 +272,18 @@ class DMAction:
         3. Pick users not yet DMed
         """
         try:
-            # Navigate to own profile -> followers list
+            # Navigate to own profile -> followers list (with retry)
             if not self.ctrl.navigate_to(Screen.PROFILE):
-                log.warning("[%s] Could not navigate to profile for DM",
-                           self.device_serial)
-                result['errors'] += 1
-                return
+                # Retry: dismiss popups, try again
+                self.ctrl.dismiss_popups()
+                time.sleep(1)
+                self.ctrl.ensure_app()
+                time.sleep(2)
+                if not self.ctrl.navigate_to(Screen.PROFILE):
+                    log.warning("[%s] Could not navigate to profile for DM",
+                               self.device_serial)
+                    result['errors'] += 1
+                    return
 
             random_sleep(1, 2)
 
@@ -374,19 +388,45 @@ class DMAction:
             if msg_btn is None:
                 msg_btn = self.ctrl.find_element(desc="Message", timeout=2)
             if msg_btn is None:
-                # Some profiles show "Following" with Message as a second button
+                # Try scrolling profile down slightly (button may be off-screen)
+                try:
+                    w, h = self.device.window_size()
+                    self.device.swipe(w // 2, int(h * 0.5), w // 2,
+                                      int(h * 0.35), duration=0.3)
+                    time.sleep(1)
+                except Exception:
+                    pass
+                msg_btn = self.ctrl.find_element(text="Message", timeout=2)
+            if msg_btn is None:
                 msg_btn = self.device(textContains="Message")
                 if not msg_btn.exists(timeout=2):
                     log.warning("[%s] Message button not found for @%s",
                                self.device_serial, target_username)
+                    self.ctrl.dump_xml("dm_no_message_btn")
                     self.ctrl.press_back()
                     return False
 
             msg_btn.click()
             random_sleep(2, 4, label="dm_thread_loaded")
 
-            # Dismiss any popups in the thread
-            self.ctrl.dismiss_popups()
+            # Dismiss any popups in the DM thread
+            for _ in range(3):
+                popup = self.ctrl.detect_screen()
+                if popup == Screen.POPUP:
+                    self.ctrl.dismiss_popups()
+                    time.sleep(1)
+                else:
+                    break
+
+            # Handle "Can't message this account" or restricted screens
+            xml = self.ctrl.dump_xml("dm_thread_check")
+            if xml and ("can't send" in xml.lower() or "restrict" in xml.lower()
+                        or "unavailable" in xml.lower()):
+                log.warning("[%s] Can't DM @%s (restricted/unavailable)",
+                            self.device_serial, target_username)
+                self.ctrl.press_back()
+                time.sleep(1)
+                return False
 
             # Verify we're in a DM thread
             screen = self.ctrl.detect_screen()
@@ -400,9 +440,19 @@ class DMAction:
             # Send message(s)
             if self.send_per_line:
                 lines = [l for l in message.split('\n') if l.strip()]
+                all_lines_ok = True
                 for line in lines:
-                    self._type_and_send_in_thread(line.strip())
+                    line_ok = self._type_and_send_in_thread(line.strip())
+                    if not line_ok:
+                        log.warning("[%s] send_per_line: failed on line: %s",
+                                    self.device_serial, line[:40])
+                        all_lines_ok = False
+                        break
                     random_sleep(1, 3, label="between_lines")
+                if not all_lines_ok:
+                    self.ctrl.press_back()
+                    time.sleep(1)
+                    return False
             else:
                 success = self._type_and_send_in_thread(message)
                 if not success:
@@ -429,6 +479,116 @@ class DMAction:
                 pass
             return False
 
+    def _check_field_has_text(self, field_id_pattern, label=""):
+        """Check if the target EditText field has any non-empty text.
+        
+        IMPORTANT: Instagram DM composer has a bug where hint text == text attribute
+        when the field is actually EMPTY. We must check text != hint to confirm
+        real text was entered.
+        """
+        xml = self.ctrl.dump_xml(f"verify_type_{label}")
+        if not xml:
+            return False
+
+        # Helper to check a node's text vs hint
+        def _node_has_real_text(node_xml):
+            text_m = re.search(r'text="([^"]*)"', node_xml)
+            hint_m = re.search(r'hint="([^"]*)"', node_xml) or re.search(r'content-desc="([^"]*)"', node_xml)
+            if text_m:
+                field_text = text_m.group(1)
+                if not field_text:
+                    return False
+                # If hint matches text exactly, the field is actually EMPTY
+                if hint_m and field_text == hint_m.group(1):
+                    log.debug("[%s] Field text == hint ('%s'), field is empty (%s)",
+                              self.device_serial, field_text[:30], label)
+                    return False
+                log.debug("[%s] Field has real text (%s): '%s'",
+                          self.device_serial, label, field_text[:50])
+                return True
+            return False
+
+        # Try focused EditText first
+        focused_pattern = (
+            r'<node[^>]*class="android\.widget\.EditText"[^>]*focused="true"[^/]*/>'
+            r'|<node[^>]*focused="true"[^>]*class="android\.widget\.EditText"[^/]*/>'
+        )
+        for m in re.finditer(r'<node[^>]*class="android\.widget\.EditText"[^/]*/>', xml):
+            node_str = m.group(0)
+            if 'focused="true"' in node_str:
+                if _node_has_real_text(node_str):
+                    return True
+
+        # Try by resource-id pattern
+        for m in re.finditer(r'<node[^/]*/>', xml):
+            node_str = m.group(0)
+            if field_id_pattern in node_str and 'EditText' in node_str:
+                if _node_has_real_text(node_str):
+                    return True
+
+        log.debug("[%s] Field text empty after typing (%s)",
+                  self.device_serial, label)
+        return False
+
+    def _reliable_type(self, element, text, field_id_pattern='composer_edittext'):
+        """
+        Type text reliably. Primary: set_text(). Fallback: ADB input text.
+        AdbKeyboard IME must be enabled (done in __init__).
+        Returns True if text was typed successfully.
+        """
+        # Strategy 1 (primary): u2 set_text — most reliable with AdbKeyboard
+        log.debug("[%s] _reliable_type: trying set_text()", self.device_serial)
+        try:
+            element.set_text(text)
+            time.sleep(1)
+            if self._check_field_has_text(field_id_pattern, "set_text"):
+                return True
+            log.info("[%s] set_text verification failed (hint==text bug?), "
+                     "skipping verification — text likely entered OK",
+                     self.device_serial)
+            # Even if verification fails due to hint==text bug,
+            # we'll check for send button appearance as final verification
+        except Exception as e:
+            log.warning("[%s] set_text failed: %s", self.device_serial, e)
+
+        # Strategy 2: ADB input text fallback
+        log.info("[%s] _reliable_type: trying ADB input text fallback",
+                 self.device_serial)
+        try:
+            element.clear_text()
+            time.sleep(0.3)
+        except Exception:
+            pass
+        escaped = text.replace(' ', '%s').replace("'", "\\'")
+        subprocess.run(
+            ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
+             escaped],
+            capture_output=True, timeout=10
+        )
+        time.sleep(1)
+        if self._check_field_has_text(field_id_pattern, "adb"):
+            return True
+
+        # If both strategies failed verification but text may still be there
+        # (hint==text bug), return True and let send button check catch it
+        log.warning("[%s] _reliable_type: verification failed but text may be "
+                    "present (hint==text bug). Will check send button.",
+                    self.device_serial)
+        return True
+
+    def _find_send_button(self):
+        """Find the DM send button. Returns element or None."""
+        send_btn = self.ctrl.find_element(
+            resource_id='row_thread_composer_send_button_icon', timeout=2)
+        if send_btn is None:
+            send_btn = self.ctrl.find_element(
+                resource_id='row_thread_composer_send_button_container', timeout=1)
+        if send_btn is None:
+            send_btn = self.ctrl.find_element(desc="Send", timeout=1)
+        if send_btn is None:
+            send_btn = self.ctrl.find_element(text="Send", timeout=1)
+        return send_btn
+
     def _type_and_send_in_thread(self, text):
         """
         Type a message in the DM thread composer and send it.
@@ -438,16 +598,13 @@ class DMAction:
         msg_input = self.ctrl.find_element(
             resource_id='row_thread_composer_edittext', timeout=3)
         if msg_input is None:
-            # Fallback: any EditText in the thread
             msg_input = self.ctrl.find_element(
                 class_name='android.widget.EditText', timeout=3)
         if msg_input is None:
-            # Try by hint text
             msg_input = self.device(textContains="Message")
             if not msg_input.exists(timeout=2):
                 log.warning("[%s] DM input field not found",
                            self.device_serial)
-                # Dump XML for debugging
                 self.ctrl.dump_xml("dm_input_not_found")
                 return False
 
@@ -461,28 +618,39 @@ class DMAction:
         except Exception:
             pass
 
-        # Type via ADB for reliability (handles special chars better)
-        escaped = text.replace(' ', '%s').replace("'", "\\'")
-        subprocess.run(
-            ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
-             escaped],
-            capture_output=True, timeout=10
-        )
-        time.sleep(1)
+        # Type with primary method: set_text
+        log.debug("[%s] Typing DM: %s", self.device_serial, text[:50])
+        try:
+            msg_input.set_text(text)
+            time.sleep(1)
+        except Exception as e:
+            log.warning("[%s] set_text failed: %s", self.device_serial, e)
 
-        # Click send button
-        send_btn = self.ctrl.find_element(
-            resource_id='row_thread_composer_send_button_icon', timeout=3)
+        # Verify: send button should appear if text was entered
+        send_btn = self._find_send_button()
         if send_btn is None:
-            send_btn = self.ctrl.find_element(
-                resource_id='row_thread_composer_send_button_container', timeout=2)
-        if send_btn is None:
-            send_btn = self.ctrl.find_element(desc="Send", timeout=2)
-        if send_btn is None:
-            send_btn = self.ctrl.find_element(text="Send", timeout=2)
+            # Text likely didn't enter — retry with ADB input text
+            log.info("[%s] Send button not found after set_text, retrying with ADB input",
+                     self.device_serial)
+            try:
+                msg_input.click()
+                time.sleep(0.3)
+                msg_input.clear_text()
+                time.sleep(0.3)
+            except Exception:
+                pass
+            escaped = text.replace(' ', '%s').replace("'", "\\'")
+            subprocess.run(
+                ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
+                 escaped],
+                capture_output=True, timeout=10
+            )
+            time.sleep(1)
+            send_btn = self._find_send_button()
 
         if send_btn is None:
-            log.warning("[%s] DM send button not found", self.device_serial)
+            log.warning("[%s] DM send button not found after both typing methods",
+                        self.device_serial)
             self.ctrl.dump_xml("dm_send_btn_not_found")
             return False
 

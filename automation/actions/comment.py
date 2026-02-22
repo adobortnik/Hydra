@@ -28,6 +28,7 @@ Discovered Resource IDs (verified on androif 2026-02-05):
 """
 
 import logging
+import os
 import random
 import re
 import time
@@ -72,6 +73,14 @@ class CommentAction:
         # IGController for reliable UI
         pkg = account_info.get('package', package)
         self.ctrl = IGController(device, device_serial, pkg)
+
+        # Enable AdbKeyboard IME for reliable text input
+        try:
+            self.device.set_input_ime(True)
+            log.info("[%s] AdbKeyboard IME enabled", self.device_serial)
+        except Exception as e:
+            log.warning("[%s] Failed to enable AdbKeyboard IME: %s",
+                        self.device_serial, e)
 
         # Load settings & templates
         self.settings = get_account_settings(self.account_id)
@@ -137,19 +146,100 @@ class CommentAction:
         log.info("[%s] Loaded %d comment templates",
                  self.device_serial, len(self.comment_templates))
 
-    def _get_comment(self):
-        """Get a random comment with spintax resolved."""
-        # Check for AI mode
+    def _get_comment(self, post_author=None, post_context=None):
+        """Get a comment — AI-generated if [AI] mode, else spintax/template."""
         ai_text = self.settings.get('comment_text', '')
         if ai_text == '[AI]':
-            # Placeholder for AI comment generation
-            # Falls back to templates for now
-            pass
+            comment = self._generate_ai_comment(post_author, post_context)
+            if comment:
+                return comment
+            # Fall through to templates if AI fails
         elif ai_text and ai_text != '[AI]':
             return _process_spintax(ai_text)
 
         template = random.choice(self.comment_templates)
         return _process_spintax(template)
+
+    def _generate_ai_comment(self, post_author=None, post_context=None):
+        """Generate a comment using OpenAI API."""
+        try:
+            import json
+            settings_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                'dashboard', 'global_settings.json')
+            with open(settings_path) as f:
+                settings = json.load(f)
+            api_key = settings.get('ai', {}).get('openai_api_key', '')
+            if not api_key:
+                log.warning("[%s] No OpenAI API key configured", self.device_serial)
+                return None
+
+            # Get the GPT prompt from account text configs
+            prompt = self._get_comment_gpt_prompt()
+            if not prompt:
+                prompt = ("Generate a short, natural Instagram comment "
+                          "(1-2 sentences). Be casual, friendly. "
+                          "May include 1-2 emojis.")
+
+            # Replace placeholders
+            if post_author:
+                prompt = prompt.replace('[SOURCE]', post_author).replace('[AUTHOR]', post_author)
+
+            import requests
+            response = requests.post(
+                'https://api.openai.com/v1/chat/completions',
+                headers={
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'model': 'gpt-4o-mini',
+                    'messages': [
+                        {'role': 'system', 'content': prompt},
+                        {'role': 'user', 'content': (
+                            f'Write a short comment for an Instagram post by '
+                            f'@{post_author or "someone"}.'
+                            f'{" Post context: " + post_context if post_context else ""}'
+                        )}
+                    ],
+                    'max_tokens': 100,
+                    'temperature': 0.9
+                },
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                comment = data['choices'][0]['message']['content'].strip()
+                # Clean: remove quotes if wrapped
+                comment = comment.strip('"').strip("'")
+                log.info("[%s] AI comment generated: %s",
+                         self.device_serial, comment[:50])
+                return comment
+            else:
+                log.warning("[%s] OpenAI API returned %d: %s",
+                            self.device_serial, response.status_code,
+                            response.text[:200])
+        except Exception as e:
+            log.warning("[%s] AI comment generation failed: %s",
+                        self.device_serial, e)
+        return None
+
+    def _get_comment_gpt_prompt(self):
+        """Get comment GPT prompt from account text configs."""
+        try:
+            conn = get_db()
+            row = conn.execute(
+                "SELECT content FROM account_text_configs "
+                "WHERE account_id=? AND config_type='comment_gpt_prompt'",
+                (self.account_id,)
+            ).fetchone()
+            conn.close()
+            if row and row['content']:
+                return row['content'].strip()
+        except Exception:
+            pass
+        return None
 
     # ------------------------------------------------------------------
     # Main execute
@@ -194,17 +284,37 @@ class CommentAction:
         # Determine comment method based on settings
         comment_method = self.settings.get('comment_method', 'feed')
 
-        if comment_method == 'keyword_search':
+        # Parse comment_method — can be a dict like {'comment_using_keyword_search': False}
+        use_keyword_search = False
+        if isinstance(comment_method, dict):
+            use_keyword_search = comment_method.get('comment_using_keyword_search', False)
+            log.debug("[%s] comment_method is dict: %s, keyword_search=%s",
+                      self.device_serial, comment_method, use_keyword_search)
+        elif isinstance(comment_method, str):
+            use_keyword_search = (comment_method == 'keyword_search')
+
+        # Priority 1: Comment sources (specific profiles to comment on)
+        comment_sources = get_account_sources(self.account_id, 'comment_sources')
+        if comment_sources:
+            log.info("[%s] Found %d comment sources, using source-based commenting",
+                     self.device_serial, len(comment_sources))
+            self._comment_on_sources(
+                comment_sources, target, recently_commented, result)
+
+        # Priority 2: Keyword search if enabled and still have budget
+        if use_keyword_search and result['comments_posted'] < target:
             keywords = get_account_sources(self.account_id, 'comment_keywords')
             if keywords:
+                remaining_target = target - result['comments_posted']
                 self._comment_via_search(
-                    keywords, target, recently_commented, result)
-            else:
-                # Fall back to feed
-                self._comment_on_feed(target, recently_commented, result)
-        else:
-            # Default: comment on home feed posts
-            self._comment_on_feed(target, recently_commented, result)
+                    keywords, remaining_target, recently_commented, result)
+
+        # Priority 3: Feed commenting as fallback if we haven't reached target
+        if result['comments_posted'] < target:
+            remaining_target = target - result['comments_posted']
+            log.info("[%s] Falling back to feed commenting (need %d more)",
+                     self.device_serial, remaining_target)
+            self._comment_on_feed(remaining_target, recently_commented, result)
 
         result['success'] = True
         log.info("[%s] %s: Comment complete. Posted: %d, Skipped: %d, Errors: %d",
@@ -213,8 +323,245 @@ class CommentAction:
         return result
 
     # ------------------------------------------------------------------
+    # Reliable typing helper
+    # ------------------------------------------------------------------
+    def _check_field_has_text(self, field_id_pattern, label=""):
+        """Check if the target EditText field has any non-empty text.
+        
+        IMPORTANT: Instagram composer has a bug where hint text == text attribute
+        when the field is actually EMPTY. We must check text != hint to confirm
+        real text was entered.
+        """
+        xml = self.ctrl.dump_xml(f"verify_type_{label}")
+        if not xml:
+            return False
+
+        # Helper to check a node's text vs hint
+        def _node_has_real_text(node_xml):
+            text_m = re.search(r'text="([^"]*)"', node_xml)
+            hint_m = re.search(r'hint="([^"]*)"', node_xml) or re.search(r'content-desc="([^"]*)"', node_xml)
+            if text_m:
+                field_text = text_m.group(1)
+                if not field_text:
+                    return False
+                # If hint matches text exactly, the field is actually EMPTY
+                if hint_m and field_text == hint_m.group(1):
+                    log.debug("[%s] Field text == hint ('%s'), field is empty (%s)",
+                              self.device_serial, field_text[:30], label)
+                    return False
+                log.debug("[%s] Field has real text (%s): '%s'",
+                          self.device_serial, label, field_text[:50])
+                return True
+            return False
+
+        # Try focused EditText first
+        for m in re.finditer(r'<node[^>]*class="android\.widget\.EditText"[^/]*/>', xml):
+            node_str = m.group(0)
+            if 'focused="true"' in node_str:
+                if _node_has_real_text(node_str):
+                    return True
+
+        # Try by resource-id pattern
+        for m in re.finditer(r'<node[^/]*/>', xml):
+            node_str = m.group(0)
+            if field_id_pattern in node_str and 'EditText' in node_str:
+                if _node_has_real_text(node_str):
+                    return True
+
+        log.debug("[%s] Field text empty after typing (%s)",
+                  self.device_serial, label)
+        return False
+
+    def _reliable_type(self, element, text, field_id_pattern='comment_thread_edittext'):
+        """
+        Type text reliably. Primary: set_text(). Fallback: ADB input text.
+        AdbKeyboard IME must be enabled (done in __init__).
+        Returns True if text was typed successfully.
+        """
+        # Strategy 1 (primary): u2 set_text — most reliable with AdbKeyboard
+        log.debug("[%s] _reliable_type: trying set_text()", self.device_serial)
+        try:
+            element.set_text(text)
+            time.sleep(1)
+            if self._check_field_has_text(field_id_pattern, "set_text"):
+                return True
+            log.info("[%s] set_text verification failed (hint==text bug?)",
+                     self.device_serial)
+        except Exception as e:
+            log.warning("[%s] set_text failed: %s", self.device_serial, e)
+
+        # Strategy 2: ADB input text fallback
+        log.info("[%s] _reliable_type: trying ADB input text fallback",
+                 self.device_serial)
+        try:
+            element.clear_text()
+            time.sleep(0.3)
+        except Exception:
+            pass
+        escaped = text.replace(' ', '%s').replace("'", "\\'")
+        subprocess.run(
+            ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
+             escaped],
+            capture_output=True, timeout=10
+        )
+        time.sleep(1)
+        if self._check_field_has_text(field_id_pattern, "adb"):
+            return True
+
+        # If verification fails but text may still be present (hint==text bug),
+        # return True and let Post button check catch it
+        log.warning("[%s] _reliable_type: verification failed but text may be "
+                    "present (hint==text bug). Will check Post button.",
+                    self.device_serial)
+        return True
+
+    # ------------------------------------------------------------------
     # Comment Methods
     # ------------------------------------------------------------------
+    def _comment_on_sources(self, sources, max_comments, already_commented, result):
+        """
+        Comment on posts from specific source profiles.
+        For each source: navigate to their profile → open latest post → comment.
+        """
+        random.shuffle(sources)
+
+        for source_username in sources:
+            if result['comments_posted'] >= max_comments:
+                break
+
+            if source_username.lower() == self.username.lower():
+                continue
+
+            log.info("[%s] Commenting on source: @%s",
+                     self.device_serial, source_username)
+
+            try:
+                self.ctrl.dismiss_popups()
+
+                # Step 1: Search and open source profile
+                if not self.ctrl.search_user(source_username):
+                    log.warning("[%s] Could not find source @%s",
+                                self.device_serial, source_username)
+                    result['errors'] += 1
+                    continue
+
+                random_sleep(2, 3, label="source_profile_loaded")
+                self.ctrl.dismiss_popups()
+
+                # Step 2: Open their latest post (first grid item)
+                # Profile grid uses ImageView items — click the first one
+                grid_item = None
+                # Try specific grid resource IDs first
+                grid_item = self.ctrl.find_element(
+                    resource_id='media_image_button', timeout=3)
+                if grid_item is None:
+                    # Fallback: find grid images below the profile header
+                    xml = self.ctrl.dump_xml("source_profile_grid")
+                    # Look for clickable ImageViews that are likely grid posts
+                    images = self.device(
+                        className="android.widget.ImageView",
+                        clickable=True)
+                    if images.exists(timeout=3) and images.count > 0:
+                        # Skip profile picture (usually first image), click grid post
+                        # Grid posts typically start after a few header elements
+                        idx = min(2, images.count - 1)  # Skip avatar, story, etc
+                        for i in range(idx, images.count):
+                            try:
+                                img_info = images[i].info
+                                bounds = img_info.get('bounds', {})
+                                # Grid posts are typically below y=500 and have square-ish bounds
+                                if bounds.get('top', 0) > 400:
+                                    grid_item = images[i]
+                                    break
+                            except Exception:
+                                continue
+
+                if grid_item is None:
+                    log.warning("[%s] No grid posts found for @%s",
+                                self.device_serial, source_username)
+                    self.ctrl.press_back()
+                    time.sleep(1)
+                    result['errors'] += 1
+                    continue
+
+                grid_item.click()
+                random_sleep(2, 3, label="source_post_loaded")
+                self.ctrl.dismiss_popups()
+
+                # Step 3: Find the post author for logging
+                xml = self.ctrl.dump_xml("source_post")
+                author = self._get_post_author_from_xml(xml) or source_username
+
+                if author in already_commented:
+                    log.debug("[%s] Skip source @%s (already commented)",
+                              self.device_serial, author)
+                    result['skipped'] += 1
+                    self.ctrl.press_back()
+                    time.sleep(1)
+                    self.ctrl.press_back()
+                    time.sleep(1)
+                    continue
+
+                # Step 4: Find and click comment button
+                comment_btn = self._find_comment_button(xml)
+                if comment_btn is None:
+                    # Re-dump in case XML changed
+                    xml = self.ctrl.dump_xml("source_post_retry")
+                    comment_btn = self._find_comment_button(xml)
+
+                if comment_btn is None:
+                    log.warning("[%s] Comment button not found on @%s's post",
+                                self.device_serial, source_username)
+                    self.ctrl.press_back()
+                    time.sleep(1)
+                    self.ctrl.press_back()
+                    time.sleep(1)
+                    result['errors'] += 1
+                    continue
+
+                # Step 5: Post the comment
+                success = self._post_comment(comment_btn, post_author=author)
+                if success:
+                    result['comments_posted'] += 1
+                    already_commented.add(author)
+                    log_action(
+                        self.session_id, self.device_serial,
+                        self.username, 'comment',
+                        target_username=author, success=True)
+                    log.info("[%s] Commented on @%s's post via source (%d/%d)",
+                             self.device_serial, author,
+                             result['comments_posted'], max_comments)
+                    random_sleep(self.min_delay, self.max_delay,
+                                 label="comment_delay")
+                else:
+                    result['errors'] += 1
+                    log_action(
+                        self.session_id, self.device_serial,
+                        self.username, 'comment',
+                        target_username=author, success=False,
+                        error_message="Comment post failed on source")
+
+                # Step 6: Go back to clean state
+                self.ctrl.press_back()
+                time.sleep(1)
+                self.ctrl.press_back()
+                time.sleep(1)
+                # Extra back in case we're still nested
+                screen = self.ctrl.detect_screen()
+                if screen not in (Screen.HOME_FEED, Screen.SEARCH):
+                    self.ctrl.press_back()
+                    time.sleep(1)
+
+            except Exception as e:
+                log.error("[%s] Source comment error for @%s: %s",
+                          self.device_serial, source_username, e)
+                result['errors'] += 1
+                self._recover()
+
+            # Brief pause between sources
+            if result['comments_posted'] < max_comments:
+                random_sleep(3, 8, label="between_sources")
+
     def _comment_on_feed(self, max_comments, already_commented, result):
         """
         Scroll home feed and comment on posts.
@@ -259,7 +606,7 @@ class CommentAction:
                     comment_btn = self._find_comment_button(xml)
                     if comment_btn:
                         try:
-                            success = self._post_comment(comment_btn)
+                            success = self._post_comment(comment_btn, post_author=author)
                             if success:
                                 result['comments_posted'] += 1
                                 already_commented.add(author)
@@ -356,7 +703,7 @@ class CommentAction:
                     comment_btn = self._find_comment_button(xml)
                     if comment_btn:
                         try:
-                            success = self._post_comment(comment_btn)
+                            success = self._post_comment(comment_btn, post_author=author)
                             if success:
                                 result['comments_posted'] += 1
                                 already_commented.add(author)
@@ -479,7 +826,7 @@ class CommentAction:
 
         return None
 
-    def _post_comment(self, comment_btn_info):
+    def _post_comment(self, comment_btn_info, post_author=None):
         """
         Post a comment on the post whose comment button info is provided.
 
@@ -542,17 +889,21 @@ class CommentAction:
         time.sleep(1)
 
         # Get and type comment
-        comment_text = self._get_comment()
+        comment_text = self._get_comment(post_author=post_author)
         log.debug("[%s] Typing comment: %s", self.device_serial, comment_text)
 
-        # Type via ADB for emoji support
-        escaped = comment_text.replace(' ', '%s').replace("'", "\\'")
-        subprocess.run(
-            ['adb', '-s', self.ctrl.adb_serial, 'shell', 'input', 'text',
-             escaped],
-            capture_output=True, timeout=10
-        )
-        time.sleep(1)
+        # Type reliably with multi-strategy fallback
+        typed = self._reliable_type(comment_input, comment_text,
+                                     field_id_pattern='comment_thread_edittext')
+        if not typed:
+            log.warning("[%s] Failed to type comment after all strategies",
+                        self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Verify post button is visible before clicking
+        # (send/post button only appears when text is present)
+        time.sleep(0.5)
 
         # Find and click Post button
         posted = self._click_post_button()
@@ -641,8 +992,37 @@ class CommentAction:
              'keyevent', '66'],
             capture_output=True, timeout=10
         )
-        time.sleep(1)
-        return True  # Assume it worked
+        time.sleep(2)
+
+        # Verify: check if comment was actually posted
+        # If posted, the input field should be empty or cleared
+        xml = self.ctrl.dump_xml("verify_comment_posted")
+        if xml:
+            # Check if EditText field is now empty (comment was consumed)
+            pattern = (
+                r'<node[^>]*class="android\.widget\.EditText"[^>]*'
+                r'text="([^"]*)"'
+            )
+            match = re.search(pattern, xml)
+            if match:
+                remaining_text = match.group(1)
+                if not remaining_text or remaining_text == '':
+                    log.info("[%s] Enter key posted comment (input cleared)",
+                             self.device_serial)
+                    return True
+                else:
+                    log.warning("[%s] Enter key did NOT post comment "
+                                "(text still present: '%s')",
+                                self.device_serial, remaining_text[:30])
+                    return False
+            else:
+                # No EditText found — might have navigated away (comment posted)
+                log.info("[%s] Enter key may have posted comment "
+                         "(no EditText in view)", self.device_serial)
+                return True
+
+        log.warning("[%s] Could not verify comment post (no XML)", self.device_serial)
+        return False
 
     # ------------------------------------------------------------------
     # Recovery

@@ -15,6 +15,8 @@ Supported job_types:
   comment         — comment on posts (uses job_orders.comment_text)
   share_to_story  — share target account's posts to story
   save_post       — save/bookmark target account's posts
+  report          — report target account's profile
+  dm              — send direct message to target user (uses comment_text as message)
 """
 
 import datetime
@@ -88,7 +90,7 @@ def record_job_action(job_id, account_id, action_type, target=None,
             # Check if job target reached → mark completed
             conn.execute("""
                 UPDATE job_orders
-                SET status = 'completed'
+                SET status = 'completed', finished_at = datetime('now')
                 WHERE id = ? AND target_count > 0
                   AND completed_count >= target_count
             """, (job_id,))
@@ -200,6 +202,7 @@ class JobExecutor:
             'share_to_story': self._execute_share_to_story,
             'save_post': self._execute_save_post,
             'report': self._execute_report,
+            'dm': self._execute_dm,
         }.get(self.job_type)
 
         if not handler:
@@ -228,9 +231,13 @@ class JobExecutor:
     def _execute_follow(self, budget, done_today):
         """
         Follow users from target account's follower list.
-        Delegates to FollowAction with the job's target as the source.
+        Uses the same IGController methods as FollowAction:
+          - search_user() → navigate to source profile
+          - open_followers() → open followers list
+          - get_visible_usernames_in_list() → parse usernames from list
+          - follow_user_from_list() → click Follow button next to username
+          - scroll_list() → scroll for more users
         """
-        from automation.actions.follow import FollowAction
         from automation.ig_controller import IGController
 
         result = {'actions_done': 0, 'errors': 0, 'skipped': 0}
@@ -239,6 +246,12 @@ class JobExecutor:
 
         ctrl.ensure_app()
         ctrl.dismiss_popups()
+
+        # Enable AdbKeyboard for search typing
+        try:
+            self.device.set_input_ime(True)
+        except Exception:
+            pass
 
         # Get recently followed to avoid duplicates
         recently_followed = get_recently_interacted(
@@ -265,6 +278,7 @@ class JobExecutor:
             return result
 
         random_sleep(2, 4, label="on_source_profile")
+        ctrl.dismiss_popups()
 
         # Open followers list
         if not ctrl.open_followers():
@@ -279,35 +293,45 @@ class JobExecutor:
 
         random_sleep(2, 4, label="followers_list_loaded")
 
-        # Scroll through followers and follow
-        max_scrolls = 15
-        for scroll_i in range(max_scrolls):
-            if result['actions_done'] >= session_target:
-                break
+        # Scroll through followers and follow (same logic as FollowAction._follow_from_source)
+        max_scroll_attempts = 15
+        scroll_attempts = 0
+        seen_usernames = set()
 
-            usernames = ctrl.get_follower_usernames()
-            if not usernames:
-                log.info("[%s] JOB #%d: No usernames found on scroll %d",
-                         self.device_serial, self.job_id, scroll_i)
-                ctrl.scroll_down()
-                random_sleep(1, 3)
+        while result['actions_done'] < session_target and scroll_attempts < max_scroll_attempts:
+            # Use get_visible_usernames_in_list (same as FollowAction)
+            usernames = ctrl.get_visible_usernames_in_list()
+            new_users = [u for u in usernames if u not in seen_usernames]
+
+            if not new_users:
+                scroll_attempts += 1
+                if scroll_attempts >= max_scroll_attempts:
+                    log.info("[%s] JOB #%d: Reached end of followers list",
+                             self.device_serial, self.job_id)
+                    break
+                ctrl.scroll_list("down")
+                random_sleep(1, 2)
                 continue
 
-            for uname in usernames:
+            scroll_attempts = 0  # Reset on finding new users
+
+            for uname in new_users:
                 if result['actions_done'] >= session_target:
                     break
 
+                seen_usernames.add(uname)
                 clean = uname.strip().lstrip('@').lower()
+
                 if not clean or clean == self.username.lower():
                     continue
                 if clean in recently_followed:
                     result['skipped'] += 1
                     continue
 
-                # Try to follow via button next to username
+                # Use follow_user_from_list (same as FollowAction)
                 try:
-                    followed = ctrl.follow_user_in_list(uname)
-                    if followed:
+                    followed = ctrl.follow_user_from_list(uname)
+                    if followed is True:
                         result['actions_done'] += 1
                         recently_followed.add(clean)
 
@@ -326,21 +350,27 @@ class JobExecutor:
                                  self.daily_limit)
 
                         action_delay('follow')
-                    else:
+                    elif followed is False:
                         result['skipped'] += 1
+                    else:
+                        # None = error
+                        result['errors'] += 1
                 except Exception as e:
                     log.warning("[%s] JOB #%d: Error following @%s: %s",
                                 self.device_serial, self.job_id, clean, e)
                     result['errors'] += 1
 
             # Scroll down for more
-            ctrl.scroll_down()
-            random_sleep(1, 3, label="scroll_followers")
+            ctrl.scroll_list("down")
+            random_sleep(1.5, 3, label="scroll_followers")
 
         # Go back to clean state
-        for _ in range(3):
-            ctrl.press_back()
-            time.sleep(0.5)
+        ctrl.press_back()
+        time.sleep(1)
+        ctrl.press_back()
+        time.sleep(1)
+        ctrl.press_back()
+        time.sleep(0.5)
 
         log.info("[%s] JOB #%d (follow): Done. Followed %d, skipped %d, errors %d",
                  self.device_serial, self.job_id,
@@ -353,7 +383,7 @@ class JobExecutor:
     def _execute_like(self, budget, done_today):
         """
         Like posts from target account's profile.
-        Navigates to target profile, opens posts, likes them.
+        Uses IGController: search_user → open_first_post → like_post → scroll_down.
         """
         from automation.ig_controller import IGController
 
@@ -363,6 +393,12 @@ class JobExecutor:
 
         ctrl.ensure_app()
         ctrl.dismiss_popups()
+
+        # Enable AdbKeyboard for search typing
+        try:
+            self.device.set_input_ime(True)
+        except Exception:
+            pass
 
         source = self.target.lstrip('@')
         session_target = min(budget, random.randint(5, 15))
@@ -385,6 +421,7 @@ class JobExecutor:
             return result
 
         random_sleep(2, 4, label="on_target_profile")
+        ctrl.dismiss_popups()
 
         # Open first post in grid
         if not ctrl.open_first_post():
@@ -395,6 +432,7 @@ class JobExecutor:
             return result
 
         random_sleep(1, 3, label="post_opened")
+        ctrl.dismiss_popups()
 
         # Like posts by scrolling through feed
         for i in range(session_target + 5):  # extra to account for already-liked
@@ -402,6 +440,7 @@ class JobExecutor:
                 break
 
             try:
+                ctrl.dismiss_popups()
                 liked = ctrl.like_post()
                 if liked:
                     result['actions_done'] += 1
@@ -428,7 +467,7 @@ class JobExecutor:
                             self.device_serial, self.job_id, e)
                 result['errors'] += 1
 
-        # Go back
+        # Go back to clean state
         for _ in range(3):
             ctrl.press_back()
             time.sleep(0.5)
@@ -444,21 +483,31 @@ class JobExecutor:
     def _execute_comment(self, budget, done_today):
         """
         Comment on target account's posts.
-        Uses the job's comment_text (supports spintax).
+        Uses CommentAction's proven flow (set_text, _reliable_type, AI comments).
+        
+        If job has comment_text → uses that (with spintax).
+        If comment_text is [AI] → generates via OpenAI.
+        Otherwise → uses account's comment templates.
         """
-        import re
-        from automation.ig_controller import IGController
+        from automation.actions.comment import CommentAction
+        from automation.ig_controller import Screen
 
         result = {'actions_done': 0, 'errors': 0, 'skipped': 0}
-        pkg = self.account.get('package', 'com.instagram.androie')
-        ctrl = IGController(self.device, self.device_serial, pkg)
 
-        ctrl.ensure_app()
-        ctrl.dismiss_popups()
+        # Create CommentAction — this sets up AdbKeyboard, loads templates, etc.
+        comment_action = CommentAction(
+            self.device, self.device_serial, self.account, self.session_id)
+
+        # Override comment templates if job has specific text
+        if self.comment_text and self.comment_text != '[AI]':
+            comment_action.comment_templates = [self.comment_text]
+            # Also override settings so _get_comment uses our template
+            comment_action.settings['comment_text'] = self.comment_text
+        elif self.comment_text == '[AI]':
+            comment_action.settings['comment_text'] = '[AI]'
 
         source = self.target.lstrip('@')
-        session_target = min(budget, random.randint(3, 8))
-        comment_template = self.comment_text or '{Great|Amazing|Nice} post! 🔥'
+        session_target = min(budget, random.randint(1, 3))
 
         log.info("[%s] JOB #%d (comment): Commenting on @%s's posts "
                  "(%d/%d today, %d/%s total)",
@@ -467,8 +516,11 @@ class JobExecutor:
                  self.job.get('completed_count', 0),
                  str(self.target_count) if self.target_count > 0 else '∞')
 
-        # Navigate to target's profile
-        if not ctrl.search_user(source):
+        # Ensure app and navigate to target profile
+        comment_action.ctrl.ensure_app()
+        comment_action.ctrl.dismiss_popups()
+
+        if not comment_action.ctrl.search_user(source):
             log.warning("[%s] JOB #%d: Could not find @%s",
                         self.device_serial, self.job_id, source)
             record_job_action(self.job_id, self.account_id, 'comment',
@@ -478,44 +530,72 @@ class JobExecutor:
             return result
 
         random_sleep(2, 4, label="on_target_profile")
+        comment_action.ctrl.dismiss_popups()
 
-        # Open first post
-        if not ctrl.open_first_post():
-            log.warning("[%s] JOB #%d: Could not open first post for @%s",
+        # Open first grid post
+        grid_item = comment_action.ctrl.find_element(
+            resource_id='media_image_button', timeout=3)
+        if grid_item is None:
+            # Fallback: clickable images below profile header
+            images = self.device(
+                className="android.widget.ImageView", clickable=True)
+            if images.exists(timeout=3) and images.count > 0:
+                for idx in range(min(2, images.count - 1), images.count):
+                    try:
+                        info = images[idx].info
+                        if info.get('bounds', {}).get('top', 0) > 400:
+                            grid_item = images[idx]
+                            break
+                    except Exception:
+                        continue
+
+        if grid_item is None:
+            log.warning("[%s] JOB #%d: No grid posts for @%s",
                         self.device_serial, self.job_id, source)
-            ctrl.press_back()
+            comment_action.ctrl.press_back()
             result['errors'] += 1
             return result
 
-        random_sleep(1, 3, label="post_opened")
+        grid_item.click()
+        random_sleep(2, 3, label="post_opened")
+        comment_action.ctrl.dismiss_popups()
 
         for i in range(session_target + 3):
             if result['actions_done'] >= session_target:
                 break
 
             try:
-                # Process spintax
-                comment = _process_spintax(comment_template)
+                # Use CommentAction's proven comment flow
+                xml = comment_action.ctrl.dump_xml("job_comment_post")
+                comment_btn = comment_action._find_comment_button(xml)
 
-                commented = ctrl.comment_on_post(comment)
-                if commented:
-                    result['actions_done'] += 1
-                    record_job_action(self.job_id, self.account_id,
-                                      'comment', source, success=True)
-                    log_action(self.session_id, self.device_serial,
-                               self.username, 'comment',
-                               target_username=source, success=True)
-                    log.info("[%s] JOB #%d (comment): Commented on @%s's post "
-                             "(%d/%d today): %s",
-                             self.device_serial, self.job_id, source,
-                             done_today + result['actions_done'],
-                             self.daily_limit, comment[:50])
-                    action_delay('follow')  # comments need longer delays
-                else:
+                if comment_btn is None:
+                    log.debug("[%s] JOB #%d: No comment button on current post",
+                              self.device_serial, self.job_id)
                     result['skipped'] += 1
+                else:
+                    # _post_comment handles: click btn → find input → 
+                    # set_text (reliable) → click Post → verify
+                    success = comment_action._post_comment(
+                        comment_btn, post_author=source)
+                    if success:
+                        result['actions_done'] += 1
+                        record_job_action(self.job_id, self.account_id,
+                                          'comment', source, success=True)
+                        log_action(self.session_id, self.device_serial,
+                                   self.username, 'comment',
+                                   target_username=source, success=True)
+                        log.info("[%s] JOB #%d (comment): Commented on @%s's "
+                                 "post (%d/%d today)",
+                                 self.device_serial, self.job_id, source,
+                                 done_today + result['actions_done'],
+                                 self.daily_limit)
+                        random_sleep(5, 15, label="comment_delay")
+                    else:
+                        result['errors'] += 1
 
                 # Scroll to next post
-                ctrl.scroll_down()
+                comment_action.ctrl.scroll_feed("down", amount=0.5)
                 random_sleep(2, 5, label="between_comment_posts")
 
             except Exception as e:
@@ -523,12 +603,13 @@ class JobExecutor:
                             self.device_serial, self.job_id, e)
                 result['errors'] += 1
 
-        # Go back
+        # Go back to clean state
         for _ in range(4):
-            ctrl.press_back()
+            comment_action.ctrl.press_back()
             time.sleep(0.5)
 
-        log.info("[%s] JOB #%d (comment): Done. Commented %d, skipped %d, errors %d",
+        log.info("[%s] JOB #%d (comment): Done. Commented %d, skipped %d, "
+                 "errors %d",
                  self.device_serial, self.job_id,
                  result['actions_done'], result['skipped'], result['errors'])
         return result
@@ -539,16 +620,14 @@ class JobExecutor:
     def _execute_share_to_story(self, budget, done_today):
         """
         Share target account's posts to this account's story.
-        Delegates to ShareToStoryAction but targets the job's target account.
+        Delegates to ShareToStoryAction's proven internal methods:
+          - _share_from_source() handles the full flow:
+            search_user → open grid → click share → add to story → publish
         """
-        from automation.ig_controller import IGController
+        from automation.actions.share_to_story import ShareToStoryAction
 
         result = {'actions_done': 0, 'errors': 0, 'skipped': 0}
         pkg = self.account.get('package', 'com.instagram.androie')
-        ctrl = IGController(self.device, self.device_serial, pkg)
-
-        ctrl.ensure_app()
-        ctrl.dismiss_popups()
 
         source = self.target.lstrip('@')
         session_target = min(budget, random.randint(1, 3))  # Stories are less frequent
@@ -560,34 +639,23 @@ class JobExecutor:
                  self.job.get('completed_count', 0),
                  str(self.target_count) if self.target_count > 0 else '∞')
 
-        # Navigate to target's profile
-        if not ctrl.search_user(source):
-            log.warning("[%s] JOB #%d: Could not find @%s",
-                        self.device_serial, self.job_id, source)
-            record_job_action(self.job_id, self.account_id, 'share_to_story',
-                              source, success=False,
-                              error_message="User not found")
-            result['errors'] += 1
-            return result
+        # Create ShareToStoryAction — this sets up IGController, loads settings
+        share_action = ShareToStoryAction(
+            self.device, self.device_serial,
+            self.account, self.session_id, pkg
+        )
 
-        random_sleep(2, 4, label="on_target_profile")
-
-        # Open first post
-        if not ctrl.open_first_post():
-            log.warning("[%s] JOB #%d: Could not open post for @%s",
-                        self.device_serial, self.job_id, source)
-            ctrl.press_back()
-            result['errors'] += 1
-            return result
-
-        random_sleep(1, 3, label="post_opened")
+        share_action.ctrl.ensure_app()
+        share_action.ctrl.dismiss_popups()
 
         for i in range(session_target + 2):
             if result['actions_done'] >= session_target:
                 break
 
             try:
-                shared = ctrl.share_post_to_story()
+                share_action.ctrl.dismiss_popups()
+                # Use ShareToStoryAction's proven _share_from_source method
+                shared = share_action._share_from_source(source)
                 if shared:
                     result['actions_done'] += 1
                     record_job_action(self.job_id, self.account_id,
@@ -603,20 +671,20 @@ class JobExecutor:
                     random_sleep(10, 20, label="after_story_share")
                 else:
                     result['skipped'] += 1
+                    result['errors'] += 1
 
-                # Scroll to next post
-                ctrl.scroll_down()
-                random_sleep(2, 5, label="between_story_shares")
+                # Pause between shares
+                if result['actions_done'] < session_target:
+                    random_sleep(5, 15, label="between_story_shares")
 
             except Exception as e:
                 log.warning("[%s] JOB #%d: Error sharing to story: %s",
                             self.device_serial, self.job_id, e)
                 result['errors'] += 1
-
-        # Go back
-        for _ in range(4):
-            ctrl.press_back()
-            time.sleep(0.5)
+                try:
+                    share_action._recover()
+                except Exception:
+                    pass
 
         log.info("[%s] JOB #%d (share_to_story): Done. Shared %d, skipped %d, errors %d",
                  self.device_serial, self.job_id,
@@ -740,6 +808,92 @@ class JobExecutor:
                                   error_message=str(e)[:500])
 
         log.info("[%s] JOB #%d (report): Done. Reported %d, errors %d",
+                 self.device_serial, self.job_id,
+                 result['actions_done'], result['errors'])
+        return result
+
+    # ------------------------------------------------------------------
+    # DM job
+    # ------------------------------------------------------------------
+    def _execute_dm(self, budget, done_today):
+        """
+        Send a direct message to the target user.
+        Delegates to DMAction's proven internal methods:
+          - search_user → open profile → click Message → type & send
+
+        Uses job's comment_text as the DM message. If empty, falls back
+        to DMAction's loaded templates (from account_text_configs.pm_list).
+        """
+        from automation.actions.dm import DMAction
+
+        result = {'actions_done': 0, 'errors': 0, 'skipped': 0}
+        pkg = self.account.get('package', 'com.instagram.androie')
+
+        target = self.target.lstrip('@')
+        session_target = min(budget, random.randint(1, 3))
+
+        log.info("[%s] JOB #%d (dm): DMing @%s "
+                 "(%d/%d today, %d/%s total)",
+                 self.device_serial, self.job_id, target,
+                 done_today, self.daily_limit,
+                 self.job.get('completed_count', 0),
+                 str(self.target_count) if self.target_count > 0 else '∞')
+
+        # Create DMAction — this sets up IGController, AdbKeyboard, loads templates
+        dm_action = DMAction(
+            self.device, self.device_serial,
+            self.account, self.session_id, pkg
+        )
+
+        # Override message templates if job has specific comment_text
+        if self.comment_text and self.comment_text.strip():
+            dm_action.message_templates = [self.comment_text]
+
+        dm_action.ctrl.ensure_app()
+        dm_action.ctrl.dismiss_popups()
+
+        for i in range(session_target):
+            if result['actions_done'] >= session_target:
+                break
+
+            try:
+                dm_action.ctrl.dismiss_popups()
+                # Use DMAction's proven _send_dm_to_user method
+                success = dm_action._send_dm_to_user(target)
+                if success:
+                    result['actions_done'] += 1
+                    record_job_action(self.job_id, self.account_id,
+                                      'dm', target, success=True)
+                    log_action(self.session_id, self.device_serial,
+                               self.username, 'dm',
+                               target_username=target, success=True)
+                    log.info("[%s] JOB #%d (dm): Sent DM to @%s (%d/%d today)",
+                             self.device_serial, self.job_id, target,
+                             done_today + result['actions_done'],
+                             self.daily_limit)
+                    random_sleep(5, 15, label="after_dm_send")
+                else:
+                    result['errors'] += 1
+                    error_msg = "DM send failed"
+                    record_job_action(self.job_id, self.account_id,
+                                      'dm', target, success=False,
+                                      error_message=error_msg)
+                    log.warning("[%s] JOB #%d (dm): Failed to DM @%s",
+                                self.device_serial, self.job_id, target)
+
+            except Exception as e:
+                log.error("[%s] JOB #%d (dm): Exception DMing @%s: %s",
+                          self.device_serial, self.job_id, target, e)
+                result['errors'] += 1
+                record_job_action(self.job_id, self.account_id,
+                                  'dm', target, success=False,
+                                  error_message=str(e)[:500])
+                try:
+                    dm_action._recover()
+                except Exception:
+                    pass
+
+        log.info("[%s] JOB #%d (dm): Done. Sent %d, errors %d",
                  self.device_serial, self.job_id,
                  result['actions_done'], result['errors'])
         return result

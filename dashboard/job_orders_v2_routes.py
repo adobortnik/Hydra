@@ -111,10 +111,16 @@ def _sync_job_completed_count(conn, job_id):
         new_status = 'completed'
 
     now = datetime.utcnow().isoformat()
-    conn.execute(
-        "UPDATE job_orders SET completed_count = ?, status = ?, updated_at = ? WHERE id = ?",
-        (total, new_status, now, job_id)
-    )
+    if new_status == 'completed' and job['status'] != 'completed':
+        conn.execute(
+            "UPDATE job_orders SET completed_count = ?, status = ?, finished_at = ?, updated_at = ? WHERE id = ?",
+            (total, new_status, now, now, job_id)
+        )
+    else:
+        conn.execute(
+            "UPDATE job_orders SET completed_count = ?, status = ?, updated_at = ? WHERE id = ?",
+            (total, new_status, now, job_id)
+        )
 
 
 # ─────────────────────────────────────────────

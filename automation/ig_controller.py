@@ -156,7 +156,8 @@ class IGController:
             f'{self.package}:id/dialog_container',
             f'{self.package}:id/igds_prompt',
             f'{self.package}:id/prompt_container',
-            f'{self.package}:id/comment_composer_parent',
+            # NOTE: comment_composer_parent removed — it's the comment view,
+            # not a popup. Detected properly as Screen.COMMENT_VIEW below.
         ]
         # Check for text-based popup indicators
         popup_texts = ['Not Now', 'Not now', 'Turn on Notifications',
@@ -427,6 +428,24 @@ class IGController:
                 continue
 
             if current == Screen.EDIT_PROFILE:
+                self.device.press('back')
+                time.sleep(2)
+                continue
+
+            if current == Screen.COMMENT_VIEW:
+                # Comment view is a bottom sheet overlay — press back to dismiss
+                self.device.press('back')
+                time.sleep(2)
+                continue
+
+            if current == Screen.DM_THREAD:
+                # In a DM conversation — press back to leave
+                self.device.press('back')
+                time.sleep(2)
+                continue
+
+            if current == Screen.DM_INBOX:
+                # In DM inbox — press back to return to feed
                 self.device.press('back')
                 time.sleep(2)
                 continue
@@ -2003,3 +2022,140 @@ class IGController:
 
         # Last resort: try tab click
         return self.navigate_to(Screen.HOME_FEED)
+
+    # -----------------------------------------------------------------------
+    # Job Order helpers
+    # -----------------------------------------------------------------------
+    def open_first_post(self) -> bool:
+        """
+        On a profile page, click the first grid post.
+        Returns True if a post was opened.
+        """
+        xml = self.dump_xml("open_first_post")
+
+        # Try known grid resource IDs
+        grid_btn = self.find_element(resource_id='media_image_button', timeout=2)
+        if grid_btn:
+            grid_btn.click()
+            time.sleep(2)
+            return True
+
+        # Fallback: clickable ImageViews below profile header (y > 400)
+        images = self.device(className="android.widget.ImageView", clickable=True)
+        if images.exists(timeout=3) and images.count > 0:
+            for i in range(min(2, images.count - 1), images.count):
+                try:
+                    info = images[i].info
+                    bounds = info.get('bounds', {})
+                    if bounds.get('top', 0) > 400:
+                        images[i].click()
+                        time.sleep(2)
+                        return True
+                except Exception:
+                    continue
+
+        log.warning("[%s] open_first_post: no grid posts found", self.adb_serial)
+        return False
+
+    def comment_on_post(self, comment_text: str) -> bool:
+        """
+        Comment on the currently open post.
+        Clicks comment button → types comment → clicks Post.
+        Returns True on success.
+        """
+        xml = self.dump_xml("comment_on_post")
+
+        # Find comment button
+        comment_btn = self._find_in_xml(xml, resource_id='row_feed_button_comment')
+        if comment_btn is None:
+            btns = self._find_all_in_xml(xml, desc_pattern=r"Comment")
+            for b in btns:
+                if b.get('bounds') and b.get('clickable', 'false') == 'true':
+                    comment_btn = b
+                    break
+
+        if comment_btn is None:
+            log.debug("[%s] comment_on_post: no comment button", self.adb_serial)
+            return False
+
+        # Click comment button
+        bounds = comment_btn.get('bounds', '')
+        if bounds:
+            cx, cy = self._bounds_center(bounds)
+            if cx > 0 and cy > 0:
+                self.device.click(cx, cy)
+        else:
+            btn = self.find_element(resource_id='row_feed_button_comment', timeout=2)
+            if btn:
+                btn.click()
+            else:
+                return False
+
+        time.sleep(2)
+        self.dismiss_popups()
+
+        # Find comment input
+        comment_input = self.find_element(
+            resource_id='layout_comment_thread_edittext', timeout=5)
+        if comment_input is None:
+            comment_input = self.find_element(
+                class_name='android.widget.EditText', timeout=3)
+        if comment_input is None:
+            log.warning("[%s] comment_on_post: input not found", self.adb_serial)
+            self.device.press('back')
+            return False
+
+        comment_input.click()
+        time.sleep(0.5)
+
+        # Type comment using set_text (most reliable)
+        try:
+            comment_input.set_text(comment_text)
+            time.sleep(1)
+        except Exception:
+            # Fallback: ADB input text
+            import subprocess
+            escaped = comment_text.replace(' ', '%s').replace("'", "\\'")
+            subprocess.run(
+                ['adb', '-s', self.adb_serial, 'shell', 'input', 'text', escaped],
+                capture_output=True, timeout=10)
+            time.sleep(1)
+
+        # Click Post button
+        post_btn = self.find_element(
+            resource_id='layout_comment_thread_post_button_icon', timeout=2)
+        if post_btn is None:
+            post_btn = self.find_element(
+                resource_id='layout_comment_thread_post_button_click_area', timeout=2)
+        if post_btn is None:
+            post_btn = self.find_element(text="Post", timeout=2)
+        if post_btn is None:
+            post_btn = self.find_element(desc="Post", timeout=2)
+
+        if post_btn is None:
+            log.warning("[%s] comment_on_post: Post button not found", self.adb_serial)
+            self.device.press('back')
+            return False
+
+        post_btn.click()
+        time.sleep(2)
+
+        # Go back from comment view
+        self.device.press('back')
+        time.sleep(1)
+
+        log.info("[%s] comment_on_post: posted successfully", self.adb_serial)
+        return True
+
+    def scroll_down(self, amount: float = 0.4) -> bool:
+        """Scroll the current screen down."""
+        try:
+            w, h = self.device.window_size()
+            start_y = int(h * 0.7)
+            end_y = int(h * (0.7 - amount))
+            self.device.swipe(w // 2, start_y, w // 2, max(end_y, 50), duration=0.3)
+            time.sleep(1)
+            return True
+        except Exception as e:
+            log.warning("[%s] scroll_down failed: %s", self.adb_serial, e)
+            return False

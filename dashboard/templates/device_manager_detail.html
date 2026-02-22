@@ -235,6 +235,22 @@
     .sp-tab-btn:hover { color: #fff; border-color: #6366f1; }
     .sp-tab-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
 
+    /* Tab status dots */
+    .sp-tab-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #555;
+        margin-right: 6px;
+        vertical-align: middle;
+        transition: background 0.3s;
+    }
+    .sp-tab-dot.active {
+        background: #22c55e;
+        box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+    }
+
     /* Settings content */
     .sp-content { padding: 20px 24px; overflow-y: auto; max-height: calc(100vh - 170px); }
     .sp-pane { display: none; }
@@ -343,6 +359,189 @@
     .sp-toggle-row:last-child { border-bottom: none; }
     .sp-toggle-row label { color: #d1d5db; font-size: 0.85rem; margin: 0; }
     .sp-toggle-row .form-check-input:checked { background-color: #28a745; border-color: #28a745; }
+
+    /* ── Bulk Copy Modal ── */
+    .bc-modal .modal-content {
+        background: #14171a;
+        border: 1px solid #2d3238;
+        border-radius: 12px;
+    }
+    .bc-modal .modal-header {
+        background: linear-gradient(145deg, #1a1d21, #22262b);
+        border-bottom: 1px solid #2d3238;
+        padding: 16px 24px;
+        border-radius: 12px 12px 0 0;
+    }
+    .bc-modal .modal-body { padding: 0; }
+    .bc-modal .modal-footer {
+        background: linear-gradient(145deg, #1a1d21, #22262b);
+        border-top: 1px solid #2d3238;
+        padding: 12px 24px;
+    }
+
+    /* Toolbar */
+    .bc-toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 12px 20px;
+        background: #1a1d21;
+        border-bottom: 1px solid #2d3238;
+        flex-wrap: wrap;
+    }
+    .bc-search {
+        flex: 1;
+        min-width: 160px;
+        background: #22262b;
+        border: 1px solid #2d3238;
+        border-radius: 6px;
+        color: #e5e7eb;
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
+    .bc-search:focus { outline: none; border-color: #6366f1; }
+    .bc-search::placeholder { color: #6c757d; }
+
+    /* Tag chips */
+    .bc-tags {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        padding: 8px 20px;
+        background: #1a1d21;
+        border-bottom: 1px solid #2d3238;
+    }
+    .bc-tag-chip {
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        border: 1px solid #2d3238;
+        background: transparent;
+        color: #9ca3af;
+        cursor: pointer;
+        transition: all 0.15s;
+        user-select: none;
+    }
+    .bc-tag-chip:hover { border-color: #6366f1; color: #c4b5fd; }
+    .bc-tag-chip.active {
+        background: #6366f1;
+        color: #fff;
+        border-color: #6366f1;
+    }
+    .bc-tag-chip.bc-tag-all {
+        border-color: #374151;
+        color: #d1d5db;
+    }
+    .bc-tag-chip.bc-tag-all.active {
+        background: #374151;
+        color: #fff;
+        border-color: #374151;
+    }
+
+    /* Device groups */
+    .bc-tree {
+        max-height: 55vh;
+        overflow-y: auto;
+        padding: 12px 20px;
+    }
+    .bc-device {
+        margin-bottom: 8px;
+        border: 1px solid #2d3238;
+        border-radius: 8px;
+        overflow: hidden;
+        transition: border-color 0.2s;
+    }
+    .bc-device:hover { border-color: #374151; }
+    .bc-device-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #1e2228;
+        cursor: pointer;
+        user-select: none;
+    }
+    .bc-device-header:hover { background: #252a31; }
+    .bc-device-header .bc-chevron {
+        color: #6c757d;
+        font-size: 0.65rem;
+        transition: transform 0.2s;
+        width: 12px;
+        text-align: center;
+    }
+    .bc-device-header .bc-chevron.open { transform: rotate(90deg); }
+    .bc-device-header label {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #e5e7eb;
+        margin: 0;
+        flex: 1;
+        cursor: pointer;
+    }
+    .bc-device-header .bc-dev-count {
+        font-size: 0.7rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+    .bc-device-body {
+        display: none;
+        padding: 4px 12px 8px 36px;
+        background: #14171a;
+    }
+    .bc-device-body.open { display: block; }
+    .bc-acct-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 0;
+    }
+    .bc-acct-row label {
+        font-size: 0.8rem;
+        color: #d1d5db;
+        margin: 0;
+        cursor: pointer;
+        flex: 1;
+    }
+    .bc-acct-row .bc-acct-tag {
+        font-size: 0.65rem;
+        padding: 1px 6px;
+        border-radius: 8px;
+        background: rgba(99,102,241,0.15);
+        color: #a78bfa;
+        font-weight: 500;
+    }
+    .bc-acct-row .bc-acct-status {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .bc-acct-row .bc-acct-status.active { background: #28a745; }
+    .bc-acct-row .bc-acct-status.suspended { background: #dc3545; }
+    .bc-acct-row .bc-acct-status.logged_out { background: #343a40; }
+    .bc-acct-row .bc-acct-status.pending_login { background: #17a2b8; }
+    .bc-acct-row .bc-acct-status.disabled { background: #6c757d; }
+
+    .bc-acct-row.bc-hidden { display: none; }
+    .bc-device.bc-hidden { display: none; }
+
+    /* Summary bar */
+    .bc-summary {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .bc-count-badge {
+        background: #6366f1;
+        color: #fff;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        min-width: 28px;
+        text-align: center;
+    }
 
     /* Toast */
     .sp-toast {
@@ -553,14 +752,15 @@
         <!-- Tab buttons -->
         <div class="sp-tabs" id="spTabs">
             <button class="sp-tab-btn active" data-tab="overview"><i class="fas fa-user me-1"></i>Overview</button>
-            <button class="sp-tab-btn" data-tab="follow"><i class="fas fa-user-plus me-1"></i>Follow</button>
-            <button class="sp-tab-btn" data-tab="unfollow"><i class="fas fa-user-minus me-1"></i>Unfollow</button>
-            <button class="sp-tab-btn" data-tab="like"><i class="fas fa-heart me-1"></i>Like</button>
-            <button class="sp-tab-btn" data-tab="reels"><i class="fas fa-film me-1"></i>Reels</button>
-            <button class="sp-tab-btn" data-tab="share"><i class="fas fa-share me-1"></i>Share</button>
-            <button class="sp-tab-btn" data-tab="story"><i class="fas fa-eye me-1"></i>Story</button>
-            <button class="sp-tab-btn" data-tab="comment"><i class="fas fa-comment me-1"></i>Comment</button>
-            <button class="sp-tab-btn" data-tab="dm"><i class="fas fa-envelope me-1"></i>DM</button>
+            <button class="sp-tab-btn" data-tab="follow"><span class="sp-tab-dot" id="dot-follow"></span><i class="fas fa-user-plus me-1"></i>Follow</button>
+            <button class="sp-tab-btn" data-tab="unfollow"><span class="sp-tab-dot" id="dot-unfollow"></span><i class="fas fa-user-minus me-1"></i>Unfollow</button>
+            <button class="sp-tab-btn" data-tab="like"><span class="sp-tab-dot" id="dot-like"></span><i class="fas fa-heart me-1"></i>Like</button>
+            <button class="sp-tab-btn" data-tab="reels"><span class="sp-tab-dot" id="dot-reels"></span><i class="fas fa-film me-1"></i>Reels</button>
+            <button class="sp-tab-btn" data-tab="share"><span class="sp-tab-dot" id="dot-share"></span><i class="fas fa-share me-1"></i>Share</button>
+            <button class="sp-tab-btn" data-tab="story"><span class="sp-tab-dot" id="dot-story"></span><i class="fas fa-eye me-1"></i>Story</button>
+            <button class="sp-tab-btn" data-tab="comment"><span class="sp-tab-dot" id="dot-comment"></span><i class="fas fa-comment me-1"></i>Comment</button>
+            <button class="sp-tab-btn" data-tab="dm"><span class="sp-tab-dot" id="dot-dm"></span><i class="fas fa-envelope me-1"></i>DM</button>
+            <button class="sp-tab-btn" data-tab="hbe"><span class="sp-tab-dot" id="dot-hbe"></span><i class="fas fa-robot me-1"></i>HBE</button>
             <button class="sp-tab-btn" data-tab="insights"><i class="fas fa-chart-bar me-1"></i>📊 Insights</button>
         </div>
 
@@ -1124,11 +1324,19 @@
                                 <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_add_link" data-key="enable_add_link_to_story">
                             </div>
                         </div>
+                        <div class="sp-conditional" data-depends="sp_enable_add_link" style="display:none; padding-left: 1rem; margin-top: 0.5rem;">
+                            <label class="form-label">Link URL</label>
+                            <input type="text" class="form-control sp-setting" id="sp_custom_link_text" data-key="custom_link_text" placeholder="https://example.com">
+                        </div>
                         <div class="sp-toggle-row">
                             <label>Add Mention to Story</label>
                             <div class="form-check form-switch mb-0">
                                 <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_mention" data-key="enable_mention_to_story">
                             </div>
+                        </div>
+                        <div class="sp-conditional" data-depends="sp_enable_mention" style="display:none; padding-left: 1rem; margin-top: 0.5rem;">
+                            <label class="form-label">Mention Username</label>
+                            <input type="text" class="form-control sp-setting" id="sp_sharepost_mention" data-key="sharepost_mention" placeholder="@username">
                         </div>
                         <div class="row g-3 mt-2">
                             <div class="col-md-6">
@@ -1139,6 +1347,14 @@
                                     <option value="reel">Reel</option>
                                     <option value="all">All</option>
                                 </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Min Reel Watch (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_min_sec_share_reel_watch" data-key="min_sec_share_reel_watch" min="1" placeholder="5">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Max Reel Watch (sec)</label>
+                                <input type="number" class="form-control sp-setting" id="sp_max_sec_share_reel_watch" data-key="max_sec_share_reel_watch" min="1" placeholder="10">
                             </div>
                         </div>
                     </div>
@@ -1367,6 +1583,127 @@
                 </div>
             </div>
 
+            <!-- ─── HBE Tab ─── -->
+            <div class="sp-pane" data-pane="hbe">
+                <div class="sp-master-toggle">
+                    <label><i class="fas fa-robot me-2"></i>Human Behaviour Emulation</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input sp-setting" type="checkbox" id="sp_hbe_enabled_master" data-key="enable_human_behaviour_emulation">
+                    </div>
+                </div>
+
+                <!-- Watch Home Feed Stories -->
+                <div class="sp-section">
+                    <h6><i class="fas fa-play-circle me-1"></i> Watch Home Feed Stories</h6>
+                    <div class="sp-toggle-row">
+                        <label>Enable Watch Stories</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_viewhomefeedstory" data-key="enable_viewhomefeedstory">
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Min Stories</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_viewhomefeedstory" data-key="min_viewhomefeedstory">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Max Stories</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_viewhomefeedstory" data-key="max_viewhomefeedstory">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Min Watch Sec</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_viewhomefeedstory_delay" data-key="min_viewhomefeedstory_delay">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Max Watch Sec</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_viewhomefeedstory_delay" data-key="max_viewhomefeedstory_delay">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">% to Like Story</label>
+                            <input type="number" class="form-control sp-setting" id="sp_percent_to_like_homefeedstory" data-key="percent_to_like_homefeedstory">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scroll Home Feed -->
+                <div class="sp-section">
+                    <h6><i class="fas fa-scroll me-1"></i> Scroll Home Feed</h6>
+                    <div class="sp-toggle-row">
+                        <label>Enable Scroll Home Feed</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_scrollhomefeed" data-key="enable_scrollhomefeed">
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Min Scrolls</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_scrollhomefeed" data-key="min_scrollhomefeed">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Max Scrolls</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_scrollhomefeed" data-key="max_scrollhomefeed">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Min Delay Sec</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_scrollhomefeed_delay" data-key="min_scrollhomefeed_delay">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Max Delay Sec</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_scrollhomefeed_delay" data-key="max_scrollhomefeed_delay">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">% to Like Post</label>
+                            <input type="number" class="form-control sp-setting" id="sp_percent_to_like_homefeed" data-key="percent_to_like_homefeed">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scroll Explore Page -->
+                <div class="sp-section">
+                    <h6><i class="fas fa-compass me-1"></i> Scroll Explore Page</h6>
+                    <div class="sp-toggle-row">
+                        <label>Enable Scroll Explore Page</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_scrollexplorepage" data-key="enable_scrollexplorepage">
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Min Scrolls</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_scrollexplorepage" data-key="min_scrollexplorepage">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Max Scrolls</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_scrollexplorepage" data-key="max_scrollexplorepage">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Min Delay Sec</label>
+                            <input type="number" class="form-control sp-setting" id="sp_min_scrollexplorepage_delay" data-key="min_scrollexplorepage_delay">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Max Delay Sec</label>
+                            <input type="number" class="form-control sp-setting" id="sp_max_scrollexplorepage_delay" data-key="max_scrollexplorepage_delay">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">% to Like Post</label>
+                            <input type="number" class="form-control sp-setting" id="sp_percent_to_like_explorepagepost" data-key="percent_to_like_explorepagepost">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ─── Insights Tab ─── -->
             <div class="sp-pane" data-pane="insights">
                 <!-- Non-business placeholder -->
@@ -1527,11 +1864,62 @@
             <!-- Save bar -->
             <div class="sp-save-bar">
                 <span class="save-status" id="spSaveStatus"></span>
+                <button class="btn btn-sm btn-outline-info" onclick="openBulkCopyModal()" style="border-radius:8px;font-weight:600;font-size:0.82rem;padding:8px 18px;">
+                    <i class="fas fa-copy me-1"></i> Copy to...
+                </button>
                 <button class="btn-save" onclick="saveAllSettings()">
                     <i class="fas fa-save me-1"></i> Save Settings
                 </button>
             </div>
         </div><!-- /sp-content -->
+    </div>
+</div>
+
+<!-- ═══════════════ Bulk Copy Modal ═══════════════ -->
+<div class="modal fade bc-modal" id="bulkCopyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" style="color:#f8f9fa;font-weight:700;">
+                        <i class="fas fa-copy me-2 text-info"></i>Copy Settings
+                    </h5>
+                    <small class="text-muted" id="bcSourceLabel">From: —</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <!-- Toolbar: search + quick actions -->
+            <div class="bc-toolbar">
+                <input type="text" class="bc-search" id="bcSearch" placeholder="Search username..." oninput="bcFilterAccounts()">
+                <button class="btn btn-sm btn-outline-secondary" onclick="bcSelectAll()" style="font-size:0.75rem;">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="bcDeselectAll()" style="font-size:0.75rem;">Deselect All</button>
+                <button class="btn btn-sm btn-outline-warning" onclick="bcSelectSameTag()" id="bcSameTagBtn" style="font-size:0.75rem;display:none;">
+                    <i class="fas fa-tag me-1"></i>Same Tag
+                </button>
+            </div>
+            <!-- Tag filter chips -->
+            <div class="bc-tags" id="bcTagChips">
+                <span class="bc-tag-chip bc-tag-all active" onclick="bcFilterByTag(null, this)">All</span>
+            </div>
+            <!-- Accounts tree -->
+            <div class="modal-body">
+                <div class="bc-tree" id="bcTree">
+                    <div style="text-align:center;padding:40px;color:#6c757d;">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="bc-summary me-auto">
+                    <span style="color:#9ca3af;font-size:0.85rem;">Selected:</span>
+                    <span class="bc-count-badge" id="bcSelectedCount">0</span>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="bcCopyBtn" onclick="bcExecuteCopy()" disabled>
+                    <i class="fas fa-copy me-1"></i>Copy Settings
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1917,6 +2305,65 @@ function populateSettings(settings, accountData) {
 
     // Show/hide conditional sections
     toggleDmSpecificUsers();
+
+    // Update conditional field visibility based on loaded settings
+    updateConditionalFields();
+
+    // Update tab status dots
+    updateTabDots();
+}
+
+// ── Conditional Fields (show/hide based on checkbox) ──
+function updateConditionalFields() {
+    document.querySelectorAll('.sp-conditional').forEach(div => {
+        const dependsId = div.getAttribute('data-depends');
+        const checkbox = document.getElementById(dependsId);
+        if (checkbox) {
+            div.style.display = checkbox.checked ? 'block' : 'none';
+        }
+    });
+}
+
+// Wire up conditional field toggles
+document.querySelectorAll('.sp-conditional').forEach(div => {
+    const dependsId = div.getAttribute('data-depends');
+    const checkbox = document.getElementById(dependsId);
+    if (checkbox) {
+        checkbox.addEventListener('change', () => {
+            div.style.display = checkbox.checked ? 'block' : 'none';
+        });
+    }
+});
+
+// ── Tab Status Dots ──
+const tabDotMap = {
+    'follow': 'sp_follow_enabled_master',
+    'unfollow': 'sp_unfollow_enabled_master',
+    'like': 'sp_like_enabled_master',
+    'reels': 'sp_enable_watch_reels',
+    'share': 'sp_enable_share_post_to_story',
+    'story': 'sp_story_enabled_master',
+    'comment': 'sp_comment_enabled_master',
+    'dm': 'sp_enable_dm_master',
+    'hbe': 'sp_hbe_enabled_master',
+};
+
+function updateTabDots() {
+    for (const [tab, checkboxId] of Object.entries(tabDotMap)) {
+        const dot = document.getElementById(`dot-${tab}`);
+        const cb = document.getElementById(checkboxId);
+        if (dot && cb) {
+            dot.classList.toggle('active', cb.checked);
+        }
+    }
+}
+
+// Update dots when any master toggle changes
+for (const checkboxId of Object.values(tabDotMap)) {
+    const cb = document.getElementById(checkboxId);
+    if (cb) {
+        cb.addEventListener('change', updateTabDots);
+    }
 }
 
 // ── Collect Settings from Form ──
@@ -2480,6 +2927,313 @@ function scrapeInsights() {
     .finally(() => {
         btn.disabled = false;
         btn.innerHTML = '🔄 Scrape Latest Insights';
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Bulk Copy Settings
+// ═══════════════════════════════════════════════════════════
+
+let bcTreeData = [];       // raw devices array from API
+let bcAllTags = [];        // unique tags
+let bcActiveTagFilter = null;  // null = all
+let bcSourceTag = '';      // tag of the source account
+let bcModal = null;
+
+function openBulkCopyModal() {
+    if (!spCurrentDevice || !spCurrentAccount) {
+        showSpToast('No account loaded', 'error');
+        return;
+    }
+
+    // Set source label
+    document.getElementById('bcSourceLabel').textContent =
+        `From: @${spCurrentAccount} on ${spCurrentDevice}`;
+
+    // Figure out source tag from the currently loaded settings
+    const tagField = document.getElementById('sp_tag');
+    bcSourceTag = tagField ? (tagField.value || '').trim() : '';
+
+    // Show/hide "Same Tag" button
+    const sameTagBtn = document.getElementById('bcSameTagBtn');
+    if (bcSourceTag) {
+        sameTagBtn.style.display = '';
+        sameTagBtn.innerHTML = `<i class="fas fa-tag me-1"></i>${bcSourceTag}`;
+    } else {
+        sameTagBtn.style.display = 'none';
+    }
+
+    // Open modal
+    if (!bcModal) {
+        bcModal = new bootstrap.Modal(document.getElementById('bulkCopyModal'));
+    }
+    bcModal.show();
+
+    // Load accounts tree
+    bcLoadTree();
+}
+
+function bcLoadTree() {
+    const treeEl = document.getElementById('bcTree');
+    treeEl.innerHTML = '<div style="text-align:center;padding:40px;color:#6c757d;"><i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...</div>';
+
+    fetch('/api/bot-settings/accounts-tree')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc3545;">Failed to load</div>';
+                return;
+            }
+            bcTreeData = data.devices || [];
+            bcAllTags = data.tags || [];
+            bcRenderTagChips();
+            bcRenderTree();
+        })
+        .catch(err => {
+            treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc3545;">Error: ' + err + '</div>';
+        });
+}
+
+function bcRenderTagChips() {
+    const container = document.getElementById('bcTagChips');
+    let html = '<span class="bc-tag-chip bc-tag-all active" onclick="bcFilterByTag(null, this)">All</span>';
+    html += '<span class="bc-tag-chip" style="border-color:#374151;color:#6c757d;" onclick="bcFilterByTag(\'__untagged__\', this)">Untagged</span>';
+    for (const tag of bcAllTags) {
+        html += `<span class="bc-tag-chip" onclick="bcFilterByTag('${tag}', this)">${tag}</span>`;
+    }
+    container.innerHTML = html;
+}
+
+function bcRenderTree() {
+    const treeEl = document.getElementById('bcTree');
+    if (!bcTreeData.length) {
+        treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#6c757d;">No accounts found</div>';
+        return;
+    }
+
+    let html = '';
+    for (const dev of bcTreeData) {
+        const devId = dev.device_serial.replace(/[.:]/g, '_');
+        const devName = dev.device_name || dev.device_serial;
+        const acctCount = (dev.accounts || []).length;
+
+        html += `<div class="bc-device" data-dev="${dev.device_serial}" id="bcDev_${devId}">`;
+        html += `<div class="bc-device-header" onclick="bcToggleDevice('${devId}')">`;
+        html += `<i class="fas fa-chevron-right bc-chevron" id="bcChev_${devId}"></i>`;
+        html += `<input type="checkbox" class="form-check-input bc-dev-cb" data-dev="${dev.device_serial}" onclick="event.stopPropagation(); bcToggleDeviceCheck('${dev.device_serial}', this.checked)" style="margin:0;">`;
+        html += `<label onclick="event.stopPropagation(); bcToggleDevice('${devId}')">${escHtml(devName)}</label>`;
+        html += `<span class="bc-dev-count">${acctCount}</span>`;
+        html += `</div>`;
+        html += `<div class="bc-device-body" id="bcBody_${devId}">`;
+
+        for (const acct of (dev.accounts || [])) {
+            // Skip the source account itself
+            const isSource = (dev.device_serial === spCurrentDevice && acct.username === spCurrentAccount);
+            const tag = acct.tag || '';
+            const status = acct.status || 'unknown';
+
+            html += `<div class="bc-acct-row${isSource ? ' bc-hidden' : ''}" data-username="${acct.username}" data-tag="${tag}" data-status="${status}" data-dev="${dev.device_serial}">`;
+            if (!isSource) {
+                html += `<input type="checkbox" class="form-check-input bc-acct-cb" data-dev="${dev.device_serial}" data-acct="${acct.username}" onchange="bcUpdateCount()" style="margin:0;width:15px;height:15px;">`;
+            }
+            html += `<span class="bc-acct-status ${status}"></span>`;
+            html += `<label>${escHtml(acct.username)}</label>`;
+            if (tag) html += `<span class="bc-acct-tag">${escHtml(tag)}</span>`;
+            html += `</div>`;
+        }
+
+        html += `</div></div>`;
+    }
+
+    treeEl.innerHTML = html;
+    bcUpdateCount();
+}
+
+function bcToggleDevice(devId) {
+    const body = document.getElementById('bcBody_' + devId);
+    const chev = document.getElementById('bcChev_' + devId);
+    if (body) {
+        body.classList.toggle('open');
+        chev.classList.toggle('open');
+    }
+}
+
+function bcToggleDeviceCheck(deviceSerial, checked) {
+    document.querySelectorAll(`.bc-acct-cb[data-dev="${deviceSerial}"]`).forEach(cb => {
+        // Only check visible (not filtered out) accounts
+        const row = cb.closest('.bc-acct-row');
+        if (row && !row.classList.contains('bc-hidden')) {
+            cb.checked = checked;
+        }
+    });
+    bcUpdateCount();
+}
+
+function bcSelectAll() {
+    document.querySelectorAll('.bc-acct-cb').forEach(cb => {
+        const row = cb.closest('.bc-acct-row');
+        if (row && !row.classList.contains('bc-hidden')) {
+            cb.checked = true;
+        }
+    });
+    document.querySelectorAll('.bc-dev-cb').forEach(cb => cb.checked = true);
+    bcUpdateCount();
+}
+
+function bcDeselectAll() {
+    document.querySelectorAll('.bc-acct-cb').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.bc-dev-cb').forEach(cb => cb.checked = false);
+    bcUpdateCount();
+}
+
+function bcSelectSameTag() {
+    if (!bcSourceTag) return;
+    bcDeselectAll();
+    // Activate tag filter chip
+    const chips = document.querySelectorAll('.bc-tag-chip');
+    chips.forEach(c => c.classList.remove('active'));
+    chips.forEach(c => {
+        if (c.textContent.trim() === bcSourceTag) c.classList.add('active');
+    });
+    bcActiveTagFilter = bcSourceTag;
+    bcApplyFilters();
+    // Select all visible
+    document.querySelectorAll('.bc-acct-cb').forEach(cb => {
+        const row = cb.closest('.bc-acct-row');
+        if (row && !row.classList.contains('bc-hidden')) {
+            cb.checked = true;
+        }
+    });
+    bcUpdateCount();
+}
+
+function bcFilterByTag(tag, chipEl) {
+    // Update active chip
+    document.querySelectorAll('.bc-tag-chip').forEach(c => c.classList.remove('active'));
+    if (chipEl) chipEl.classList.add('active');
+    bcActiveTagFilter = tag;
+    bcApplyFilters();
+}
+
+function bcFilterAccounts() {
+    bcApplyFilters();
+}
+
+function bcApplyFilters() {
+    const searchVal = (document.getElementById('bcSearch').value || '').trim().toLowerCase();
+    const tagFilter = bcActiveTagFilter;
+
+    document.querySelectorAll('.bc-acct-row').forEach(row => {
+        const username = (row.dataset.username || '').toLowerCase();
+        const tag = (row.dataset.tag || '').toLowerCase();
+        const isSource = (row.dataset.dev === spCurrentDevice && row.dataset.username === spCurrentAccount);
+
+        if (isSource) {
+            row.classList.add('bc-hidden');
+            return;
+        }
+
+        let visible = true;
+
+        // Tag filter
+        if (tagFilter === '__untagged__') {
+            if (tag) visible = false;
+        } else if (tagFilter) {
+            if (tag !== tagFilter.toLowerCase()) visible = false;
+        }
+
+        // Search filter
+        if (visible && searchVal) {
+            if (!username.includes(searchVal) && !tag.includes(searchVal)) {
+                visible = false;
+            }
+        }
+
+        row.classList.toggle('bc-hidden', !visible);
+    });
+
+    // Hide empty device groups
+    document.querySelectorAll('.bc-device').forEach(devEl => {
+        const visibleAccts = devEl.querySelectorAll('.bc-acct-row:not(.bc-hidden)').length;
+        devEl.classList.toggle('bc-hidden', visibleAccts === 0);
+        // Update count in header
+        const countEl = devEl.querySelector('.bc-dev-count');
+        if (countEl) {
+            const total = devEl.querySelectorAll('.bc-acct-row:not([data-dev="' + spCurrentDevice + '"][data-username="' + spCurrentAccount + '"])').length;
+            countEl.textContent = visibleAccts < total ? `${visibleAccts}/${total}` : total;
+        }
+    });
+
+    bcUpdateCount();
+}
+
+function bcUpdateCount() {
+    const checked = document.querySelectorAll('.bc-acct-cb:checked').length;
+    document.getElementById('bcSelectedCount').textContent = checked;
+    document.getElementById('bcCopyBtn').disabled = checked === 0;
+}
+
+function bcExecuteCopy() {
+    // Collect selected targets
+    const targets = [];
+    document.querySelectorAll('.bc-acct-cb:checked').forEach(cb => {
+        targets.push({ device: cb.dataset.dev, account: cb.dataset.acct });
+    });
+
+    if (!targets.length) {
+        showSpToast('No accounts selected', 'error');
+        return;
+    }
+
+    const copyBtn = document.getElementById('bcCopyBtn');
+    const origHtml = copyBtn.innerHTML;
+    copyBtn.disabled = true;
+    copyBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Copying...';
+
+    // Step 1: Save current settings first
+    const settings = collectSettings();
+    const acctSettings = collectAccountSettings();
+    const appIdVal = document.getElementById('sp_instagram_package').value.trim();
+    if (appIdVal) acctSettings.instagram_package = appIdVal;
+    Object.assign(settings, acctSettings);
+
+    fetch(`/api/bot-settings/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+    })
+    .then(r => r.json())
+    .then(saveData => {
+        if (!saveData.success) {
+            throw new Error(saveData.error || 'Failed to save source settings');
+        }
+
+        // Step 2: Bulk copy
+        return fetch('/api/bot-settings/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source: { device: spCurrentDevice, account: spCurrentAccount },
+                targets: targets,
+                categories: 'all'
+            })
+        });
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(data.message || `Copied to ${targets.length} accounts`, 'success');
+            bcModal.hide();
+        } else {
+            showSpToast(data.error || 'Bulk copy failed', 'error');
+        }
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err.message, 'error');
+    })
+    .finally(() => {
+        copyBtn.innerHTML = origHtml;
+        copyBtn.disabled = false;
     });
 }
 </script>

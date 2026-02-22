@@ -30,13 +30,16 @@
     .progress-big .progress-bar { font-size: 0.9rem; line-height: 32px; }
 
     /* â"€â"€â"€ Badges â"€â"€â"€ */
-    .badge-active    { background: #198754; }
+    .badge-active    { background: #0d6efd; }
     .badge-paused    { background: #ffc107; color: #000; }
-    .badge-completed { background: #0d6efd; }
+    .badge-completed { background: #198754; }
     .badge-cancelled { background: #dc3545; }
     .badge-success   { background: #198754; }
     .badge-failed    { background: #dc3545; }
     .badge-rate_limited { background: #fd7e14; }
+
+    /* â"€â"€â"€ Finished badge â"€â"€â"€ */
+    .badge-finished  { background: rgba(25,135,84,0.15); color: #198754; border: 1px solid #198754; font-size: 0.7rem; }
 
     /* â"€â"€â"€ Create Modal â"€â"€â"€ */
     .wizard-step { display: none; }
@@ -449,6 +452,7 @@
                     <div class="col-auto"><span class="badge bg-secondary"><i class="fas fa-clock me-1"></i><span id="detailLimitHr">0</span>/hr</span></div>
                     <div class="col-auto"><span class="badge bg-secondary"><i class="fas fa-calendar-day me-1"></i><span id="detailLimitDay">0</span>/day</span></div>
                     <div class="col-auto"><span class="badge bg-secondary"><i class="fas fa-calendar me-1"></i>Created: <span id="detailCreated"></span></span></div>
+                    <div class="col-auto d-none" id="detailFinishedBlock"><span class="badge badge-finished"><i class="fas fa-check-circle me-1"></i>Finished: <span id="detailFinished"></span></span></div>
                 </div>
                 <!-- Comment text if applicable -->
                 <div class="mb-3 d-none" id="detailCommentBlock">
@@ -691,22 +695,47 @@ function renderJobs() {
     tbody.innerHTML = sorted.map(j => {
         const pct = j.target_count > 0 ? Math.round(j.completed_count / j.target_count * 100) : 0;
         const barColor = pct >= 100 ? 'bg-success' : pct > 50 ? 'bg-info' : 'bg-warning';
-        const statusClass = 'badge-' + j.status;
         const icon = TYPE_ICONS[j.job_type] || '📋';
+
+        // Status badge with icons and colors
+        const statusBadges = {
+            active:    '<span class="badge badge-active"><i class="fas fa-circle fa-xs me-1"></i>Active</span>',
+            completed: '<span class="badge badge-completed"><i class="fas fa-check me-1"></i>Completed</span>',
+            paused:    '<span class="badge badge-paused"><i class="fas fa-pause me-1"></i>Paused</span>',
+            cancelled: '<span class="badge badge-cancelled"><i class="fas fa-times me-1"></i>Cancelled</span>'
+        };
+        const statusHtml = statusBadges[j.status] || `<span class="badge bg-secondary">${j.status}</span>`;
+
+        // Progress column: bar for targeted jobs, plain count for unlimited
+        let progressHtml;
+        if (j.target_count > 0) {
+            progressHtml = `<div class="progress">
+                <div class="progress-bar ${barColor} progress-bar-striped ${j.status==='active'?'progress-bar-animated':''}" style="width:${Math.min(pct,100)}%">
+                    ${j.completed_count}/${j.target_count} (${pct}%)
+                </div>
+            </div>`;
+        } else {
+            progressHtml = `<span class="text-muted">${j.completed_count} done <small>(unlimited)</small></span>`;
+        }
+
+        // Finished timestamp for completed jobs
+        let finishedHtml = '';
+        if (j.status === 'completed' && j.finished_at) {
+            finishedHtml = `<span class="badge badge-finished mt-1 d-inline-block"><i class="fas fa-check-circle me-1"></i>Finished ${fmtDate(j.finished_at)}</span>`;
+        }
 
         return `<tr onclick="openDetail(${j.id})">
             <td class="fw-semibold">${esc(j.job_name)}</td>
             <td>${icon} ${esc(j.job_type)}</td>
             <td><span class="text-truncate-200" title="${esc(j.target)}">${esc(j.target)}</span></td>
             <td>
-                <div class="progress">
-                    <div class="progress-bar ${barColor} progress-bar-striped ${j.status==='active'?'progress-bar-animated':''}" style="width:${pct}%">${j.completed_count}/${j.target_count} (${pct}%)</div>
-                </div>
+                ${progressHtml}
+                ${finishedHtml}
             </td>
             <td class="text-center">${j.assignment_count}</td>
             <td>${j.limit_per_hour}</td>
             <td>${j.limit_per_day}</td>
-            <td><span class="badge ${statusClass}">${j.status}</span></td>
+            <td>${statusHtml}</td>
             <td onclick="event.stopPropagation()">
                 ${j.status === 'active'
                     ? `<button class="btn btn-sm btn-outline-warning btn-icon me-1" title="Pause" onclick="toggleJob(${j.id},'paused')"><i class="fas fa-pause"></i></button>`
@@ -734,7 +763,16 @@ async function toggleJob(id, newStatus) {
 
 async function deleteJob(id) {
     if (!confirm('Delete this job and all its assignments/history?')) return;
-    await fetch(`/api/jobs-v2/${id}`, {method:'DELETE'});
+    try {
+        const r = await fetch(`/api/jobs-v2/${id}`, {method:'DELETE'});
+        const data = await r.json();
+        if (data.error) {
+            alert('Delete failed: ' + data.error);
+        }
+    } catch(e) {
+        console.error('Delete error:', e);
+        alert('Delete error: ' + e.message);
+    }
     loadJobs(); loadStats();
 }
 
@@ -751,7 +789,13 @@ async function openDetail(id) {
         document.getElementById('detailTitle').textContent = j.job_name;
         document.getElementById('detailType').innerHTML = `${TYPE_ICONS[j.job_type]||''} ${esc(j.job_type)}`;
         document.getElementById('detailTarget').textContent = j.target;
-        document.getElementById('detailStatus').innerHTML = `<span class="badge badge-${j.status}">${j.status}</span>`;
+        const detailStatusBadges = {
+            active:    '<span class="badge badge-active"><i class="fas fa-circle fa-xs me-1"></i>Active</span>',
+            completed: '<span class="badge badge-completed"><i class="fas fa-check me-1"></i>Completed</span>',
+            paused:    '<span class="badge badge-paused"><i class="fas fa-pause me-1"></i>Paused</span>',
+            cancelled: '<span class="badge badge-cancelled"><i class="fas fa-times me-1"></i>Cancelled</span>'
+        };
+        document.getElementById('detailStatus').innerHTML = detailStatusBadges[j.status] || `<span class="badge bg-secondary">${j.status}</span>`;
         document.getElementById('detailPriority').textContent = PRIORITY_LABELS[j.priority] || j.priority;
         document.getElementById('detailLimitHr').textContent = j.limit_per_hour;
         document.getElementById('detailLimitDay').textContent = j.limit_per_day;
@@ -784,9 +828,23 @@ async function openDetail(id) {
         }
 
         // Progress
-        const pct = j.target_count > 0 ? Math.round(j.completed_count / j.target_count * 100) : 0;
-        document.getElementById('detailProgressText').textContent = `${j.completed_count} / ${j.target_count} (${pct}%)`;
-        document.getElementById('detailProgressBar').style.width = pct + '%';
+        if (j.target_count > 0) {
+            const pct = Math.round(j.completed_count / j.target_count * 100);
+            document.getElementById('detailProgressText').textContent = `${j.completed_count} / ${j.target_count} (${pct}%)`;
+            document.getElementById('detailProgressBar').style.width = Math.min(pct, 100) + '%';
+        } else {
+            document.getElementById('detailProgressText').textContent = `${j.completed_count} done (unlimited)`;
+            document.getElementById('detailProgressBar').style.width = '0%';
+        }
+
+        // Finished timestamp
+        const fb = document.getElementById('detailFinishedBlock');
+        if (j.status === 'completed' && j.finished_at) {
+            fb.classList.remove('d-none');
+            document.getElementById('detailFinished').textContent = fmtDate(j.finished_at);
+        } else {
+            fb.classList.add('d-none');
+        }
 
         // Assignments
         document.getElementById('detailAssignCount').textContent = (j.assignments || []).length;
