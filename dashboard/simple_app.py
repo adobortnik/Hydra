@@ -2513,13 +2513,19 @@ def _log_errors(response):
 @app.before_request
 def _require_basic_auth():
     """Enforce HTTP Basic Auth on all routes except /api/auth/change-password (handled separately)."""
-    # Allow the change-password endpoint through (it checks auth in its own body)
-    if request.path == '/api/auth/change-password' and request.method == 'POST':
+    try:
+        if request.path == '/api/auth/change-password' and request.method == 'POST':
+            return None
+        auth = request.authorization
+        if not auth or not _check_auth(auth.username, auth.password):
+            return _auth_required_response()
         return None
-    auth = request.authorization
-    if not auth or not _check_auth(auth.username, auth.password):
+    except Exception as e:
+        import traceback, os
+        err_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'auth_error.log')
+        with open(err_path, 'a') as f:
+            f.write(f"\n[{request.path}] Auth error: {traceback.format_exc()}\n")
         return _auth_required_response()
-    return None
 
 
 @app.route('/api/settings/ai', methods=['GET'])
@@ -4432,6 +4438,20 @@ def api_bulk_account_settings():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Log unhandled exceptions. Don't swallow HTTP errors (404, etc.)."""
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e  # Let Flask handle HTTP errors normally
+    import traceback, os
+    tb_str = traceback.format_exc()
+    err_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'flask_errors.log')
+    with open(err_path, 'a') as f:
+        f.write(f"\n{'='*60}\n[{request.path}] {e}\n{tb_str}{'='*60}\n")
+    return f"Internal Server Error: {e}", 500
+
 
 if __name__ == '__main__':
     # Run Flask app without debug mode to avoid watchdog compatibility issues

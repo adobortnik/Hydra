@@ -27,8 +27,23 @@ def _rows_to_dicts(rows):
 # ── Page Route ───────────────────────────────────────────────────────
 
 @analytics_bp.route('/analytics')
+@analytics_bp.route('/analytics/')
 def analytics_page():
-    return render_template('analytics.html')
+    import os
+    err_path = os.path.join(os.path.dirname(__file__), 'logs', 'analytics_debug.log')
+    with open(err_path, 'a') as f:
+        f.write("analytics_page() called!\n")
+    try:
+        result = render_template('analytics.html')
+        with open(err_path, 'a') as f:
+            f.write(f"render OK, size={len(result)}\n")
+        return result
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        with open(err_path, 'a') as f:
+            f.write(f"RENDER ERROR: {tb}\n")
+        return f"<pre>Error: {tb}</pre>", 500
 
 
 # ── API: List business accounts ──────────────────────────────────────
