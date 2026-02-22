@@ -85,6 +85,7 @@ from comment_routes import comment_bp
 from flow_map_routes import flow_map_bp
 from source_quality_routes import source_quality_bp
 from sync_routes import sync_bp
+from analytics_routes import analytics_bp
 
 # Database paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2645,6 +2646,7 @@ app.register_blueprint(comment_bp)
 app.register_blueprint(flow_map_bp)
 app.register_blueprint(source_quality_bp)
 app.register_blueprint(sync_bp)
+app.register_blueprint(analytics_bp)
 
 # ── Documentation routes ─────────────────────────────────────────────
 DOCS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs')

@@ -1,0 +1,858 @@
+{% extends "base.html" %}
+
+{% block title %}📊 Instagram Analytics - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    .analytics-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem 1.25rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+    }
+    .analytics-header h4 {
+        margin: 0;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .analytics-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        margin-left: auto;
+    }
+
+    /* Multi-select dropdown */
+    .account-selector {
+        position: relative;
+    }
+    .account-selector-btn {
+        background: var(--bg-hover);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 0.4rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-width: 200px;
+    }
+    .account-selector-btn:hover {
+        border-color: var(--accent);
+    }
+    .account-selector-dropdown {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 1050;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.5rem;
+        min-width: 280px;
+        max-height: 320px;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .account-selector-dropdown.show { display: block; }
+    .account-selector-dropdown .sel-actions {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.25rem 0.5rem 0.5rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 0.5rem;
+    }
+    .account-selector-dropdown .sel-actions button {
+        background: none;
+        border: none;
+        color: var(--accent-light);
+        font-size: 0.78rem;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    .account-selector-dropdown .sel-actions button:hover {
+        background: var(--accent-glow);
+    }
+    .account-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.82rem;
+    }
+    .account-option:hover { background: var(--bg-hover); }
+    .account-option input[type="checkbox"] {
+        accent-color: var(--accent);
+    }
+    .account-option .acct-name { color: var(--text); font-weight: 500; }
+    .account-option .acct-device { color: var(--text-dim); font-size: 0.75rem; }
+
+    /* Date range */
+    .date-range-select {
+        background: var(--bg-hover);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 0.4rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+    }
+    .date-range-select:focus {
+        border-color: var(--accent);
+        outline: none;
+    }
+
+    .btn-refresh {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        padding: 0.4rem 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.2s;
+    }
+    .btn-refresh:hover { background: var(--accent-light); transform: translateY(-1px); }
+    .btn-refresh.loading i { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Overview cards */
+    .overview-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .overview-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.2s, border-color 0.2s;
+    }
+    .overview-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+    }
+    .overview-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        border-radius: 12px 12px 0 0;
+    }
+    .overview-card.card-views::before { background: linear-gradient(90deg, var(--blue), var(--accent)); }
+    .overview-card.card-interactions::before { background: linear-gradient(90deg, var(--green), #00e5b0); }
+    .overview-card.card-followers::before { background: linear-gradient(90deg, var(--accent), var(--accent-light)); }
+    .overview-card.card-reached::before { background: linear-gradient(90deg, var(--orange), #f5c542); }
+
+    .overview-card .card-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        opacity: 0.7;
+    }
+    .overview-card.card-views .card-icon { color: var(--blue); }
+    .overview-card.card-interactions .card-icon { color: var(--green); }
+    .overview-card.card-followers .card-icon { color: var(--accent-light); }
+    .overview-card.card-reached .card-icon { color: var(--orange); }
+
+    .overview-card .card-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1.1;
+    }
+    .overview-card .card-label {
+        font-size: 0.8rem;
+        color: var(--text-dim);
+        margin-top: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .overview-card .card-change {
+        font-size: 0.75rem;
+        margin-top: 0.4rem;
+        font-weight: 600;
+    }
+    .card-change.positive { color: var(--green); }
+    .card-change.negative { color: var(--red); }
+    .card-change.neutral { color: var(--text-dim); }
+
+    /* Charts section */
+    .charts-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    @media (max-width: 992px) {
+        .charts-grid { grid-template-columns: 1fr; }
+    }
+    .chart-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+    .chart-card h6 {
+        margin-bottom: 1rem;
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.9rem;
+    }
+    .chart-card canvas {
+        max-height: 280px;
+    }
+    .chart-card.wide {
+        grid-column: span 2;
+    }
+    @media (max-width: 992px) {
+        .chart-card.wide { grid-column: span 1; }
+    }
+
+    /* Account detail cards */
+    .account-cards-section h5 {
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: var(--text);
+    }
+    .account-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .account-detail-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: transform 0.2s, border-color 0.2s;
+    }
+    .account-detail-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+    }
+    .account-detail-card .acct-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    .account-detail-card .acct-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), var(--accent-light));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #fff;
+        flex-shrink: 0;
+    }
+    .account-detail-card .acct-info h6 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--text);
+    }
+    .account-detail-card .acct-info .acct-meta {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+    }
+    .account-detail-card .mini-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+    .mini-stat {
+        background: var(--bg-hover);
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        text-align: center;
+    }
+    .mini-stat .stat-val {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+    .mini-stat .stat-lbl {
+        font-size: 0.7rem;
+        color: var(--text-dim);
+        text-transform: uppercase;
+    }
+    .category-badge {
+        display: inline-block;
+        background: var(--accent-glow);
+        color: var(--accent-light);
+        border: 1px solid rgba(108,92,231,0.2);
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 500;
+    }
+    .profile-visits-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--text-dim);
+        margin-top: 0.5rem;
+    }
+    .profile-visits-info .change {
+        font-weight: 600;
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+    }
+    .empty-state i {
+        font-size: 3rem;
+        color: var(--text-dim);
+        margin-bottom: 1rem;
+    }
+    .empty-state h5 { color: var(--text); }
+    .empty-state p { color: var(--text-dim); max-width: 500px; margin: 0.5rem auto; }
+
+    /* Loading */
+    .analytics-loading {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-dim);
+    }
+    .analytics-loading i { font-size: 2rem; margin-bottom: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header bar -->
+<div class="analytics-header">
+    <h4>📊 Instagram Analytics</h4>
+    <div class="analytics-controls">
+        <!-- Account selector -->
+        <div class="account-selector" id="accountSelector">
+            <div class="account-selector-btn" id="accountSelectorBtn" onclick="toggleAccountDropdown()">
+                <i class="fas fa-users"></i>
+                <span id="accountSelectorLabel">All Accounts</span>
+                <i class="fas fa-chevron-down" style="margin-left:auto;font-size:0.7rem;"></i>
+            </div>
+            <div class="account-selector-dropdown" id="accountDropdown">
+                <div class="sel-actions">
+                    <button onclick="selectAllAccounts()"><i class="fas fa-check-double"></i> Select All</button>
+                    <button onclick="deselectAllAccounts()"><i class="fas fa-times"></i> Deselect All</button>
+                </div>
+                <div id="accountOptions">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Date range -->
+        <select class="date-range-select" id="dateRange" onchange="refreshAnalytics()">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+        </select>
+
+        <!-- Refresh -->
+        <button class="btn-refresh" id="refreshBtn" onclick="refreshAnalytics()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Main content (filled by JS) -->
+<div id="analyticsContent">
+    <div class="analytics-loading">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Loading analytics...</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+// ── State ──────────────────────────────────────────────────────────
+let allBusinessAccounts = [];
+let selectedAccounts = [];
+let analyticsData = null;
+let charts = {};
+
+// Chart.js dark defaults
+Chart.defaults.color = '#8888a0';
+Chart.defaults.borderColor = 'rgba(30,30,46,0.8)';
+
+const CHART_COLORS = [
+    '#6c5ce7', '#00d2a0', '#4fa8d5', '#f0a040', '#e74c6f',
+    '#a29bfe', '#00e5b0', '#74c0fc', '#f5c542', '#ff6b9d',
+];
+
+// ── Init ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadAccounts();
+    await refreshAnalytics();
+
+    // Close dropdown on outside click
+    document.addEventListener('click', (e) => {
+        const sel = document.getElementById('accountSelector');
+        if (!sel.contains(e.target)) {
+            document.getElementById('accountDropdown').classList.remove('show');
+        }
+    });
+});
+
+// ── Account selector ───────────────────────────────────────────────
+async function loadAccounts() {
+    try {
+        const resp = await fetch('/api/analytics/accounts');
+        const data = await resp.json();
+        allBusinessAccounts = data.accounts || [];
+        selectedAccounts = allBusinessAccounts.map(a => a.username);
+        renderAccountOptions();
+    } catch (e) {
+        console.error('Failed to load accounts:', e);
+    }
+}
+
+function renderAccountOptions() {
+    const container = document.getElementById('accountOptions');
+    if (allBusinessAccounts.length === 0) {
+        container.innerHTML = '<div style="padding:0.5rem;color:var(--text-dim);font-size:0.8rem;">No business accounts found</div>';
+        return;
+    }
+    container.innerHTML = allBusinessAccounts.map(a => `
+        <label class="account-option">
+            <input type="checkbox" value="${a.username}"
+                   ${selectedAccounts.includes(a.username) ? 'checked' : ''}
+                   onchange="onAccountToggle()">
+            <div>
+                <div class="acct-name">@${a.username}</div>
+                <div class="acct-device">${a.device_name || a.device_serial || 'Unknown device'}</div>
+            </div>
+        </label>
+    `).join('');
+    updateSelectorLabel();
+}
+
+function toggleAccountDropdown() {
+    document.getElementById('accountDropdown').classList.toggle('show');
+}
+
+function selectAllAccounts() {
+    selectedAccounts = allBusinessAccounts.map(a => a.username);
+    renderAccountOptions();
+    refreshAnalytics();
+}
+
+function deselectAllAccounts() {
+    selectedAccounts = [];
+    renderAccountOptions();
+    refreshAnalytics();
+}
+
+function onAccountToggle() {
+    const checkboxes = document.querySelectorAll('#accountOptions input[type="checkbox"]');
+    selectedAccounts = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+    updateSelectorLabel();
+    refreshAnalytics();
+}
+
+function updateSelectorLabel() {
+    const label = document.getElementById('accountSelectorLabel');
+    if (selectedAccounts.length === 0) {
+        label.textContent = 'No accounts';
+    } else if (selectedAccounts.length === allBusinessAccounts.length) {
+        label.textContent = `All Accounts (${selectedAccounts.length})`;
+    } else {
+        label.textContent = `${selectedAccounts.length} account${selectedAccounts.length > 1 ? 's' : ''}`;
+    }
+}
+
+// ── Refresh data ───────────────────────────────────────────────────
+async function refreshAnalytics() {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.add('loading');
+
+    try {
+        const days = document.getElementById('dateRange').value;
+        const accts = selectedAccounts.join(',');
+        const resp = await fetch(`/api/analytics?accounts=${encodeURIComponent(accts)}&days=${days}`);
+        analyticsData = await resp.json();
+        renderAnalytics();
+    } catch (e) {
+        console.error('Failed to refresh analytics:', e);
+        document.getElementById('analyticsContent').innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h5>Error Loading Analytics</h5>
+                <p>${e.message}</p>
+            </div>`;
+    } finally {
+        btn.classList.remove('loading');
+    }
+}
+
+// ── Render ──────────────────────────────────────────────────────────
+function renderAnalytics() {
+    const content = document.getElementById('analyticsContent');
+
+    if (!analyticsData || !analyticsData.business_accounts || analyticsData.business_accounts.length === 0) {
+        content.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-chart-bar"></i>
+                <h5>No Business Accounts Found</h5>
+                <p>Switch accounts to Professional to start tracking analytics.</p>
+            </div>`;
+        return;
+    }
+
+    if (selectedAccounts.length === 0) {
+        content.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-filter"></i>
+                <h5>No Accounts Selected</h5>
+                <p>Select at least one account from the dropdown above.</p>
+            </div>`;
+        return;
+    }
+
+    const agg = analyticsData.aggregated || {};
+    const accounts = analyticsData.accounts || [];
+
+    content.innerHTML = `
+        <!-- Overview Cards -->
+        <div class="overview-row">
+            <div class="overview-card card-views">
+                <div class="card-icon"><i class="fas fa-eye"></i></div>
+                <div class="card-value">${formatNum(agg.total_views)}</div>
+                <div class="card-label">Total Views</div>
+            </div>
+            <div class="overview-card card-interactions">
+                <div class="card-icon"><i class="fas fa-hand-pointer"></i></div>
+                <div class="card-value">${formatNum(agg.total_interactions)}</div>
+                <div class="card-label">Total Interactions</div>
+            </div>
+            <div class="overview-card card-followers">
+                <div class="card-icon"><i class="fas fa-user-friends"></i></div>
+                <div class="card-value">${formatNum(agg.total_followers)}</div>
+                <div class="card-label">Total Followers</div>
+            </div>
+            <div class="overview-card card-reached">
+                <div class="card-icon"><i class="fas fa-broadcast-tower"></i></div>
+                <div class="card-value">${formatNum(agg.total_reached)}</div>
+                <div class="card-label">Accounts Reached</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-card wide">
+                <h6><i class="fas fa-chart-line me-2" style="color:var(--blue)"></i>Views Over Time</h6>
+                <canvas id="viewsChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h6><i class="fas fa-chart-pie me-2" style="color:var(--green)"></i>Engagement Breakdown</h6>
+                <canvas id="engagementChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h6><i class="fas fa-film me-2" style="color:var(--orange)"></i>Content Performance</h6>
+                <canvas id="contentChart"></canvas>
+            </div>
+            <div class="chart-card wide">
+                <h6><i class="fas fa-user-check me-2" style="color:var(--accent-light)"></i>Profile Activity</h6>
+                <canvas id="profileChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Account detail cards -->
+        <div class="account-cards-section">
+            <h5><i class="fas fa-id-card me-2"></i>Account Details</h5>
+            <div class="account-cards-grid" id="accountCardsGrid"></div>
+        </div>
+    `;
+
+    renderCharts(agg, accounts);
+    renderAccountCards(accounts);
+}
+
+// ── Charts ─────────────────────────────────────────────────────────
+function renderCharts(agg, accounts) {
+    // Destroy existing charts
+    Object.values(charts).forEach(c => c.destroy());
+    charts = {};
+
+    // 1. Views Over Time (line)
+    const viewsCtx = document.getElementById('viewsChart');
+    if (viewsCtx) {
+        const datasets = accounts.map((acct, i) => {
+            const history = acct.history || [];
+            return {
+                label: `@${acct.username}`,
+                data: history.map(h => ({
+                    x: h.scraped_at,
+                    y: h.accounts_reached || h.views || 0
+                })),
+                borderColor: CHART_COLORS[i % CHART_COLORS.length],
+                backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '20',
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+            };
+        });
+
+        charts.views = new Chart(viewsCtx, {
+            type: 'line',
+            data: { datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    x: {
+                        type: 'category',
+                        labels: getTimeLabels(accounts),
+                        grid: { color: 'rgba(30,30,46,0.5)' },
+                        ticks: { maxRotation: 45, font: { size: 10 } }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(30,30,46,0.5)' },
+                    }
+                },
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, padding: 15 } }
+                }
+            }
+        });
+    }
+
+    // 2. Engagement Breakdown (doughnut)
+    const engCtx = document.getElementById('engagementChart');
+    if (engCtx) {
+        const followersPct = agg.avg_followers_pct || 0;
+        const nonFollowersPct = agg.avg_non_followers_pct || (100 - followersPct);
+
+        charts.engagement = new Chart(engCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Followers', 'Non-Followers'],
+                datasets: [{
+                    data: [followersPct, nonFollowersPct],
+                    backgroundColor: ['#6c5ce7', '#4fa8d5'],
+                    borderColor: ['#6c5ce740', '#4fa8d540'],
+                    borderWidth: 2,
+                    hoverOffset: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { usePointStyle: true, padding: 12 } },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `${ctx.label}: ${ctx.parsed.toFixed(1)}%`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 3. Content Performance (bar) - Reels vs Posts
+    const contentCtx = document.getElementById('contentChart');
+    if (contentCtx) {
+        const labels = accounts.map(a => `@${a.username}`);
+        const reelsData = accounts.map(a => (a.latest && a.latest.reels_views_pct) || 0);
+        const postsData = accounts.map(a => (a.latest && a.latest.posts_views_pct) || 0);
+
+        charts.content = new Chart(contentCtx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Reels %',
+                        data: reelsData,
+                        backgroundColor: '#e74c6f90',
+                        borderColor: '#e74c6f',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                    },
+                    {
+                        label: 'Posts %',
+                        data: postsData,
+                        backgroundColor: '#4fa8d590',
+                        borderColor: '#4fa8d5',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, max: 100, grid: { color: 'rgba(30,30,46,0.5)' } }
+                },
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, padding: 12 } }
+                }
+            }
+        });
+    }
+
+    // 4. Profile Activity (bar)
+    const profileCtx = document.getElementById('profileChart');
+    if (profileCtx) {
+        const labels = accounts.map(a => `@${a.username}`);
+        const visits = accounts.map(a => (a.latest && a.latest.profile_visits) || 0);
+        const linkTaps = accounts.map(a => (a.latest && a.latest.external_link_taps) || 0);
+
+        charts.profile = new Chart(profileCtx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Profile Visits',
+                        data: visits,
+                        backgroundColor: '#a29bfe90',
+                        borderColor: '#a29bfe',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                    },
+                    {
+                        label: 'External Link Taps',
+                        data: linkTaps,
+                        backgroundColor: '#f0a04090',
+                        borderColor: '#f0a040',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(30,30,46,0.5)' } }
+                },
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, padding: 12 } }
+                }
+            }
+        });
+    }
+}
+
+function getTimeLabels(accounts) {
+    const allDates = new Set();
+    accounts.forEach(a => {
+        (a.history || []).forEach(h => {
+            // Format date nicely
+            const d = new Date(h.scraped_at);
+            allDates.add(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
+        });
+    });
+    return Array.from(allDates).sort();
+}
+
+// ── Account cards ──────────────────────────────────────────────────
+function renderAccountCards(accounts) {
+    const grid = document.getElementById('accountCardsGrid');
+    if (!grid) return;
+
+    grid.innerHTML = accounts.map(acct => {
+        const latest = acct.latest || {};
+        const initial = (acct.username || '?')[0].toUpperCase();
+        const lastScraped = acct.last_scraped
+            ? new Date(acct.last_scraped).toLocaleString()
+            : 'Never';
+        const changePct = latest.profile_visits_change_pct;
+        const changeHtml = changePct != null
+            ? `<span class="change ${changePct > 0 ? 'positive' : changePct < 0 ? 'negative' : 'neutral'}">${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}%</span>`
+            : '';
+
+        return `
+        <div class="account-detail-card">
+            <div class="acct-header">
+                <div class="acct-avatar">${initial}</div>
+                <div class="acct-info">
+                    <h6>@${acct.username}</h6>
+                    <div class="acct-meta">
+                        <i class="fas fa-mobile-alt me-1"></i>${acct.device_name || 'Unknown'}
+                        &nbsp;·&nbsp;
+                        <i class="fas fa-clock me-1"></i>${lastScraped}
+                    </div>
+                </div>
+            </div>
+            <div class="mini-stats">
+                <div class="mini-stat">
+                    <div class="stat-val">${formatNum(latest.views || latest.accounts_reached || 0)}</div>
+                    <div class="stat-lbl">Views / Reached</div>
+                </div>
+                <div class="mini-stat">
+                    <div class="stat-val">${formatNum(latest.interactions || 0)}</div>
+                    <div class="stat-lbl">Interactions</div>
+                </div>
+                <div class="mini-stat">
+                    <div class="stat-val">${formatNum(latest.total_followers || 0)}</div>
+                    <div class="stat-lbl">Followers</div>
+                </div>
+                <div class="mini-stat">
+                    <div class="stat-val">${formatNum(latest.accounts_reached || 0)}</div>
+                    <div class="stat-lbl">Reached</div>
+                </div>
+            </div>
+            ${acct.business_category ? `<span class="category-badge"><i class="fas fa-tag me-1"></i>${acct.business_category}</span>` : ''}
+            <div class="profile-visits-info">
+                <i class="fas fa-eye"></i> Profile visits: ${formatNum(latest.profile_visits || 0)}
+                ${changeHtml}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
+function formatNum(n) {
+    if (n == null) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return n.toLocaleString();
+}
+</script>
+{% endblock %}
