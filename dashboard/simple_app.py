@@ -2634,10 +2634,7 @@ def settings_page():
 
 
 # ── Automation Documentation (template-based) ──────────────────────
-@app.route('/automation-docs')
-def automation_docs_page():
-    """Automation features documentation page."""
-    return render_template('docs.html')
+# /automation-docs removed — use /docs instead
 
 
 # Media folder watcher is in a separate script
