@@ -2686,6 +2686,11 @@ def docs_sk_index():
     resp.headers['Content-Type'] = 'text/html; charset=utf-8'
     return resp
 
+@app.route('/manual')
+@app.route('/manual/')
+def manual_index():
+    return send_from_directory(DOCS_DIR, 'manual.html')
+
 @app.route('/docs/<path:filename>')
 def docs_static(filename):
     return send_from_directory(DOCS_DIR, filename)
