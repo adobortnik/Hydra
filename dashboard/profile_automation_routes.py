@@ -1810,9 +1810,8 @@ def execute_personas_endpoint():
     }
     """
     try:
-        from profile_automation_db import PROFILE_AUTOMATION_DB, add_profile_picture
+        from profile_automation_db import PROFILE_AUTOMATION_DB
         import random as _random
-        import glob as _glob
 
         data = request.get_json()
         assignments = data.get('assignments', [])
@@ -1825,55 +1824,56 @@ def execute_personas_endpoint():
         change_bio = options.get('change_bio', True)
         change_picture = options.get('change_picture', True)
 
-        conn = _get_pa_db()
-        cursor = conn.cursor()
-
-        # Get account details for each assignment
+        # ── PHASE 1: Read-only — gather all data with NO write locks ──
         phone_farm_db = Path(__file__).parent.parent / "db" / "phone_farm.db"
         farm_conn = sqlite3.connect(str(phone_farm_db), timeout=30)
         farm_conn.execute("PRAGMA journal_mode=WAL")
         farm_conn.execute("PRAGMA busy_timeout=30000")
         farm_conn.row_factory = sqlite3.Row
-        farm_cursor = farm_conn.cursor()
+
+        # Pre-fetch all account packages in one query
+        account_ids = [a.get('account_id') for a in assignments if a.get('account_id')]
+        pkg_map = {}
+        if account_ids:
+            placeholders = ','.join('?' * len(account_ids))
+            for row in farm_conn.execute(
+                f"SELECT id, instagram_package FROM accounts WHERE id IN ({placeholders})",
+                account_ids
+            ):
+                pkg_map[row['id']] = row['instagram_package']
+        farm_conn.close()
 
         # Base path for stock profile pictures
         stock_pics_base = Path(__file__).parent.parent / "data" / "profile_pics"
 
-        tasks_created = 0
+        # Build all rows in memory first (no DB connection held)
+        pic_rows = []    # (filename, path, category, gender, notes) — for profile_pictures table
+        task_rows = []   # (device_serial, username, pkg, new_user, new_bio, pic_placeholder, mother)
 
         for assignment in assignments:
             account_id = assignment.get('account_id')
             device_serial = assignment.get('device_serial', '')
             current_username = assignment.get('current_username', '')
-
-            # Get instagram package for this account
-            farm_cursor.execute(
-                "SELECT instagram_package FROM accounts WHERE id = ?",
-                (account_id,)
-            )
-            row = farm_cursor.fetchone()
-            instagram_package = row['instagram_package'] if row else 'com.instagram.android'
+            instagram_package = pkg_map.get(account_id, 'com.instagram.android')
 
             new_username = assignment.get('new_username') if change_username else None
             new_bio = assignment.get('new_bio') if change_bio else None
 
-            # Pick a profile picture from stock photos and register in DB
-            profile_picture_id = None
+            # Pick a profile picture file (no DB access yet)
+            needs_picture = False
             if change_picture:
                 pic_category = assignment.get('pic_category', 'face_selfie')
                 gender = assignment.get('gender', 'neutral')
 
-                # Try exact category/gender match first, then fall back to neutral
-                pic_dir = stock_pics_base / pic_category / gender
-                candidates = list(pic_dir.glob('*.jpg')) + list(pic_dir.glob('*.jpeg')) + list(pic_dir.glob('*.png')) if pic_dir.is_dir() else []
-
-                if not candidates and gender != 'neutral':
-                    pic_dir_fallback = stock_pics_base / pic_category / 'neutral'
-                    if pic_dir_fallback.is_dir():
-                        candidates = list(pic_dir_fallback.glob('*.jpg')) + list(pic_dir_fallback.glob('*.jpeg')) + list(pic_dir_fallback.glob('*.png'))
+                candidates = []
+                for g in [gender, 'neutral'] if gender != 'neutral' else ['neutral']:
+                    d = stock_pics_base / pic_category / g
+                    if d.is_dir():
+                        candidates = list(d.glob('*.jpg')) + list(d.glob('*.jpeg')) + list(d.glob('*.png'))
+                        if candidates:
+                            break
 
                 if not candidates:
-                    # Try any gender subfolder in the category
                     pic_dir_any = stock_pics_base / pic_category
                     if pic_dir_any.is_dir():
                         for sub in pic_dir_any.iterdir():
@@ -1884,37 +1884,71 @@ def execute_personas_endpoint():
 
                 if candidates:
                     chosen = _random.choice(candidates)
-                    abs_path = str(chosen.resolve())
-                    # Insert directly using existing connection (avoid second connection = DB lock)
-                    cursor.execute('''
-                        INSERT INTO profile_pictures
-                        (filename, original_path, category, gender, style, notes)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (chosen.name, abs_path, pic_category, gender, None,
-                          f'Auto-assigned for persona: {current_username}'))
-                    profile_picture_id = cursor.lastrowid
+                    pic_rows.append((
+                        chosen.name, str(chosen.resolve()), pic_category, gender,
+                        f'Auto-assigned for persona: {current_username}'
+                    ))
+                    needs_picture = True
 
-            # Only create task if there's something to change
-            if new_username or new_bio or profile_picture_id:
-                cursor.execute("""
-                    INSERT INTO profile_updates
-                    (device_serial, username, instagram_package, new_username, new_bio,
-                     profile_picture_id, mother_account, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'))
-                """, (
-                    device_serial,
-                    current_username,
-                    instagram_package,
-                    new_username,
-                    new_bio,
-                    profile_picture_id,
-                    'unique_personas'
+            if new_username or new_bio or needs_picture:
+                task_rows.append((
+                    device_serial, current_username, instagram_package,
+                    new_username, new_bio, needs_picture
                 ))
-                tasks_created += 1
 
-        conn.commit()
-        conn.close()
-        farm_conn.close()
+        # ── PHASE 2: Single fast write transaction with retry ──
+        tasks_created = 0
+        max_retries = 5
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                conn = sqlite3.connect(str(PROFILE_AUTOMATION_DB), timeout=60)
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA busy_timeout=60000")
+                cursor = conn.cursor()
+
+                # Insert all picture rows and collect their IDs
+                pic_ids = []
+                for pr in pic_rows:
+                    cursor.execute(
+                        "INSERT INTO profile_pictures (filename, original_path, category, gender, style, notes) VALUES (?,?,?,?,NULL,?)",
+                        pr
+                    )
+                    pic_ids.append(cursor.lastrowid)
+
+                # Insert task rows, linking picture IDs
+                pic_idx = 0
+                for tr in task_rows:
+                    device_serial, username, pkg, new_user, new_bio, needs_pic = tr
+                    pic_id = None
+                    if needs_pic and pic_idx < len(pic_ids):
+                        pic_id = pic_ids[pic_idx]
+                        pic_idx += 1
+
+                    cursor.execute("""
+                        INSERT INTO profile_updates
+                        (device_serial, username, instagram_package, new_username, new_bio,
+                         profile_picture_id, mother_account, status, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, 'unique_personas', 'pending', datetime('now'))
+                    """, (device_serial, username, pkg, new_user, new_bio, pic_id))
+                    tasks_created += 1
+
+                conn.commit()
+                conn.close()
+                break  # Success!
+
+            except sqlite3.OperationalError as e:
+                if 'locked' in str(e) and attempt < max_retries:
+                    import time as _time
+                    wait = attempt * 2
+                    print(f"[execute-personas] DB locked, retry {attempt}/{max_retries} in {wait}s...")
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    _time.sleep(wait)
+                else:
+                    raise
 
         return jsonify({
             'status': 'success',
