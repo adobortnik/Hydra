@@ -792,23 +792,20 @@ class ShareToStoryAction:
             self.ctrl.press_back()
             return False
 
-        # Step 5: Tap Done
-        done_clicked = False
-        for selector in [
-            self.device(text="Done"),
-            self.device(description="Done"),
-            self.device(resourceIdMatches=".*done_button.*"),
-        ]:
-            if selector.exists(timeout=2):
-                selector.click()
-                time.sleep(2)
-                done_clicked = True
-                log.debug("[%s] Confirmed mention sticker with Done", self.device_serial)
-                break
-
-        if not done_clicked:
-            self.device.press('enter')
-            time.sleep(1)
+        # Step 5: After clicking suggestion, IG auto-places the mention sticker
+        # and returns to story preview. Only tap Done if we're stuck in editing mode.
+        time.sleep(2)
+        if self.device(textContains="Your story").exists(timeout=3):
+            # Already back in story preview — no Done needed
+            log.debug("[%s] Mention placed, already in story preview", self.device_serial)
+        elif self.device(text="Done").exists(timeout=2):
+            self.device(text="Done").click()
+            time.sleep(2)
+            log.debug("[%s] Clicked Done after mention placement", self.device_serial)
+        elif self.device(description="Done").exists(timeout=2):
+            self.device(description="Done").click()
+            time.sleep(2)
+            log.debug("[%s] Clicked Done (desc) after mention placement", self.device_serial)
 
         log.info("[%s] Mention @%s added to story via sticker", self.device_serial, mention_target)
         return True
