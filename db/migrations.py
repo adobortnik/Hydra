@@ -322,6 +322,9 @@ MIGRATIONS = [
     {'name': 'add_updated_at_to_accounts',
      'sql': "ALTER TABLE accounts ADD COLUMN updated_at TEXT",
      'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%updated_at%'"},
+    {'name': 'add_tag_to_accounts',
+     'sql': "ALTER TABLE accounts ADD COLUMN tag TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%tag %'"},
 ]
 
 
