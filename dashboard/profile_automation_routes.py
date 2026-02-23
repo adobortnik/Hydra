@@ -1928,16 +1928,26 @@ def download_stock_photos_endpoint():
         if api_keys.get('pexels'):
             env['PEXELS_API_KEY'] = api_keys['pexels']
 
+        # Calculate female/male counts (70/30 split)
+        total = count_per_category * 7  # ~7 stock categories
+        female_count = int(total * 0.7)
+        male_count = total - female_count
+
         # Run in background thread
         def run_download():
             try:
-                subprocess.run(
-                    ['python', str(script_path),
-                     '--count', str(count_per_category)],
-                    cwd=str(script_path.parent),
-                    env=env,
-                    timeout=600
-                )
+                log_path = script_path.parent / "download_log.txt"
+                with open(log_path, "w", encoding="utf-8") as log_file:
+                    subprocess.run(
+                        ['python', '-u', str(script_path),
+                         '--female', str(female_count),
+                         '--male', str(male_count)],
+                        cwd=str(script_path.parent),
+                        env=env,
+                        timeout=1200,
+                        stdout=log_file,
+                        stderr=subprocess.STDOUT,
+                    )
             except Exception as e:
                 print(f"[PersonaGenerator] Stock photo download error: {e}")
 
@@ -1954,6 +1964,49 @@ def download_stock_photos_endpoint():
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+@profile_automation_bp.route('/download-stock-photos/status', methods=['GET'])
+def download_stock_photos_status():
+    """Check stock photo download progress."""
+    try:
+        pics_dir = Path(__file__).parent.parent / "data" / "profile_pics"
+        log_path = Path(__file__).parent.parent / "data" / "download_log.txt"
+        manifest_path = pics_dir / "download_manifest.json"
+
+        result = {'running': False, 'total_files': 0, 'by_folder': {}, 'log_tail': ''}
+
+        # Count files
+        if pics_dir.exists():
+            for subdir in ['female', 'male', 'neutral']:
+                d = pics_dir / subdir
+                if d.exists():
+                    count = len([f for f in d.iterdir() if f.suffix in ('.jpg', '.png', '.jpeg')])
+                    result['by_folder'][subdir] = count
+                    result['total_files'] += count
+
+        # Read last lines of log
+        if log_path.exists():
+            try:
+                lines = log_path.read_text(encoding='utf-8', errors='replace').strip().split('\n')
+                result['log_tail'] = '\n'.join(lines[-10:])
+                result['running'] = not any(x in result['log_tail'] for x in ['DOWNLOAD COMPLETE', 'No API keys', 'error'])
+            except:
+                pass
+
+        # Check manifest
+        if manifest_path.exists():
+            try:
+                import json as _json
+                m = _json.loads(manifest_path.read_text(encoding='utf-8'))
+                result['downloaded'] = len(m.get('downloaded', []))
+                result['failed'] = len(m.get('failed', []))
+            except:
+                pass
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @profile_automation_bp.route('/pic-category-files', methods=['GET'])
