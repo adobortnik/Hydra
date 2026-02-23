@@ -282,7 +282,7 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
                a.comment_enabled, a.story_enabled,
                a.is_business_profile, a.business_category,
                COALESCE(snap_today.followers, a.followers, 0) as followers,
-               COALESCE(snap_today.following, 0) as following,
+               COALESCE(snap_today.following, a.following, 0) as following,
                snap_yesterday.followers as prev_followers,
                snap_yesterday.following as prev_following
         FROM accounts a

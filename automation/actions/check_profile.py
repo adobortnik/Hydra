@@ -81,8 +81,8 @@ class CheckProfileAction:
             # Save snapshot to DB
             self._save_snapshot(snap_username, followers, following, posts)
 
-            # Update accounts.followers
-            self._update_account_followers(followers)
+            # Update accounts.followers + accounts.following
+            self._update_account_followers(followers, following)
 
             # Log the action
             log_action(
@@ -129,13 +129,18 @@ class CheckProfileAction:
             log.error("[%s] CHECK_PROFILE: Failed to save snapshot: %s",
                       self.device_serial, e)
 
-    def _update_account_followers(self, followers):
-        """Update the accounts table with the current follower count."""
+    def _update_account_followers(self, followers, following=None):
+        """Update the accounts table with the current follower/following counts."""
         try:
             conn = get_db()
-            conn.execute("""
-                UPDATE accounts SET followers = ? WHERE id = ?
-            """, (followers, self.account_id))
+            if following is not None:
+                conn.execute("""
+                    UPDATE accounts SET followers = ?, following = ? WHERE id = ?
+                """, (followers, following, self.account_id))
+            else:
+                conn.execute("""
+                    UPDATE accounts SET followers = ? WHERE id = ?
+                """, (followers, self.account_id))
             conn.commit()
             conn.close()
         except Exception as e:
