@@ -59,18 +59,15 @@ PHOTO_CATEGORIES = {
         "target_pct": 0.30,
         "source": "ai",  # Best done with AI for uniqueness
         "stock_search_terms": [
-            # Candid, amateur-looking — NOT studio portraits
-            "candid selfie girl phone", "casual selfie young woman",
-            "selfie natural light no makeup", "guy casual selfie outdoor",
-            "phone selfie mirror casual", "girl selfie messy hair",
-            "young woman candid laugh portrait", "man candid photo outdoor",
-            "casual portrait young person window light",
-            "girl selfie car", "guy selfie park casual",
-            "young woman candid cafe portrait", "candid portrait friend",
-            "casual headshot young woman outdoor", "casual photo young man street",
-            "girl blurry background candid", "natural portrait no filter",
-            "young person candid phone camera", "amateur selfie bedroom",
-            "candid close up face smile natural",
+            # Natural-looking portraits — not studio, but still nice
+            "young woman selfie natural light", "young man selfie outdoor casual",
+            "girl portrait casual smile", "guy portrait outdoor natural",
+            "woman face close up natural", "man portrait casual daylight",
+            "european young woman portrait candid", "european young man casual portrait",
+            "girl selfie golden hour", "guy casual portrait city",
+            "young woman candid cafe", "young woman portrait window light",
+            "casual portrait young man park", "girl natural portrait outdoor",
+            "woman portrait soft light", "man casual headshot outdoor",
         ],
     },
     "full_body_lifestyle": {
@@ -427,47 +424,25 @@ def crop_to_square_jpeg(image_data, target_size=1080):
         if size != target_size:
             img = img.resize((target_size, target_size), Image.LANCZOS)
         
-        # Add random adjustments to look less "stock photo perfect"
-        # Makes photos look more like real phone camera shots
-        from PIL import ImageEnhance, ImageFilter
+        # Subtle random adjustments for uniqueness
+        # Goal: still a nice photo, just not identical to stock original
+        from PIL import ImageEnhance
         
-        # Random brightness shift (phone cameras aren't perfect)
+        # Very slight brightness variation
         brightness = ImageEnhance.Brightness(img)
-        img = brightness.enhance(random.uniform(0.90, 1.10))
+        img = brightness.enhance(random.uniform(0.96, 1.04))
         
-        # Random contrast (slightly washed out or punchy)
+        # Very slight contrast tweak
         contrast = ImageEnhance.Contrast(img)
-        img = contrast.enhance(random.uniform(0.85, 1.10))
+        img = contrast.enhance(random.uniform(0.95, 1.05))
         
-        # Random saturation (phone photos often slightly over/undersaturated)
+        # Subtle saturation shift
         color = ImageEnhance.Color(img)
-        img = color.enhance(random.uniform(0.85, 1.15))
+        img = color.enhance(random.uniform(0.93, 1.07))
         
-        # Random slight sharpness variation
-        sharpness = ImageEnhance.Sharpness(img)
-        img = sharpness.enhance(random.uniform(0.8, 1.3))
-        
-        # Occasionally add very slight blur (like phone focus miss) ~15% chance
-        if random.random() < 0.15:
-            img = img.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.3, 0.8)))
-        
-        # Random crop offset (not always perfectly centered)
-        # Re-crop with slight offset for more natural framing
-        if target_size > 100:
-            max_shift = int(target_size * 0.03)  # up to 3% shift
-            if max_shift > 0:
-                shift_x = random.randint(-max_shift, max_shift)
-                shift_y = random.randint(-max_shift, max_shift)
-                # Pad and re-crop to shift
-                from PIL import Image as _Img
-                padded = _Img.new('RGB', (target_size + abs(shift_x)*2, target_size + abs(shift_y)*2))
-                padded.paste(img, (abs(shift_x) + shift_x, abs(shift_y) + shift_y))
-                img = padded.crop((abs(shift_x), abs(shift_y), 
-                                   abs(shift_x) + target_size, abs(shift_y) + target_size))
-        
-        # Random JPEG quality (phone photos vary widely)
+        # JPEG quality — good but not lossless (like a normal phone export)
         output = BytesIO()
-        img.save(output, format="JPEG", quality=random.randint(72, 92))
+        img.save(output, format="JPEG", quality=random.randint(82, 93))
         return output.getvalue()
     except ImportError:
         # No PIL — just save raw
