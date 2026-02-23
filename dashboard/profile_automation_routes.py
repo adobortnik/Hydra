@@ -1781,7 +1781,9 @@ def execute_personas_endpoint():
     }
     """
     try:
-        from profile_automation_db import PROFILE_AUTOMATION_DB
+        from profile_automation_db import PROFILE_AUTOMATION_DB, add_profile_picture
+        import random as _random
+        import glob as _glob
 
         data = request.get_json()
         assignments = data.get('assignments', [])
@@ -1803,6 +1805,9 @@ def execute_personas_endpoint():
         farm_conn.row_factory = sqlite3.Row
         farm_cursor = farm_conn.cursor()
 
+        # Base path for stock profile pictures
+        stock_pics_base = Path(__file__).parent.parent / "data" / "profile_pics"
+
         tasks_created = 0
 
         for assignment in assignments:
@@ -1820,14 +1825,42 @@ def execute_personas_endpoint():
 
             new_username = assignment.get('new_username') if change_username else None
             new_bio = assignment.get('new_bio') if change_bio else None
-            # For picture, we just store the category for now
-            # The actual picture assignment happens separately
+
+            # Pick a profile picture from stock photos and register in DB
             profile_picture_id = None
             if change_picture:
-                # Try to find an available picture in the category
                 pic_category = assignment.get('pic_category', 'face_selfie')
-                # For now, store None - pictures need to be uploaded/downloaded first
-                profile_picture_id = None
+                gender = assignment.get('gender', 'neutral')
+
+                # Try exact category/gender match first, then fall back to neutral
+                pic_dir = stock_pics_base / pic_category / gender
+                candidates = list(pic_dir.glob('*.jpg')) + list(pic_dir.glob('*.jpeg')) + list(pic_dir.glob('*.png')) if pic_dir.is_dir() else []
+
+                if not candidates and gender != 'neutral':
+                    pic_dir_fallback = stock_pics_base / pic_category / 'neutral'
+                    if pic_dir_fallback.is_dir():
+                        candidates = list(pic_dir_fallback.glob('*.jpg')) + list(pic_dir_fallback.glob('*.jpeg')) + list(pic_dir_fallback.glob('*.png'))
+
+                if not candidates:
+                    # Try any gender subfolder in the category
+                    pic_dir_any = stock_pics_base / pic_category
+                    if pic_dir_any.is_dir():
+                        for sub in pic_dir_any.iterdir():
+                            if sub.is_dir():
+                                candidates = list(sub.glob('*.jpg')) + list(sub.glob('*.jpeg')) + list(sub.glob('*.png'))
+                                if candidates:
+                                    break
+
+                if candidates:
+                    chosen = _random.choice(candidates)
+                    abs_path = str(chosen.resolve())
+                    profile_picture_id = add_profile_picture(
+                        filename=chosen.name,
+                        original_path=abs_path,
+                        category=pic_category,
+                        gender=gender,
+                        notes=f'Auto-assigned for persona: {current_username}'
+                    )
 
             # Only create task if there's something to change
             if new_username or new_bio or profile_picture_id:
