@@ -251,6 +251,14 @@
                 </div>
             </div>
 
+            <!-- Group Filter -->
+            <div class="mb-3">
+                <label class="form-label small text-muted">Filter by Device Group</label>
+                <select id="groupSelector" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="filterAccounts()" style="max-width:240px">
+                    <option value="">All Groups</option>
+                </select>
+            </div>
+
             <!-- Search -->
             <div class="mb-3">
                 <input type="text" class="search-bar" id="accountSearch" placeholder="🔍 Search accounts by username, device, or tag..." oninput="filterAccounts()">
@@ -1096,7 +1104,18 @@ function loadAccounts() {
         renderAccountList();
         updateSelectionCount();
         populatePersonaFilters();
+        populateGroupFilter();
     }).fail(() => showToast('Failed to load accounts', 'error'));
+}
+
+function populateGroupFilter() {
+    const groupSet = new Set();
+    allAccounts.forEach(a => { if (a.device_group) groupSet.add(a.device_group); });
+    const sel = $('#groupSelector');
+    const cur = sel.val();
+    sel.find('option:not(:first)').remove();
+    [...groupSet].sort().forEach(g => sel.append(`<option value="${g}">${g}</option>`));
+    if (cur) sel.val(cur);
 }
 
 function loadTags() {
@@ -1137,6 +1156,12 @@ function renderAccountList() {
             const tags = (a.tags || '').split(',').map(t => t.trim());
             return tags.includes(activeTag) && a.enable_tags;
         });
+    }
+
+    // Filter by device group
+    const activeGroup = $('#groupSelector').val();
+    if (activeGroup) {
+        filtered = filtered.filter(a => a.device_group === activeGroup);
     }
 
     // Filter by search
