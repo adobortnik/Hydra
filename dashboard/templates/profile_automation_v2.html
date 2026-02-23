@@ -774,6 +774,13 @@
                 </div>
             </div>
 
+            <!-- Refresh button -->
+            <div class="text-end mb-3">
+                <button class="btn btn-sm btn-outline-success" onclick="loadPicCategoryFiles()">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh Photo Count
+                </button>
+            </div>
+
             <!-- Manual Upload -->
             <div class="card bg-dark border-secondary mb-3">
                 <div class="card-body">
@@ -2419,7 +2426,13 @@ function downloadStockPhotos() {
         }),
         success: function(data) {
             if (data.status === 'success') {
-                showToast(data.message, 'success');
+                showToast(data.message + ' — will auto-refresh when done.', 'success');
+                // Auto-refresh photo count every 15s while downloading
+                let refreshInterval = setInterval(function() {
+                    loadPicCategoryFiles();
+                }, 15000);
+                // Stop after 10 minutes max
+                setTimeout(function() { clearInterval(refreshInterval); }, 600000);
             } else {
                 showToast(data.message || 'Download failed', 'error');
             }
