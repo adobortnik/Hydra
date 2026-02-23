@@ -641,7 +641,8 @@ def get_mother_account_info(device_serial, username):
         import sqlite3
         import json
 
-        conn = sqlite3.connect(settings_path)
+        conn = sqlite3.connect(settings_path, timeout=30)
+        conn.execute("PRAGMA busy_timeout=30000")
         cursor = conn.cursor()
         cursor.execute('SELECT settings FROM accountsettings WHERE id = 1')
         row = cursor.fetchone()
@@ -1086,7 +1087,9 @@ def get_accounts_with_details():
         import json
 
         phone_farm_db = Path(__file__).parent.parent / "db" / "phone_farm.db"
-        conn = sqlite3.connect(str(phone_farm_db))
+        conn = sqlite3.connect(str(phone_farm_db), timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -1650,7 +1653,9 @@ def generate_personas_endpoint():
 
         # Get account details from DB to enrich assignments
         phone_farm_db = Path(__file__).parent.parent / "db" / "phone_farm.db"
-        conn = sqlite3.connect(str(phone_farm_db))
+        conn = sqlite3.connect(str(phone_farm_db), timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -1825,7 +1830,9 @@ def execute_personas_endpoint():
 
         # Get account details for each assignment
         phone_farm_db = Path(__file__).parent.parent / "db" / "phone_farm.db"
-        farm_conn = sqlite3.connect(str(phone_farm_db))
+        farm_conn = sqlite3.connect(str(phone_farm_db), timeout=30)
+        farm_conn.execute("PRAGMA journal_mode=WAL")
+        farm_conn.execute("PRAGMA busy_timeout=30000")
         farm_conn.row_factory = sqlite3.Row
         farm_cursor = farm_conn.cursor()
 

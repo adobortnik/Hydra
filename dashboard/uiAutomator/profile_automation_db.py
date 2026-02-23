@@ -27,12 +27,17 @@ def _ensure_db():
 def get_db_connection():
     """Get a database connection, ensuring tables exist."""
     _ensure_db()
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = sqlite3.connect(PROFILE_AUTOMATION_DB, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_database():
     """Initialize the profile automation database with all required tables"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = sqlite3.connect(PROFILE_AUTOMATION_DB, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     cursor = conn.cursor()
 
     # Table for profile update tasks
