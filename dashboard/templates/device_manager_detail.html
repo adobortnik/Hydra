@@ -361,6 +361,8 @@
     .sp-toggle-row .form-check-input:checked { background-color: #28a745; border-color: #28a745; }
 
     /* ── Bulk Copy Modal ── */
+    .bc-modal { z-index: 1070 !important; }
+    .bc-modal + .modal-backdrop { z-index: 1065 !important; }
     .bc-modal .modal-content {
         background: #14171a;
         border: 1px solid #2d3238;
@@ -1876,7 +1878,7 @@
 </div>
 
 <!-- ═══════════════ Bulk Copy Modal ═══════════════ -->
-<div class="modal fade bc-modal" id="bulkCopyModal" tabindex="-1">
+<div class="modal fade bc-modal" id="bulkCopyModal" tabindex="-1" style="z-index: 1070;">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
