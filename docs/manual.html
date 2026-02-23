@@ -1001,7 +1001,7 @@ username:password:2fa_secret</code></pre>
     <div class="step">
         <div class="step-content">
             <h4>Launch from Dashboard</h4>
-            <p>Go to the dashboard and click <strong>"Start Farm"</strong>, or run <code>python launch_farm.py</code> from the server terminal. This starts the bot process for all active accounts.</p>
+            <p>Go to the dashboard and click <strong>"Start Farm"</strong>. This starts the bot process for all active accounts on all connected devices.</p>
         </div>
     </div>
     <div class="step">
@@ -1266,11 +1266,11 @@ username:password:2fa_secret</code></pre>
 <p>Things go wrong sometimes. Here are the most common issues and how to fix them.</p>
 
 <h3>"Database is locked"</h3>
-<p>This happens when multiple processes try to write to the SQLite database at the same time.</p>
+<p>This happens when multiple processes try to write to the database at the same time.</p>
 <div class="info-box warning">
     <strong>⚠️ Fix: Database is locked</strong>
     <p><strong>Quick fix:</strong> Restart the dashboard server. This releases the database lock.</p>
-    <p><strong>If it keeps happening:</strong> Check for zombie Python processes. Run <code>Get-Process python</code> on the server and kill any stale processes that shouldn't be running.</p>
+    <p><strong>If it keeps happening:</strong> Restart the server PC or contact support.</p>
 </div>
 
 <h3>Bot Not Starting</h3>
@@ -1364,7 +1364,7 @@ username:password:2fa_secret</code></pre>
     <tbody>
         <tr>
             <td>Dashboard not loading</td>
-            <td>Check if the server is running: <code>Get-Process python</code>. Restart with the VBS launcher if needed.</td>
+            <td>Check if the server is running. Restart the dashboard if needed.</td>
         </tr>
         <tr>
             <td>Actions counted but nothing happening</td>
@@ -1376,7 +1376,7 @@ username:password:2fa_secret</code></pre>
         </tr>
         <tr>
             <td>Photos not posting</td>
-            <td>Check storage on the phone. ADB push might fail if the phone is full.</td>
+            <td>Check storage on the phone. Media transfer may fail if the phone is full.</td>
         </tr>
         <tr>
             <td>Slow performance</td>
@@ -1499,7 +1499,7 @@ username:password:2fa_secret</code></pre>
 <ul>
     <li><strong>Reboot phones weekly</strong> — prevents memory leaks and Android slowdowns</li>
     <li><strong>Keep the dashboard open</strong> — check it at least twice daily to catch issues early</li>
-    <li><strong>Back up your database</strong> — the SQLite DB (<code>db/phone_farm.db</code>) is your lifeline. Back it up regularly.</li>
+    <li><strong>Back up your data</strong> — your database is your lifeline. Back it up regularly.</li>
     <li><strong>Monitor Farm Stats</strong> — if daily actions suddenly drop, something is wrong. Investigate immediately.</li>
     <li><strong>Rotate comment templates</strong> — stale comments get flagged. Update them regularly.</li>
     <li><strong>Don't run all accounts at the same time</strong> — stagger start times to avoid a spike of activity from the same IP range</li>
