@@ -15,6 +15,21 @@ BASE_DIR = Path(__file__).parent.parent.parent
 PROFILE_AUTOMATION_DB = Path(__file__).parent / "profile_automation.db"
 PROFILE_PICTURES_DIR = Path(__file__).parent / "profile_pictures"
 
+_db_initialized = False
+
+def _ensure_db():
+    """Ensure database is initialized (called once per process)."""
+    global _db_initialized
+    if not _db_initialized:
+        init_database()
+        _db_initialized = True
+
+def get_db_connection():
+    """Get a database connection, ensuring tables exist."""
+    _ensure_db()
+    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    return conn
+
 def init_database():
     """Initialize the profile automation database with all required tables"""
     conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
@@ -154,7 +169,7 @@ def add_profile_update_task(device_serial, instagram_package, username=None,
     Returns:
         int: Task ID
     """
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -173,7 +188,7 @@ def add_profile_update_task(device_serial, instagram_package, username=None,
 
 def get_pending_tasks():
     """Get all pending profile update tasks"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -192,7 +207,7 @@ def get_pending_tasks():
 
 def update_task_status(task_id, status, error_message=None):
     """Update the status of a profile update task"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     if status == 'completed':
@@ -226,7 +241,7 @@ def add_profile_picture(filename, original_path, category=None, gender=None, sty
     Returns:
         int: Profile picture ID
     """
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -253,7 +268,7 @@ def get_profile_pictures(category=None, gender=None, unused_only=False):
     Returns:
         list: List of profile picture records
     """
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -281,7 +296,7 @@ def get_profile_pictures(category=None, gender=None, unused_only=False):
 
 def update_picture_usage(picture_id):
     """Increment usage counter for a profile picture"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -305,7 +320,7 @@ def add_bio_template(name, bio_text, category=None):
     Returns:
         int: Bio template ID
     """
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
@@ -325,7 +340,7 @@ def add_bio_template(name, bio_text, category=None):
 
 def get_bio_templates(category=None):
     """Get bio templates"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -341,7 +356,7 @@ def get_bio_templates(category=None):
 
 def update_bio_template_usage(template_id):
     """Increment usage counter for a bio template"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('UPDATE bio_templates SET times_used = times_used + 1 WHERE id = ?', (template_id,))
@@ -362,7 +377,7 @@ def log_profile_change(device_serial, instagram_package, username, change_type, 
         new_value: New value
         success: Whether the change was successful
     """
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -376,7 +391,7 @@ def log_profile_change(device_serial, instagram_package, username, change_type, 
 
 def update_device_account(device_serial, username=None, bio=None, profile_picture_id=None, instagram_package=None):
     """Update or create device account record"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('SELECT id FROM device_accounts WHERE device_serial = ?', (device_serial,))
@@ -418,7 +433,7 @@ def update_device_account(device_serial, username=None, bio=None, profile_pictur
 
 def get_device_account(device_serial):
     """Get device account information"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -432,7 +447,7 @@ def get_device_account(device_serial):
 
 def get_all_tasks():
     """Get all profile update tasks (all statuses)"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -451,7 +466,7 @@ def get_all_tasks():
 
 def get_profile_history(limit=50):
     """Get profile change history"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -469,7 +484,7 @@ def get_profile_history(limit=50):
 
 def delete_task(task_id):
     """Delete a profile update task"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('DELETE FROM profile_updates WHERE id = ?', (task_id,))
@@ -480,7 +495,7 @@ def delete_task(task_id):
 
 def clear_old_tasks(days_old=7):
     """Clear completed tasks older than specified days"""
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -520,7 +535,7 @@ def auto_import_profile_pictures():
         return {'imported': 0, 'skipped': 0, 'total': 0}
 
     # Get existing filenames from database
-    conn = sqlite3.connect(PROFILE_AUTOMATION_DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT filename FROM profile_pictures')
     existing_filenames = {row[0] for row in cursor.fetchall()}

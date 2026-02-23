@@ -19,6 +19,8 @@ from tag_based_automation import TagBasedAutomation
 from ai_profile_generator import CampaignAIGenerator
 from profile_automation_db import (
     init_database as _init_pa_db,
+    get_db_connection as _get_pa_db,
+    PROFILE_AUTOMATION_DB,
     get_profile_pictures, get_bio_templates,
     get_pending_tasks, add_bio_template, add_profile_picture
 )
@@ -1510,7 +1512,7 @@ def clear_completed_tasks_v2():
     try:
         from profile_automation_db import PROFILE_AUTOMATION_DB
 
-        conn = sqlite3.connect(str(PROFILE_AUTOMATION_DB))
+        conn = _get_pa_db()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM profile_updates WHERE status = 'completed'")
         deleted = cursor.rowcount
@@ -1792,11 +1794,7 @@ def execute_personas_endpoint():
         change_bio = options.get('change_bio', True)
         change_picture = options.get('change_picture', True)
 
-        # Ensure DB tables exist
-        from profile_automation_db import init_database
-        init_database()
-
-        conn = sqlite3.connect(str(PROFILE_AUTOMATION_DB))
+        conn = _get_pa_db()
         cursor = conn.cursor()
 
         # Get account details for each assignment
