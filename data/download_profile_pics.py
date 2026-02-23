@@ -55,155 +55,162 @@ MANIFEST_FILE = PICS_DIR / "download_manifest.json"
 
 PHOTO_CATEGORIES = {
     "face_selfie": {
-        "description": "Face visible — selfie, portrait, various angles",
+        "description": "Face visible — selfie, portrait, candid angles",
         "target_pct": 0.30,
         "source": "ai",  # Best done with AI for uniqueness
         "stock_search_terms": [
-            # Fallback if no AI — stock photos of real-looking people
-            "young woman selfie casual", "young man selfie natural",
-            "girl portrait smile natural light", "guy portrait casual outdoor",
-            "woman face portrait natural", "man face portrait outdoor",
-            "european woman portrait", "european man portrait casual",
+            # Candid, amateur-looking — NOT studio portraits
+            "candid selfie girl phone", "casual selfie young woman",
+            "selfie natural light no makeup", "guy casual selfie outdoor",
+            "phone selfie mirror casual", "girl selfie messy hair",
+            "young woman candid laugh portrait", "man candid photo outdoor",
+            "casual portrait young person window light",
+            "girl selfie car", "guy selfie park casual",
+            "young woman candid cafe portrait", "candid portrait friend",
+            "casual headshot young woman outdoor", "casual photo young man street",
+            "girl blurry background candid", "natural portrait no filter",
+            "young person candid phone camera", "amateur selfie bedroom",
+            "candid close up face smile natural",
         ],
     },
     "full_body_lifestyle": {
-        "description": "Full body / half body from distance (travel, lifestyle, beach)",
+        "description": "Full body / half body from distance — candid travel, casual life",
         "target_pct": 0.20,
         "source": "stock",
         "search_terms_female": [
-            "woman walking city street from behind",
-            "girl standing beach sunset",
-            "woman travel landmark europe",
-            "young woman sitting cafe outdoor",
-            "woman hiking mountain view",
-            "girl standing field flowers",
-            "woman looking at sea",
-            "girl sitting stairs old town",
-            "woman riding bicycle city",
-            "young woman street photography",
-            "woman standing autumn forest",
-            "girl posing urban wall",
-            "woman at viewpoint overlooking city",
-            "woman at lake mountains",
-            "girl on bridge european city",
+            "girl walking street candid from behind",
+            "woman beach casual vacation amateur",
+            "candid photo woman tourist europe",
+            "young woman sitting cafe candid",
+            "girl hiking casual phone photo",
+            "woman standing field natural",
+            "candid girl looking at sea",
+            "girl sitting old town stairs casual",
+            "casual woman bicycle city",
+            "candid street photography woman young",
+            "girl autumn park natural candid",
+            "casual photo girl urban wall",
+            "woman friend taking photo travel",
+            "candid lake mountain casual woman",
+            "girl bridge european city casual photo",
         ],
         "search_terms_male": [
-            "man standing mountain top view",
-            "guy walking city street casual",
-            "man travel photography urban",
-            "young man sitting bench park",
-            "man hiking outdoors adventure",
-            "guy beach vacation casual",
-            "man sitting cafe urban",
-            "young man standing old town",
-            "man cycling city",
-            "man on rooftop city view",
+            "guy standing mountain casual photo",
+            "man walking city street candid",
+            "candid travel photo young man",
+            "guy sitting bench park casual",
+            "man hiking outdoors casual",
+            "guy beach vacation amateur photo",
+            "man sitting cafe candid street",
+            "young man old town casual",
+            "casual guy rooftop city",
+            "man friend photo casual outdoor",
         ],
     },
     "aesthetic_artistic": {
-        "description": "Aesthetic/artistic (landscapes, coffee, flowers, pets, food)",
+        "description": "Aesthetic/artistic — phone photos, casual shots of things",
         "target_pct": 0.15,
         "source": "stock",
         "search_terms": [
-            "aesthetic coffee cup latte art",
-            "sunset clouds golden hour",
-            "cute dog portrait close up",
-            "cute cat portrait close up",
-            "aesthetic flowers bouquet",
-            "mountain landscape dramatic",
-            "ocean waves sunset",
-            "autumn leaves aesthetic",
-            "cozy room aesthetic warm",
-            "vinyl record player aesthetic",
-            "books coffee cozy aesthetic",
-            "plant aesthetic indoor",
-            "golden retriever portrait cute",
-            "kitten portrait cute",
-            "food flat lay aesthetic",
-            "sunrise mountains peaceful",
-            "snow covered trees winter",
-            "cherry blossom tree spring",
-            "lavender field purple",
-            "beach footprints sand",
-            "city lights night rain",
-            "polaroid photos aesthetic",
-            "candle cozy evening",
-            "sunset over water reflection",
-            "street lamp fog night",
+            "coffee cup phone photo casual",
+            "sunset phone photo amateur",
+            "cute dog amateur photo phone",
+            "cat sleeping casual photo",
+            "flowers casual phone photo",
+            "mountain view phone camera",
+            "ocean waves casual",
+            "autumn leaves ground casual",
+            "cozy room casual photo",
+            "vinyl record casual aesthetic",
+            "book and coffee casual photo",
+            "indoor plant phone photo",
+            "dog portrait amateur cute",
+            "kitten cute phone photo",
+            "food plate casual restaurant photo",
+            "sunrise blurry phone photo",
+            "snow casual phone photo",
+            "cherry blossom phone photo",
+            "field flowers amateur photo",
+            "beach footprints casual",
+            "city night rain phone photo",
+            "polaroid vintage casual",
+            "candle cozy casual",
+            "sunset water phone photo",
+            "foggy street phone photo",
         ],
     },
     "mirror_selfie_gym": {
-        "description": "Mirror selfies / gym photos",
+        "description": "Mirror selfies / gym — amateur phone selfie style",
         "target_pct": 0.15,
         "source": "stock",
         "search_terms_female": [
-            "woman gym workout fitness",
-            "girl gym selfie fitness",
-            "woman stretching yoga mat",
-            "fitness woman dumbbell",
-            "woman running treadmill gym",
-            "woman pilates exercise",
-            "fitness girl healthy lifestyle",
-            "woman gym training",
+            "woman gym selfie mirror phone",
+            "girl gym casual workout phone",
+            "woman yoga mat casual",
+            "fitness woman casual gym",
+            "woman gym amateur photo",
+            "girl workout casual photo",
+            "girl healthy lifestyle casual",
+            "woman gym locker room selfie",
         ],
         "search_terms_male": [
-            "man gym workout muscle",
-            "guy gym fitness training",
-            "man lifting weights gym",
-            "fitness man training gym",
-            "man running gym treadmill",
-            "man crossfit workout",
-            "guy exercise fitness",
-            "man gym selfie casual",
+            "man gym selfie mirror phone",
+            "guy gym casual workout",
+            "man lifting weights casual",
+            "fitness man casual gym photo",
+            "man treadmill casual",
+            "guy crossfit amateur photo",
+            "man exercise casual",
+            "gym selfie amateur male",
         ],
     },
     "back_view_silhouette": {
-        "description": "Back view / silhouette photos",
+        "description": "Back view / silhouette — casual from-behind shots",
         "target_pct": 0.10,
         "source": "stock",
         "search_terms": [
-            "woman silhouette sunset",
-            "person looking at mountains from behind",
-            "woman back view ocean sunset",
-            "silhouette person sunset sky",
-            "girl from behind looking at view",
-            "person standing cliff edge view",
-            "silhouette person sunrise",
-            "woman back view city skyline",
-            "person walking alone road sunset",
-            "woman looking at sunset balcony",
-            "man silhouette mountain",
-            "person from behind forest path",
-            "woman back view field sunset",
-            "silhouette beach golden hour",
-            "person hiking trail from behind",
+            "woman silhouette sunset casual",
+            "person from behind mountains casual",
+            "woman back view ocean casual photo",
+            "silhouette person sunset amateur",
+            "girl from behind looking at view casual",
+            "person standing cliff casual",
+            "silhouette sunrise amateur phone",
+            "woman back view city casual",
+            "person walking road casual",
+            "woman sunset balcony phone photo",
+            "man silhouette mountain amateur",
+            "person from behind forest casual",
+            "woman field sunset casual phone",
+            "silhouette beach casual",
+            "person hiking trail from behind casual",
         ],
     },
     "other_diverse": {
-        "description": "Other (pet as pfp, abstract, cartoon avatar, artsy, b&w)",
+        "description": "Other — pets, objects, casual random shots",
         "target_pct": 0.10,
         "source": "stock",
         "search_terms": [
-            "small dog cute funny",
-            "cat sleeping cute",
-            "abstract colorful art wallpaper",
-            "black and white street photography",
-            "graffiti wall art urban",
-            "shoes sneakers flat lay",
-            "hands holding coffee cup",
-            "car dashboard road trip",
-            "skateboard street urban",
-            "guitar music instrument close up",
-            "headphones music aesthetic",
-            "pizza food close up delicious",
-            "ice cream cone colorful",
-            "sunglasses reflection summer",
-            "sneakers feet pavement",
-            "neon lights night city",
-            "vintage camera retro",
-            "bicycle parked european street",
-            "old building architecture",
-            "hand reaching sky clouds",
+            "small dog funny amateur photo",
+            "cat sleeping casual phone photo",
+            "abstract colorful casual",
+            "black and white candid street",
+            "graffiti wall casual photo",
+            "sneakers feet casual photo",
+            "hands coffee cup casual",
+            "car dashboard road trip phone",
+            "skateboard street casual",
+            "guitar casual photo amateur",
+            "headphones casual desk photo",
+            "pizza casual food phone photo",
+            "ice cream casual summer",
+            "sunglasses casual selfie",
+            "sneakers pavement casual",
+            "neon lights casual night",
+            "vintage camera casual",
+            "bicycle european street casual",
+            "old building phone photo",
+            "sky clouds casual phone photo",
         ],
     },
 }
@@ -420,14 +427,47 @@ def crop_to_square_jpeg(image_data, target_size=1080):
         if size != target_size:
             img = img.resize((target_size, target_size), Image.LANCZOS)
         
-        # Add slight random adjustments for uniqueness
-        # (prevents reverse image search from matching perfectly)
-        from PIL import ImageEnhance
-        brightness = ImageEnhance.Brightness(img)
-        img = brightness.enhance(random.uniform(0.95, 1.05))
+        # Add random adjustments to look less "stock photo perfect"
+        # Makes photos look more like real phone camera shots
+        from PIL import ImageEnhance, ImageFilter
         
+        # Random brightness shift (phone cameras aren't perfect)
+        brightness = ImageEnhance.Brightness(img)
+        img = brightness.enhance(random.uniform(0.90, 1.10))
+        
+        # Random contrast (slightly washed out or punchy)
+        contrast = ImageEnhance.Contrast(img)
+        img = contrast.enhance(random.uniform(0.85, 1.10))
+        
+        # Random saturation (phone photos often slightly over/undersaturated)
+        color = ImageEnhance.Color(img)
+        img = color.enhance(random.uniform(0.85, 1.15))
+        
+        # Random slight sharpness variation
+        sharpness = ImageEnhance.Sharpness(img)
+        img = sharpness.enhance(random.uniform(0.8, 1.3))
+        
+        # Occasionally add very slight blur (like phone focus miss) ~15% chance
+        if random.random() < 0.15:
+            img = img.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.3, 0.8)))
+        
+        # Random crop offset (not always perfectly centered)
+        # Re-crop with slight offset for more natural framing
+        if target_size > 100:
+            max_shift = int(target_size * 0.03)  # up to 3% shift
+            if max_shift > 0:
+                shift_x = random.randint(-max_shift, max_shift)
+                shift_y = random.randint(-max_shift, max_shift)
+                # Pad and re-crop to shift
+                from PIL import Image as _Img
+                padded = _Img.new('RGB', (target_size + abs(shift_x)*2, target_size + abs(shift_y)*2))
+                padded.paste(img, (abs(shift_x) + shift_x, abs(shift_y) + shift_y))
+                img = padded.crop((abs(shift_x), abs(shift_y), 
+                                   abs(shift_x) + target_size, abs(shift_y) + target_size))
+        
+        # Random JPEG quality (phone photos vary widely)
         output = BytesIO()
-        img.save(output, format="JPEG", quality=random.randint(85, 95))
+        img.save(output, format="JPEG", quality=random.randint(72, 92))
         return output.getvalue()
     except ImportError:
         # No PIL — just save raw
