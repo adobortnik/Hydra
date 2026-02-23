@@ -737,23 +737,46 @@ def get_prompt_types():
 
 @bot_settings_bp.route('/accounts-tree', methods=['GET'])
 def get_accounts_tree():
-    """Hierarchical list of all devices → accounts from phone_farm.db."""
+    """Hierarchical list of all devices -> accounts from phone_farm.db.
+    Includes tag, status, and device_name for rich UI."""
     conn = get_conn()
     try:
-        rows = conn.execute(
-            "SELECT device_serial, username FROM accounts ORDER BY device_serial, username"
-        ).fetchall()
+        rows = conn.execute("""
+            SELECT a.device_serial, a.username, a.tag, a.status,
+                   COALESCE(d.device_name, a.device_serial) as device_name
+            FROM accounts a
+            LEFT JOIN devices d ON a.device_serial = d.device_serial
+            ORDER BY a.device_serial, a.username
+        """).fetchall()
 
         devices = {}
+        all_tags = set()
         for r in rows:
             ds = r['device_serial']
-            devices.setdefault(ds, []).append(r['username'])
+            tag = (r['tag'] or '').strip()
+            if tag:
+                all_tags.add(tag)
+            if ds not in devices:
+                devices[ds] = {'device_name': r['device_name'], 'accounts': []}
+            devices[ds]['accounts'].append({
+                'username': r['username'],
+                'tag': tag,
+                'status': r['status'] or 'unknown',
+            })
 
-        devices_tree = [{'device_serial': ds, 'accounts': accts} for ds, accts in devices.items()]
+        devices_tree = [
+            {
+                'device_serial': ds,
+                'device_name': info['device_name'],
+                'accounts': info['accounts'],
+            }
+            for ds, info in devices.items()
+        ]
 
         return jsonify({
             'success': True,
             'devices': devices_tree,
+            'tags': sorted(all_tags),
             'total_devices': len(devices_tree),
             'total_accounts': sum(len(d['accounts']) for d in devices_tree),
         })
