@@ -18,9 +18,15 @@ from flask import Blueprint, jsonify, request
 from tag_based_automation import TagBasedAutomation
 from ai_profile_generator import CampaignAIGenerator
 from profile_automation_db import (
+    init_database as _init_pa_db,
     get_profile_pictures, get_bio_templates,
     get_pending_tasks, add_bio_template, add_profile_picture
 )
+# Ensure profile_automation tables exist on startup
+try:
+    _init_pa_db()
+except Exception:
+    pass
 
 # Import settings helper (in same directory as this file)
 import sys
@@ -1785,6 +1791,10 @@ def execute_personas_endpoint():
         change_username = options.get('change_username', True)
         change_bio = options.get('change_bio', True)
         change_picture = options.get('change_picture', True)
+
+        # Ensure DB tables exist
+        from profile_automation_db import init_database
+        init_database()
 
         conn = sqlite3.connect(str(PROFILE_AUTOMATION_DB))
         cursor = conn.cursor()
