@@ -211,10 +211,23 @@ class ShareToStoryAction:
 
         random_sleep(2, 3, label="post_loaded")
 
-        # 3. Scroll down to reveal action buttons
-        w, h = self.device.window_size()
-        self.device.swipe(w // 2, int(h * 0.65), w // 2, int(h * 0.35), duration=0.3)
-        time.sleep(2)
+        # 3. Scroll down to reveal action buttons (ONLY for post detail view)
+        # Reel full-screen view already shows share button on the right side —
+        # swiping on reels scrolls to the next reel which breaks the flow.
+        # Detect reel view vs post view by checking for reel-specific UI elements.
+        is_reel_view = (
+            self.device(description="Reels").exists(timeout=1) or
+            self.device(textContains="Original audio").exists(timeout=0.5) or
+            self.device(resourceIdMatches=".*reel.*player.*|.*clips_viewer.*").exists(timeout=0.5)
+        )
+        if is_reel_view:
+            log.debug("[%s] Reel full-screen detected — skipping scroll (share button already visible)",
+                      self.device_serial)
+        else:
+            w, h = self.device.window_size()
+            self.device.swipe(w // 2, int(h * 0.65), w // 2, int(h * 0.35), duration=0.3)
+            time.sleep(2)
+            log.debug("[%s] Scrolled post view to reveal action buttons", self.device_serial)
 
         # 4. Click share button
         if not self._click_share_button():
