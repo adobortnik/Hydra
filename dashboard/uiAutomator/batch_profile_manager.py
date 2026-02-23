@@ -535,6 +535,9 @@ class BatchProfileManager:
 
                 human_sleep(1, 1.5)
 
+            # Track final username for device account update
+            actual_new_username = None
+
             # Change username if specified
             if task['new_username']:
                 print(f"\n--- Changing Username to: {task['new_username']} ---")
@@ -561,6 +564,7 @@ class BatchProfileManager:
 
                 if result['success']:
                     final_username = result['final_username']
+                    actual_new_username = final_username
                     print(f"✓ Username changed to: {final_username} (took {result['attempts']} attempt(s))")
                     changes_made.append("username")
 
@@ -607,10 +611,10 @@ class BatchProfileManager:
             save_profile_changes(self.device)
             human_sleep(2, 3)
 
-            # Update device account record
+            # Update device account record (use actual final username if retry picked a variation)
             update_device_account(
                 device_serial,
-                username=task.get('new_username') or task.get('username'),
+                username=actual_new_username or task.get('new_username') or task.get('username'),
                 bio=task.get('new_bio'),
                 profile_picture_id=task.get('profile_picture_id'),
                 instagram_package=instagram_package

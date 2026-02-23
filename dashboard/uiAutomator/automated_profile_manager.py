@@ -1075,6 +1075,9 @@ class AutomatedProfileManager:
 
                 time.sleep(2)
 
+            # Track final username for device account update
+            actual_new_username = None
+
             # Change username if specified (using smart changer with AI and retry)
             if task['new_username']:
                 print(f"\n--- Changing Username to: {task['new_username']} ---")
@@ -1094,6 +1097,7 @@ class AutomatedProfileManager:
 
                 if result['success']:
                     final_username = result['final_username']
+                    actual_new_username = final_username
                     print(f"Username changed successfully to: {final_username}")
                     print(f"(Took {result['attempts']} attempt(s))")
                     changes_made.append("username")
@@ -1171,10 +1175,10 @@ class AutomatedProfileManager:
 
             time.sleep(2)
 
-            # Update device account record
+            # Update device account record (use actual final username if retry picked a variation)
             update_device_account(
                 device_serial,
-                username=task.get('new_username') or task.get('username'),
+                username=actual_new_username or task.get('new_username') or task.get('username'),
                 bio=task.get('new_bio'),
                 profile_picture_id=task.get('profile_picture_id'),
                 instagram_package=instagram_package

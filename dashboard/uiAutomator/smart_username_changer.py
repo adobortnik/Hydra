@@ -377,6 +377,15 @@ class SmartUsernameChanger:
         Returns:
             str: New username variation
         """
+        # For persona tasks, use persona-aware variations
+        if mother_account == 'unique_personas':
+            print(f"  Using persona-aware variation for: {original_username}")
+            new_username = self._persona_variation(original_username, attempt_num)
+            # Fall back to algorithmic if persona variation was already tried
+            if new_username in attempted:
+                new_username = self._algorithmic_variation(original_username, attempt_num)
+            return new_username
+
         # If AI is available and mother account provided, use AI
         if self.ai_generator and mother_account:
             print(f"  Using AI to generate variation based on: {mother_account}")
@@ -428,6 +437,91 @@ class SmartUsernameChanger:
         # Use attempt_num to select pattern deterministically
         pattern_index = (attempt_num - 1) % len(patterns)
         return patterns[pattern_index]
+
+    def _persona_variation(self, base_username, attempt_num):
+        """
+        Generate persona-appropriate username variations.
+        Handles structured usernames like "alexandra.sk", "martin_life", etc.
+
+        Strategies:
+        - Double last letter of name part: alexandra -> alexandraa
+        - Shorten name part: alexandra -> alex
+        - Add number to suffix: alexandra.sk -> alexandra.sk2
+        - Swap separator: alexandra.sk -> alexandra_sk
+        - Add persona-style prefixes/suffixes
+
+        Args:
+            base_username: Original persona username
+            attempt_num: Attempt number (for pattern selection)
+
+        Returns:
+            str: Persona-appropriate variation
+        """
+        import random
+
+        # Split username into parts by . or _
+        if '.' in base_username:
+            parts = base_username.split('.', 1)
+            sep = '.'
+        elif '_' in base_username:
+            parts = base_username.split('_', 1)
+            sep = '_'
+        else:
+            parts = [base_username]
+            sep = '.'
+
+        name_part = parts[0]
+        suffix_part = parts[1] if len(parts) > 1 else ''
+
+        patterns = []
+
+        # 1. Double the last letter of name part: alexandra -> alexandraa
+        if len(name_part) > 2:
+            patterns.append(f"{name_part}{name_part[-1]}{sep}{suffix_part}" if suffix_part else f"{name_part}{name_part[-1]}")
+
+        # 2. Add number to suffix: alexandra.sk -> alexandra.sk2
+        if suffix_part:
+            patterns.append(f"{name_part}{sep}{suffix_part}{attempt_num}")
+        else:
+            patterns.append(f"{name_part}{attempt_num}")
+
+        # 3. Shorten name part (first 4-5 chars): alexandra.sk -> alexa.sk
+        if len(name_part) > 5:
+            short = name_part[:5]
+            patterns.append(f"{short}{sep}{suffix_part}" if suffix_part else short)
+
+        # 4. Swap separator: alexandra.sk -> alexandra_sk
+        alt_sep = '_' if sep == '.' else '.'
+        if suffix_part:
+            patterns.append(f"{name_part}{alt_sep}{suffix_part}")
+
+        # 5. Add number between parts: alexandra.2.sk
+        if suffix_part:
+            patterns.append(f"{name_part}{sep}{attempt_num}{sep}{suffix_part}")
+
+        # 6. Prefix with persona-style words
+        if suffix_part:
+            patterns.append(f"just{sep}{name_part}{sep}{suffix_part}")
+        else:
+            patterns.append(f"just.{name_part}")
+
+        # 7. Double last letter + number
+        if len(name_part) > 2:
+            doubled = f"{name_part}{name_part[-1]}"
+            patterns.append(f"{doubled}{sep}{suffix_part}{random.randint(1, 9)}" if suffix_part else f"{doubled}{random.randint(1, 9)}")
+
+        # 8. Name part with random 2-digit suffix
+        patterns.append(f"{name_part}{random.randint(10, 99)}{sep}{suffix_part}" if suffix_part else f"{name_part}{random.randint(10, 99)}")
+
+        # Select pattern based on attempt number
+        pattern_index = (attempt_num - 1) % len(patterns)
+        result = patterns[pattern_index]
+
+        # Clean up: remove trailing/leading separators, double separators
+        result = result.strip('._')
+        result = result.replace('..', '.').replace('__', '_').replace('._', '.').replace('_.', '_')
+
+        return result
 
     def _is_on_edit_profile_screen(self):
         """
