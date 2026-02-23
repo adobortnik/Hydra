@@ -1885,13 +1885,14 @@ def execute_personas_endpoint():
                 if candidates:
                     chosen = _random.choice(candidates)
                     abs_path = str(chosen.resolve())
-                    profile_picture_id = add_profile_picture(
-                        filename=chosen.name,
-                        original_path=abs_path,
-                        category=pic_category,
-                        gender=gender,
-                        notes=f'Auto-assigned for persona: {current_username}'
-                    )
+                    # Insert directly using existing connection (avoid second connection = DB lock)
+                    cursor.execute('''
+                        INSERT INTO profile_pictures
+                        (filename, original_path, category, gender, style, notes)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (chosen.name, abs_path, pic_category, gender, None,
+                          f'Auto-assigned for persona: {current_username}'))
+                    profile_picture_id = cursor.lastrowid
 
             # Only create task if there's something to change
             if new_username or new_bio or profile_picture_id:
