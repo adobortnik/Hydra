@@ -1891,6 +1891,50 @@ def persona_status_endpoint():
         }), 500
 
 
+@profile_automation_bp.route('/save-api-key', methods=['POST'])
+def save_api_key():
+    """Save an API key to data/api_keys.json."""
+    try:
+        import json as _json
+        data = request.get_json()
+        provider = data.get('provider', '')
+        key = data.get('key', '').strip()
+
+        if not provider or not key:
+            return jsonify({'status': 'error', 'message': 'provider and key required'}), 400
+
+        keys_path = Path(__file__).parent.parent / "data" / "api_keys.json"
+        existing = {}
+        if keys_path.exists():
+            existing = _json.loads(keys_path.read_text(encoding='utf-8'))
+
+        existing[provider] = key
+        keys_path.write_text(_json.dumps(existing, indent=2), encoding='utf-8')
+
+        return jsonify({'status': 'success', 'message': f'{provider} key saved'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@profile_automation_bp.route('/get-api-keys', methods=['GET'])
+def get_api_keys():
+    """Get saved API keys (masked for display, full for form pre-fill)."""
+    try:
+        import json as _json
+        keys_path = Path(__file__).parent.parent / "data" / "api_keys.json"
+        if not keys_path.exists():
+            return jsonify({})
+
+        keys = _json.loads(keys_path.read_text(encoding='utf-8'))
+        # Return full keys (they go into password fields anyway)
+        return jsonify({
+            'unsplash': keys.get('unsplash', ''),
+            'pexels': keys.get('pexels', ''),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @profile_automation_bp.route('/download-stock-photos', methods=['POST'])
 def download_stock_photos_endpoint():
     """
@@ -1921,12 +1965,23 @@ def download_stock_photos_endpoint():
                 'message': 'download_profile_pics.py not found in data directory'
             }), 404
 
-        # Build environment with API keys
+        # Build environment with API keys — fall back to saved keys
+        import json as _json
+        saved_keys = {}
+        keys_path = Path(__file__).parent.parent / "data" / "api_keys.json"
+        if keys_path.exists():
+            try:
+                saved_keys = _json.loads(keys_path.read_text(encoding='utf-8'))
+            except:
+                pass
+
         env = os.environ.copy()
-        if api_keys.get('unsplash'):
-            env['UNSPLASH_API_KEY'] = api_keys['unsplash']
-        if api_keys.get('pexels'):
-            env['PEXELS_API_KEY'] = api_keys['pexels']
+        unsplash = api_keys.get('unsplash') or saved_keys.get('unsplash', '')
+        pexels = api_keys.get('pexels') or saved_keys.get('pexels', '')
+        if unsplash:
+            env['UNSPLASH_API_KEY'] = unsplash
+        if pexels:
+            env['PEXELS_API_KEY'] = pexels
 
         # Calculate female/male counts (70/30 split)
         total = count_per_category * 7  # ~7 stock categories

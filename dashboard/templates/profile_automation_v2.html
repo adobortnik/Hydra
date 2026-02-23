@@ -742,13 +742,23 @@
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label class="form-label small">Unsplash API Key</label>
-                            <input type="password" class="form-control form-control-sm bg-dark text-white border-secondary"
-                                id="unsplashKey" placeholder="Access Key...">
+                            <div class="input-group input-group-sm">
+                                <input type="password" class="form-control bg-dark text-white border-secondary"
+                                    id="unsplashKey" placeholder="Access Key...">
+                                <button class="btn btn-outline-secondary" onclick="saveApiKey('unsplash')" title="Save key">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small">Pexels API Key</label>
-                            <input type="password" class="form-control form-control-sm bg-dark text-white border-secondary"
-                                id="pexelsKey" placeholder="API Key...">
+                            <div class="input-group input-group-sm">
+                                <input type="password" class="form-control bg-dark text-white border-secondary"
+                                    id="pexelsKey" placeholder="API Key...">
+                                <button class="btn btn-outline-secondary" onclick="saveApiKey('pexels')" title="Save key">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label small">Per Category</label>
@@ -1871,6 +1881,7 @@ function switchMode(mode) {
         }
         renderPicCategoryUploadZones();
         loadPicCategoryFiles();
+        loadSavedApiKeys();
     }
 }
 
@@ -2357,6 +2368,34 @@ function handleCategoryFiles(files, category) {
                 if (uploaded === total) loadPicCategoryFiles();
             }
         });
+    });
+}
+
+function saveApiKey(provider) {
+    const fieldMap = { unsplash: '#unsplashKey', pexels: '#pexelsKey' };
+    const key = $(fieldMap[provider]).val().trim();
+    if (!key) { showToast('Enter a key first', 'warning'); return; }
+
+    $.ajax({
+        url: '/api/profile_automation/save-api-key',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ provider: provider, key: key }),
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast(`${provider} API key saved!`, 'success');
+            } else {
+                showToast(data.message || 'Save failed', 'error');
+            }
+        },
+        error: function() { showToast('Failed to save key', 'error'); }
+    });
+}
+
+function loadSavedApiKeys() {
+    $.get('/api/profile_automation/get-api-keys', function(data) {
+        if (data.unsplash) $('#unsplashKey').val(data.unsplash);
+        if (data.pexels) $('#pexelsKey').val(data.pexels);
     });
 }
 

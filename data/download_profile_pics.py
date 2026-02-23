@@ -518,13 +518,12 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
     category_counts = {}
     for cat_name, cat_config in PHOTO_CATEGORIES.items():
         if cat_config["source"] == "ai":
-            continue  # AI faces handled separately
+            # Use stock fallback search terms for AI categories (no AI key available)
+            cat_config["_using_stock_fallback"] = True
         count = int(total * cat_config["target_pct"])
         category_counts[cat_name] = count
     
-    # Adjust for AI face category — those are handled by generate_profile_pics.py
-    face_count = int(total * PHOTO_CATEGORIES["face_selfie"]["target_pct"])
-    stock_total = total - face_count
+    stock_total = total
     
     print(f"\n{'='*70}")
     print(f"DIVERSE PROFILE PICTURE DOWNLOAD — {'DRY RUN' if dry_run else 'LIVE'}")
@@ -574,7 +573,11 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
         print(f"   {cat_config['description']}")
         
         # Collect search terms — some categories have gender-specific terms
-        search_terms = cat_config.get("search_terms", [])
+        # For AI categories using stock fallback, use stock_search_terms
+        if cat_config.get("_using_stock_fallback"):
+            search_terms = cat_config.get("stock_search_terms", [])
+        else:
+            search_terms = cat_config.get("search_terms", [])
         
         # For gendered categories, mix female and male terms proportionally
         female_terms = cat_config.get("search_terms_female", [])
