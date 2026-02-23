@@ -1479,6 +1479,30 @@ def process_tasks_parallel_async():
         }), 500
 
 
+@profile_automation_bp.route('/tasks/stop-execution', methods=['POST'])
+def stop_execution():
+    """
+    Hard stop: signal all processing threads to stop after current task finishes.
+    Remaining pending tasks stay pending for re-run.
+    """
+    try:
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent / 'uiAutomator'))
+        from parallel_profile_processor import ParallelProfileProcessor
+
+        ParallelProfileProcessor.request_stop()
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Stop signal sent. Processing will halt after current task completes.'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
 @profile_automation_bp.route('/tasks/retry-failed', methods=['POST'])
 def retry_failed_tasks():
     """Reset all failed tasks back to pending"""

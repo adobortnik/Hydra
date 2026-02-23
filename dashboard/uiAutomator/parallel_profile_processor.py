@@ -28,15 +28,39 @@ class ParallelProfileProcessor:
     - Can process multiple devices in parallel (optional)
     """
 
+    # Stop flag file — checked before each task
+    STOP_FLAG = Path(__file__).parent / '.stop_execution'
+
     def __init__(self):
         self.managers = {}  # device_serial -> AutomatedProfileManager
         self.device_locks = {}  # device_serial -> threading.Lock
         self.results = {
             'successful': 0,
             'failed': 0,
+            'skipped': 0,
             'total': 0
         }
         self.results_lock = threading.Lock()
+        # Clear any stale stop flag on init
+        self._clear_stop_flag()
+
+    @classmethod
+    def request_stop(cls):
+        """Create stop flag file to signal all threads to stop."""
+        cls.STOP_FLAG.touch()
+        print(f"\n🛑 STOP REQUESTED — flag created at {cls.STOP_FLAG}")
+
+    @classmethod
+    def is_stop_requested(cls):
+        """Check if stop has been requested."""
+        return cls.STOP_FLAG.exists()
+
+    def _clear_stop_flag(self):
+        """Remove stop flag."""
+        try:
+            self.STOP_FLAG.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     def group_tasks_by_device(self, tasks):
         """
@@ -70,8 +94,23 @@ class ParallelProfileProcessor:
 
         successful = 0
         failed = 0
+        skipped = 0
 
         for i, task in enumerate(tasks, 1):
+            # Check stop flag before each task
+            if self.is_stop_requested():
+                remaining = len(tasks) - i + 1
+                print(f"\n🛑 STOP flag detected! Skipping {remaining} remaining task(s) on {device_serial}")
+                skipped += remaining
+                # Mark remaining tasks as pending again so they can be re-run
+                from profile_automation_db import update_task_status
+                for skip_task in tasks[i-1:]:
+                    try:
+                        update_task_status(skip_task['id'], 'pending')
+                    except Exception:
+                        pass
+                break
+
             print(f"\n{'#'*70}")
             print(f"# Device {device_serial} - Task {i}/{len(tasks)}")
             print(f"# Task ID: {task['id']}")
@@ -95,6 +134,7 @@ class ParallelProfileProcessor:
         with self.results_lock:
             self.results['successful'] += successful
             self.results['failed'] += failed
+            self.results['skipped'] += skipped
             self.results['total'] += len(tasks)
 
         # Cleanup: Disconnect device to release UIAutomator for Onimator
@@ -192,11 +232,14 @@ class ParallelProfileProcessor:
 
     def _print_summary(self):
         """Print final summary"""
+        stopped = self.is_stop_requested()
         print(f"\n\n{'='*70}")
-        print("🎉 BATCH PROCESSING COMPLETE")
+        print("🛑 BATCH PROCESSING STOPPED" if stopped else "🎉 BATCH PROCESSING COMPLETE")
         print(f"{'='*70}")
         print(f"✅ Successful: {self.results['successful']}")
         print(f"❌ Failed: {self.results['failed']}")
+        if self.results['skipped']:
+            print(f"⏭️ Skipped (stop): {self.results['skipped']}")
         print(f"📊 Total: {self.results['total']}")
 
         if self.results['total'] > 0:
@@ -204,6 +247,9 @@ class ParallelProfileProcessor:
             print(f"📈 Success Rate: {success_rate:.1f}%")
 
         print(f"{'='*70}\n")
+
+        # Clean up stop flag after processing finishes
+        self._clear_stop_flag()
 
 
 def main():

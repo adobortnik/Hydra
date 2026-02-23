@@ -908,6 +908,9 @@
                 <button class="btn btn-sm btn-success" onclick="runAllTasks()" id="runAllBtn">
                     <i class="fas fa-play me-1"></i>Run All
                 </button>
+                <button class="btn btn-sm btn-danger" onclick="stopExecution()" id="stopBtn" style="display:none;">
+                    <i class="fas fa-stop me-1"></i>STOP
+                </button>
                 <button class="btn btn-sm btn-warning" onclick="retryFailed()">
                     <i class="fas fa-redo me-1"></i>Retry Failed
                 </button>
@@ -1718,6 +1721,8 @@ function runAllTasks() {
                 showToast(`Started processing ${data.task_count} tasks`, 'success');
                 addLogEntry(`Started processing ${data.task_count} tasks in parallel`, 'info');
                 isProcessing = true;
+                $('#stopBtn').show();
+                $('#runAllBtn').hide();
                 startPolling();
             } else {
                 showToast(data.message || 'Failed to start', 'error');
@@ -1726,6 +1731,32 @@ function runAllTasks() {
         error: function(xhr) {
             btn.prop('disabled', false).html('<i class="fas fa-play me-1"></i>Run All');
             showToast('Failed to start processor', 'error');
+        }
+    });
+}
+
+function stopExecution() {
+    if (!isProcessing) { showToast('Nothing is running', 'warning'); return; }
+
+    const btn = $('#stopBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Stopping...');
+
+    $.ajax({
+        url: '/api/profile_automation/tasks/stop-execution',
+        method: 'POST',
+        contentType: 'application/json',
+        success: function(data) {
+            if (data.status === 'success') {
+                showToast('🛑 Stop signal sent — will halt after current task', 'warning');
+                addLogEntry('STOP requested — halting after current task finishes', 'err');
+            } else {
+                showToast(data.message || 'Failed to stop', 'error');
+            }
+            btn.prop('disabled', false).html('<i class="fas fa-stop me-1"></i>STOP');
+        },
+        error: function() {
+            showToast('Failed to send stop signal', 'error');
+            btn.prop('disabled', false).html('<i class="fas fa-stop me-1"></i>STOP');
         }
     });
 }
@@ -1810,6 +1841,8 @@ function startPolling() {
             if (stats.processing === 0 && stats.pending === 0) {
                 stopPolling();
                 isProcessing = false;
+                $('#stopBtn').hide();
+                $('#runAllBtn').show();
                 if (stats.completed > 0 || stats.failed > 0) {
                     addLogEntry(`Execution complete: ${stats.completed} done, ${stats.failed} failed`, stats.failed > 0 ? 'err' : 'ok');
                     showToast(`Execution complete: ${stats.completed} done, ${stats.failed} failed`, stats.failed > 0 ? 'warning' : 'success');
