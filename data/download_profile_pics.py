@@ -291,7 +291,10 @@ class PexelsClient:
                f"&per_page={per_page}&page={page}"
                f"&orientation={orientation}")
         
-        headers = {"Authorization": self.api_key}
+        headers = {
+            "Authorization": self.api_key,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
         
         req = urllib.request.Request(url, headers=headers)
         try:
