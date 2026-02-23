@@ -558,9 +558,10 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
             print()
         return
     
-    # Create output directories
-    for subdir in ["female", "male", "neutral"]:
-        (PICS_DIR / subdir).mkdir(parents=True, exist_ok=True)
+    # Create output directories — organized by category, then gender
+    for cat_name in category_counts:
+        for subdir in ["female", "male", "neutral"]:
+            (PICS_DIR / cat_name / subdir).mkdir(parents=True, exist_ok=True)
     
     # Download by category
     global_idx = len(already_done) + 1
@@ -622,7 +623,7 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
         for i, photo in enumerate(photos):
             gender_dir = photo.get("gender_hint", "neutral")
             filename = f"stock_{cat_name}_{global_idx:04d}.jpg"
-            save_path = PICS_DIR / gender_dir / filename
+            save_path = PICS_DIR / cat_name / gender_dir / filename
             
             if filename in already_done:
                 continue

@@ -1976,14 +1976,17 @@ def download_stock_photos_status():
 
         result = {'running': False, 'total_files': 0, 'by_folder': {}, 'log_tail': ''}
 
-        # Count files
+        # Count files — check category/gender structure
         if pics_dir.exists():
-            for subdir in ['female', 'male', 'neutral']:
-                d = pics_dir / subdir
-                if d.exists():
-                    count = len([f for f in d.iterdir() if f.suffix in ('.jpg', '.png', '.jpeg')])
-                    result['by_folder'][subdir] = count
-                    result['total_files'] += count
+            for item in pics_dir.iterdir():
+                if item.is_dir():
+                    cat_count = 0
+                    for sub in item.rglob('*'):
+                        if sub.is_file() and sub.suffix.lower() in ('.jpg', '.png', '.jpeg'):
+                            cat_count += 1
+                    if cat_count > 0:
+                        result['by_folder'][item.name] = cat_count
+                        result['total_files'] += cat_count
 
         # Read last lines of log
         if log_path.exists():
@@ -2033,8 +2036,18 @@ def get_pic_category_files():
         for cat_name in categories:
             cat_dir = pic_base / cat_name
             if cat_dir.exists():
-                files = [f.name for f in cat_dir.iterdir()
-                         if f.is_file() and f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.gif'}]
+                files = []
+                # Check direct files in category folder
+                for f in cat_dir.iterdir():
+                    if f.is_file() and f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.gif'}:
+                        files.append(f.name)
+                # Check gender subfolders (female/male/neutral)
+                for gender_sub in ['female', 'male', 'neutral']:
+                    gender_dir = cat_dir / gender_sub
+                    if gender_dir.exists():
+                        for f in gender_dir.iterdir():
+                            if f.is_file() and f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.gif'}:
+                                files.append(f'{gender_sub}/{f.name}')
                 categories[cat_name]['count'] = len(files)
                 categories[cat_name]['files'] = files[:20]  # First 20 for preview
 
