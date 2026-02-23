@@ -8,12 +8,12 @@ and optionally generates AI photos via fal.ai for face-forward shots.
 The KEY insight: real Instagram profile pictures are NOT all face close-ups.
 This script downloads a realistic MIX of photo types:
 
-  30% — Face visible (selfie, portrait, various angles)      → AI generation (fal.ai)
-  20% — Full body / half body (travel, lifestyle, beach)      → Stock photos
-  15% — Aesthetic/artistic (landscapes, coffee, flowers, pets) → Stock photos
-  15% — Mirror selfies / gym photos                           → Stock photos  
-  10% — Back view / silhouette                                → Stock photos
-  10% — Other (pet portraits, abstract, black & white)        → Stock photos
+  30% — Face visible (selfie, portrait, various angles)      -> AI generation (fal.ai)
+  20% — Full body / half body (travel, lifestyle, beach)      -> Stock photos
+  15% — Aesthetic/artistic (landscapes, coffee, flowers, pets) -> Stock photos
+  15% — Mirror selfies / gym photos                           -> Stock photos  
+  10% — Back view / silhouette                                -> Stock photos
+  10% — Other (pet portraits, abstract, black & white)        -> Stock photos
 
 Usage:
     # Download stock photos only (free, no API key needed for Pixabay demo):
@@ -289,22 +289,23 @@ class PexelsClient:
         self.requests_made = 0
     
     def search(self, query, per_page=30, page=1, orientation="square"):
-        """Search photos. orientation: landscape/portrait/square"""
-        url = (f"{self.BASE_URL}/search"
-               f"?query={urllib.request.quote(query)}"
-               f"&per_page={per_page}&page={page}"
-               f"&orientation={orientation}")
-        
-        headers = {
-            "Authorization": self.api_key,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        }
-        
-        req = urllib.request.Request(url, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+        """Search photos with retry. orientation: landscape/portrait/square"""
+        import requests as _req
+        for attempt in range(3):
+            try:
+                resp = _req.get(
+                    f"{self.BASE_URL}/search",
+                    params={"query": query, "per_page": per_page, "page": page, "orientation": orientation},
+                    headers={"Authorization": self.api_key},
+                    timeout=15,
+                )
+                if resp.status_code == 401 and attempt < 2:
+                    # Cloudflare rate limit — wait and retry
+                    time.sleep(3 + attempt * 2)
+                    continue
+                resp.raise_for_status()
                 self.requests_made += 1
-                data = json.loads(resp.read().decode("utf-8"))
+                data = resp.json()
                 results = []
                 for photo in data.get("photos", []):
                     results.append({
@@ -318,9 +319,13 @@ class PexelsClient:
                         "photographer": photo.get("photographer", ""),
                     })
                 return results
-        except Exception as e:
-            print(f"    Pexels error: {e}")
-            return []
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2)
+                    continue
+                print(f"    Pexels error: {e}")
+                return []
+        return []
 
 
 class PixabayClient:
@@ -381,11 +386,10 @@ class PixabayClient:
 def download_image(url, save_path, crop_square=True, target_size=1080):
     """Download image and optionally crop to square."""
     try:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        })
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            image_data = resp.read()
+        import requests as _req
+        resp = _req.get(url, timeout=30)
+        resp.raise_for_status()
+        image_data = resp.content
         
         if crop_square:
             image_data = crop_to_square_jpeg(image_data, target_size)
@@ -513,8 +517,8 @@ def collect_stock_photos(clients, search_terms, needed, used_ids, category_name)
                         photo["search_term"] = term
                         collected.append(photo)
                 
-                # Rate limiting
-                time.sleep(0.3)
+                # Rate limiting — Pexels Cloudflare needs breathing room
+                time.sleep(1.5)
     
     return collected
 
@@ -544,8 +548,6 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
     print(f"DIVERSE PROFILE PICTURE DOWNLOAD — {'DRY RUN' if dry_run else 'LIVE'}")
     print(f"{'='*70}")
     print(f"  Total needed:     {total}")
-    print(f"  AI faces (sep.):  {face_count} (use generate_profile_pics.py)")
-    print(f"  Stock photos:     {stock_total}")
     print(f"  Already done:     {len(already_done)}")
     print(f"  APIs available:   {', '.join(clients.keys())}")
     print()
@@ -566,7 +568,7 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
             terms += cat_config.get("search_terms_female", [])
             terms += cat_config.get("search_terms_male", [])
             for t in terms[:5]:
-                print(f"    → \"{t}\"")
+                print(f"    -> \"{t}\"")
             if len(terms) > 5:
                 print(f"    ... and {len(terms) - 5} more terms")
             print()
@@ -584,7 +586,7 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
     
     for cat_name, needed_count in category_counts.items():
         cat_config = PHOTO_CATEGORIES[cat_name]
-        print(f"\n📂 Category: {cat_name} ({needed_count} needed)")
+        print(f"\n[DIR] Category: {cat_name} ({needed_count} needed)")
         print(f"   {cat_config['description']}")
         
         # Collect search terms — some categories have gender-specific terms
@@ -652,7 +654,7 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
             
             if success:
                 size_kb = save_path.stat().st_size / 1024
-                print(f"   [{i+1}/{len(photos)}] {filename} ✅ ({size_kb:.0f}KB)")
+                print(f"   [{i+1}/{len(photos)}] {filename} [OK] ({size_kb:.0f}KB)")
                 
                 manifest["downloaded"].append({
                     "filename": filename,
@@ -677,7 +679,7 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
                         if isinstance(c, UnsplashClient):
                             c.trigger_download(photo["download_url"])
             else:
-                print(f"   [{i+1}/{len(photos)}] {filename} ❌ FAILED")
+                print(f"   [{i+1}/{len(photos)}] {filename} [FAIL] FAILED")
                 manifest["failed"].append({
                     "filename": filename,
                     "category": cat_name,
@@ -712,9 +714,9 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
     
     print(f"\n{'='*70}")
     print(f"DOWNLOAD COMPLETE")
-    print(f"  ✅ Downloaded: {total_downloaded}")
-    print(f"  ❌ Failed:     {total_failed}")
-    print(f"  📁 Location:   {PICS_DIR}")
+    print(f"  [OK] Downloaded: {total_downloaded}")
+    print(f"  [FAIL] Failed:     {total_failed}")
+    print(f"  [DIR] Location:   {PICS_DIR}")
     print(f"{'='*70}\n")
     
     # Summary
@@ -725,8 +727,7 @@ def run_stock_download(clients, num_female=650, num_male=274, dry_run=False):
     for gender, count in manifest["stats"]["by_gender"].items():
         print(f"  {gender}: {count}")
     
-    print(f"\n⚠️  Remember: {face_count} AI face photos still needed!")
-    print(f"   Run: python generate_profile_pics.py --provider fal --api-key YOUR_KEY")
+    print(f"\nDone!")
 
 
 def main():
@@ -762,16 +763,16 @@ def main():
     clients = {}
     if unsplash_key:
         clients["unsplash"] = UnsplashClient(unsplash_key)
-        print(f"✅ Unsplash API configured")
+        print(f"[OK] Unsplash API configured")
     if pexels_key:
         clients["pexels"] = PexelsClient(pexels_key)
-        print(f"✅ Pexels API configured")
+        print(f"[OK] Pexels API configured")
     if pixabay_key:
         clients["pixabay"] = PixabayClient(pixabay_key)
-        print(f"✅ Pixabay API configured")
+        print(f"[OK] Pixabay API configured")
     
     if not clients and not args.dry_run:
-        print("❌ No API keys provided! You need at least one of:")
+        print("[FAIL] No API keys provided! You need at least one of:")
         print("   --unsplash-key KEY  (get from https://unsplash.com/developers)")
         print("   --pexels-key KEY    (get from https://www.pexels.com/api/)")
         print("   --pixabay-key KEY   (get from https://pixabay.com/api/docs/)")
@@ -789,3 +790,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
