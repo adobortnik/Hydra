@@ -1175,14 +1175,42 @@ class AutomatedProfileManager:
 
             time.sleep(2)
 
-            # Update device account record (use actual final username if retry picked a variation)
+            # Update device account record in profile_automation.db
+            final_username = actual_new_username or task.get('new_username') or task.get('username')
             update_device_account(
                 device_serial,
-                username=actual_new_username or task.get('new_username') or task.get('username'),
+                username=final_username,
                 bio=task.get('new_bio'),
                 profile_picture_id=task.get('profile_picture_id'),
                 instagram_package=instagram_package
             )
+
+            # Update username in main phone_farm.db so Device Manager shows new name
+            old_username = task.get('username')
+            if actual_new_username and old_username:
+                try:
+                    farm_db_path = Path(__file__).parent.parent.parent / "db" / "phone_farm.db"
+                    if farm_db_path.exists():
+                        import sqlite3 as _sqlite3
+                        farm_conn = _sqlite3.connect(str(farm_db_path), timeout=30)
+                        farm_conn.execute("PRAGMA journal_mode=WAL")
+                        farm_conn.execute("PRAGMA busy_timeout=30000")
+                        # Update by device_serial + old username + instagram_package
+                        adb_serial_colon = device_serial.replace('_', ':')
+                        farm_conn.execute(
+                            "UPDATE accounts SET username = ? WHERE device_serial = ? AND username = ? AND instagram_package = ?",
+                            (actual_new_username, adb_serial_colon, old_username, instagram_package)
+                        )
+                        # Also try underscore format
+                        farm_conn.execute(
+                            "UPDATE accounts SET username = ? WHERE device_serial = ? AND username = ? AND instagram_package = ?",
+                            (actual_new_username, device_serial, old_username, instagram_package)
+                        )
+                        farm_conn.commit()
+                        farm_conn.close()
+                        print(f"✅ phone_farm.db updated: {old_username} → {actual_new_username}")
+                except Exception as e:
+                    print(f"⚠ Warning: Could not update phone_farm.db: {e}")
 
             # Mark task as completed
             update_task_status(task_id, 'completed')
