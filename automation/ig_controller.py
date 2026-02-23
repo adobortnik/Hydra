@@ -1013,7 +1013,64 @@ class IGController:
                 self.device.swipe(540, 600, 540, 400, duration=0.1)
                 time.sleep(0.5)
 
-        log.warning("[%s] User '%s' not found in inline search results",
+        # --- Fallback: Submit search + Accounts tab ---
+        # On Meta AI search versions, inline results may not appear.
+        # Submit the search (Enter), then switch to "Accounts" tab.
+        log.info("[%s] Inline search failed for '%s', trying submitted search + Accounts tab",
+                 self.device_serial, username)
+
+        # Press Enter/Search to submit
+        self.device.press('enter')
+        time.sleep(3)
+
+        # Check if we landed on the search results grid (tabs: For you | Accounts | ...)
+        accounts_tab = self.device(text="Accounts")
+        if not accounts_tab.exists(timeout=3):
+            accounts_tab = self.device(textContains="Account")
+        if accounts_tab.exists(timeout=2):
+            accounts_tab.click()
+            time.sleep(3)
+            log.debug("[%s] Clicked 'Accounts' tab in search results", self.device_serial)
+
+            # Now look for the user in the accounts list
+            for attempt in range(3):
+                user_rows = self.device(resourceIdMatches=self._rid_match('row_search_user_username'))
+                if user_rows.exists(timeout=3):
+                    count = min(user_rows.count, 10)
+                    for i in range(count):
+                        try:
+                            row_text = (user_rows[i].get_text() or "").strip()
+                            if row_text.lower() == target_lower:
+                                log.info("[%s] Found '%s' in Accounts tab (row %d)",
+                                         self.device_serial, row_text, i)
+                                fresh = self.device(
+                                    resourceIdMatches=self._rid_match('row_search_user_username'),
+                                    text=row_text)
+                                if fresh.exists(timeout=1):
+                                    fresh.click()
+                                else:
+                                    user_rows[i].click()
+                                time.sleep(2.5)
+                                if self._verify_on_profile(target_lower):
+                                    return True
+                                # Clicked but not on profile — might need retry
+                                break
+                        except Exception:
+                            continue
+
+                # Also try generic TextView match
+                tv = self.device(className="android.widget.TextView", text=username)
+                if tv.exists(timeout=2):
+                    log.info("[%s] Found '%s' via TextView in Accounts tab", self.device_serial, username)
+                    tv.click()
+                    time.sleep(2.5)
+                    if self._verify_on_profile(target_lower):
+                        return True
+
+                if attempt < 2:
+                    time.sleep(2)
+
+        log.warning("[%s] User '%s' not found in search (inline + Accounts tab)",
                    self.device_serial, username)
         self.screenshot("search_user_not_found")
         return False

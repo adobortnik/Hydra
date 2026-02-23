@@ -658,50 +658,66 @@ class ShareToStoryAction:
             log.warning("[%s] Could not open sticker picker for mention", self.device_serial)
             return False
 
-        # Step 2: Search "mention" in sticker search bar
-        search = self.device(className="android.widget.EditText")
-        if not search.exists(timeout=3):
-            search = self.device(resourceIdMatches=".*search.*edit.*text.*")
-
-        if search.exists(timeout=3):
-            search.click()
-            time.sleep(0.5)
-            search.set_text("mention")
-            time.sleep(3)
-            log.debug("[%s] Typed 'mention' in sticker search", self.device_serial)
-        else:
-            log.warning("[%s] Sticker search bar not found for mention", self.device_serial)
-            self.ctrl.press_back()
-            return False
-
-        # Step 3: Tap first result — MENTION sticker
+        # Step 2+3: Find and click MENTION sticker
+        # Try direct click first (sticker grid often shows @MENTION in first row)
         mention_clicked = False
 
-        for desc_val in ["Mention Sticker", "MENTION"]:
-            el = self.device(description=desc_val)
+        for text_val in ["@MENTION", "MENTION", "@Mention", "Mention"]:
+            el = self.device(textContains=text_val)
             if el.exists(timeout=2):
                 el.click()
                 time.sleep(2)
                 mention_clicked = True
-                log.debug("[%s] Clicked MENTION sticker via desc='%s'", self.device_serial, desc_val)
+                log.debug("[%s] Clicked MENTION sticker via text='%s' (direct)",
+                          self.device_serial, text_val)
                 break
 
         if not mention_clicked:
-            for text_val in ["MENTION", "Mention"]:
-                el = self.device(text=text_val)
-                if el.exists(timeout=2):
+            for desc_val in ["Mention Sticker", "MENTION", "Mention", "@MENTION",
+                             "mention sticker"]:
+                el = self.device(descriptionContains=desc_val)
+                if not el.exists(timeout=1):
+                    el = self.device(description=desc_val)
+                if el.exists(timeout=1):
                     el.click()
                     time.sleep(2)
                     mention_clicked = True
-                    log.debug("[%s] Clicked MENTION sticker via text='%s'", self.device_serial, text_val)
+                    log.debug("[%s] Clicked MENTION sticker via desc='%s'",
+                              self.device_serial, desc_val)
                     break
+
+        # Fallback: search for it
+        if not mention_clicked:
+            search = self.device(className="android.widget.EditText")
+            if not search.exists(timeout=2):
+                search = self.device(resourceIdMatches=".*search.*edit.*text.*")
+            if search.exists(timeout=2):
+                search.click()
+                time.sleep(0.5)
+                search.set_text("mention")
+                time.sleep(3)
+                log.debug("[%s] Typed 'mention' in sticker search", self.device_serial)
+
+                for text_val in ["@MENTION", "MENTION", "Mention"]:
+                    el = self.device(textContains=text_val)
+                    if el.exists(timeout=2):
+                        el.click()
+                        time.sleep(2)
+                        mention_clicked = True
+                        log.debug("[%s] Clicked MENTION sticker via search + text='%s'",
+                                  self.device_serial, text_val)
+                        break
 
         # XML fallback
         if not mention_clicked:
             xml = self.ctrl.dump_xml("mention_sticker_search")
-            for pattern in [r'description="Mention Sticker"', r'text="MENTION"', r'text="Mention"']:
+            for pattern in [r'text="@MENTION"', r'text="MENTION"', r'text="Mention"',
+                            r'description="Mention Sticker"']:
                 match = re.search(
                     pattern + r'[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+                if not match:
+                    match = re.search(
+                        r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*' + pattern, xml)
                 if match:
                     x = (int(match.group(1)) + int(match.group(3))) // 2
                     y = (int(match.group(2)) + int(match.group(4))) // 2
