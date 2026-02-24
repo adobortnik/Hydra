@@ -7,10 +7,16 @@ Uses phone_farm.db as the single source of truth.
 
 import json
 import re
+import os
 import random
+import base64
+import logging
+import traceback
 from flask import Blueprint, render_template, request, jsonify
 from phone_farm_db import get_conn, row_to_dict, rows_to_dicts
 from datetime import datetime
+
+log = logging.getLogger(__name__)
 
 comment_bp = Blueprint('comments', __name__)
 
@@ -524,30 +530,240 @@ def api_generate_ai_comments(list_id):
 
 
 # ─────────────────────────────────────────────
-# API: VISION COMMENT GENERATION (placeholder)
+# VISION AI HELPERS
+# ─────────────────────────────────────────────
+
+def _get_openai_api_key():
+    """Get OpenAI API key from global_settings.json or data/api_keys.json."""
+    # Try global_settings.json first
+    settings_path = os.path.join(os.path.dirname(__file__), 'global_settings.json')
+    try:
+        with open(settings_path, 'r') as f:
+            settings = json.load(f)
+        key = settings.get('ai', {}).get('openai_api_key', '')
+        if key and key.startswith('sk-'):
+            return key
+    except Exception:
+        pass
+
+    # Fallback to data/api_keys.json
+    api_keys_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'api_keys.json')
+    try:
+        with open(api_keys_path, 'r') as f:
+            keys = json.load(f)
+        key = keys.get('openai', '')
+        if key and key.startswith('sk-'):
+            return key
+    except Exception:
+        pass
+
+    return None
+
+
+def _fetch_post_image(post_url):
+    """
+    Fetch Instagram post image. Returns (image_base64, image_url, content_type) or raises.
+    Strategy 1: IG oembed API -> thumbnail_url
+    Strategy 2: Fetch post page -> extract og:image meta tag
+    """
+    import urllib.request
+    import urllib.error
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+
+    image_url = None
+
+    # Strategy 1: IG oembed API
+    try:
+        oembed_url = f'https://api.instagram.com/oembed?url={post_url}'
+        req = urllib.request.Request(oembed_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            oembed_data = json.loads(resp.read().decode())
+            image_url = oembed_data.get('thumbnail_url')
+            log.info(f"Vision AI: Got image from oembed: {image_url[:80] if image_url else 'None'}...")
+    except Exception as e:
+        log.warning(f"Vision AI: oembed failed: {e}")
+
+    # Strategy 2: Fetch page and extract og:image
+    if not image_url:
+        try:
+            req = urllib.request.Request(post_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                html = resp.read().decode('utf-8', errors='ignore')
+            # Extract og:image
+            og_match = re.search(r'<meta\s+(?:property|name)=["\']og:image["\']\s+content=["\']([^"\']+)["\']', html)
+            if not og_match:
+                og_match = re.search(r'content=["\']([^"\']+)["\']\s+(?:property|name)=["\']og:image["\']', html)
+            if og_match:
+                image_url = og_match.group(1).replace('&amp;', '&')
+                log.info(f"Vision AI: Got image from og:image: {image_url[:80]}...")
+            else:
+                raise ValueError("Could not find og:image in post page")
+        except Exception as e:
+            log.warning(f"Vision AI: og:image extraction failed: {e}")
+            raise ValueError(f"Could not fetch post image. oembed and og:image both failed: {e}")
+
+    if not image_url:
+        raise ValueError("No image URL found for this post")
+
+    # Download the image
+    try:
+        req = urllib.request.Request(image_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            image_data = resp.read()
+            content_type = resp.headers.get('Content-Type', 'image/jpeg')
+        image_b64 = base64.b64encode(image_data).decode('utf-8')
+        log.info(f"Vision AI: Downloaded image ({len(image_data)} bytes)")
+        return image_b64, image_url, content_type
+    except Exception as e:
+        raise ValueError(f"Failed to download image from {image_url[:80]}: {e}")
+
+
+# ─────────────────────────────────────────────
+# API: VISION COMMENT GENERATION
 # ─────────────────────────────────────────────
 
 @comment_bp.route('/api/comments/generate-vision', methods=['POST'])
 def api_generate_vision_comment():
     """
-    Placeholder for vision-based comment generation.
-    In the future, this will take a screenshot of a post,
-    send to a vision API, and return a contextual comment.
+    Generate comments using OpenAI GPT-4o vision.
+    Fetches the post image, sends to GPT-4o with a prompt, returns generated comments.
     """
     data = request.get_json() or {}
-    image_path = data.get('image_path', '')
+    post_url = data.get('post_url', '').strip()
+    comment_count = min(max(int(data.get('comment_count', 50)), 1), 200)
+    style = data.get('style', 'casual, emoji-heavy, short').strip()
+    language = data.get('language', 'en').strip()
 
-    # For now, return a placeholder response
-    placeholder_comments = [
-        "This is such an amazing post! Love the vibes 🔥",
-        "Wow, this content is incredible! Keep it up 💯",
-        "Can't get over how good this is 😍",
-        "Absolutely stunning! 🌟",
-        "This made my day! So inspiring ✨",
-    ]
+    if not post_url:
+        return jsonify({'success': False, 'error': 'post_url is required'}), 400
 
-    return jsonify({
-        'comment': random.choice(placeholder_comments),
-        'source': 'placeholder',
-        'note': 'Vision AI not yet connected. Using placeholder comments.'
-    })
+    # Validate it looks like an IG post/reel URL
+    if 'instagram.com/p/' not in post_url and 'instagram.com/reel/' not in post_url:
+        return jsonify({'success': False, 'error': 'URL must be an Instagram post or reel URL'}), 400
+
+    # Get API key
+    api_key = _get_openai_api_key()
+    if not api_key:
+        return jsonify({'success': False, 'error': 'OpenAI API key not configured. Check global_settings.json'}), 500
+
+    # Fetch the post image
+    try:
+        image_b64, image_url, content_type = _fetch_post_image(post_url)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+    # Determine media type for data URL
+    if 'png' in content_type:
+        media_type = 'image/png'
+    elif 'webp' in content_type:
+        media_type = 'image/webp'
+    elif 'gif' in content_type:
+        media_type = 'image/gif'
+    else:
+        media_type = 'image/jpeg'
+
+    # Build the prompt
+    lang_instruction = f"\nIMPORTANT: Write ALL comments in {language} language." if language != 'en' else ''
+    prompt = f"""Look at this Instagram post image. Generate {comment_count} unique, natural Instagram comments.
+
+Style: {style}
+{lang_instruction}
+Rules:
+- Each comment on its own line
+- Vary length (some short like "🔥🔥", some 1-2 sentences)
+- Mix emoji usage (some with, some without)
+- Sound like real different people commenting
+- No hashtags in comments
+- Never repeat the same comment
+- Make comments relevant to what you see in the image
+- Output ONLY the comments, one per line, no numbering, no quotes"""
+
+    # Call OpenAI GPT-4o with vision
+    try:
+        import urllib.request
+        import urllib.error
+
+        payload = {
+            "model": "gpt-4o",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{image_b64}",
+                                "detail": "low"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": min(comment_count * 40, 4096),
+            "temperature": 0.9
+        }
+
+        req_data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            'https://api.openai.com/v1/chat/completions',
+            data=req_data,
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {api_key}'
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            result = json.loads(resp.read().decode())
+
+        # Parse response
+        content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+        usage = result.get('usage', {})
+
+        # Parse comments from response (one per line)
+        comments = []
+        for line in content.split('\n'):
+            line = line.strip()
+            # Remove any numbering like "1. " or "1) " or "- "
+            line = re.sub(r'^\d+[\.\)]\s*', '', line)
+            line = re.sub(r'^[-•]\s*', '', line)
+            # Remove surrounding quotes
+            line = line.strip('"\'')
+            line = line.strip()
+            if line and len(line) >= 2:
+                comments.append(line)
+
+        # Estimate cost (GPT-4o: ~$2.50/1M input, $10/1M output; image ~85 tokens at low detail)
+        input_tokens = usage.get('prompt_tokens', 0)
+        output_tokens = usage.get('completion_tokens', 0)
+        cost = (input_tokens * 2.5 / 1_000_000) + (output_tokens * 10.0 / 1_000_000)
+        cost_str = f"${cost:.4f}"
+
+        log.info(f"Vision AI: Generated {len(comments)} comments for {post_url[:60]}. "
+                 f"Tokens: {input_tokens}in/{output_tokens}out. Cost: {cost_str}")
+
+        return jsonify({
+            'success': True,
+            'comments': comments,
+            'comment_count': len(comments),
+            'image_url': image_url,
+            'cost_estimate': cost_str,
+            'tokens': {'input': input_tokens, 'output': output_tokens}
+        })
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8', errors='ignore')
+        log.error(f"Vision AI OpenAI API error {e.code}: {error_body}")
+        try:
+            err_json = json.loads(error_body)
+            err_msg = err_json.get('error', {}).get('message', error_body[:200])
+        except Exception:
+            err_msg = error_body[:200]
+        return jsonify({'success': False, 'error': f'OpenAI API error ({e.code}): {err_msg}'}), 502
+    except Exception as e:
+        log.error(f"Vision AI error: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Vision AI generation failed: {str(e)}'}), 500

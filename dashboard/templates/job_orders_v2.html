@@ -329,6 +329,21 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Vision AI Generate Button -->
+                        <div class="mt-2 d-none" id="cfgVisionAiBtn">
+                            <button type="button" class="btn btn-info btn-sm w-100" id="btnGenerateVision" onclick="generateVisionComments()">
+                                <i class="fas fa-eye me-1"></i>👁️ Generate Comments with Vision AI
+                            </button>
+                            <div class="d-none mt-2" id="visionAiStatus">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                                    <small class="text-info" id="visionAiStatusText">Analyzing post image with AI...</small>
+                                </div>
+                            </div>
+                            <div class="d-none mt-2" id="visionAiResult">
+                                <small class="text-success"><i class="fas fa-check-circle me-1"></i><span id="visionAiResultText"></span></small>
+                            </div>
+                        </div>
                     </div>
                     <div class="mb-3 d-none" id="cfgReportReasonGroup">
                         <label class="form-label">Report Reason</label>
@@ -604,6 +619,82 @@ let commentLists = [];  // cached comment lists for dropdowns
 function toggleAiOptions() {
     const show = document.getElementById('cfgAiMode').checked;
     document.getElementById('cfgAiOptionsGroup').classList.toggle('d-none', !show);
+    updateVisionAiButton();
+}
+
+// Update Vision AI button visibility based on toggle + URL
+function updateVisionAiButton() {
+    const visionToggle = document.getElementById('cfgVisionAi');
+    const targetInput = document.getElementById('cfgTarget');
+    const btnContainer = document.getElementById('cfgVisionAiBtn');
+    if (!btnContainer) return;
+
+    const url = (targetInput ? targetInput.value : '').trim();
+    const isVisionOn = visionToggle && visionToggle.checked;
+    const isIgPost = url.includes('instagram.com/p/') || url.includes('instagram.com/reel/');
+
+    btnContainer.classList.toggle('d-none', !(isVisionOn && isIgPost));
+}
+
+// Generate comments using Vision AI
+async function generateVisionComments() {
+    const postUrl = document.getElementById('cfgTarget').value.trim();
+    const countField = document.getElementById('cfgTargetCount');
+    const styleField = document.getElementById('cfgAiStyle');
+    const btn = document.getElementById('btnGenerateVision');
+    const statusDiv = document.getElementById('visionAiStatus');
+    const statusText = document.getElementById('visionAiStatusText');
+    const resultDiv = document.getElementById('visionAiResult');
+    const resultText = document.getElementById('visionAiResultText');
+
+    if (!postUrl) {
+        alert('Please enter a post URL first');
+        return;
+    }
+
+    // Show loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analyzing...';
+    statusDiv.classList.remove('d-none');
+    statusText.textContent = 'Fetching post image and analyzing with Vision AI...';
+    resultDiv.classList.add('d-none');
+
+    try {
+        const payload = {
+            post_url: postUrl,
+            comment_count: parseInt(countField ? countField.value : 50) || 50,
+            style: (styleField ? styleField.value : '') || 'casual, emoji-heavy, short',
+            language: 'en'
+        };
+
+        const r = await fetch('/api/comments/generate-vision', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+
+        if (d.success && d.comments && d.comments.length) {
+            // Fill textarea with generated comments
+            const textarea = document.getElementById('cfgCommentText');
+            textarea.value = d.comments.join('\n');
+
+            // Show success
+            statusDiv.classList.add('d-none');
+            resultDiv.classList.remove('d-none');
+            resultText.textContent = `Generated ${d.comments.length} comments (cost: ${d.cost_estimate || '~$0.01'})`;
+        } else {
+            throw new Error(d.error || 'No comments returned');
+        }
+    } catch(e) {
+        statusDiv.classList.add('d-none');
+        resultDiv.classList.add('d-none');
+        alert('Vision AI error: ' + (e.message || 'Unknown error'));
+        console.error('Vision AI error:', e);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-eye me-1"></i>👁️ Generate Comments with Vision AI';
+    }
 }
 
 // Load comment lists for dropdowns
@@ -646,6 +737,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Account search & device filter
     document.getElementById('accountSearch').addEventListener('input', renderAccountPicker);
     document.getElementById('deviceFilter').addEventListener('change', renderAccountPicker);
+
+    // Vision AI: toggle button visibility on checkbox/URL changes
+    document.getElementById('cfgVisionAi').addEventListener('change', updateVisionAiButton);
+    document.getElementById('cfgTarget').addEventListener('input', updateVisionAiButton);
 });
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -980,6 +1075,10 @@ function resetWizard() {
     document.getElementById('cfgAiOptionsGroup').classList.add('d-none');
     if (document.getElementById('cfgAiStyle')) document.getElementById('cfgAiStyle').value = '';
     if (document.getElementById('cfgAiCount')) document.getElementById('cfgAiCount').value = '10';
+    // Reset Vision AI button state
+    document.getElementById('cfgVisionAiBtn').classList.add('d-none');
+    document.getElementById('visionAiStatus').classList.add('d-none');
+    document.getElementById('visionAiResult').classList.add('d-none');
     showWizardStep();
 }
 
