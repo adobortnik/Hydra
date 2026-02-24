@@ -449,34 +449,49 @@ class CommentAction:
                 self.ctrl.dismiss_popups()
 
                 # Step 2: Open their latest post (first grid item)
-                # Profile grid uses ImageView items — click the first one
+                # Grid items have content-desc like "Reel by X" / "Photo by X"
                 grid_item = None
-                # Try specific grid resource IDs first
-                grid_item = self.ctrl.find_element(
-                    resource_id='media_image_button', timeout=3)
-                if grid_item is None:
+                grid_clicked = False
+
+                xml = self.ctrl.dump_xml("source_profile_grid")
+                # Primary: find grid items via content-desc (most reliable)
+                import xml.etree.ElementTree as _ET
+                try:
+                    _root = _ET.fromstring(xml)
+                    for _elem in _root.iter():
+                        _desc = _elem.get('content-desc', '')
+                        _bounds = _elem.get('bounds', '')
+                        if _bounds and any(k in _desc for k in
+                                          ('Photo by', 'Reel by', 'Video by')):
+                            _m = re.match(
+                                r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', _bounds)
+                            if _m:
+                                cx = (int(_m.group(1))+int(_m.group(3)))//2
+                                cy = (int(_m.group(2))+int(_m.group(4)))//2
+                                self.device.click(cx, cy)
+                                grid_clicked = True
+                                log.debug("[%s] Clicked grid item: %s",
+                                          self.device_serial, _desc[:60])
+                                break
+                except Exception:
+                    pass
+
+                if not grid_clicked:
                     # Fallback: find grid images below the profile header
-                    xml = self.ctrl.dump_xml("source_profile_grid")
-                    # Look for clickable ImageViews that are likely grid posts
                     images = self.device(
                         className="android.widget.ImageView",
                         clickable=True)
                     if images.exists(timeout=3) and images.count > 0:
-                        # Skip profile picture (usually first image), click grid post
-                        # Grid posts typically start after a few header elements
-                        idx = min(2, images.count - 1)  # Skip avatar, story, etc
-                        for i in range(idx, images.count):
+                        for i in range(min(2, images.count - 1), images.count):
                             try:
-                                img_info = images[i].info
-                                bounds = img_info.get('bounds', {})
-                                # Grid posts are typically below y=500 and have square-ish bounds
+                                bounds = images[i].info.get('bounds', {})
                                 if bounds.get('top', 0) > 400:
                                     grid_item = images[i]
                                     break
                             except Exception:
                                 continue
 
-                if grid_item is None:
+                if not grid_clicked and grid_item is None:
                     log.warning("[%s] No grid posts found for @%s",
                                 self.device_serial, source_username)
                     self.ctrl.press_back()
@@ -484,7 +499,8 @@ class CommentAction:
                     result['errors'] += 1
                     continue
 
-                grid_item.click()
+                if not grid_clicked:
+                    grid_item.click()
                 random_sleep(2, 3, label="source_post_loaded")
                 self.ctrl.dismiss_popups()
 
