@@ -548,7 +548,7 @@ class JobExecutor:
                 comment_action.ctrl.dismiss_popups()
 
                 # Check if post actually loaded (not empty state)
-                d = self._device
+                d = self.device
                 empty_state = d(resourceIdMatches='.*empty_state_view_root').exists(timeout=1)
                 has_comment_btn = (
                     d(resourceIdMatches='.*row_feed_button_comment').exists(timeout=1) or
