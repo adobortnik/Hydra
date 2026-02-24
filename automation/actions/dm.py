@@ -185,8 +185,14 @@ class DMAction:
         log.info("[%s] Recently DMed: %d users (will skip)",
                  self.device_serial, len(recently_dmed))
 
-        # Determine DM method
-        dm_methods = self.settings.get('directmessage_method', {})
+        # Determine DM method — can be a string ("directmessage_specificuser")
+        # or a dict ({"directmessage_specificuser": true}) depending on dashboard version
+        dm_methods_raw = self.settings.get('directmessage_method', '')
+        if isinstance(dm_methods_raw, str):
+            # Convert string value to dict for uniform handling
+            dm_methods = {dm_methods_raw: True} if dm_methods_raw else {}
+        else:
+            dm_methods = dm_methods_raw or {}
 
         if dm_methods.get('directmessage_specificuser'):
             targets = get_account_sources(self.account_id, 'dm_targets')
