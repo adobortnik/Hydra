@@ -871,11 +871,15 @@
                                 value="" style="background:#2d3238;color:#9ca3af;border-color:#495057;">
                         </div>
                     </div>
-                    <div class="d-flex align-items-center gap-2 mt-3">
+                    <div class="d-flex align-items-center gap-2 mt-3 flex-wrap">
                         <button class="btn btn-sm btn-outline-primary" id="btn-switch-business" onclick="switchToBusiness()">
                             🔄 Switch to Business Profile
                         </button>
+                        <button class="btn btn-sm btn-outline-secondary" id="btn-switch-private" onclick="switchToPrivate()">
+                            🔒 Switch to Private
+                        </button>
                         <small class="text-muted" id="switchBusinessStatus"></small>
+                        <small class="text-muted" id="switchPrivateStatus"></small>
                     </div>
                 </div>
 
@@ -2675,6 +2679,16 @@ function populateBusinessFields(accountData) {
     // Disable switch button if already business
     const switchBtn = document.getElementById('btn-switch-business');
     if (switchBtn) switchBtn.disabled = isBiz;
+
+    // Disable switch-private button if already private
+    const isPrivate = accountData.is_private === 1 || accountData.is_private === '1';
+    const switchPrivBtn = document.getElementById('btn-switch-private');
+    if (switchPrivBtn) switchPrivBtn.disabled = isPrivate;
+    if (isPrivate && switchPrivBtn) {
+        switchPrivBtn.innerHTML = '🔒 Already Private';
+    } else if (switchPrivBtn) {
+        switchPrivBtn.innerHTML = '🔒 Switch to Private';
+    }
 }
 
 function switchToBusiness() {
@@ -2691,6 +2705,41 @@ function switchToBusiness() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category: category })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(data.message, 'success');
+            statusEl.textContent = '✓ Task queued — will run on next bot session';
+            statusEl.style.color = '#28a745';
+        } else {
+            showSpToast(data.error || 'Failed', 'error');
+            statusEl.textContent = data.error || 'Failed';
+            statusEl.style.color = '#dc3545';
+            btn.disabled = false;
+        }
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err, 'error');
+        statusEl.textContent = 'Error';
+        statusEl.style.color = '#dc3545';
+        btn.disabled = false;
+    });
+}
+
+function switchToPrivate() {
+    if (!spCurrentDevice || !spCurrentAccount) return;
+
+    const btn = document.getElementById('btn-switch-private');
+    const statusEl = document.getElementById('switchPrivateStatus');
+    btn.disabled = true;
+    statusEl.textContent = 'Creating task...';
+    statusEl.style.color = '#ffc107';
+
+    fetch(`/api/device-manager/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/switch-private`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
     })
     .then(r => r.json())
     .then(data => {

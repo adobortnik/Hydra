@@ -1049,6 +1049,11 @@ class BotEngine:
                 and not self.account.get('is_business_profile')):
             actions.append(('switch_to_business', self._action_switch_to_business))
 
+        # Switch to Private Profile (one-time action, if enabled)
+        if (self.settings.get('auto_switch_private', False)
+                and not self.account.get('is_private')):
+            actions.append(('switch_to_private', self._action_switch_to_private))
+
         # Check scheduled content FIRST (time-sensitive, highest priority)
         scheduled = self._check_scheduled_content()
         if scheduled:
@@ -1174,6 +1179,40 @@ class BotEngine:
                     sj = _json.loads(row['settings_json'] or '{}')
                     sj['auto_switch_business'] = False
                     sj['switch_business_failed_at'] = datetime.datetime.now().isoformat()
+                    conn.execute(
+                        "UPDATE account_settings SET settings_json=? WHERE account_id=?",
+                        (_json.dumps(sj), self.account_id))
+                    conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        return result
+
+    def _action_switch_to_private(self):
+        """Switch account to Private profile (one-time action)."""
+        from automation.actions.switch_to_private import SwitchToPrivateAction
+        action = SwitchToPrivateAction(
+            self._device, self.device_serial,
+            self.account, self.session_id,
+            pkg=self.account.get('package', 'com.instagram.android'),
+        )
+        result = action.execute()
+        if result.get('success'):
+            self.settings['auto_switch_private'] = False
+            self._load_account()
+        else:
+            self.settings['auto_switch_private'] = False
+            try:
+                from automation.actions.helpers import get_db
+                import json as _json
+                conn = get_db()
+                row = conn.execute(
+                    "SELECT settings_json FROM account_settings WHERE account_id=?",
+                    (self.account_id,)).fetchone()
+                if row:
+                    sj = _json.loads(row['settings_json'] or '{}')
+                    sj['auto_switch_private'] = False
+                    sj['switch_private_failed_at'] = datetime.datetime.now().isoformat()
                     conn.execute(
                         "UPDATE account_settings SET settings_json=? WHERE account_id=?",
                         (_json.dumps(sj), self.account_id))

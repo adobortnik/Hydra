@@ -284,6 +284,7 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
                a.follow_enabled, a.unfollow_enabled, a.like_enabled,
                a.comment_enabled, a.story_enabled,
                a.is_business_profile, a.business_category,
+               a.is_private,
                COALESCE(snap_today.followers, snap_latest.followers, a.followers, 0) as followers,
                COALESCE(snap_today.following, snap_latest.following, a.following, 0) as following,
                COALESCE(snap_yesterday.followers, snap_latest.followers) as prev_followers,
@@ -1004,6 +1005,60 @@ def api_switch_to_business(serial, username):
         return jsonify({
             'success': True,
             'message': f'Business switch task created for @{username} (category: {category})'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@device_manager_bp.route('/api/device-manager/<path:serial>/<username>/switch-private', methods=['POST'])
+def api_switch_to_private(serial, username):
+    """Create a task to switch an account to Private profile."""
+    conn = _get_conn()
+    try:
+        account = conn.execute(
+            "SELECT id FROM accounts WHERE device_serial=? AND username=?",
+            (serial, username)
+        ).fetchone()
+
+        if not account:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+
+        account_id = account['id']
+        now = datetime.utcnow().isoformat()
+
+        conn.execute("""
+            INSERT INTO tasks (account_id, device_serial, task_type, status, priority, params_json, created_at, updated_at)
+            VALUES (?, ?, 'switch_private', 'pending', 5, '{}', ?, ?)
+        """, (account_id, serial, now, now))
+        conn.commit()
+
+        # Also set auto_switch_private in account settings so bot engine picks it up
+        try:
+            row = conn.execute(
+                "SELECT settings_json FROM account_settings WHERE account_id=?",
+                (account_id,)
+            ).fetchone()
+            if row:
+                import json as _json
+                sj = _json.loads(row['settings_json'] or '{}')
+                sj['auto_switch_private'] = True
+                conn.execute(
+                    "UPDATE account_settings SET settings_json=? WHERE account_id=?",
+                    (_json.dumps(sj), account_id))
+            else:
+                import json as _json
+                conn.execute(
+                    "INSERT INTO account_settings (account_id, settings_json) VALUES (?, ?)",
+                    (account_id, _json.dumps({'auto_switch_private': True})))
+            conn.commit()
+        except Exception as e:
+            pass  # Could not set auto_switch_private in settings
+
+        return jsonify({
+            'success': True,
+            'message': f'Private switch task created for @{username}'
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
