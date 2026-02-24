@@ -516,49 +516,93 @@ class JobExecutor:
                  self.job.get('completed_count', 0),
                  str(self.target_count) if self.target_count > 0 else '∞')
 
-        # Ensure app and navigate to target profile
+        # Detect if target is a post URL or a username
+        is_post_url = ('instagram.com/p/' in self.target or
+                       'instagram.com/reel/' in self.target)
+
         comment_action.ctrl.ensure_app()
         comment_action.ctrl.dismiss_popups()
 
-        if not comment_action.ctrl.search_user(source):
-            log.warning("[%s] JOB #%d: Could not find @%s",
-                        self.device_serial, self.job_id, source)
-            record_job_action(self.job_id, self.account_id, 'comment',
-                              source, success=False,
-                              error_message="User not found")
-            result['errors'] += 1
-            return result
+        if is_post_url:
+            # Open post directly via deep link
+            import subprocess
+            adb_serial = self.device_serial.replace('_', ':')
+            pkg = self.account.get('package', self.account.get(
+                'instagram_package', 'com.instagram.androie'))
+            # Strip query params for clean URL
+            clean_url = self.target.split('?')[0]
+            subprocess.run([
+                'adb', '-s', adb_serial, 'shell', 'am', 'start',
+                '-a', 'android.intent.action.VIEW',
+                '-d', clean_url, pkg
+            ], capture_output=True, timeout=10)
+            random_sleep(4, 6, label="deeplink_post_load")
+            comment_action.ctrl.dismiss_popups()
+            log.info("[%s] JOB #%d: Opened post via deep link: %s",
+                     self.device_serial, self.job_id, clean_url)
+        else:
+            # Navigate to target profile and open grid post
+            if not comment_action.ctrl.search_user(source):
+                log.warning("[%s] JOB #%d: Could not find @%s",
+                            self.device_serial, self.job_id, source)
+                record_job_action(self.job_id, self.account_id, 'comment',
+                                  source, success=False,
+                                  error_message="User not found")
+                result['errors'] += 1
+                return result
 
-        random_sleep(2, 4, label="on_target_profile")
-        comment_action.ctrl.dismiss_popups()
+            random_sleep(2, 4, label="on_target_profile")
+            comment_action.ctrl.dismiss_popups()
 
-        # Open first grid post
-        grid_item = comment_action.ctrl.find_element(
-            resource_id='media_image_button', timeout=3)
-        if grid_item is None:
-            # Fallback: clickable images below profile header
-            images = self.device(
-                className="android.widget.ImageView", clickable=True)
-            if images.exists(timeout=3) and images.count > 0:
-                for idx in range(min(2, images.count - 1), images.count):
-                    try:
-                        info = images[idx].info
-                        if info.get('bounds', {}).get('top', 0) > 400:
-                            grid_item = images[idx]
+            # Open first grid post via content-desc (reliable on clones)
+            grid_clicked = False
+            xml = comment_action.ctrl.dump_xml("job_grid")
+            import xml.etree.ElementTree as _ET
+            try:
+                _root = _ET.fromstring(xml)
+                for _elem in _root.iter():
+                    _desc = _elem.get('content-desc', '')
+                    _bounds = _elem.get('bounds', '')
+                    if _bounds and any(k in _desc for k in
+                                      ('Photo by', 'Reel by', 'Video by')):
+                        _m = re.match(
+                            r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', _bounds)
+                        if _m:
+                            cx = (int(_m.group(1))+int(_m.group(3)))//2
+                            cy = (int(_m.group(2))+int(_m.group(4)))//2
+                            self.device.click(cx, cy)
+                            grid_clicked = True
+                            log.debug("[%s] JOB #%d: Clicked grid: %s",
+                                      self.device_serial, self.job_id,
+                                      _desc[:60])
                             break
-                    except Exception:
-                        continue
+            except Exception:
+                pass
 
-        if grid_item is None:
-            log.warning("[%s] JOB #%d: No grid posts for @%s",
-                        self.device_serial, self.job_id, source)
-            comment_action.ctrl.press_back()
-            result['errors'] += 1
-            return result
+            if not grid_clicked:
+                # Fallback: clickable images below profile header
+                images = self.device(
+                    className="android.widget.ImageView", clickable=True)
+                if images.exists(timeout=3) and images.count > 0:
+                    for idx in range(min(2, images.count - 1), images.count):
+                        try:
+                            info = images[idx].info
+                            if info.get('bounds', {}).get('top', 0) > 400:
+                                images[idx].click()
+                                grid_clicked = True
+                                break
+                        except Exception:
+                            continue
 
-        grid_item.click()
-        random_sleep(2, 3, label="post_opened")
-        comment_action.ctrl.dismiss_popups()
+            if not grid_clicked:
+                log.warning("[%s] JOB #%d: No grid posts for @%s",
+                            self.device_serial, self.job_id, source)
+                comment_action.ctrl.press_back()
+                result['errors'] += 1
+                return result
+
+            random_sleep(2, 3, label="post_opened")
+            comment_action.ctrl.dismiss_popups()
 
         for i in range(session_target + 3):
             if result['actions_done'] >= session_target:
