@@ -63,9 +63,20 @@ class SwitchToPrivateAction:
                      self.device_serial, self.username)
 
             # Step 1: Navigate to Profile
-            if not self.ctrl.navigate_to(Screen.PROFILE):
-                result['error_message'] = "Could not navigate to profile"
-                return result
+            nav_ok = self.ctrl.navigate_to(Screen.PROFILE)
+            if not nav_ok:
+                # Fallback: try direct profile tab click
+                log.warning("[%s] navigate_to PROFILE failed, trying direct tab click",
+                            self.device_serial)
+                profile_tab = self.device(resourceIdMatches='.*profile_tab')
+                if not profile_tab.exists(timeout=3):
+                    profile_tab = self.device(description="Profile")
+                if profile_tab.exists(timeout=3):
+                    profile_tab.click()
+                    random_sleep(2.0, 3.0, label="profile_tab_click")
+                else:
+                    result['error_message'] = "Could not navigate to profile"
+                    return result
 
             random_sleep(1.5, 3.0, label="profile_loaded")
 
@@ -252,16 +263,7 @@ class SwitchToPrivateAction:
         """
         log.info("[%s] Toggling Private Account ON...", self.device_serial)
 
-        # Method 1: Click the checkable element directly
-        # The row containing "Private account" text is checkable and clickable
-        toggle_row = self.device(checkable=True, checked=False)
-        if toggle_row.exists(timeout=3):
-            toggle_row.click()
-            random_sleep(1.5, 3.0, label="toggle_clicked")
-            log.info("[%s] Clicked checkable toggle row", self.device_serial)
-            return True
-
-        # Method 2: Click by text "Private account"
+        # Method 1: Click by text "Private account"
         private_text = self.device(text="Private account")
         if private_text.exists(timeout=2):
             private_text.click()
@@ -292,6 +294,7 @@ class SwitchToPrivateAction:
         xml = self.ctrl.dump_xml("confirmation_dialog")
 
         # Look for confirmation buttons
+        # Phase 1: Confirm the switch to private
         confirm_texts = [
             "Switch to private",
             "Switch to Private",
@@ -309,10 +312,36 @@ class SwitchToPrivateAction:
                 log.info("[%s] Confirmation dialog: tapped '%s'",
                          self.device_serial, btn_text)
                 random_sleep(1.5, 3.0, label="confirmed")
-                return
+                break
 
-        # No confirmation dialog — may have toggled directly
-        log.info("[%s] No confirmation dialog detected", self.device_serial)
+        # Phase 2: Handle "Want to review your followers?" dialog
+        random_sleep(1.0, 2.0, label="review_dialog_wait")
+        review_dialog = self.device(textContains="review your followers")
+        if review_dialog.exists(timeout=3):
+            log.info("[%s] 'Review followers' dialog detected", self.device_serial)
+            # Tap Cancel to dismiss — don't review followers
+            cancel_btn = self.device(text="Cancel")
+            if cancel_btn.exists(timeout=2):
+                cancel_btn.click()
+                log.info("[%s] Dismissed review followers dialog (Cancel)",
+                         self.device_serial)
+                random_sleep(1.0, 2.0, label="review_dismissed")
+            else:
+                # Try other dismiss options
+                for dismiss_text in ["Not now", "Skip", "No thanks"]:
+                    btn = self.device(text=dismiss_text)
+                    if btn.exists(timeout=1):
+                        btn.click()
+                        log.info("[%s] Dismissed review dialog with '%s'",
+                                 self.device_serial, dismiss_text)
+                        random_sleep(1.0, 2.0)
+                        break
+                else:
+                    self.device.press('back')
+                    log.info("[%s] Dismissed review dialog with back press",
+                             self.device_serial)
+        else:
+            log.info("[%s] No review followers dialog detected", self.device_serial)
 
     def _verify_private(self):
         """Verify the account is now set to private by checking the toggle state."""
