@@ -148,14 +148,28 @@ class SwitchToPrivateAction:
         log.info("[%s] Opening Options menu...", self.device_serial)
 
         # The Options button has desc="Options" — it's in the top-right action bar
-        options_btn = self.device(description="Options")
-        if not options_btn.exists(timeout=3):
-            # Fallback: try resource-id pattern
+        # Retry with increasing timeouts (slow proxy may delay page load)
+        options_btn = None
+        for attempt in range(3):
+            wait = 5 + attempt * 3  # 5s, 8s, 11s
+            options_btn = self.device(description="Options")
+            if options_btn.exists(timeout=wait):
+                break
             options_btn = self.device(resourceIdMatches=".*option_list_button.*")
-        if not options_btn.exists(timeout=3):
+            if options_btn.exists(timeout=2):
+                break
             options_btn = self.device(descriptionContains="Menu")
+            if options_btn.exists(timeout=2):
+                break
+            log.info("[%s] Options not found attempt %d/3, retrying...",
+                     self.device_serial, attempt + 1)
+            # Try clicking profile tab again
+            ptab = self.device(resourceIdMatches='.*profile_tab')
+            if ptab.exists(timeout=2):
+                ptab.click()
+                random_sleep(3, 5, label="profile_retry_%d" % attempt)
 
-        if not options_btn.exists(timeout=3):
+        if not options_btn or not options_btn.exists(timeout=3):
             log.warning("[%s] Options/hamburger menu not found", self.device_serial)
             return False
 
