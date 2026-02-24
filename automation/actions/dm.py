@@ -194,24 +194,26 @@ class DMAction:
         else:
             dm_methods = dm_methods_raw or {}
 
-        if dm_methods.get('directmessage_specificuser'):
+        # Dashboard sends: "dm-specific-users" or "dm-new-followers"
+        # Legacy values: "directmessage_specificuser" / "directmessage_new_followers"
+        method_str = dm_methods_raw if isinstance(dm_methods_raw, str) else ''
+        is_specific = (method_str in ('dm-specific-users', 'directmessage_specificuser')
+                       or dm_methods.get('directmessage_specificuser')
+                       or dm_methods.get('dm-specific-users'))
+
+        if is_specific:
             targets = get_account_sources(self.account_id, 'dm_targets')
             if targets:
                 self._dm_specific_users(
                     targets, target, recently_dmed, result)
             else:
-                log.warning("[%s] No DM targets configured",
-                           self.device_serial)
-        elif dm_methods.get('directmessage_new_followers'):
-            self._dm_new_followers(target, recently_dmed, result)
-        else:
-            # Default: try specific users first, then new followers
-            targets = get_account_sources(self.account_id, 'dm_targets')
-            if targets:
-                self._dm_specific_users(
-                    targets, target, recently_dmed, result)
-            else:
+                log.warning("[%s] Specific users selected but no DM targets "
+                            "configured — falling back to new followers",
+                            self.device_serial)
                 self._dm_new_followers(target, recently_dmed, result)
+        else:
+            # Default: new followers
+            self._dm_new_followers(target, recently_dmed, result)
 
         result['success'] = True
         log.info("[%s] %s: DM complete. Sent: %d, Skipped: %d, Errors: %d",
