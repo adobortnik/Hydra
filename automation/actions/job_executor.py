@@ -531,6 +531,11 @@ class JobExecutor:
                 'instagram_package', 'com.instagram.androie'))
             # Strip query params for clean URL
             clean_url = self.target.split('?')[0]
+            # Force-stop IG first for clean state
+            subprocess.run([
+                'adb', '-s', adb_serial, 'shell', 'am', 'force-stop', pkg
+            ], capture_output=True, timeout=5)
+            random_sleep(1, 2, label="force_stop_wait")
             # Try deep link with retry on empty state
             deeplink_loaded = False
             for dl_attempt in range(3):
