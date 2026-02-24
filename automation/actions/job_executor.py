@@ -531,15 +531,59 @@ class JobExecutor:
                 'instagram_package', 'com.instagram.androie'))
             # Strip query params for clean URL
             clean_url = self.target.split('?')[0]
-            subprocess.run([
-                'adb', '-s', adb_serial, 'shell', 'am', 'start',
-                '-a', 'android.intent.action.VIEW',
-                '-d', clean_url, pkg
-            ], capture_output=True, timeout=10)
-            random_sleep(4, 6, label="deeplink_post_load")
-            comment_action.ctrl.dismiss_popups()
-            log.info("[%s] JOB #%d: Opened post via deep link: %s",
-                     self.device_serial, self.job_id, clean_url)
+            # Try deep link with retry on empty state
+            deeplink_loaded = False
+            for dl_attempt in range(3):
+                subprocess.run([
+                    'adb', '-s', adb_serial, 'shell', 'am', 'start',
+                    '-a', 'android.intent.action.VIEW',
+                    '-d', clean_url, pkg
+                ], capture_output=True, timeout=10)
+                random_sleep(5, 8, label="deeplink_post_load")
+                comment_action.ctrl.dismiss_popups()
+
+                # Check if post actually loaded (not empty state)
+                d = self._device
+                empty_state = d(resourceIdMatches='.*empty_state_view_root').exists(timeout=1)
+                has_comment_btn = (
+                    d(resourceIdMatches='.*row_feed_button_comment').exists(timeout=1) or
+                    d(descriptionContains='Comment').exists(timeout=1)
+                )
+                if has_comment_btn:
+                    deeplink_loaded = True
+                    break
+                if empty_state:
+                    log.warning("[%s] JOB #%d: Post empty state on attempt %d/3, retrying...",
+                                self.device_serial, self.job_id, dl_attempt + 1)
+                    # Press back and retry
+                    d.press('back')
+                    random_sleep(2, 3, label="deeplink_retry_wait")
+                else:
+                    # Post might be loading, wait more
+                    random_sleep(3, 5, label="deeplink_extra_wait")
+                    has_comment_btn = (
+                        d(resourceIdMatches='.*row_feed_button_comment').exists(timeout=2) or
+                        d(descriptionContains='Comment').exists(timeout=2)
+                    )
+                    if has_comment_btn:
+                        deeplink_loaded = True
+                        break
+                    log.warning("[%s] JOB #%d: No comment button on attempt %d/3",
+                                self.device_serial, self.job_id, dl_attempt + 1)
+                    d.press('back')
+                    random_sleep(2, 3, label="deeplink_retry_wait")
+
+            log.info("[%s] JOB #%d: Opened post via deep link: %s (loaded=%s)",
+                     self.device_serial, self.job_id, clean_url, deeplink_loaded)
+
+            if not deeplink_loaded:
+                log.error("[%s] JOB #%d: Post failed to load after 3 attempts",
+                          self.device_serial, self.job_id)
+                record_job_action(self.job_id, self.account_id, 'comment',
+                                  source, success=False,
+                                  error_message="Post failed to load via deep link")
+                result['errors'] += 1
+                return result
         else:
             # Navigate to target profile and open grid post
             if not comment_action.ctrl.search_user(source):
