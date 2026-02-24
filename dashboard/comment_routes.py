@@ -575,6 +575,23 @@ def _fetch_post_image(post_url):
 
     image_url = None
 
+    # Strategy 0: Direct /media/ endpoint (most reliable, no auth needed)
+    try:
+        # Extract shortcode from URL and build /media/ URL
+        clean = post_url.split('?')[0].rstrip('/')
+        media_url = clean + '/media/?size=l'
+        req = urllib.request.Request(media_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            image_data = resp.read()
+            content_type = resp.headers.get('Content-Type', 'image/jpeg')
+            image_url = resp.url  # Final redirected CDN URL
+            if len(image_data) > 1000:  # Valid image
+                image_b64 = base64.b64encode(image_data).decode('utf-8')
+                log.info(f"Vision AI: Got image via /media/ ({len(image_data)} bytes)")
+                return image_b64, image_url, content_type
+    except Exception as e:
+        log.warning(f"Vision AI: /media/ endpoint failed: {e}")
+
     # Strategy 1: IG oembed API
     try:
         oembed_url = f'https://api.instagram.com/oembed?url={post_url}'
