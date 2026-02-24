@@ -272,19 +272,19 @@ class ShareToStoryAction:
         """
         post_type = (self.post_type or 'posts').lower().strip()
 
-        # Decide which tab to use
-        if post_type in ('reels', 'reel'):
+        # Decide which tab: posts | reels | all
+        if post_type == 'reels':
             self._switch_to_reels_tab()
-        elif post_type in ('both', 'all', 'post_reels'):
+        elif post_type == 'all':
             if random.random() < 0.5:
-                log.info("[%s] post_type=%s → randomly chose Reels tab",
-                         self.device_serial, post_type)
+                log.info("[%s] post_type=all → randomly chose Reels tab",
+                         self.device_serial)
                 self._switch_to_reels_tab()
             else:
-                log.info("[%s] post_type=%s → randomly chose Posts tab",
-                         self.device_serial, post_type)
+                log.info("[%s] post_type=all → randomly chose Posts tab",
+                         self.device_serial)
         else:
-            log.debug("[%s] post_type=%s → staying on Posts tab",
+            log.debug("[%s] post_type=%s → Posts tab",
                       self.device_serial, post_type)
 
         time.sleep(2)

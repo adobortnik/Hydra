@@ -12,6 +12,13 @@ import os
 import time
 import datetime
 
+import io
+# Force UTF-8 stdout/stderr so Unicode chars from child process don't crash watchdog
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 DASHBOARD_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(DASHBOARD_DIR, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
