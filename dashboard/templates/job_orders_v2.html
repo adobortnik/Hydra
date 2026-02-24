@@ -331,6 +331,17 @@
                         </div>
                         <!-- Vision AI Generate Button -->
                         <div class="mt-2 d-none" id="cfgVisionAiBtn">
+                            <div class="row g-2 mb-2">
+                                <div class="col">
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="cfgVisionLang">
+                                        <option value="en">🇬🇧 English</option>
+                                        <option value="sk">🇸🇰 Slovak</option>
+                                        <option value="cs">🇨🇿 Czech</option>
+                                        <option value="ru">🇷🇺 Russian</option>
+                                        <option value="zh">🇨🇳 Chinese</option>
+                                    </select>
+                                </div>
+                            </div>
                             <button type="button" class="btn btn-info btn-sm w-100" id="btnGenerateVision" onclick="generateVisionComments()">
                                 <i class="fas fa-eye me-1"></i>👁️ Generate Comments with Vision AI
                             </button>
@@ -660,11 +671,12 @@ async function generateVisionComments() {
     resultDiv.classList.add('d-none');
 
     try {
+        const langField = document.getElementById('cfgVisionLang');
         const payload = {
             post_url: postUrl,
             comment_count: parseInt(countField ? countField.value : 50) || 50,
             style: (styleField ? styleField.value : '') || 'casual, emoji-heavy, short',
-            language: 'en'
+            language: langField ? langField.value : 'en'
         };
 
         const r = await fetch('/api/comments/generate-vision', {
@@ -1079,6 +1091,7 @@ function resetWizard() {
     document.getElementById('cfgVisionAiBtn').classList.add('d-none');
     document.getElementById('visionAiStatus').classList.add('d-none');
     document.getElementById('visionAiResult').classList.add('d-none');
+    if (document.getElementById('cfgVisionLang')) document.getElementById('cfgVisionLang').value = 'en';
     showWizardStep();
 }
 
