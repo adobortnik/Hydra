@@ -305,13 +305,7 @@
                         <label class="form-label">Custom Comments <small class="text-muted">(one per line, supports {spintax|syntax})</small></label>
                         <textarea class="form-control bg-dark text-white border-secondary" id="cfgCommentText" rows="3" placeholder="Enter comments, one per line…&#10;{Amazing|Incredible} post! {🔥|❤️}"></textarea>
                         <!-- AI Options -->
-                        <div class="mt-2 d-flex gap-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="cfgAiMode" onchange="toggleAiOptions()">
-                                <label class="form-check-label" for="cfgAiMode">
-                                    <i class="fas fa-robot me-1 text-success"></i>AI Generate
-                                </label>
-                            </div>
+                        <div class="mt-2">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="cfgVisionAi">
                                 <label class="form-check-label" for="cfgVisionAi">
@@ -319,16 +313,11 @@
                                 </label>
                             </div>
                         </div>
-                        <div class="mt-2 d-none" id="cfgAiOptionsGroup">
-                            <div class="row g-2">
-                                <div class="col-8">
-                                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="cfgAiStyle" placeholder="AI style: casual, emoji-heavy, short…">
-                                </div>
-                                <div class="col-4">
-                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="cfgAiCount" value="10" min="1" max="100" placeholder="Count">
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Hidden: keep cfgAiMode/cfgAiStyle for backward compat -->
+                        <input type="hidden" id="cfgAiMode" value="">
+                        <input type="hidden" id="cfgAiStyle" value="">
+                        <input type="hidden" id="cfgAiCount" value="10">
+                        <div class="d-none" id="cfgAiOptionsGroup"></div>
                         <!-- Vision AI Generate Button -->
                         <div class="mt-2 d-none" id="cfgVisionAiBtn">
                             <div class="row g-2 mb-2">
@@ -589,13 +578,8 @@
                     </select>
                     <label class="form-label">Comment Text</label>
                     <textarea class="form-control bg-dark text-white border-secondary" id="editCommentText" rows="2"></textarea>
-                    <div class="mt-2 d-flex gap-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="editAiMode">
-                            <label class="form-check-label" for="editAiMode">
-                                <i class="fas fa-robot me-1 text-success"></i>AI Generate
-                            </label>
-                        </div>
+                    <div class="mt-2">
+                        <input type="hidden" id="editAiMode" value="">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="editVisionAi">
                             <label class="form-check-label" for="editVisionAi">
@@ -642,11 +626,9 @@ const TYPE_ICONS = {follow:'👤', like:'❤️', comment:'💬', share_to_story
 const PRIORITY_LABELS = {0:'Low', 1:'Medium', 2:'High'};
 let commentLists = [];  // cached comment lists for dropdowns
 
-// Toggle AI options in create wizard
+// Toggle AI options in create wizard (kept for backward compat, AI Generate removed)
 function toggleAiOptions() {
-    const show = document.getElementById('cfgAiMode').checked;
-    document.getElementById('cfgAiOptionsGroup').classList.toggle('d-none', !show);
-    updateVisionAiButton();
+    // no-op: AI Generate toggle removed, Vision AI handles everything
 }
 
 // Update Vision AI button visibility based on toggle + URL
@@ -1111,7 +1093,7 @@ function resetWizard() {
     document.getElementById('cfgReportReasonGroup').classList.add('d-none');
     // Reset comment-specific fields
     document.getElementById('cfgCommentListId').value = '';
-    document.getElementById('cfgAiMode').checked = false;
+    document.getElementById('cfgAiMode').value = '';
     document.getElementById('cfgVisionAi').checked = false;
     document.getElementById('cfgAiOptionsGroup').classList.add('d-none');
     if (document.getElementById('cfgAiStyle')) document.getElementById('cfgAiStyle').value = '';
@@ -1298,7 +1280,7 @@ function renderReview() {
         <div class="review-item"><span class="review-label">Target</span><span class="review-value">${esc(target)}</span></div>
         ${chosenType === 'comment' ? `<div class="review-item"><span class="review-label">Comment</span><span class="review-value">${esc(document.getElementById('cfgCommentText').value)}</span></div>` : ''}
         ${chosenType === 'comment' && document.getElementById('cfgCommentListId').value ? `<div class="review-item"><span class="review-label">Comment List</span><span class="review-value">${esc(document.getElementById('cfgCommentListId').selectedOptions[0].text)}</span></div>` : ''}
-        ${chosenType === 'comment' && document.getElementById('cfgAiMode').checked ? `<div class="review-item"><span class="review-label">AI Mode</span><span class="review-value">Enabled</span></div>` : ''}
+        ${false ? `<div class="review-item"><span class="review-label">AI Mode</span><span class="review-value">Enabled</span></div>` : ''}
         ${chosenType === 'comment' && document.getElementById('cfgVisionAi').checked ? `<div class="review-item"><span class="review-label">Vision AI</span><span class="review-value">Enabled</span></div>` : ''}
         ${chosenType === 'report' ? `<div class="review-item"><span class="review-label">Report Reason</span><span class="review-value">${esc(document.getElementById('cfgReportReason').selectedOptions[0].text)}</span></div>` : ''}
         <div class="review-item"><span class="review-label">Target Count</span><span class="review-value">${document.getElementById('cfgTargetCount').value}</span></div>
@@ -1332,7 +1314,7 @@ async function submitJob() {
     if (chosenType === 'comment') {
         const listId = document.getElementById('cfgCommentListId').value;
         if (listId) body.comment_list_id = parseInt(listId);
-        body.ai_mode = document.getElementById('cfgAiMode').checked;
+        body.ai_mode = false;
         body.vision_ai = document.getElementById('cfgVisionAi').checked;
     }
 
