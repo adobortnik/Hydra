@@ -1066,6 +1066,76 @@ def api_switch_to_private(serial, username):
         conn.close()
 
 
+@device_manager_bp.route('/api/device-manager/<path:serial>/bulk-switch-private', methods=['POST'])
+def api_bulk_switch_private(serial):
+    """Create switch_private tasks for multiple accounts at once."""
+    import json as _json
+    data = request.get_json(force=True) or {}
+    account_ids = data.get('account_ids', [])
+    if not account_ids:
+        return jsonify({'success': False, 'error': 'No account IDs provided'}), 400
+
+    conn = _get_conn()
+    try:
+        now = datetime.utcnow().isoformat()
+        queued = 0
+        skipped = 0
+        already_private = []
+
+        for aid in account_ids:
+            account = conn.execute(
+                "SELECT id, username, is_private FROM accounts WHERE id=? AND device_serial=?",
+                (aid, serial)
+            ).fetchone()
+
+            if not account:
+                skipped += 1
+                continue
+
+            # Track already-private but still queue the task
+            if account['is_private'] == 1 or account['is_private'] == '1':
+                already_private.append(account['username'])
+
+            # Create task
+            conn.execute("""
+                INSERT INTO tasks (account_id, device_serial, task_type, status, priority, params_json, created_at, updated_at)
+                VALUES (?, ?, 'switch_private', 'pending', 5, '{}', ?, ?)
+            """, (account['id'], serial, now, now))
+
+            # Set auto_switch_private in account settings
+            try:
+                row = conn.execute(
+                    "SELECT settings_json FROM account_settings WHERE account_id=?",
+                    (account['id'],)
+                ).fetchone()
+                if row:
+                    sj = _json.loads(row['settings_json'] or '{}')
+                    sj['auto_switch_private'] = True
+                    conn.execute(
+                        "UPDATE account_settings SET settings_json=? WHERE account_id=?",
+                        (_json.dumps(sj), account['id']))
+                else:
+                    conn.execute(
+                        "INSERT INTO account_settings (account_id, settings_json) VALUES (?, ?)",
+                        (account['id'], _json.dumps({'auto_switch_private': True})))
+            except Exception:
+                pass
+
+            queued += 1
+
+        conn.commit()
+        return jsonify({
+            'success': True,
+            'queued': queued,
+            'skipped': skipped,
+            'already_private': already_private
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 @device_manager_bp.route('/api/insights/<path:serial>/<username>')
 def api_get_insights(serial, username):
     """Get latest insights data for an account."""

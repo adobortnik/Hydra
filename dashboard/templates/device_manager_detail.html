@@ -1873,6 +1873,9 @@
                 <button class="btn btn-sm btn-outline-info" onclick="openBulkCopyModal()" style="border-radius:8px;font-weight:600;font-size:0.82rem;padding:8px 18px;">
                     <i class="fas fa-copy me-1"></i> Copy to...
                 </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="openBulkPrivateModal()" style="border-radius:8px;font-weight:600;font-size:0.82rem;padding:8px 18px;">
+                    🔒 Bulk Private
+                </button>
                 <button class="btn-save" onclick="saveAllSettings()">
                     <i class="fas fa-save me-1"></i> Save Settings
                 </button>
@@ -1923,6 +1926,50 @@
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary btn-sm" id="bcCopyBtn" onclick="bcExecuteCopy()" disabled>
                     <i class="fas fa-copy me-1"></i>Copy Settings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Private Modal -->
+<div class="modal fade bc-modal" id="bulkPrivateModal" tabindex="-1" style="z-index: 1070;">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" style="color:#f8f9fa;font-weight:700;">
+                        🔒 Bulk Switch to Private
+                    </h5>
+                    <small class="text-muted" id="bpDeviceLabel">Device: —</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <!-- Toolbar: search + quick actions -->
+            <div class="bc-toolbar">
+                <input type="text" class="bc-search" id="bpSearch" placeholder="Search username..." oninput="bpFilterAccounts()">
+                <button class="btn btn-sm btn-outline-secondary" onclick="bpSelectAll()" style="font-size:0.75rem;">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="bpDeselectAll()" style="font-size:0.75rem;">Deselect All</button>
+                <button class="btn btn-sm btn-outline-info" onclick="bpSelectNonPrivate()" style="font-size:0.75rem;">
+                    <i class="fas fa-filter me-1"></i>Non-Private Only
+                </button>
+            </div>
+            <!-- Accounts list -->
+            <div class="modal-body">
+                <div class="bc-tree" id="bpTree">
+                    <div style="text-align:center;padding:40px;color:#6c757d;">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="bc-summary me-auto">
+                    <span style="color:#9ca3af;font-size:0.85rem;">Selected:</span>
+                    <span class="bc-count-badge" id="bpSelectedCount">0</span>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning btn-sm" id="bpExecuteBtn" onclick="bulkSwitchPrivate()" disabled>
+                    🔒 Switch to Private
                 </button>
             </div>
         </div>
@@ -3285,6 +3332,142 @@ function bcExecuteCopy() {
     .finally(() => {
         copyBtn.innerHTML = origHtml;
         copyBtn.disabled = false;
+    });
+}
+
+// ── Bulk Switch to Private ──────────────────────────────────────────
+let bpModal = null;
+
+function openBulkPrivateModal() {
+    if (!accountsData.length) {
+        showSpToast('No accounts loaded', 'error');
+        return;
+    }
+
+    document.getElementById('bpDeviceLabel').textContent =
+        `Device: ${DEVICE_SERIAL} — ${accountsData.length} accounts`;
+
+    if (!bpModal) {
+        bpModal = new bootstrap.Modal(document.getElementById('bulkPrivateModal'));
+    }
+    bpModal.show();
+    bpRenderTree();
+}
+
+function bpRenderTree() {
+    const treeEl = document.getElementById('bpTree');
+    if (!accountsData.length) {
+        treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#6c757d;">No accounts found</div>';
+        return;
+    }
+
+    let html = '';
+    for (const a of accountsData) {
+        const isPrivate = a.is_private === 1 || a.is_private === '1';
+        const pkg = a.instagram_package ? a.instagram_package.replace('com.instagram.', '') : '';
+        const statusClass = a.status || 'unknown';
+
+        html += `<div class="bc-acct-row bp-acct-row" data-id="${a.id}" data-username="${(a.username || '').toLowerCase()}" data-private="${isPrivate ? '1' : '0'}">`;
+        html += `<input type="checkbox" class="form-check-input bp-acct-cb" data-id="${a.id}" data-username="${a.username}" onchange="bpUpdateCount()" style="margin:0;width:15px;height:15px;">`;
+        html += `<span class="bc-acct-status ${statusClass}"></span>`;
+        html += `<label style="flex:1;${isPrivate ? 'opacity:0.5;' : ''}">${escHtml(a.username)}</label>`;
+        if (pkg) html += `<span style="font-size:0.65rem;color:#6c757d;margin-right:6px;">${escHtml(pkg)}</span>`;
+        if (isPrivate) {
+            html += `<span style="font-size:0.62rem;padding:1px 8px;border-radius:8px;background:rgba(40,167,69,0.15);color:#28a745;font-weight:600;">PRIVATE</span>`;
+        } else {
+            html += `<span style="font-size:0.62rem;padding:1px 8px;border-radius:8px;background:rgba(255,193,7,0.15);color:#ffc107;font-weight:600;">PUBLIC</span>`;
+        }
+        html += `</div>`;
+    }
+
+    treeEl.innerHTML = html;
+    bpUpdateCount();
+}
+
+function bpFilterAccounts() {
+    const searchVal = (document.getElementById('bpSearch').value || '').trim().toLowerCase();
+    document.querySelectorAll('.bp-acct-row').forEach(row => {
+        const username = row.dataset.username || '';
+        const visible = !searchVal || username.includes(searchVal);
+        row.classList.toggle('bc-hidden', !visible);
+    });
+    bpUpdateCount();
+}
+
+function bpSelectAll() {
+    document.querySelectorAll('.bp-acct-cb').forEach(cb => {
+        const row = cb.closest('.bp-acct-row');
+        if (row && !row.classList.contains('bc-hidden')) cb.checked = true;
+    });
+    bpUpdateCount();
+}
+
+function bpDeselectAll() {
+    document.querySelectorAll('.bp-acct-cb').forEach(cb => cb.checked = false);
+    bpUpdateCount();
+}
+
+function bpSelectNonPrivate() {
+    bpDeselectAll();
+    document.querySelectorAll('.bp-acct-row').forEach(row => {
+        if (row.classList.contains('bc-hidden')) return;
+        if (row.dataset.private === '0') {
+            const cb = row.querySelector('.bp-acct-cb');
+            if (cb) cb.checked = true;
+        }
+    });
+    bpUpdateCount();
+}
+
+function bpUpdateCount() {
+    const checked = document.querySelectorAll('.bp-acct-cb:checked').length;
+    document.getElementById('bpSelectedCount').textContent = checked;
+    document.getElementById('bpExecuteBtn').disabled = checked === 0;
+}
+
+function bulkSwitchPrivate() {
+    const ids = [];
+    document.querySelectorAll('.bp-acct-cb:checked').forEach(cb => {
+        ids.push(parseInt(cb.dataset.id));
+    });
+
+    if (!ids.length) {
+        showSpToast('No accounts selected', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('bpExecuteBtn');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Switching...';
+
+    fetch(`/api/device-manager/${encodeURIComponent(DEVICE_SERIAL)}/bulk-switch-private`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_ids: ids })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            let msg = `✅ Queued ${data.queued} account(s) for private switch`;
+            if (data.already_private && data.already_private.length) {
+                msg += ` (${data.already_private.length} already private)`;
+            }
+            if (data.skipped) {
+                msg += ` (${data.skipped} skipped)`;
+            }
+            showSpToast(msg, 'success');
+            bpModal.hide();
+        } else {
+            showSpToast(data.error || 'Bulk switch failed', 'error');
+        }
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err.message, 'error');
+    })
+    .finally(() => {
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
     });
 }
 </script>
