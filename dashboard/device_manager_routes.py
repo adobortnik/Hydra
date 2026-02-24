@@ -275,17 +275,25 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
         yesterday = _yesterday()
 
     # Get base account info + followers/following from follower_snapshots (latest per account)
+    # snap_latest = most recent snapshot ever (fallback when no today snapshot)
+    # snap_today = today's latest snapshot (for delta calculation)
+    # snap_yesterday = yesterday's latest snapshot (for delta calculation)
     rows = conn.execute("""
         SELECT a.id, a.device_serial, a.username, a.status,
                a.start_time, a.end_time, a.instagram_package,
                a.follow_enabled, a.unfollow_enabled, a.like_enabled,
                a.comment_enabled, a.story_enabled,
                a.is_business_profile, a.business_category,
-               COALESCE(snap_today.followers, a.followers, 0) as followers,
-               COALESCE(snap_today.following, a.following, 0) as following,
-               snap_yesterday.followers as prev_followers,
-               snap_yesterday.following as prev_following
+               COALESCE(snap_today.followers, snap_latest.followers, a.followers, 0) as followers,
+               COALESCE(snap_today.following, snap_latest.following, a.following, 0) as following,
+               COALESCE(snap_yesterday.followers, snap_latest.followers) as prev_followers,
+               COALESCE(snap_yesterday.following, snap_latest.following) as prev_following
         FROM accounts a
+        LEFT JOIN (
+            SELECT account_id, followers, following,
+                   ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY captured_at DESC) as rn
+            FROM follower_snapshots
+        ) snap_latest ON snap_latest.account_id = a.id AND snap_latest.rn = 1
         LEFT JOIN (
             SELECT account_id, followers, following,
                    ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY captured_at DESC) as rn
