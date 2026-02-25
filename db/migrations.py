@@ -325,6 +325,10 @@ MIGRATIONS = [
     {'name': 'add_tag_to_accounts',
      'sql': "ALTER TABLE accounts ADD COLUMN tag TEXT",
      'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%tag %'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN is_private INTEGER DEFAULT 0",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%is_private%'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN private_switched_at TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%private_switched_at%'"},
 ]
 
 

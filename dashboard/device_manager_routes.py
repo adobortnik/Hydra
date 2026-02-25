@@ -92,6 +92,19 @@ except Exception as _e:
     except Exception:
         pass
 
+# Ensure is_private and private_switched_at columns exist on accounts
+try:
+    _conn2 = sqlite3.connect(DB_PATH)
+    _existing = [r[1] for r in _conn2.execute("PRAGMA table_info(accounts)").fetchall()]
+    if 'is_private' not in _existing:
+        _conn2.execute("ALTER TABLE accounts ADD COLUMN is_private INTEGER DEFAULT 0")
+    if 'private_switched_at' not in _existing:
+        _conn2.execute("ALTER TABLE accounts ADD COLUMN private_switched_at TEXT")
+    _conn2.commit()
+    _conn2.close()
+except Exception:
+    pass
+
 
 def _row_to_dict(row):
     return dict(row) if row else None
@@ -1066,9 +1079,124 @@ def api_switch_to_private(serial, username):
         conn.close()
 
 
+@device_manager_bp.route('/api/device-manager/all-accounts-private-tree', methods=['GET'])
+def api_all_accounts_private_tree():
+    """Hierarchical list of all devices -> accounts with is_private and id fields for bulk private modal."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT a.id, a.device_serial, a.username, a.status, a.is_private,
+                   COALESCE(d.device_name, a.device_serial) as device_name
+            FROM accounts a
+            LEFT JOIN devices d ON a.device_serial = d.device_serial
+            ORDER BY a.device_serial, a.username
+        """).fetchall()
+
+        devices = {}
+        for r in rows:
+            ds = r['device_serial']
+            if ds not in devices:
+                devices[ds] = {'device_name': r['device_name'], 'accounts': []}
+            devices[ds]['accounts'].append({
+                'id': r['id'],
+                'username': r['username'],
+                'status': r['status'] or 'unknown',
+                'is_private': bool(r['is_private']),
+            })
+
+        devices_tree = [
+            {
+                'device_serial': ds,
+                'device_name': info['device_name'],
+                'accounts': info['accounts'],
+            }
+            for ds, info in devices.items()
+        ]
+
+        return jsonify({
+            'success': True,
+            'devices': devices_tree,
+            'total_devices': len(devices_tree),
+            'total_accounts': sum(len(d['accounts']) for d in devices_tree),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@device_manager_bp.route('/api/device-manager/bulk-switch-private', methods=['POST'])
+def api_global_bulk_switch_private():
+    """Create switch_private tasks for multiple accounts across ANY device."""
+    import json as _json
+    data = request.get_json(force=True) or {}
+    account_ids = data.get('account_ids', [])
+    if not account_ids:
+        return jsonify({'success': False, 'error': 'No account IDs provided'}), 400
+
+    conn = _get_conn()
+    try:
+        now = datetime.utcnow().isoformat()
+        queued = 0
+        skipped = 0
+        already_private = []
+
+        for aid in account_ids:
+            account = conn.execute(
+                "SELECT id, username, device_serial, is_private FROM accounts WHERE id=?",
+                (aid,)
+            ).fetchone()
+
+            if not account:
+                skipped += 1
+                continue
+
+            if account['is_private'] == 1 or account['is_private'] == '1':
+                already_private.append(account['username'])
+
+            # Create task with the account's own device_serial
+            conn.execute("""
+                INSERT INTO tasks (account_id, device_serial, task_type, status, priority, params_json, created_at, updated_at)
+                VALUES (?, ?, 'switch_private', 'pending', 5, '{}', ?, ?)
+            """, (account['id'], account['device_serial'], now, now))
+
+            # Set auto_switch_private in account settings
+            try:
+                row = conn.execute(
+                    "SELECT settings_json FROM account_settings WHERE account_id=?",
+                    (account['id'],)
+                ).fetchone()
+                if row:
+                    sj = _json.loads(row['settings_json'] or '{}')
+                    sj['auto_switch_private'] = True
+                    conn.execute(
+                        "UPDATE account_settings SET settings_json=? WHERE account_id=?",
+                        (_json.dumps(sj), account['id']))
+                else:
+                    conn.execute(
+                        "INSERT INTO account_settings (account_id, settings_json) VALUES (?, ?)",
+                        (account['id'], _json.dumps({'auto_switch_private': True})))
+            except Exception:
+                pass
+
+            queued += 1
+
+        conn.commit()
+        return jsonify({
+            'success': True,
+            'queued': queued,
+            'skipped': skipped,
+            'already_private': already_private
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 @device_manager_bp.route('/api/device-manager/<path:serial>/bulk-switch-private', methods=['POST'])
 def api_bulk_switch_private(serial):
-    """Create switch_private tasks for multiple accounts at once."""
+    """Create switch_private tasks for multiple accounts at once. (Legacy per-device endpoint)"""
     import json as _json
     data = request.get_json(force=True) or {}
     account_ids = data.get('account_ids', [])
