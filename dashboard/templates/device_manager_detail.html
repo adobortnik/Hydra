@@ -878,6 +878,9 @@
                         <button class="btn btn-sm btn-outline-secondary" id="btn-switch-private" onclick="switchToPrivate()">
                             🔒 Switch to Private
                         </button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="openBulkPrivateModal()" title="Bulk Switch to Private" style="padding:4px 10px;font-size:0.75rem;">
+                            🔒📋 Bulk
+                        </button>
                         <small class="text-muted" id="switchBusinessStatus"></small>
                         <small class="text-muted" id="switchPrivateStatus"></small>
                     </div>
@@ -1872,9 +1875,6 @@
                 <span class="save-status" id="spSaveStatus"></span>
                 <button class="btn btn-sm btn-outline-info" onclick="openBulkCopyModal()" style="border-radius:8px;font-weight:600;font-size:0.82rem;padding:8px 18px;">
                     <i class="fas fa-copy me-1"></i> Copy to...
-                </button>
-                <button class="btn btn-sm btn-outline-warning" onclick="openBulkPrivateModal()" style="border-radius:8px;font-weight:600;font-size:0.82rem;padding:8px 18px;">
-                    🔒 Bulk Private
                 </button>
                 <button class="btn-save" onclick="saveAllSettings()">
                     <i class="fas fa-save me-1"></i> Save Settings
@@ -3337,50 +3337,101 @@ function bcExecuteCopy() {
 
 // ── Bulk Switch to Private ──────────────────────────────────────────
 let bpModal = null;
+let bpTreeData = [];  // raw devices array from API
 
 function openBulkPrivateModal() {
-    if (!accountsData.length) {
-        showSpToast('No accounts loaded', 'error');
-        return;
-    }
-
-    document.getElementById('bpDeviceLabel').textContent =
-        `Device: ${DEVICE_SERIAL} — ${accountsData.length} accounts`;
-
     if (!bpModal) {
         bpModal = new bootstrap.Modal(document.getElementById('bulkPrivateModal'));
     }
     bpModal.show();
-    bpRenderTree();
+    bpLoadTree();
+}
+
+function bpLoadTree() {
+    const treeEl = document.getElementById('bpTree');
+    treeEl.innerHTML = '<div style="text-align:center;padding:40px;color:#6c757d;"><i class="fas fa-spinner fa-spin me-2"></i>Loading all accounts...</div>';
+    document.getElementById('bpDeviceLabel').textContent = 'Loading...';
+
+    fetch('/api/device-manager/all-accounts-private-tree')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc3545;">Failed to load</div>';
+                return;
+            }
+            bpTreeData = data.devices || [];
+            const totalAccounts = bpTreeData.reduce((s, d) => s + (d.accounts || []).length, 0);
+            document.getElementById('bpDeviceLabel').textContent =
+                `${bpTreeData.length} devices — ${totalAccounts} accounts`;
+            bpRenderTree();
+        })
+        .catch(err => {
+            treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc3545;">Error: ' + err + '</div>';
+        });
 }
 
 function bpRenderTree() {
     const treeEl = document.getElementById('bpTree');
-    if (!accountsData.length) {
+    if (!bpTreeData.length) {
         treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#6c757d;">No accounts found</div>';
         return;
     }
 
     let html = '';
-    for (const a of accountsData) {
-        const isPrivate = a.is_private === 1 || a.is_private === '1';
-        const pkg = a.instagram_package ? a.instagram_package.replace('com.instagram.', '') : '';
-        const statusClass = a.status || 'unknown';
+    for (const dev of bpTreeData) {
+        const devId = dev.device_serial.replace(/[.:]/g, '_');
+        const devName = dev.device_name || dev.device_serial;
+        const acctCount = (dev.accounts || []).length;
 
-        html += `<div class="bc-acct-row bp-acct-row" data-id="${a.id}" data-username="${(a.username || '').toLowerCase()}" data-private="${isPrivate ? '1' : '0'}">`;
-        html += `<input type="checkbox" class="form-check-input bp-acct-cb" data-id="${a.id}" data-username="${a.username}" onchange="bpUpdateCount()" style="margin:0;width:15px;height:15px;">`;
-        html += `<span class="bc-acct-status ${statusClass}"></span>`;
-        html += `<label style="flex:1;${isPrivate ? 'opacity:0.5;' : ''}">${escHtml(a.username)}</label>`;
-        if (pkg) html += `<span style="font-size:0.65rem;color:#6c757d;margin-right:6px;">${escHtml(pkg)}</span>`;
-        if (isPrivate) {
-            html += `<span style="font-size:0.62rem;padding:1px 8px;border-radius:8px;background:rgba(40,167,69,0.15);color:#28a745;font-weight:600;">PRIVATE</span>`;
-        } else {
-            html += `<span style="font-size:0.62rem;padding:1px 8px;border-radius:8px;background:rgba(255,193,7,0.15);color:#ffc107;font-weight:600;">PUBLIC</span>`;
-        }
+        html += `<div class="bc-device bp-device" data-dev="${dev.device_serial}" id="bpDev_${devId}">`;
+        html += `<div class="bc-device-header" onclick="bpToggleDevice('${devId}')">`;
+        html += `<i class="fas fa-chevron-right bc-chevron" id="bpChev_${devId}"></i>`;
+        html += `<input type="checkbox" class="form-check-input bp-dev-cb" data-dev="${dev.device_serial}" onclick="event.stopPropagation(); bpToggleDeviceCheck('${dev.device_serial}', this.checked)" style="margin:0;">`;
+        html += `<label onclick="event.stopPropagation(); bpToggleDevice('${devId}')">${escHtml(devName)}</label>`;
+        html += `<span class="bc-dev-count">${acctCount}</span>`;
         html += `</div>`;
+        html += `<div class="bc-device-body" id="bpBody_${devId}" style="display:none;">`;
+
+        for (const acct of (dev.accounts || [])) {
+            const isPrivate = acct.is_private ? '1' : '0';
+            const statusClass = acct.status || 'unknown';
+
+            html += `<div class="bc-acct-row bp-acct-row" data-id="${acct.id}" data-username="${(acct.username || '').toLowerCase()}" data-private="${isPrivate}" data-dev="${dev.device_serial}">`;
+            html += `<input type="checkbox" class="form-check-input bp-acct-cb" data-id="${acct.id}" data-username="${acct.username}" data-dev="${dev.device_serial}" onchange="bpUpdateCount()" style="margin:0;width:15px;height:15px;">`;
+            html += `<span class="bc-acct-status ${statusClass}"></span>`;
+            html += `<label style="flex:1;${isPrivate === '1' ? 'opacity:0.5;' : ''}">${escHtml(acct.username)}</label>`;
+            if (isPrivate === '1') {
+                html += `<span style="font-size:0.62rem;padding:1px 8px;border-radius:8px;background:rgba(40,167,69,0.15);color:#28a745;font-weight:600;">PRIVATE</span>`;
+            } else {
+                html += `<span style="font-size:0.62rem;padding:1px 8px;border-radius:8px;background:rgba(255,193,7,0.15);color:#ffc107;font-weight:600;">PUBLIC</span>`;
+            }
+            html += `</div>`;
+        }
+
+        html += `</div></div>`;
     }
 
     treeEl.innerHTML = html;
+    bpUpdateCount();
+}
+
+function bpToggleDevice(devId) {
+    const body = document.getElementById('bpBody_' + devId);
+    const chev = document.getElementById('bpChev_' + devId);
+    if (body.style.display === 'none') {
+        body.style.display = '';
+        chev.classList.replace('fa-chevron-right', 'fa-chevron-down');
+    } else {
+        body.style.display = 'none';
+        chev.classList.replace('fa-chevron-down', 'fa-chevron-right');
+    }
+}
+
+function bpToggleDeviceCheck(devSerial, checked) {
+    document.querySelectorAll(`.bp-acct-cb[data-dev="${devSerial}"]`).forEach(cb => {
+        const row = cb.closest('.bp-acct-row');
+        if (row && !row.classList.contains('bc-hidden')) cb.checked = checked;
+    });
     bpUpdateCount();
 }
 
@@ -3441,7 +3492,7 @@ function bulkSwitchPrivate() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Switching...';
 
-    fetch(`/api/device-manager/${encodeURIComponent(DEVICE_SERIAL)}/bulk-switch-private`, {
+    fetch('/api/device-manager/bulk-switch-private', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account_ids: ids })
