@@ -886,6 +886,29 @@
                     </div>
                 </div>
 
+                <!-- ─── Profile Link ─── -->
+                <div class="sp-section" id="profileLinkSection">
+                    <h6><i class="fas fa-link me-1"></i> 🔗 Profile Link</h6>
+                    <div class="row g-2 align-items-end">
+                        <div class="col">
+                            <label class="form-label">External URL</label>
+                            <input type="url" class="form-control" id="sp_profile_link"
+                                placeholder="https://example.com">
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-outline-info" onclick="setProfileLink()" id="btn-set-link">
+                                <i class="fas fa-paper-plane me-1"></i>Set on Device
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
+                        <button class="btn btn-sm btn-outline-warning" onclick="openBulkLinkModal()" title="Set link on multiple accounts">
+                            🔗📋 Bulk Set Link
+                        </button>
+                        <small class="text-muted" id="setLinkStatus"></small>
+                    </div>
+                </div>
+
                 <div class="sp-section">
                     <h6><i class="fas fa-clock me-1"></i> Active Hours</h6>
                     <div class="sp-range-row">
@@ -1970,6 +1993,48 @@
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-warning btn-sm" id="bpExecuteBtn" onclick="bulkSwitchPrivate()" disabled>
                     🔒 Switch to Private
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Link Modal -->
+<div class="modal fade bc-modal" id="bulkLinkModal" tabindex="-1" style="z-index: 1070;">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" style="color:#f8f9fa;font-weight:700;">
+                        🔗 Bulk Set Profile Link
+                    </h5>
+                    <small class="text-muted" id="blDeviceLabel">Device: —</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="bc-toolbar">
+                <input type="url" class="form-control form-control-sm" id="blLinkUrl" placeholder="https://example.com" style="flex:1;background:#1a1d23;color:#e0e0e8;border-color:#2d3238;">
+            </div>
+            <div class="bc-toolbar">
+                <input type="text" class="bc-search" id="blSearch" placeholder="Search username..." oninput="blFilterAccounts()">
+                <button class="btn btn-sm btn-outline-secondary" onclick="blSelectAll()" style="font-size:0.75rem;">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="blDeselectAll()" style="font-size:0.75rem;">Deselect All</button>
+            </div>
+            <div class="modal-body">
+                <div class="bc-tree" id="blTree">
+                    <div style="text-align:center;padding:40px;color:#6c757d;">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="bc-summary me-auto">
+                    <span style="color:#9ca3af;font-size:0.85rem;">Selected:</span>
+                    <span class="bc-count-badge" id="blSelectedCount">0</span>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info btn-sm" id="blExecuteBtn" onclick="bulkSetLink()" disabled>
+                    🔗 Set Link on Selected
                 </button>
             </div>
         </div>
@@ -3519,6 +3584,181 @@ function bulkSwitchPrivate() {
     .finally(() => {
         btn.innerHTML = origHtml;
         btn.disabled = false;
+    });
+}
+
+// ── Set Profile Link (single) ──────────────────────────────────────
+function setProfileLink() {
+    const url = document.getElementById('sp_profile_link').value.trim();
+    if (!url) { showSpToast('Enter a URL first', 'error'); return; }
+
+    const btn = document.getElementById('btn-set-link');
+    const statusEl = document.getElementById('setLinkStatus');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Setting...';
+    statusEl.textContent = 'Running on device...';
+    statusEl.style.color = '#f0a040';
+
+    fetch('/api/device-manager/set-profile-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            device_serial: spCurrentDevice,
+            username: spCurrentAccount,
+            url: url
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast('Profile link set successfully!', 'success');
+            statusEl.textContent = '✅ Link set';
+            statusEl.style.color = '#28a745';
+        } else {
+            showSpToast(data.error || 'Failed to set link', 'error');
+            statusEl.textContent = '❌ ' + (data.error || 'Failed');
+            statusEl.style.color = '#dc3545';
+        }
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err.message, 'error');
+        statusEl.textContent = '❌ Error';
+        statusEl.style.color = '#dc3545';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Set on Device';
+    });
+}
+
+// ── Bulk Link Modal ─────────────────────────────────────────────────
+let blModal = null;
+let blTreeData = [];
+
+function openBulkLinkModal() {
+    if (!blModal) {
+        blModal = new bootstrap.Modal(document.getElementById('bulkLinkModal'));
+    }
+    // Pre-fill URL from the single input if available
+    const singleUrl = document.getElementById('sp_profile_link').value.trim();
+    if (singleUrl) document.getElementById('blLinkUrl').value = singleUrl;
+
+    blModal.show();
+    blLoadTree();
+}
+
+function blLoadTree() {
+    const treeEl = document.getElementById('blTree');
+    treeEl.innerHTML = '<div style="text-align:center;padding:40px;color:#6c757d;"><i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...</div>';
+    document.getElementById('blDeviceLabel').textContent = 'Loading...';
+
+    fetch('/api/device-manager/all-accounts-tree')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc3545;">Failed to load</div>';
+                return;
+            }
+            blTreeData = data.devices || [];
+            const totalAccounts = blTreeData.reduce((s, d) => s + (d.accounts || []).length, 0);
+            document.getElementById('blDeviceLabel').textContent =
+                `${blTreeData.length} devices — ${totalAccounts} accounts`;
+            blRenderTree();
+        })
+        .catch(err => {
+            treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc3545;">Error: ' + err + '</div>';
+        });
+}
+
+function blRenderTree() {
+    const treeEl = document.getElementById('blTree');
+    if (!blTreeData.length) {
+        treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#6c757d;">No accounts found</div>';
+        return;
+    }
+    const search = (document.getElementById('blSearch').value || '').toLowerCase();
+    let html = '';
+    for (const dev of blTreeData) {
+        const accounts = (dev.accounts || []).filter(a =>
+            !search || a.username.toLowerCase().includes(search)
+        );
+        if (!accounts.length && search) continue;
+
+        html += `<div class="bc-device-group">
+            <div class="bc-device-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                <i class="fas fa-mobile-alt me-1"></i>
+                <strong>${dev.device_name || dev.device_serial}</strong>
+                <span class="text-muted ms-2">(${accounts.length})</span>
+            </div>
+            <div class="bc-device-body">`;
+
+        for (const a of accounts) {
+            const checked = '';
+            html += `<label class="bc-account-row">
+                <input type="checkbox" class="bl-acct-cb" data-serial="${a.device_serial}" data-username="${a.username}" data-pkg="${a.instagram_package || ''}" onchange="blUpdateCount()">
+                <span class="bc-acct-name">@${a.username}</span>
+                <span class="bc-acct-status" style="color:${a.status === 'active' ? '#28a745' : '#6c757d'}">${a.status}</span>
+            </label>`;
+        }
+        html += '</div></div>';
+    }
+    treeEl.innerHTML = html;
+    blUpdateCount();
+}
+
+function blFilterAccounts() { blRenderTree(); }
+function blSelectAll() {
+    document.querySelectorAll('.bl-acct-cb').forEach(cb => { if (cb.offsetParent !== null) cb.checked = true; });
+    blUpdateCount();
+}
+function blDeselectAll() {
+    document.querySelectorAll('.bl-acct-cb').forEach(cb => cb.checked = false);
+    blUpdateCount();
+}
+function blUpdateCount() {
+    const count = document.querySelectorAll('.bl-acct-cb:checked').length;
+    document.getElementById('blSelectedCount').textContent = count;
+    document.getElementById('blExecuteBtn').disabled = count === 0;
+}
+
+function bulkSetLink() {
+    const url = document.getElementById('blLinkUrl').value.trim();
+    if (!url) { showSpToast('Enter a URL first', 'error'); return; }
+
+    const targets = [];
+    document.querySelectorAll('.bl-acct-cb:checked').forEach(cb => {
+        targets.push({
+            device_serial: cb.dataset.serial,
+            username: cb.dataset.username,
+            instagram_package: cb.dataset.pkg
+        });
+    });
+    if (!targets.length) return;
+
+    const btn = document.getElementById('blExecuteBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Setting links...';
+
+    fetch('/api/device-manager/bulk-set-profile-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, targets })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(`Link set queued for ${data.tasks_created || targets.length} accounts`, 'success');
+            blModal.hide();
+        } else {
+            showSpToast(data.error || 'Bulk set link failed', 'error');
+        }
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err.message, 'error');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '🔗 Set Link on Selected';
     });
 }
 </script>

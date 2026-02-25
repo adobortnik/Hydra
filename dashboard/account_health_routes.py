@@ -242,7 +242,7 @@ def api_health_resolve_all():
 # =====================================================================
 
 # Statuses considered "broken" and eligible for auto-fix
-BROKEN_STATUSES = ('banned', 'suspended', 'challenge', 'login_failed', 'verification_required')
+BROKEN_STATUSES = ('banned', 'suspended', 'challenge', 'login_failed', 'verification_required', 'logged_out')
 
 
 @account_health_bp.route('/api/account-health/replaceable')
@@ -310,6 +310,62 @@ def api_inventory_available_count():
             "SELECT COUNT(*) as cnt FROM account_inventory WHERE status = 'available'"
         ).fetchone()
         return jsonify({'available': row['cnt']})
+    finally:
+        conn.close()
+
+
+@account_health_bp.route('/api/account-health/auto-fix-preview/<int:account_id>')
+def api_auto_fix_preview(account_id):
+    """
+    GET /api/account-health/auto-fix-preview/<account_id>
+    Preview what auto-fix would do — shows old account details + next inventory account.
+    """
+    conn = get_conn()
+    try:
+        old_account = conn.execute(
+            "SELECT a.*, d.device_name FROM accounts a LEFT JOIN devices d ON d.id = a.device_id WHERE a.id = ?",
+            (account_id,)
+        ).fetchone()
+        if not old_account:
+            return jsonify({'error': 'Account not found'}), 404
+        old_account = dict(old_account)
+
+        if old_account['status'] not in BROKEN_STATUSES:
+            return jsonify({
+                'error': 'Account status is "%s" - not eligible for auto-fix' % old_account['status']
+            }), 400
+
+        # Load settings for app_cloner
+        old_settings_row = conn.execute(
+            "SELECT settings_json FROM account_settings WHERE account_id = ?",
+            (old_account['id'],)
+        ).fetchone()
+        old_settings_json = json.loads(old_settings_row['settings_json']) if old_settings_row else {}
+
+        # Pick next available inventory account (same logic as auto-fix)
+        inv = conn.execute(
+            "SELECT * FROM account_inventory WHERE status = 'available' ORDER BY id ASC LIMIT 1"
+        ).fetchone()
+
+        available_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM account_inventory WHERE status = 'available'"
+        ).fetchone()['cnt']
+
+        return jsonify({
+            'old_account': {
+                'id': old_account['id'],
+                'username': old_account['username'],
+                'status': old_account['status'],
+                'device_serial': old_account['device_serial'],
+                'device_name': old_account.get('device_name'),
+                'instagram_package': old_account['instagram_package'],
+                'start_time': old_account.get('start_time', '0'),
+                'end_time': old_account.get('end_time', '0'),
+                'app_cloner': old_settings_json.get('app_cloner', 'None'),
+            },
+            'new_account': row_to_dict(inv) if inv else None,
+            'available_inventory_count': available_count,
+        })
     finally:
         conn.close()
 
@@ -466,9 +522,9 @@ def api_auto_fix():
             inv.get('two_factor_auth'), now, now
         ))
 
-        # i) Mark old account as replaced
+        # i) Mark old account as replaced — disable time window so it won't show as active
         conn.execute(
-            "UPDATE accounts SET status = 'replaced', updated_at = ? WHERE id = ?",
+            "UPDATE accounts SET status = 'replaced', start_time = '0', end_time = '0', updated_at = ? WHERE id = ?",
             (now, old_account['id'])
         )
 
@@ -1239,6 +1295,57 @@ def api_inventory_burn(inventory_id):
         )
         conn.commit()
         return jsonify({'success': True})
+    finally:
+        conn.close()
+
+
+@account_health_bp.route('/api/inventory/v2/bulk-delete', methods=['POST'])
+def api_inventory_bulk_delete():
+    """
+    POST /api/inventory/v2/bulk-delete
+    Delete multiple inventory accounts by id list.
+    Body: { "ids": [1, 2, 3] }
+    """
+    data = request.get_json() or {}
+    ids = data.get('ids', [])
+    if not ids:
+        return jsonify({'error': 'No ids provided'}), 400
+
+    conn = get_conn()
+    try:
+        placeholders = ','.join('?' for _ in ids)
+        result = conn.execute(
+            f"DELETE FROM account_inventory WHERE id IN ({placeholders})",
+            ids
+        )
+        conn.commit()
+        return jsonify({'success': True, 'deleted': result.rowcount})
+    finally:
+        conn.close()
+
+
+@account_health_bp.route('/api/inventory/v2/bulk-burn', methods=['POST'])
+def api_inventory_bulk_burn():
+    """
+    POST /api/inventory/v2/bulk-burn
+    Mark multiple inventory accounts as burned.
+    Body: { "ids": [1, 2, 3] }
+    """
+    data = request.get_json() or {}
+    ids = data.get('ids', [])
+    if not ids:
+        return jsonify({'error': 'No ids provided'}), 400
+
+    conn = get_conn()
+    try:
+        now = datetime.utcnow().isoformat()
+        placeholders = ','.join('?' for _ in ids)
+        result = conn.execute(
+            f"UPDATE account_inventory SET status = 'burned', date_used = ? WHERE id IN ({placeholders})",
+            [now] + ids
+        )
+        conn.commit()
+        return jsonify({'success': True, 'burned': result.rowcount})
     finally:
         conn.close()
 

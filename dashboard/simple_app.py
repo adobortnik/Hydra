@@ -3496,6 +3496,46 @@ def api_bulk_update_inventory_accounts():
         print(f"Error in bulk update: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/inventory/accounts/bulk-delete', methods=['POST'])
+def api_bulk_delete_inventory_accounts():
+    try:
+        data = request.json
+        print(f"Received bulk delete request with data: {data}")
+        
+        if not data or 'account_ids' not in data:
+            return jsonify({'error': 'Account IDs are required'}), 400
+        
+        account_ids = data['account_ids']
+        
+        if not account_ids or not isinstance(account_ids, list):
+            return jsonify({'error': 'Account IDs must be a non-empty list'}), 400
+        
+        db_path = init_account_inventory_db()
+        conn = get_db_connection(db_path)
+        cursor = conn.cursor()
+        
+        deleted_count = 0
+        for account_id in account_ids:
+            cursor.execute('SELECT id FROM account_inventory WHERE id = ?', (account_id,))
+            if cursor.fetchone():
+                cursor.execute('DELETE FROM account_inventory WHERE id = ?', (account_id,))
+                deleted_count += 1
+                print(f"Deleted account {account_id}")
+        
+        conn.commit()
+        conn.close()
+        
+        result = {
+            'success': True,
+            'message': f'Deleted {deleted_count} accounts',
+            'deleted': deleted_count
+        }
+        print(f"Bulk delete result: {result}")
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error in bulk delete: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/inventory/stats')
 def api_inventory_stats():
     try:

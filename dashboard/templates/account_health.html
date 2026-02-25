@@ -269,7 +269,7 @@
 <!-- Toast Container -->
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- Auto-Fix Confirmation Modal -->
+<!-- Auto-Fix Confirmation Modal (unified — uses health event replace flow) -->
 <div class="modal fade" id="autofixModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content bg-dark text-white">
@@ -284,27 +284,6 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-warning" id="confirmAutofixBtn" onclick="confirmAutoFix()" disabled>
                     <i class="fas fa-wrench me-1"></i>Replace Account
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Replace Confirmation Modal -->
-<div class="modal fade" id="replaceModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content bg-dark text-white">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title"><i class="fas fa-exchange-alt me-2 text-warning"></i>Replace Account</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="replaceModalBody">
-                <div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning" id="confirmReplaceBtn" onclick="confirmReplace()" disabled>
-                    <i class="fas fa-exchange-alt me-1"></i>Replace Account
                 </button>
             </div>
         </div>
@@ -429,14 +408,6 @@ function renderEvents(events) {
 
     emptyState.classList.add('d-none');
     tbody.innerHTML = events.map(e => {
-        // Check if this event's account is auto-fixable
-        const isFixable = isAutoFixable(e.event_type);
-        const fixBtn = isFixable && e.account_id
-            ? `<button class="btn-autofix me-1" onclick="showAutoFixModal(${e.account_id}, '${escHtml(e.username || '')}', '${escHtml(e.event_type)}', '${escHtml(e.device_name || e.device_serial || '')}')" title="Auto-Fix: Replace from inventory">
-                <i class="fas fa-wrench me-1"></i>Auto-Fix
-               </button>`
-            : '';
-
         return `<tr>
             <td>
                 <strong class="text-white">@${escHtml(e.username || '?')}</strong>
@@ -452,9 +423,8 @@ function renderEvents(events) {
             </td>
             <td class="text-muted">${timeAgo(e.detected_at)}</td>
             <td>
-                ${fixBtn}
-                <button class="btn btn-sm btn-outline-warning me-1" onclick="showReplaceModal(${e.id})" title="Replace Account (via health event)">
-                    <i class="fas fa-exchange-alt"></i>
+                <button class="btn-autofix me-1" onclick="showAutoFixModal(${e.id})" title="Auto-Fix: Replace from inventory">
+                    <i class="fas fa-wrench me-1"></i>Auto-Fix
                 </button>
                 <button class="btn btn-sm btn-outline-success me-1" onclick="resolveEvent(${e.id})" title="Resolve">
                     <i class="fas fa-check"></i>
@@ -467,9 +437,7 @@ function renderEvents(events) {
     }).join('');
 }
 
-function isAutoFixable(eventType) {
-    return ['banned', 'suspended', 'challenge', 'login_failed', 'verification_required'].indexOf(eventType) !== -1;
-}
+/* isAutoFixable removed — all events now get the Auto-Fix button */
 
 function resolveEvent(eventId) {
     if (!confirm('Mark this event as resolved?')) return;
@@ -566,17 +534,17 @@ function timeAgo(dateStr) {
     return Math.floor(diff / 86400) + 'd ago';
 }
 
-// ── Replace Account Flow ──
-let pendingReplaceEventId = null;
+// ── Unified Auto-Fix Flow (uses health event replace API) ──
+let pendingAutoFixEventId = null;
 
-function showReplaceModal(eventId) {
-    pendingReplaceEventId = eventId;
-    const body = document.getElementById('replaceModalBody');
-    const confirmBtn = document.getElementById('confirmReplaceBtn');
+function showAutoFixModal(eventId) {
+    pendingAutoFixEventId = eventId;
+    const body = document.getElementById('autofixModalBody');
+    const confirmBtn = document.getElementById('confirmAutofixBtn');
     confirmBtn.disabled = true;
-    body.innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading replacement preview...</div>';
 
-    new bootstrap.Modal(document.getElementById('replaceModal')).show();
+    body.innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    new bootstrap.Modal(document.getElementById('autofixModal')).show();
 
     fetch('/api/account-health/replace-preview/' + eventId)
         .then(r => r.json())
@@ -595,8 +563,7 @@ function showReplaceModal(eventId) {
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         No available accounts in inventory (${data.available_inventory_count} available).
                         <br>Import more accounts in the <a href="/inventory" class="text-warning">Inventory page</a>.
-                    </div>
-                `;
+                    </div>`;
                 return;
             }
 
@@ -630,10 +597,11 @@ function showReplaceModal(eventId) {
                     <i class="fas fa-info-circle me-1"></i>
                     <strong>What will happen:</strong>
                     <ul class="mb-0 mt-1" style="padding-left:1.2rem;">
-                        <li>App data for <code>${escHtml(old.instagram_package)}</code> will be cleared</li>
+                        <li>App data for <code>${escHtml(old.instagram_package)}</code> will be cleared via ADB</li>
                         <li>New account inherits device, package &amp; schedule</li>
                         <li>Warmup mode: <strong>Reels only for 7 days</strong></li>
-                        <li>Login task queued for next bot cycle</li>
+                        <li>Login task queued automatically</li>
+                        <li>Old account marked as <code>replaced</code></li>
                     </ul>
                 </div>
 
@@ -643,148 +611,30 @@ function showReplaceModal(eventId) {
             `;
         })
         .catch(err => {
-            body.innerHTML = '<div class="alert alert-danger">Failed to load preview: ' + escHtml(err.message) + '</div>';
+            body.innerHTML = '<div class="alert alert-danger">Failed to load: ' + escHtml(err.message) + '</div>';
         });
 }
 
-function confirmReplace() {
-    if (!pendingReplaceEventId) return;
+function confirmAutoFix() {
+    if (!pendingAutoFixEventId) return;
 
-    const confirmBtn = document.getElementById('confirmReplaceBtn');
+    const confirmBtn = document.getElementById('confirmAutofixBtn');
     confirmBtn.disabled = true;
     confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Replacing...';
 
     fetch('/api/account-health/replace', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ health_event_id: pendingReplaceEventId }),
-    })
-    .then(r => r.json())
-    .then(data => {
-        bootstrap.Modal.getInstance(document.getElementById('replaceModal')).hide();
-
-        if (data.success) {
-            let msg = `Replaced @${data.old_account} → @${data.new_account}. Login queued for next bot cycle.`;
-            if (!data.adb_clear_ok) {
-                msg += ' (⚠️ ADB clear failed — may need manual clear)';
-            }
-            showToast(msg, 'success');
-        } else {
-            showToast(data.error || 'Replace failed', 'error');
-        }
-
-        loadData();
-    })
-    .catch(err => {
-        bootstrap.Modal.getInstance(document.getElementById('replaceModal')).hide();
-        showToast('Replace error: ' + err.message, 'error');
-    })
-    .finally(() => {
-        confirmBtn.disabled = false;
-        confirmBtn.innerHTML = '<i class="fas fa-exchange-alt me-1"></i>Replace Account';
-        pendingReplaceEventId = null;
-    });
-}
-
-function showToast(message, type) {
-    const container = document.getElementById('toastContainer');
-    const toast = document.createElement('div');
-    toast.className = 'toast-msg' + (type === 'error' ? ' error' : type === 'warning' ? ' warning' : '');
-    toast.textContent = message;
-    container.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 5000);
-}
-
-// ── Auto-Fix Flow ──
-let pendingAutoFixAccountId = null;
-
-function showAutoFixModal(accountId, username, status, device) {
-    pendingAutoFixAccountId = accountId;
-    const body = document.getElementById('autofixModalBody');
-    const confirmBtn = document.getElementById('confirmAutofixBtn');
-    confirmBtn.disabled = true;
-
-    body.innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-    new bootstrap.Modal(document.getElementById('autofixModal')).show();
-
-    // Fetch the next available inventory account for preview
-    fetch('/api/account-health/inventory-available')
-        .then(r => r.json())
-        .then(data => {
-            if (data.available <= 0) {
-                body.innerHTML = `
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        No available accounts in inventory.
-                        <br>Import more accounts in the <a href="/inventory" class="text-warning">Inventory page</a>.
-                    </div>`;
-                return;
-            }
-
-            confirmBtn.disabled = false;
-
-            const statusBadge = `<span class="badge-health badge-${escHtml(status)}">${statusIcon(status)} ${formatStatus(status)}</span>`;
-
-            body.innerHTML = `
-                <div class="replace-detail">
-                    <div class="label">Broken Account</div>
-                    <div class="value text-danger">@${escHtml(username)}</div>
-                    <div class="mt-1">
-                        ${statusBadge}
-                        <span class="text-muted ms-2" style="font-size:.82rem;">on <strong>${escHtml(device)}</strong></span>
-                    </div>
-                </div>
-
-                <div class="replace-arrow">
-                    <i class="fas fa-arrow-down"></i>
-                </div>
-
-                <div class="replace-detail">
-                    <div class="label">Fresh Account from Inventory</div>
-                    <div class="value text-success"><i class="fas fa-user-plus me-1"></i>Next available</div>
-                    <div class="mt-1 text-muted" style="font-size:.82rem;">
-                        ${data.available} account(s) available in inventory
-                    </div>
-                </div>
-
-                <div class="replace-warning mt-3">
-                    <i class="fas fa-info-circle me-1"></i>
-                    <strong>What will happen:</strong>
-                    <ul class="mb-0 mt-1" style="padding-left:1.2rem;">
-                        <li>IG clone app data will be cleared via ADB</li>
-                        <li>New account inherits device, package &amp; schedule</li>
-                        <li>Warmup mode: <strong>Reels only for 7 days</strong></li>
-                        <li>Login task queued automatically</li>
-                        <li>Old account marked as <code>replaced</code></li>
-                    </ul>
-                </div>
-            `;
-        })
-        .catch(err => {
-            body.innerHTML = '<div class="alert alert-danger">Failed to load: ' + escHtml(err.message) + '</div>';
-        });
-}
-
-function confirmAutoFix() {
-    if (!pendingAutoFixAccountId) return;
-
-    const confirmBtn = document.getElementById('confirmAutofixBtn');
-    confirmBtn.disabled = true;
-    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Replacing...';
-
-    fetch('/api/account-health/auto-fix', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ account_id: pendingAutoFixAccountId }),
+        body: JSON.stringify({ health_event_id: pendingAutoFixEventId }),
     })
     .then(r => r.json())
     .then(data => {
         bootstrap.Modal.getInstance(document.getElementById('autofixModal')).hide();
 
         if (data.success) {
-            let msg = 'Replaced @' + data.old_account.username + ' -> @' + data.new_account.username + '. Login queued.';
+            let msg = `✅ Replaced @${data.old_account} → @${data.new_account}. Login queued.`;
             if (!data.adb_clear_ok) {
-                msg += ' (ADB clear failed - may need manual clear)';
+                msg += ' (⚠️ ADB clear failed — may need manual clear)';
                 showToast(msg, 'warning');
             } else {
                 showToast(msg, 'success');
@@ -801,8 +651,17 @@ function confirmAutoFix() {
     .finally(() => {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = '<i class="fas fa-wrench me-1"></i>Replace Account';
-        pendingAutoFixAccountId = null;
+        pendingAutoFixEventId = null;
     });
+}
+
+function showToast(message, type) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast-msg' + (type === 'error' ? ' error' : type === 'warning' ? ' warning' : '');
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 5000);
 }
 
 function fixAllAccounts() {

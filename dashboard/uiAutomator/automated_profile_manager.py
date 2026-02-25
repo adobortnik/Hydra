@@ -870,6 +870,203 @@ class AutomatedProfileManager:
             print(f"Failed to edit bio: {e}")
             return False
 
+    def edit_link_automated(self, device, new_link):
+        """
+        Fully automated external link editing on IG edit profile screen.
+        Navigates to Links screen, adds/edits external link, saves.
+
+        Args:
+            device: uiautomator2 device object
+            new_link: URL string to set (e.g. "https://example.com")
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            print(f"Setting profile link to: {new_link}")
+
+            # Enable AdbKeyboard IME for reliable text input
+            try:
+                device.set_input_ime(True)
+                print("[OK] AdbKeyboard IME enabled for link editing")
+            except Exception as ime_err:
+                print(f"[!] Failed to enable AdbKeyboard IME: {ime_err}")
+
+            # Step 1: Find and click "Links" row on edit profile screen
+            # IG edit profile layout: Name > Username > Pronouns > Bio > Links > Gender
+            link_navigation_found = False
+
+            # Method 1: Click "Links" label
+            links_selectors = [
+                device(text="Links"),
+                device(textContains="Links"),
+                device(text="Website"),
+                device(textContains="Website"),
+            ]
+
+            for selector in links_selectors:
+                if selector.exists(timeout=3):
+                    print(f"Found links field: '{selector.info.get('text', '')}'")
+                    selector.click()
+                    link_navigation_found = True
+                    time.sleep(2)
+                    break
+
+            # Method 2: Look for the link text below "Links" label
+            if not link_navigation_found:
+                try:
+                    if device(text="Links").exists(timeout=2):
+                        bounds = device(text="Links").info['bounds']
+                        click_x = bounds['left'] + 50
+                        click_y = bounds['bottom'] + 30
+                        print(f"Clicking below Links label at ({click_x}, {click_y})")
+                        device.click(click_x, click_y)
+                        link_navigation_found = True
+                        time.sleep(2)
+                except Exception as e:
+                    print(f"Links label click failed: {e}")
+
+            # Method 3: Scroll down on edit profile to find Links
+            if not link_navigation_found:
+                try:
+                    width, height = device.window_size()
+                    for scroll_attempt in range(3):
+                        device.swipe(width // 2, int(height * 0.7), width // 2, int(height * 0.3), duration=0.3)
+                        time.sleep(1)
+                        for selector in links_selectors:
+                            if selector.exists(timeout=2):
+                                selector.click()
+                                link_navigation_found = True
+                                time.sleep(2)
+                                break
+                        if link_navigation_found:
+                            break
+                except Exception as e:
+                    print(f"Scroll + find links failed: {e}")
+
+            if not link_navigation_found:
+                print("Could not find Links field on edit profile screen")
+                return False
+
+            # Step 2: Now on Links screen
+            # Check if there's an existing external link to edit, or we need to add one
+            print("On Links screen, checking for existing links...")
+            time.sleep(1)
+
+            # Check for "Add external link" button
+            add_link_selectors = [
+                device(textContains="Add external link"),
+                device(textContains="Add link"),
+                device(text="+ Add external link"),
+            ]
+
+            # Check if there's already an existing link we can tap to edit
+            existing_link = None
+            # Existing links show as URL text (e.g., "https://example.com")
+            try:
+                if device(textContains="http").exists(timeout=2):
+                    existing_link = device(textContains="http")
+                    print(f"Found existing link: {existing_link.info.get('text', '')}")
+            except:
+                pass
+
+            if existing_link:
+                # Edit existing link — tap on it
+                print("Editing existing link...")
+                existing_link.click()
+                time.sleep(2)
+            else:
+                # Add new link
+                print("No existing link found, adding new one...")
+                added = False
+                for selector in add_link_selectors:
+                    if selector.exists(timeout=3):
+                        selector.click()
+                        added = True
+                        time.sleep(2)
+                        break
+                if not added:
+                    print("Could not find 'Add external link' button")
+                    device.press("back")
+                    time.sleep(1)
+                    return False
+
+            # Step 3: Now on link edit form — find URL EditText and enter link
+            print("Looking for URL input field...")
+            time.sleep(1)
+
+            url_field = None
+            url_selectors = [
+                device(textContains="URL"),
+                device(textContains="url"),
+                device(textContains="http"),
+                device(className="android.widget.EditText", instance=0),
+            ]
+
+            for selector in url_selectors:
+                if selector.exists(timeout=3):
+                    url_field = selector
+                    print(f"Found URL field")
+                    break
+
+            if not url_field:
+                print("Could not find URL input field")
+                device.press("back")
+                time.sleep(1)
+                return False
+
+            # Clear and enter new URL
+            url_field.click()
+            time.sleep(0.5)
+            url_field.clear_text()
+            time.sleep(0.3)
+            url_field.set_text(new_link)
+            print(f"Entered URL: {new_link}")
+            time.sleep(1)
+
+            # Step 4: Tap checkmark/Done/Save to confirm
+            save_selectors = [
+                device(description="Done"),
+                device(description="Save"),
+                device(description="Checkmark"),
+                device(text="Done"),
+                device(text="Save"),
+                device(resourceIdMatches=".*action_bar_button_done.*"),
+                device(resourceIdMatches=".*save.*"),
+            ]
+
+            saved = False
+            for selector in save_selectors:
+                if selector.exists(timeout=2):
+                    selector.click()
+                    saved = True
+                    print("Tapped save/done on link form")
+                    time.sleep(2)
+                    break
+
+            if not saved:
+                # Try tapping checkmark icon in top right corner
+                width, height = device.window_size()
+                device.click(width - 80, 140)
+                print("Tapped top-right area (checkmark fallback)")
+                time.sleep(2)
+
+            # Step 5: Go back to edit profile screen
+            device.press("back")
+            time.sleep(1)
+
+            print(f"Profile link set to: {new_link}")
+            return True
+
+        except Exception as e:
+            print(f"Failed to edit link: {e}")
+            try:
+                device.press("back")
+                time.sleep(1)
+            except:
+                pass
+            return False
+
     def edit_username_automated(self, device, new_username):
         """
         Fully automated username editing (from instagram_automation.py)
@@ -1163,6 +1360,29 @@ class AutomatedProfileManager:
                     )
                 else:
                     print("Warning: Bio change may have failed")
+
+                time.sleep(1)
+
+            # Change profile link if specified
+            new_link = task.get('new_link') or task.get('profile_link')
+            if new_link:
+                print(f"\n--- Changing Profile Link ---")
+                print(f"New link: {new_link}")
+
+                # Ensure we're on edit profile screen
+                if not self.ensure_on_edit_profile_screen():
+                    print("Error: Could not get to edit profile screen for link editing")
+                    print("Warning: Skipping link change")
+                elif self.edit_link_automated(self.device, new_link):
+                    print("Profile link changed successfully!")
+                    changes_made.append("link")
+
+                    log_profile_change(
+                        device_serial, instagram_package, task.get('username', 'unknown'),
+                        'link', None, new_link, success=True
+                    )
+                else:
+                    print("Warning: Profile link change may have failed")
 
                 time.sleep(1)
 

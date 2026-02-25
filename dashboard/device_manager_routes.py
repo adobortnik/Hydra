@@ -321,6 +321,7 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
             WHERE captured_at >= ? AND captured_at < ?
         ) snap_yesterday ON snap_yesterday.account_id = a.id AND snap_yesterday.rn = 1
         WHERE a.device_serial = ?
+          AND COALESCE(a.status, '') != 'replaced'
         ORDER BY CAST(COALESCE(a.start_time, '0') AS INTEGER), a.username
     """, (today, yesterday, today, device_serial)).fetchall()
 
@@ -1477,3 +1478,158 @@ def api_account_insights_v2_history(username):
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         conn.close()
+
+
+# ═════════════════════════════════════════════════════════════════════
+#  PROFILE LINK MANAGEMENT
+# ═════════════════════════════════════════════════════════════════════
+
+@device_manager_bp.route('/api/device-manager/all-accounts-tree', methods=['GET'])
+def api_all_accounts_tree():
+    """Hierarchical list of all devices -> accounts for bulk operations."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT a.id, a.device_serial, a.username, a.status, a.instagram_package,
+                   COALESCE(d.device_name, a.device_serial) as device_name
+            FROM accounts a
+            LEFT JOIN devices d ON a.device_serial = d.device_serial
+            WHERE COALESCE(a.status, '') != 'replaced'
+            ORDER BY a.device_serial, a.username
+        """).fetchall()
+
+        devices = {}
+        for r in rows:
+            ds = r['device_serial']
+            if ds not in devices:
+                devices[ds] = {'device_name': r['device_name'], 'accounts': []}
+            devices[ds]['accounts'].append({
+                'id': r['id'],
+                'device_serial': r['device_serial'],
+                'username': r['username'],
+                'status': r['status'] or 'unknown',
+                'instagram_package': r['instagram_package'] or 'com.instagram.android',
+            })
+
+        devices_tree = [
+            {
+                'device_serial': ds,
+                'device_name': info['device_name'],
+                'accounts': info['accounts'],
+            }
+            for ds, info in devices.items()
+        ]
+
+        return jsonify({ 'success': True, 'devices': devices_tree })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@device_manager_bp.route('/api/device-manager/set-profile-link', methods=['POST'])
+def api_set_profile_link():
+    """
+    Create a profile_updates task to set profile link on a single account.
+    Body: { device_serial, username, url }
+    """
+    data = request.get_json(force=True) or {}
+    device_serial = data.get('device_serial')
+    username = data.get('username')
+    url = data.get('url')
+
+    if not all([device_serial, username, url]):
+        return jsonify({'success': False, 'error': 'device_serial, username, and url required'}), 400
+
+    conn = _get_conn()
+    try:
+        acct = conn.execute(
+            "SELECT id, username, instagram_package FROM accounts WHERE device_serial=? AND username=?",
+            (device_serial, username)
+        ).fetchone()
+        if not acct:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+
+        now = datetime.utcnow().isoformat()
+        pa_db_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'uiAutomator', 'profile_automation.db'
+        )
+        import sqlite3 as _sq
+        pa_conn = _sq.connect(pa_db_path, timeout=30)
+        pa_conn.execute("PRAGMA journal_mode=WAL")
+
+        # Ensure new_link column exists
+        cols = [r[1] for r in pa_conn.execute("PRAGMA table_info(profile_updates)").fetchall()]
+        if 'new_link' not in cols:
+            pa_conn.execute("ALTER TABLE profile_updates ADD COLUMN new_link TEXT DEFAULT NULL")
+            pa_conn.commit()
+
+        pa_conn.execute("""
+            INSERT INTO profile_updates
+            (device_serial, username, instagram_package, new_username, new_bio, new_link,
+             profile_picture_id, status, created_at)
+            VALUES (?, ?, ?, NULL, NULL, ?, NULL, 'pending', ?)
+        """, (device_serial, username, acct['instagram_package'], url, now))
+        pa_conn.commit()
+        pa_conn.close()
+
+        return jsonify({'success': True, 'message': f'Link task queued for @{username}'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@device_manager_bp.route('/api/device-manager/bulk-set-profile-link', methods=['POST'])
+def api_bulk_set_profile_link():
+    """
+    Create set_profile_link tasks for multiple accounts.
+    Body: { url: "https://...", targets: [{device_serial, username, instagram_package}] }
+    """
+    data = request.get_json(force=True) or {}
+    url = data.get('url')
+    targets = data.get('targets', [])
+
+    if not url:
+        return jsonify({'success': False, 'error': 'URL required'}), 400
+    if not targets:
+        return jsonify({'success': False, 'error': 'No targets selected'}), 400
+
+    try:
+        now = datetime.utcnow().isoformat()
+        pa_db_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'uiAutomator', 'profile_automation.db'
+        )
+        import sqlite3 as _sq
+        pa_conn = _sq.connect(pa_db_path, timeout=30)
+        pa_conn.execute("PRAGMA journal_mode=WAL")
+
+        cols = [r[1] for r in pa_conn.execute("PRAGMA table_info(profile_updates)").fetchall()]
+        if 'new_link' not in cols:
+            pa_conn.execute("ALTER TABLE profile_updates ADD COLUMN new_link TEXT DEFAULT NULL")
+            pa_conn.commit()
+
+        tasks_created = 0
+        for t in targets:
+            ds = t.get('device_serial')
+            user = t.get('username')
+            pkg = t.get('instagram_package', 'com.instagram.android')
+            if not ds or not user:
+                continue
+
+            pa_conn.execute("""
+                INSERT INTO profile_updates
+                (device_serial, username, instagram_package, new_username, new_bio, new_link,
+                 profile_picture_id, status, created_at)
+                VALUES (?, ?, ?, NULL, NULL, ?, NULL, 'pending', ?)
+            """, (ds, user, pkg, url, now))
+            tasks_created += 1
+
+        pa_conn.commit()
+        pa_conn.close()
+
+        return jsonify({'success': True, 'tasks_created': tasks_created})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

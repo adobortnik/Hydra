@@ -149,6 +149,13 @@ class LoginAutomation:
                 except Exception as rot_err:
                     print(f"[!] Could not lock rotation: {rot_err}")
 
+                # Enable AdbKeyboard IME for reliable text input
+                try:
+                    self.device.set_input_ime(True)
+                    print("[OK] AdbKeyboard IME enabled")
+                except Exception as ime_err:
+                    print(f"[!] Failed to enable AdbKeyboard IME: {ime_err}")
+
                 return self.device
             except Exception as e:
                 elapsed = int(time.time() - start_time)
@@ -396,12 +403,8 @@ class LoginAutomation:
             username_field.clear_text()
             time.sleep(0.5)
 
-            # Use ADB input for reliability
-            connection_serial = self.device_serial.replace('_', ':')
-            subprocess.run(
-                ['adb', '-s', connection_serial, 'shell', 'input', 'text', username],
-                capture_output=True, timeout=10
-            )
+            # Use set_text (AdbKeyboard IME) for reliable input
+            username_field.set_text(username)
             print("[OK] Username entered")
             time.sleep(1)
 
@@ -431,10 +434,8 @@ class LoginAutomation:
             password_field.clear_text()
             time.sleep(0.5)
 
-            subprocess.run(
-                ['adb', '-s', connection_serial, 'shell', 'input', 'text', password],
-                capture_output=True, timeout=10
-            )
+            # Use set_text (AdbKeyboard IME) for reliable input
+            password_field.set_text(password)
             print("[OK] Password entered")
             time.sleep(1)
 
@@ -929,12 +930,16 @@ class LoginAutomation:
                 pass
             time.sleep(0.5)
 
-            # Enter code via ADB (most reliable method)
-            connection_serial = self.device_serial.replace('_', ':')
-            subprocess.run(
-                ['adb', '-s', connection_serial, 'shell', 'input', 'text', code],
-                capture_output=True, timeout=10
-            )
+            # Use set_text (AdbKeyboard IME) for reliable input
+            try:
+                code_field.set_text(code)
+            except Exception:
+                # Fallback to ADB input if set_text fails on xpath element
+                connection_serial = self.device_serial.replace('_', ':')
+                subprocess.run(
+                    ['adb', '-s', connection_serial, 'shell', 'input', 'text', code],
+                    capture_output=True, timeout=10
+                )
 
             print(f"[OK] Entered code: {code}")
             time.sleep(2)
