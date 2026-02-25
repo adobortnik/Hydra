@@ -2191,7 +2191,8 @@ function renderAccounts(accounts) {
             <td>${formatHour(a.start_time)}</td>
             <td>${formatHour(a.end_time)}</td>
             <td class="username-cell">
-                <span class="health-badge ${healthClass}" title="${healthTitle}"></span>
+                <span class="health-badge ${healthClass}" title="${healthTitle} — click to change"
+                    style="cursor:pointer;" onclick="event.stopPropagation();openStatusChanger('${a.device_serial}','${escHtml(a.username)}','${escHtml(a.status)}',this)"></span>
                 ${escHtml(a.username)}
             </td>
             <td>${bizBadge}</td>
@@ -3585,6 +3586,73 @@ function bulkSwitchPrivate() {
         btn.innerHTML = origHtml;
         btn.disabled = false;
     });
+}
+
+// ── Change Account Status (click on badge) ─────────────────────────
+function openStatusChanger(serial, username, currentStatus, badgeEl) {
+    // Remove any existing popup
+    const old = document.getElementById('statusPopup');
+    if (old) old.remove();
+
+    const statuses = ['active', 'pending_login', 'login_failed', 'verification_required', 'suspended', 'disabled', 'replaced'];
+    const colors = {
+        active: '#28a745', pending_login: '#17a2b8', login_failed: '#dc3545',
+        verification_required: '#f0a040', suspended: '#dc3545', disabled: '#6c757d', replaced: '#495057'
+    };
+
+    const popup = document.createElement('div');
+    popup.id = 'statusPopup';
+    popup.style.cssText = 'position:fixed;z-index:9999;background:#1a1d23;border:1px solid #2d3238;border-radius:8px;padding:6px;box-shadow:0 4px 12px rgba(0,0,0,0.5);min-width:180px;';
+
+    const rect = badgeEl.getBoundingClientRect();
+    popup.style.left = rect.left + 'px';
+    popup.style.top = (rect.bottom + 4) + 'px';
+
+    popup.innerHTML = `
+        <div style="font-size:0.7rem;color:#6c757d;padding:2px 8px;text-transform:uppercase;">@${username}</div>
+        ${statuses.map(s => `
+            <div class="status-opt" style="padding:5px 10px;cursor:pointer;border-radius:4px;font-size:0.8rem;display:flex;align-items:center;gap:6px;${s === currentStatus ? 'background:#2d3238;' : ''}"
+                onmouseenter="this.style.background='#2d3238'" onmouseleave="this.style.background='${s === currentStatus ? '#2d3238' : 'transparent'}'"
+                onclick="setAccountStatus('${serial}','${username}','${s}')">
+                <span style="width:8px;height:8px;border-radius:50%;background:${colors[s] || '#6c757d'};display:inline-block;"></span>
+                <span style="color:#e0e0e8;">${s}</span>
+                ${s === currentStatus ? '<i class="fas fa-check ms-auto" style="color:#28a745;font-size:0.65rem;"></i>' : ''}
+            </div>
+        `).join('')}
+    `;
+
+    document.body.appendChild(popup);
+
+    // Close on click outside
+    setTimeout(() => {
+        document.addEventListener('click', function closePopup(e) {
+            if (!popup.contains(e.target)) {
+                popup.remove();
+                document.removeEventListener('click', closePopup);
+            }
+        });
+    }, 10);
+}
+
+function setAccountStatus(serial, username, newStatus) {
+    const popup = document.getElementById('statusPopup');
+    if (popup) popup.remove();
+
+    fetch('/api/device-manager/set-account-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_serial: serial, username: username, status: newStatus })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(`@${username} → ${newStatus}`, 'success');
+            loadAccounts();
+        } else {
+            showSpToast(data.error || 'Failed', 'error');
+        }
+    })
+    .catch(err => showSpToast('Error: ' + err.message, 'error'));
 }
 
 // ── Set Profile Link (single) ──────────────────────────────────────

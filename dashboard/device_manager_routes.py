@@ -1481,6 +1481,46 @@ def api_account_insights_v2_history(username):
 
 
 # ═════════════════════════════════════════════════════════════════════
+#  ACCOUNT STATUS MANAGEMENT
+# ═════════════════════════════════════════════════════════════════════
+
+@device_manager_bp.route('/api/device-manager/set-account-status', methods=['POST'])
+def api_set_account_status():
+    """
+    Manually change an account's status.
+    Body: { device_serial, username, status }
+    """
+    data = request.get_json(force=True) or {}
+    device_serial = data.get('device_serial')
+    username = data.get('username')
+    new_status = data.get('status')
+
+    valid_statuses = {'active', 'pending_login', 'login_failed', 'verification_required',
+                      'suspended', 'disabled', 'replaced'}
+
+    if not all([device_serial, username, new_status]):
+        return jsonify({'success': False, 'error': 'device_serial, username, and status required'}), 400
+    if new_status not in valid_statuses:
+        return jsonify({'success': False, 'error': f'Invalid status. Must be one of: {", ".join(sorted(valid_statuses))}'}), 400
+
+    conn = _get_conn()
+    try:
+        now = datetime.utcnow().isoformat()
+        result = conn.execute(
+            "UPDATE accounts SET status = ?, updated_at = ? WHERE device_serial = ? AND username = ?",
+            (new_status, now, device_serial, username)
+        )
+        conn.commit()
+        if result.rowcount == 0:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+        return jsonify({'success': True, 'status': new_status})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ═════════════════════════════════════════════════════════════════════
 #  PROFILE LINK MANAGEMENT
 # ═════════════════════════════════════════════════════════════════════
 
