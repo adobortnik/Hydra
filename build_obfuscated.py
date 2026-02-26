@@ -100,7 +100,7 @@ COPY_DIRS = [
     ("data", "data"),
     ("db/migrations", "db/migrations"),
     ("docs", "docs"),
-    ("media_library", "media_library"),
+    # ("media_library", "media_library"),  # EXCLUDED — videos are 1.3GB+, added via dashboard
     ("scheduled_posts", "scheduled_posts"),
 ]
 
