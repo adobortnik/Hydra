@@ -126,14 +126,23 @@
         </div>
     </div>
 
-    <!-- Filter tabs -->
+    <!-- Filter tabs + Bulk Actions -->
     <div class="row mb-3">
-        <div class="col-12">
+        <div class="col-12 d-flex justify-content-between align-items-center">
             <div class="d-flex gap-2">
                 <button class="btn btn-outline-light btn-sm active" data-filter="" onclick="filterInventory('', this)">All</button>
                 <button class="btn btn-outline-success btn-sm" data-filter="available" onclick="filterInventory('available', this)">Available</button>
                 <button class="btn btn-outline-primary btn-sm" data-filter="assigned" onclick="filterInventory('assigned', this)">Assigned</button>
                 <button class="btn btn-outline-danger btn-sm" data-filter="burned" onclick="filterInventory('burned', this)">Burned</button>
+            </div>
+            <div id="bulkActions" class="d-none d-flex gap-2 align-items-center">
+                <span class="text-muted small" id="selectedCount">0 selected</span>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteSelected()">
+                    <i class="fas fa-trash me-1"></i>Delete Selected
+                </button>
+                <button class="btn btn-outline-warning btn-sm" onclick="burnSelected()">
+                    <i class="fas fa-fire me-1"></i>Burn Selected
+                </button>
             </div>
         </div>
     </div>
@@ -147,6 +156,7 @@
                         <table class="table table-dark inv-table mb-0">
                             <thead>
                                 <tr>
+                                    <th style="width:36px"><input type="checkbox" class="form-check-input" id="selectAll" onclick="toggleSelectAll(this)" title="Select All"></th>
                                     <th>#</th>
                                     <th>Username</th>
                                     <th>Password</th>
@@ -242,6 +252,12 @@ function renderInventory(accounts) {
     const tbody = document.getElementById('invBody');
     const empty = document.getElementById('invEmpty');
 
+    // Reset selection state on re-render
+    const masterCb = document.getElementById('selectAll');
+    masterCb.checked = false;
+    masterCb.indeterminate = false;
+    document.getElementById('bulkActions').classList.add('d-none');
+
     if (accounts.length === 0) {
         tbody.innerHTML = '';
         empty.classList.remove('d-none');
@@ -251,6 +267,7 @@ function renderInventory(accounts) {
 
     tbody.innerHTML = accounts.map(a => `
         <tr>
+            <td><input type="checkbox" class="form-check-input row-select" data-id="${a.id}" onchange="updateBulkActions()"></td>
             <td class="text-muted">${a.id}</td>
             <td><strong class="text-white">@${esc(a.username)}</strong></td>
             <td class="password-cell" onclick="togglePassword(this, '${esc(a.password)}')" title="Click to reveal">
@@ -335,6 +352,81 @@ function togglePassword(el, pwd) {
         el.textContent = '••••••••';
         el.style.color = '';
     }
+}
+
+// ── Selection & Bulk Actions ──
+
+function toggleSelectAll(master) {
+    const boxes = document.querySelectorAll('.row-select');
+    boxes.forEach(cb => cb.checked = master.checked);
+    updateBulkActions();
+}
+
+function updateBulkActions() {
+    const checked = document.querySelectorAll('.row-select:checked');
+    const bar = document.getElementById('bulkActions');
+    const countEl = document.getElementById('selectedCount');
+    const masterCb = document.getElementById('selectAll');
+    const allBoxes = document.querySelectorAll('.row-select');
+
+    if (checked.length > 0) {
+        bar.classList.remove('d-none');
+        countEl.textContent = checked.length + ' selected';
+    } else {
+        bar.classList.add('d-none');
+    }
+
+    // Update master checkbox state
+    if (allBoxes.length > 0 && checked.length === allBoxes.length) {
+        masterCb.checked = true;
+        masterCb.indeterminate = false;
+    } else if (checked.length > 0) {
+        masterCb.checked = false;
+        masterCb.indeterminate = true;
+    } else {
+        masterCb.checked = false;
+        masterCb.indeterminate = false;
+    }
+}
+
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.row-select:checked')).map(cb => parseInt(cb.dataset.id));
+}
+
+function deleteSelected() {
+    const ids = getSelectedIds();
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} account(s) from inventory? This cannot be undone.`)) return;
+
+    fetch('/api/inventory/v2/bulk-delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ ids })
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            loadInventory();
+        } else {
+            alert('Error: ' + (data.error || 'Bulk delete failed'));
+        }
+    }).catch(err => alert('Network error: ' + err));
+}
+
+function burnSelected() {
+    const ids = getSelectedIds();
+    if (!ids.length) return;
+    if (!confirm(`Mark ${ids.length} account(s) as burned?`)) return;
+
+    fetch('/api/inventory/v2/bulk-burn', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ ids })
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            loadInventory();
+        } else {
+            alert('Error: ' + (data.error || 'Bulk burn failed'));
+        }
+    }).catch(err => alert('Network error: ' + err));
 }
 
 function esc(s) {

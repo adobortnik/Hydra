@@ -886,6 +886,29 @@
                     </div>
                 </div>
 
+                <!-- ─── Profile Link ─── -->
+                <div class="sp-section" id="profileLinkSection">
+                    <h6><i class="fas fa-link me-1"></i> 🔗 Profile Link</h6>
+                    <div class="row g-2 align-items-end">
+                        <div class="col">
+                            <label class="form-label">External URL</label>
+                            <input type="url" class="form-control" id="sp_profile_link"
+                                placeholder="https://example.com">
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-outline-info" onclick="setProfileLink()" id="btn-set-link">
+                                <i class="fas fa-paper-plane me-1"></i>Set on Device
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
+                        <button class="btn btn-sm btn-outline-warning" onclick="openBulkLinkModal()" title="Set link on multiple accounts">
+                            🔗📋 Bulk Set Link
+                        </button>
+                        <small class="text-muted" id="setLinkStatus"></small>
+                    </div>
+                </div>
+
                 <div class="sp-section">
                     <h6><i class="fas fa-clock me-1"></i> Active Hours</h6>
                     <div class="sp-range-row">
@@ -1976,6 +1999,48 @@
     </div>
 </div>
 
+<!-- Bulk Link Modal -->
+<div class="modal fade bc-modal" id="bulkLinkModal" tabindex="-1" style="z-index: 1070;">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" style="color:#f8f9fa;font-weight:700;">
+                        🔗 Bulk Set Profile Link
+                    </h5>
+                    <small class="text-muted" id="blDeviceLabel">Device: —</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="bc-toolbar">
+                <input type="url" class="form-control form-control-sm" id="blLinkUrl" placeholder="https://example.com" style="flex:1;background:#1a1d23;color:#e0e0e8;border-color:#2d3238;">
+            </div>
+            <div class="bc-toolbar">
+                <input type="text" class="bc-search" id="blSearch" placeholder="Search username..." oninput="blFilterAccounts()">
+                <button class="btn btn-sm btn-outline-secondary" onclick="blSelectAll()" style="font-size:0.75rem;">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="blDeselectAll()" style="font-size:0.75rem;">Deselect All</button>
+            </div>
+            <div class="modal-body">
+                <div class="bc-tree" id="blTree">
+                    <div style="text-align:center;padding:40px;color:#6c757d;">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="bc-summary me-auto">
+                    <span style="color:#9ca3af;font-size:0.85rem;">Selected:</span>
+                    <span class="bc-count-badge" id="blSelectedCount">0</span>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info btn-sm" id="blExecuteBtn" onclick="bulkSetLink()" disabled>
+                    🔗 Set Link on Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Toast notification -->
 <div class="sp-toast" id="spToast"></div>
 {% endblock %}
@@ -2126,7 +2191,8 @@ function renderAccounts(accounts) {
             <td>${formatHour(a.start_time)}</td>
             <td>${formatHour(a.end_time)}</td>
             <td class="username-cell">
-                <span class="health-badge ${healthClass}" title="${healthTitle}"></span>
+                <span class="health-badge ${healthClass}" title="${healthTitle} — click to change"
+                    style="cursor:pointer;" onclick="event.stopPropagation();openStatusChanger('${a.device_serial}','${escHtml(a.username)}','${escHtml(a.status)}',this)"></span>
                 ${escHtml(a.username)}
             </td>
             <td>${bizBadge}</td>
@@ -3519,6 +3585,248 @@ function bulkSwitchPrivate() {
     .finally(() => {
         btn.innerHTML = origHtml;
         btn.disabled = false;
+    });
+}
+
+// ── Change Account Status (click on badge) ─────────────────────────
+function openStatusChanger(serial, username, currentStatus, badgeEl) {
+    // Remove any existing popup
+    const old = document.getElementById('statusPopup');
+    if (old) old.remove();
+
+    const statuses = ['active', 'pending_login', 'login_failed', 'verification_required', 'suspended', 'disabled', 'replaced'];
+    const colors = {
+        active: '#28a745', pending_login: '#17a2b8', login_failed: '#dc3545',
+        verification_required: '#f0a040', suspended: '#dc3545', disabled: '#6c757d', replaced: '#495057'
+    };
+
+    const popup = document.createElement('div');
+    popup.id = 'statusPopup';
+    popup.style.cssText = 'position:fixed;z-index:9999;background:#1a1d23;border:1px solid #2d3238;border-radius:8px;padding:6px;box-shadow:0 4px 12px rgba(0,0,0,0.5);min-width:180px;';
+
+    const rect = badgeEl.getBoundingClientRect();
+    popup.style.left = rect.left + 'px';
+    popup.style.top = (rect.bottom + 4) + 'px';
+
+    popup.innerHTML = `
+        <div style="font-size:0.7rem;color:#6c757d;padding:2px 8px;text-transform:uppercase;">@${username}</div>
+        ${statuses.map(s => `
+            <div class="status-opt" style="padding:5px 10px;cursor:pointer;border-radius:4px;font-size:0.8rem;display:flex;align-items:center;gap:6px;${s === currentStatus ? 'background:#2d3238;' : ''}"
+                onmouseenter="this.style.background='#2d3238'" onmouseleave="this.style.background='${s === currentStatus ? '#2d3238' : 'transparent'}'"
+                onclick="setAccountStatus('${serial}','${username}','${s}')">
+                <span style="width:8px;height:8px;border-radius:50%;background:${colors[s] || '#6c757d'};display:inline-block;"></span>
+                <span style="color:#e0e0e8;">${s}</span>
+                ${s === currentStatus ? '<i class="fas fa-check ms-auto" style="color:#28a745;font-size:0.65rem;"></i>' : ''}
+            </div>
+        `).join('')}
+    `;
+
+    document.body.appendChild(popup);
+
+    // Close on click outside
+    setTimeout(() => {
+        document.addEventListener('click', function closePopup(e) {
+            if (!popup.contains(e.target)) {
+                popup.remove();
+                document.removeEventListener('click', closePopup);
+            }
+        });
+    }, 10);
+}
+
+function setAccountStatus(serial, username, newStatus) {
+    const popup = document.getElementById('statusPopup');
+    if (popup) popup.remove();
+
+    fetch('/api/device-manager/set-account-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_serial: serial, username: username, status: newStatus })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(`@${username} → ${newStatus}`, 'success');
+            loadAccounts();
+        } else {
+            showSpToast(data.error || 'Failed', 'error');
+        }
+    })
+    .catch(err => showSpToast('Error: ' + err.message, 'error'));
+}
+
+// ── Set Profile Link (single) ──────────────────────────────────────
+function setProfileLink() {
+    const url = document.getElementById('sp_profile_link').value.trim();
+    if (!url) { showSpToast('Enter a URL first', 'error'); return; }
+
+    const btn = document.getElementById('btn-set-link');
+    const statusEl = document.getElementById('setLinkStatus');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Setting...';
+    statusEl.textContent = 'Running on device...';
+    statusEl.style.color = '#f0a040';
+
+    fetch('/api/device-manager/set-profile-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            device_serial: spCurrentDevice,
+            username: spCurrentAccount,
+            url: url
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast('Profile link set successfully!', 'success');
+            statusEl.textContent = '✅ Link set';
+            statusEl.style.color = '#28a745';
+        } else {
+            showSpToast(data.error || 'Failed to set link', 'error');
+            statusEl.textContent = '❌ ' + (data.error || 'Failed');
+            statusEl.style.color = '#dc3545';
+        }
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err.message, 'error');
+        statusEl.textContent = '❌ Error';
+        statusEl.style.color = '#dc3545';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Set on Device';
+    });
+}
+
+// ── Bulk Link Modal ─────────────────────────────────────────────────
+let blModal = null;
+let blTreeData = [];
+
+function openBulkLinkModal() {
+    if (!blModal) {
+        blModal = new bootstrap.Modal(document.getElementById('bulkLinkModal'));
+    }
+    // Pre-fill URL from the single input if available
+    const singleUrl = document.getElementById('sp_profile_link').value.trim();
+    if (singleUrl) document.getElementById('blLinkUrl').value = singleUrl;
+
+    blModal.show();
+    blLoadTree();
+}
+
+function blLoadTree() {
+    const treeEl = document.getElementById('blTree');
+    treeEl.innerHTML = '<div style="text-align:center;padding:40px;color:#6c757d;"><i class="fas fa-spinner fa-spin me-2"></i>Loading accounts...</div>';
+    document.getElementById('blDeviceLabel').textContent = 'Loading...';
+
+    fetch('/api/device-manager/all-accounts-tree')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc3545;">Failed to load</div>';
+                return;
+            }
+            blTreeData = data.devices || [];
+            const totalAccounts = blTreeData.reduce((s, d) => s + (d.accounts || []).length, 0);
+            document.getElementById('blDeviceLabel').textContent =
+                `${blTreeData.length} devices — ${totalAccounts} accounts`;
+            blRenderTree();
+        })
+        .catch(err => {
+            treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc3545;">Error: ' + err + '</div>';
+        });
+}
+
+function blRenderTree() {
+    const treeEl = document.getElementById('blTree');
+    if (!blTreeData.length) {
+        treeEl.innerHTML = '<div style="text-align:center;padding:30px;color:#6c757d;">No accounts found</div>';
+        return;
+    }
+    const search = (document.getElementById('blSearch').value || '').toLowerCase();
+    let html = '';
+    for (const dev of blTreeData) {
+        const accounts = (dev.accounts || []).filter(a =>
+            !search || a.username.toLowerCase().includes(search)
+        );
+        if (!accounts.length && search) continue;
+
+        html += `<div class="bc-device-group">
+            <div class="bc-device-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                <i class="fas fa-mobile-alt me-1"></i>
+                <strong>${dev.device_name || dev.device_serial}</strong>
+                <span class="text-muted ms-2">(${accounts.length})</span>
+            </div>
+            <div class="bc-device-body">`;
+
+        for (const a of accounts) {
+            const checked = '';
+            html += `<label class="bc-account-row">
+                <input type="checkbox" class="bl-acct-cb" data-serial="${a.device_serial}" data-username="${a.username}" data-pkg="${a.instagram_package || ''}" onchange="blUpdateCount()">
+                <span class="bc-acct-name">@${a.username}</span>
+                <span class="bc-acct-status" style="color:${a.status === 'active' ? '#28a745' : '#6c757d'}">${a.status}</span>
+            </label>`;
+        }
+        html += '</div></div>';
+    }
+    treeEl.innerHTML = html;
+    blUpdateCount();
+}
+
+function blFilterAccounts() { blRenderTree(); }
+function blSelectAll() {
+    document.querySelectorAll('.bl-acct-cb').forEach(cb => { if (cb.offsetParent !== null) cb.checked = true; });
+    blUpdateCount();
+}
+function blDeselectAll() {
+    document.querySelectorAll('.bl-acct-cb').forEach(cb => cb.checked = false);
+    blUpdateCount();
+}
+function blUpdateCount() {
+    const count = document.querySelectorAll('.bl-acct-cb:checked').length;
+    document.getElementById('blSelectedCount').textContent = count;
+    document.getElementById('blExecuteBtn').disabled = count === 0;
+}
+
+function bulkSetLink() {
+    const url = document.getElementById('blLinkUrl').value.trim();
+    if (!url) { showSpToast('Enter a URL first', 'error'); return; }
+
+    const targets = [];
+    document.querySelectorAll('.bl-acct-cb:checked').forEach(cb => {
+        targets.push({
+            device_serial: cb.dataset.serial,
+            username: cb.dataset.username,
+            instagram_package: cb.dataset.pkg
+        });
+    });
+    if (!targets.length) return;
+
+    const btn = document.getElementById('blExecuteBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Setting links...';
+
+    fetch('/api/device-manager/bulk-set-profile-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, targets })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showSpToast(`Link set queued for ${data.tasks_created || targets.length} accounts`, 'success');
+            blModal.hide();
+        } else {
+            showSpToast(data.error || 'Bulk set link failed', 'error');
+        }
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err.message, 'error');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '🔗 Set Link on Selected';
     });
 }
 </script>

@@ -424,6 +424,7 @@
         const selectedCount = selectedCheckboxes.length;
         const exportBtn = document.getElementById('exportSelectedBtn');
         const markAsUsedBtn = document.getElementById('markAsUsedBtn');
+        const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
         
         if (selectedCount > 0) {
             exportBtn.removeAttribute('disabled');
@@ -433,12 +434,20 @@
             markAsUsedBtn.classList.remove('d-none');
             markAsUsedBtn.removeAttribute('disabled');
             markAsUsedBtn.innerHTML = `<i class="fas fa-check-circle me-1"></i> Mark Selected as Used (${selectedCount})`;
+            
+            // Show and enable the Delete Selected button
+            deleteSelectedBtn.classList.remove('d-none');
+            deleteSelectedBtn.removeAttribute('disabled');
+            deleteSelectedBtn.innerHTML = `<i class="fas fa-trash me-1"></i> Delete Selected (${selectedCount})`;
         } else {
             exportBtn.setAttribute('disabled', 'disabled');
             exportBtn.innerHTML = `<i class="fas fa-file-export me-1"></i> Export Selected`;
             
             // Hide the Mark as Used button
             markAsUsedBtn.classList.add('d-none');
+            
+            // Hide the Delete Selected button
+            deleteSelectedBtn.classList.add('d-none');
         }
     }
     
@@ -518,6 +527,74 @@
             markAsUsedBtn.innerHTML = originalText;
             
             alert('Failed to mark accounts as used: ' + error);
+        });
+    }
+    
+    // Delete selected accounts
+    function deleteSelectedAccounts() {
+        // Get all selected account IDs
+        const selectedCheckboxes = document.querySelectorAll('input[id^="selectAccount"]:checked');
+        
+        const accountIds = [];
+        selectedCheckboxes.forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            if (row) {
+                const editButton = row.querySelector('.edit-account-btn');
+                if (editButton) {
+                    const id = parseInt(editButton.getAttribute('data-id'));
+                    accountIds.push(id);
+                }
+            }
+        });
+        
+        if (accountIds.length === 0) {
+            alert('No accounts selected');
+            return;
+        }
+        
+        // Confirm before proceeding
+        if (!confirm(`Are you sure you want to permanently delete ${accountIds.length} selected accounts? This cannot be undone.`)) {
+            return;
+        }
+        
+        // Disable the button while processing
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
+        const originalText = deleteBtn.innerHTML;
+        deleteBtn.disabled = true;
+        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Deleting...';
+        
+        // Send request to delete accounts
+        fetch('/api/inventory/accounts/bulk-delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                account_ids: accountIds
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = originalText;
+            
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            alert(data.message);
+            
+            // Reload accounts to reflect changes
+            loadAccounts();
+        })
+        .catch(error => {
+            console.error('Error deleting accounts:', error);
+            
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = originalText;
+            
+            alert('Failed to delete accounts: ' + error);
         });
     }
     
@@ -1049,6 +1126,9 @@
                     <div>
                         <button id="markAsUsedBtn" class="btn btn-sm btn-outline-warning me-2 d-none" onclick="markSelectedAccountsAsUsed()">
                             <i class="fas fa-check-circle me-1"></i> Mark Selected as Used
+                        </button>
+                        <button id="deleteSelectedBtn" class="btn btn-sm btn-outline-danger me-2 d-none" onclick="deleteSelectedAccounts()">
+                            <i class="fas fa-trash me-1"></i> Delete Selected
                         </button>
                         <button id="exportSelectedBtn" class="btn btn-sm btn-outline-success" disabled>
                             <i class="fas fa-file-export me-1"></i> Export Selected

@@ -735,7 +735,8 @@ function applyChanges() {
     const changes = indices.map(i => currentScanResult.matched[i]).filter(m => m && m.changed).map(m => ({
         old_serial: m.old_serial,
         new_serial: m.new_serial,
-        new_ip: m.new_ip
+        new_ip: m.new_ip,
+        hardware_serial: m.hardware_serial
     }));
     
     if (changes.length === 0) {
