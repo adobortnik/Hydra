@@ -1,0 +1,1056 @@
+{
+  "serial": "10.1.11.4:5555",
+  "timestamp": "20260203_165200",
+  "package": "com.scheler.superproxy",
+  "app_opened": true,
+  "current_activity": "mResumedActivity: ActivityRecord{4130af5 u0 com.scheler.superproxy/.activity.MainActivity t1026}",
+  "ui_xml_file": null,
+  "screenshot_file": "C:\\Users\\TheLiveHouse\\clawd\\phone-farm\\automation\\superproxy_dumps\\screenshot_10_1_11_4_5555_20260203_165200.png",
+  "ui_elements": [
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/rounded_corners_top",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,505][99,575]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "com.android.systemui:id/display_cutout",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,505][99,575]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "com.android.systemui:id/left",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][121,121]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "com.android.systemui:id/right",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,959][121,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1920,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/status_bar_container",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/status_bar",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/phone_status_bar_background",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/status_bar_area",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.RelativeLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/status_bar_contents",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/status_bar_left_side_container",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[165,0][948,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/status_bar_left_side",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[165,0][948,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/left_clock_container",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[165,0][241,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.TextView",
+      "text": "4:52",
+      "resource-id": "com.android.systemui:id/clock",
+      "content-desc": "4:52 PM",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[165,0][241,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/notification_icon_area",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[250,0][948,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/notification_icon_area_inner",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[250,0][948,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/notificationIcons",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[250,0][948,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Super Proxy notification: Proxy service is running",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[250,0][296,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 12 notification: Your IP is 172.56.223.67",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[296,0][342,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 10 notification: New follow suggestion",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[342,0][388,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 11 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[388,0][434,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Configuration update notification: Get recommended apps",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Android System notification: Ethernet cable connected.",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Google Play Store notification: Complete setup by installing apps",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 10 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 06 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 10 notification: shanoza_2843",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 02 notification: Your IP is 172.56.217.142",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 01 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 03 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 04 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 05 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 04 notification: Follow request accepted",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 04 notification: New follower",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 04 notification: Rodney Marley",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 04 notification: Bubble, hoth boy sexy 18, kiwhn_iga and 31 others: hiiiiiiiiiiiiii202",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 07 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 08 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 09 notification: Your IP is 172.56.219.144",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Instagram 11 notification: Justin Bieber",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[409,0][455,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/divided_status_icon_area",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1442,0][1450,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/system_icon_area",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1450,0][1710,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1450,0][1710,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/system_icons",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1450,0][1710,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/statusIcons",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1450,0][1581,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "VPN on.",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1450,18][1497,54]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Ethernet disconnected.",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1500,18][1539,54]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/mobile_combo",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1542,18][1581,54]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/mobile_group",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1542,18][1581,54]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/signal_combo",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1542,18][1581,54]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "com.android.systemui:id/mobile_signal",
+      "content-desc": "No phone.",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1542,18][1581,54]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/battery",
+      "content-desc": "Battery 100 percent.",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1589,0][1710,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.TextView",
+      "text": "100%",
+      "resource-id": "com.android.systemui:id/battery_percentage_view",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1589,0][1684,72]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1690,18][1710,54]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/navigation_bar_frame",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1776,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1776,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/navigation_inflater",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1776,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/vertical",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1776,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/nav_buttons",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1776,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/ends_group",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1776,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "com.android.systemui:id/back",
+      "content-desc": "Back",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[1776,118][1920,357]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "com.android.systemui:id/recent_apps",
+      "content-desc": "Recents",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[1776,723][1920,962]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/nav_bar_widget",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1776,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "com.android.systemui:id/center_group",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[1776,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "com.android.systemui:id/home",
+      "content-desc": "Home",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[1776,420][1920,659]",
+      "enabled": "true",
+      "package": "com.android.systemui"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1920,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.widget.LinearLayout",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "android:id/content",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.widget.FrameLayout",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,870]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,870]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,0][1776,240]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.widget.ImageView",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Super Proxy",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[135,114][1596,198]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.widget.Button",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[1632,84][1776,228]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,240][1776,696]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Default Profile\n5.161.16.185:19461\nSOCKS5",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[0,240][1776,468]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "lteboost3\n37.27.143.156:11062\nSOCKS5",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[0,468][1776,696]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.widget.Button",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Add proxy",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[1335,654][1728,822]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "",
+      "clickable": "false",
+      "checked": "false",
+      "bounds": "[0,870][1776,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Proxies\nTab 1 of 3",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[99,870][658,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Logging\nTab 2 of 3",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[658,870][1217,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    },
+    {
+      "class": "android.view.View",
+      "text": "",
+      "resource-id": "",
+      "content-desc": "Settings\nTab 3 of 3",
+      "clickable": "true",
+      "checked": "false",
+      "bounds": "[1217,870][1776,1080]",
+      "enabled": "true",
+      "package": "com.scheler.superproxy"
+    }
+  ],
+  "clickable_elements": [
+    {
+      "text": "",
+      "class": "android.widget.ImageView",
+      "resource-id": "com.android.systemui:id/back",
+      "content-desc": "Back",
+      "bounds": "[1776,118][1920,357]"
+    },
+    {
+      "text": "",
+      "class": "android.widget.ImageView",
+      "resource-id": "com.android.systemui:id/recent_apps",
+      "content-desc": "Recents",
+      "bounds": "[1776,723][1920,962]"
+    },
+    {
+      "text": "",
+      "class": "android.widget.ImageView",
+      "resource-id": "com.android.systemui:id/home",
+      "content-desc": "Home",
+      "bounds": "[1776,420][1920,659]"
+    },
+    {
+      "text": "",
+      "class": "android.widget.Button",
+      "resource-id": "",
+      "content-desc": "",
+      "bounds": "[1632,84][1776,228]"
+    },
+    {
+      "text": "",
+      "class": "android.view.View",
+      "resource-id": "",
+      "content-desc": "Default Profile\n5.161.16.185:19461\nSOCKS5",
+      "bounds": "[0,240][1776,468]"
+    },
+    {
+      "text": "",
+      "class": "android.view.View",
+      "resource-id": "",
+      "content-desc": "lteboost3\n37.27.143.156:11062\nSOCKS5",
+      "bounds": "[0,468][1776,696]"
+    },
+    {
+      "text": "",
+      "class": "android.widget.Button",
+      "resource-id": "",
+      "content-desc": "Add proxy",
+      "bounds": "[1335,654][1728,822]"
+    },
+    {
+      "text": "",
+      "class": "android.view.View",
+      "resource-id": "",
+      "content-desc": "Proxies\nTab 1 of 3",
+      "bounds": "[99,870][658,1080]"
+    },
+    {
+      "text": "",
+      "class": "android.view.View",
+      "resource-id": "",
+      "content-desc": "Logging\nTab 2 of 3",
+      "bounds": "[658,870][1217,1080]"
+    },
+    {
+      "text": "",
+      "class": "android.view.View",
+      "resource-id": "",
+      "content-desc": "Settings\nTab 3 of 3",
+      "bounds": "[1217,870][1776,1080]"
+    }
+  ],
+  "text_elements": [
+    {
+      "text": "4:52",
+      "class": "android.widget.TextView",
+      "resource-id": "com.android.systemui:id/clock",
+      "bounds": "[165,0][241,72]"
+    },
+    {
+      "text": "100%",
+      "class": "android.widget.TextView",
+      "resource-id": "com.android.systemui:id/battery_percentage_view",
+      "bounds": "[1589,0][1684,72]"
+    }
+  ],
+  "switches": [],
+  "buttons": [
+    {
+      "text": "",
+      "class": "android.widget.Button",
+      "resource-id": "",
+      "content-desc": "",
+      "bounds": "[1632,84][1776,228]"
+    },
+    {
+      "text": "",
+      "class": "android.widget.Button",
+      "resource-id": "",
+      "content-desc": "Add proxy",
+      "bounds": "[1335,654][1728,822]"
+    }
+  ],
+  "device_info": {
+    "displayWidth": 1920,
+    "displayHeight": 1080,
+    "sdk": 30,
+    "productName": "r9quew"
+  },
+  "ui_xml_u2_file": "C:\\Users\\TheLiveHouse\\clawd\\phone-farm\\automation\\superproxy_dumps\\ui_dump_u2_10_1_11_4_5555_20260203_165200.xml"
+}

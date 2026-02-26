@@ -1,0 +1,16 @@
+{
+    "accounts": [
+        {
+            "username": "example_user1",
+            "password": "example_password1",
+            "app_id": "com.instagram.androia",
+            "two_fa_code": "ABCDEF123456"
+        },
+        {
+            "username": "example_user2",
+            "password": "example_password2",
+            "app_id": "com.instagram.androidb",
+            "two_fa_code": "GHIJKL789012"
+        }
+    ]
+}

@@ -1,0 +1,805 @@
+{% extends "base.html" %}
+
+{% block title %}Hydra - Documentation{% endblock %}
+
+{% block extra_css %}
+<style>
+    .docs-page {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    .docs-header {
+        margin-bottom: 2rem;
+    }
+    .docs-header h2 {
+        font-weight: 700;
+        font-size: 1.5rem;
+    }
+    .docs-header .subtitle {
+        color: var(--text-dim);
+        font-size: 0.9rem;
+    }
+
+    /* TOC sidebar */
+    .docs-toc {
+        position: sticky;
+        top: 80px;
+        max-height: calc(100vh - 100px);
+        overflow-y: auto;
+        padding-right: 1rem;
+    }
+    .docs-toc .toc-title {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-dim);
+        margin-bottom: 0.75rem;
+    }
+    .docs-toc a {
+        display: block;
+        padding: 0.3rem 0.75rem;
+        color: var(--text-dim);
+        text-decoration: none;
+        font-size: 0.82rem;
+        border-left: 2px solid transparent;
+        transition: all 0.2s;
+        margin-bottom: 2px;
+    }
+    .docs-toc a:hover,
+    .docs-toc a.active {
+        color: var(--accent-light);
+        border-left-color: var(--accent);
+        background: var(--accent-glow);
+    }
+    .docs-toc .toc-section {
+        margin-bottom: 0.5rem;
+    }
+
+    /* Feature cards */
+    .feature-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.75rem;
+        margin-bottom: 2rem;
+        transition: border-color 0.2s;
+    }
+    .feature-card:hover {
+        border-color: rgba(108, 92, 231, 0.3);
+    }
+    .feature-card h3 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .feature-card h3 .feature-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.95rem;
+        flex-shrink: 0;
+    }
+    .feature-card .feature-meta {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .feature-card .badge {
+        font-size: 0.7rem;
+        font-weight: 500;
+        padding: 0.3em 0.7em;
+    }
+    .feature-card p {
+        color: var(--text-dim);
+        font-size: 0.88rem;
+        line-height: 1.7;
+        margin-bottom: 0.75rem;
+    }
+
+    /* Code blocks */
+    .code-block {
+        background: #0d0d14;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.78rem;
+        color: #c0c0d0;
+        overflow-x: auto;
+        margin-bottom: 1rem;
+        line-height: 1.6;
+    }
+    .code-block .comment { color: #5c6370; }
+    .code-block .keyword { color: #c678dd; }
+    .code-block .string { color: #98c379; }
+    .code-block .number { color: #d19a66; }
+    .code-block .function { color: #61afef; }
+
+    /* Flow steps */
+    .flow-steps {
+        position: relative;
+        padding-left: 2rem;
+        margin: 1rem 0;
+    }
+    .flow-steps::before {
+        content: '';
+        position: absolute;
+        left: 11px;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        background: var(--border);
+    }
+    .flow-step {
+        position: relative;
+        padding: 0.4rem 0 0.4rem 1rem;
+        font-size: 0.85rem;
+        color: var(--text);
+    }
+    .flow-step::before {
+        content: '';
+        position: absolute;
+        left: -1.35rem;
+        top: 0.65rem;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 2px solid var(--bg-card);
+    }
+    .flow-step .step-label {
+        color: var(--text-dim);
+        font-size: 0.75rem;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .flow-step.success::before { background: var(--green); }
+    .flow-step.warning::before { background: var(--orange); }
+    .flow-step.danger::before { background: var(--red); }
+
+    /* Data schema table */
+    .schema-table {
+        width: 100%;
+        font-size: 0.82rem;
+        border-collapse: collapse;
+    }
+    .schema-table th {
+        background: rgba(108, 92, 231, 0.08);
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-dim);
+        border-bottom: 1px solid var(--border);
+    }
+    .schema-table td {
+        padding: 0.45rem 0.75rem;
+        border-bottom: 1px solid rgba(30, 30, 46, 0.5);
+        color: var(--text);
+    }
+    .schema-table tr:hover td {
+        background: rgba(108, 92, 231, 0.04);
+    }
+    .schema-table .col-name {
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--accent-light);
+        font-size: 0.8rem;
+    }
+    .schema-table .col-type {
+        color: var(--orange);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.78rem;
+    }
+
+    /* Section separator */
+    .docs-section-sep {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 2.5rem 0;
+    }
+
+    /* Badge colors */
+    .badge-new { background: rgba(0, 210, 160, 0.2); color: var(--green); }
+    .badge-story { background: rgba(240, 160, 64, 0.2); color: var(--orange); }
+    .badge-business { background: rgba(108, 92, 231, 0.2); color: var(--accent-light); }
+    .badge-scraper { background: rgba(79, 168, 213, 0.2); color: var(--blue); }
+    .badge-dedup { background: rgba(231, 76, 111, 0.2); color: var(--red); }
+    .badge-source { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; background: rgba(255,255,255,0.06); color: var(--text-dim); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="docs-page">
+    <div class="docs-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2><i class="fas fa-book me-2 text-info"></i>Automation Documentation</h2>
+                <p class="subtitle mb-0">Feature reference for all Hydra automation modules — updated 2026-02-22</p>
+            </div>
+            <div>
+                <a href="/automation-flows" class="btn btn-outline-info btn-sm">
+                    <i class="fas fa-project-diagram me-1"></i>Flow Diagrams
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Table of Contents (sidebar) -->
+        <div class="col-lg-3 d-none d-lg-block">
+            <div class="docs-toc">
+                <div class="toc-title">On This Page</div>
+                <div class="toc-section">
+                    <a href="#story-mention-sticker">Story Mention Sticker</a>
+                    <a href="#story-link-sticker">Story Link Sticker</a>
+                    <a href="#business-profile-switch">Business Profile Switch</a>
+                    <a href="#instagram-insights-scraper">Instagram Insights Scraper</a>
+                    <a href="#tag-follow-dedup-v2">Tag-Based Follow Dedup v2</a>
+                </div>
+                <div class="toc-title mt-3">Reference</div>
+                <div class="toc-section">
+                    <a href="#db-schema">Database Schema</a>
+                    <a href="#api-usage">API Usage</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-lg-9">
+
+            <!-- ================================================================ -->
+            <!-- 1. Story Mention Sticker -->
+            <!-- ================================================================ -->
+            <div class="feature-card" id="story-mention-sticker">
+                <h3>
+                    <span class="feature-icon" style="background:rgba(240,160,64,0.15); color:var(--orange);">
+                        <i class="fas fa-at"></i>
+                    </span>
+                    Story Mention Sticker
+                </h3>
+                <div class="feature-meta">
+                    <span class="badge badge-new">New</span>
+                    <span class="badge badge-story">Story Editor</span>
+                    <span class="badge badge-source">share_to_story.py</span>
+                </div>
+                <p>
+                    Automatically adds an <strong>@mention sticker</strong> to shared stories via the Instagram sticker picker.
+                    When sharing a source account's post/reel to your story, the bot opens the sticker picker, searches for "mention",
+                    selects the MENTION sticker, types the source username, picks the suggestion, and confirms with Done.
+                </p>
+                <p>
+                    <strong>Why it matters:</strong> Mention stickers increase engagement and visibility for the source account,
+                    which can drive reciprocal engagement. The bot handles the full sticker picker flow including search,
+                    selection, and suggestion matching.
+                </p>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Navigation Flow</h6>
+                <div class="flow-steps">
+                    <div class="flow-step">
+                        <span class="step-label">Step 1</span><br>
+                        Story editor loaded → swipe up to open sticker picker
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 2</span><br>
+                        Type <code>mention</code> in sticker search bar
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 3</span><br>
+                        Tap MENTION sticker from search results
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 4</span><br>
+                        Type target username → select from suggestions
+                    </div>
+                    <div class="flow-step success">
+                        <span class="step-label">Step 5</span><br>
+                        Tap Done → sticker placed on story
+                    </div>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Settings</h6>
+                <div class="code-block">
+<span class="comment"># Account settings JSON</span>
+<span class="string">"story_mention_enabled"</span>: <span class="keyword">true</span>,
+<span class="string">"story_mention_target"</span>: <span class="string">"source_username"</span>  <span class="comment"># defaults to source if empty</span>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Key Selectors</h6>
+                <table class="schema-table">
+                    <tr><th>Element</th><th>Selector</th></tr>
+                    <tr><td>Sticker picker open</td><td class="col-name">swipe up OR d(description="Emojis and stickers")</td></tr>
+                    <tr><td>Search bar</td><td class="col-name">d(className="android.widget.EditText")</td></tr>
+                    <tr><td>MENTION sticker</td><td class="col-name">d(description="Mention Sticker") / d(text="MENTION")</td></tr>
+                    <tr><td>Confirm</td><td class="col-name">d(text="Done")</td></tr>
+                </table>
+            </div>
+
+            <!-- ================================================================ -->
+            <!-- 2. Story Link Sticker -->
+            <!-- ================================================================ -->
+            <div class="feature-card" id="story-link-sticker">
+                <h3>
+                    <span class="feature-icon" style="background:rgba(79,168,213,0.15); color:var(--blue);">
+                        <i class="fas fa-link"></i>
+                    </span>
+                    Story Link Sticker
+                </h3>
+                <div class="feature-meta">
+                    <span class="badge badge-new">New</span>
+                    <span class="badge badge-story">Story Editor</span>
+                    <span class="badge badge-source">share_to_story.py</span>
+                </div>
+                <p>
+                    Adds a <strong>link sticker</strong> to shared stories via the sticker picker. Opens the sticker picker,
+                    searches "link", selects the LINK sticker, enters the configured URL in the form's first EditText field,
+                    and confirms with Done. Supports any URL including affiliate links, landing pages, or profile links.
+                </p>
+                <p>
+                    <strong>Live-tested on:</strong> IG clone <code>com.instagram.androie</code> (2026-02-21).
+                    The link sticker appears as a blue "LINK" button in search results under the "Stickers" heading.
+                </p>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Navigation Flow</h6>
+                <div class="flow-steps">
+                    <div class="flow-step">
+                        <span class="step-label">Step 1</span><br>
+                        Story editor loaded → swipe up to open sticker picker
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 2</span><br>
+                        Type <code>link</code> in sticker search bar → wait 3s for results
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 3</span><br>
+                        Tap LINK sticker (blue button) from search results
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 4</span><br>
+                        Enter URL in first EditText field (URL field)
+                    </div>
+                    <div class="flow-step success">
+                        <span class="step-label">Step 5</span><br>
+                        Tap Done → link sticker placed on story
+                    </div>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Settings</h6>
+                <div class="code-block">
+<span class="comment"># Account settings JSON</span>
+<span class="string">"story_link_sticker_enabled"</span>: <span class="keyword">true</span>,
+<span class="string">"story_link_sticker_url"</span>: <span class="string">"https://example.com/landing"</span>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Key Selectors</h6>
+                <table class="schema-table">
+                    <tr><th>Element</th><th>Selector</th></tr>
+                    <tr><td>Sticker picker open</td><td class="col-name">swipe up OR d(description="Emojis and stickers")</td></tr>
+                    <tr><td>Search bar</td><td class="col-name">d(className="android.widget.EditText")</td></tr>
+                    <tr><td>LINK sticker</td><td class="col-name">d(description="Link Sticker") / d(text="LINK")</td></tr>
+                    <tr><td>URL input</td><td class="col-name">d(className="android.widget.EditText")[0]</td></tr>
+                    <tr><td>Confirm</td><td class="col-name">d(text="Done")</td></tr>
+                </table>
+            </div>
+
+            <!-- ================================================================ -->
+            <!-- 3. Business Profile Switch -->
+            <!-- ================================================================ -->
+            <div class="feature-card" id="business-profile-switch">
+                <h3>
+                    <span class="feature-icon" style="background:rgba(108,92,231,0.15); color:var(--accent-light);">
+                        <i class="fas fa-briefcase"></i>
+                    </span>
+                    Business Profile Switch
+                </h3>
+                <div class="feature-meta">
+                    <span class="badge badge-business">Business</span>
+                    <span class="badge badge-source">switch_to_business.py</span>
+                </div>
+                <p>
+                    Automates the full <strong>Personal → Professional (Business)</strong> account conversion.
+                    Navigates through the Settings UI: Profile → Options hamburger → "Settings and activity" →
+                    scroll to "Account type and tools" → "Switch to professional account" → complete the multi-step
+                    setup wizard (intro, category selection, contact info, Facebook skip, setup dismissal).
+                </p>
+                <p>
+                    <strong>Clone-specific:</strong> Menu item is "Settings and activity" (NOT "Settings and privacy").
+                    Needs 6+ swipe-scrolls to reach "Account type and tools". Uses clone-specific
+                    <code>bb_primary_action</code> resource ID for buttons. Category picker uses RadioButtons.
+                </p>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Navigation Flow</h6>
+                <div class="flow-steps">
+                    <div class="flow-step">
+                        <span class="step-label">Step 1</span><br>
+                        Profile tab → check if already business (2+ indicators)
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 2</span><br>
+                        Options (☰) → "Settings and activity" → scroll 6-10× to "Account type and tools"
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 3</span><br>
+                        "Switch to professional account" → Intro screen (Next)
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 4</span><br>
+                        Category picker: select from SAFE_CATEGORIES list via RadioButton
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 5</span><br>
+                        Contact info → Next | Skip Facebook connect
+                    </div>
+                    <div class="flow-step warning">
+                        <span class="step-label">Step 6</span><br>
+                        Dismiss setup complete screen via Close (X) button
+                    </div>
+                    <div class="flow-step success">
+                        <span class="step-label">Step 7</span><br>
+                        Verify: check for "Professional dashboard" or "Insights" on profile
+                    </div>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Safe Categories</h6>
+                <div class="code-block">
+SAFE_CATEGORIES = [<span class="string">"Artist"</span>, <span class="string">"Blogger"</span>, <span class="string">"Musician/band"</span>, <span class="string">"Digital creator"</span>,
+                   <span class="string">"Entrepreneur"</span>, <span class="string">"Personal blog"</span>, <span class="string">"Product/service"</span>,
+                   <span class="string">"Gaming video creator"</span>, <span class="string">"Video creator"</span>]
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">DB Updates</h6>
+                <table class="schema-table">
+                    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+                    <tr><td class="col-name">is_business_profile</td><td class="col-type">BOOLEAN</td><td>1 when switched</td></tr>
+                    <tr><td class="col-name">business_category</td><td class="col-type">TEXT</td><td>Selected category name</td></tr>
+                    <tr><td class="col-name">business_switched_at</td><td class="col-type">TIMESTAMP</td><td>ISO timestamp</td></tr>
+                </table>
+            </div>
+
+            <hr class="docs-section-sep">
+
+            <!-- ================================================================ -->
+            <!-- 4. Instagram Insights Scraper -->
+            <!-- ================================================================ -->
+            <div class="feature-card" id="instagram-insights-scraper">
+                <h3>
+                    <span class="feature-icon" style="background:rgba(79,168,213,0.15); color:var(--blue);">
+                        <i class="fas fa-chart-line"></i>
+                    </span>
+                    Instagram Insights Scraper
+                </h3>
+                <div class="feature-meta">
+                    <span class="badge badge-new">New</span>
+                    <span class="badge badge-scraper">Analytics</span>
+                    <span class="badge badge-source">scrape_insights.py</span>
+                </div>
+                <p>
+                    Automated <strong>Professional Dashboard analytics scraper</strong>. Navigates from Profile through
+                    each insights section (Views, Interactions, Followers) and extracts all available metrics via
+                    <code>dump_hierarchy()</code> + regex parsing. Supports both a quick overview scrape and
+                    full drill-down with detailed breakdowns.
+                </p>
+                <p>
+                    <strong>Two modes:</strong>
+                </p>
+                <ul style="color:var(--text-dim); font-size:0.88rem;">
+                    <li><code>scrape_insights_overview(d)</code> — Dashboard overview only (Views, Interactions, New followers, Content shared). Fast, ~10 seconds.</li>
+                    <li><code>scrape_insights(d)</code> — Full drill-down into each section with content type breakdown, demographics, comparison periods. ~45 seconds.</li>
+                </ul>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Full Navigation Flow</h6>
+                <div class="flow-steps">
+                    <div class="flow-step">
+                        <span class="step-label">Step 1</span><br>
+                        Profile tab → "Professional dashboard" → scrape overview
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 2</span><br>
+                        Tap "Views" → scrape total, follower/non-follower split, reached, content type breakdown → scroll for profile visits, link taps → back
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 3</span><br>
+                        Tap "Interactions" → scrape total, follower split, likes, content type → back
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 4</span><br>
+                        Tap "New followers" → scrape total, check if ≥100 for demographics → scroll for cities, countries, age, gender → back
+                    </div>
+                    <div class="flow-step success">
+                        <span class="step-label">Step 5</span><br>
+                        Return complete data dict → optionally save to <code>account_insights_v2</code> table
+                    </div>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Data Extraction Techniques</h6>
+                <div class="code-block">
+<span class="comment"># Total from content-desc: "153 Views"</span>
+re.search(<span class="string">r'content-desc="([\d,]+)\s*Views?"'</span>, xml)
+
+<span class="comment"># Percentage near label: finds "6%" after "Followers"</span>
+_extract_percentage(xml, <span class="string">"Followers"</span>)
+
+<span class="comment"># Value near label: finds "115" after "Accounts reached"</span>
+_extract_value_near_label(xml, <span class="string">"Accounts reached"</span>)
+
+<span class="comment"># Date range: "Jan 22 - Feb 20"</span>
+re.search(<span class="string">r'text="([A-Z][a-z]{2}\s+\d{1,2}\s*[-–]\s*[A-Z][a-z]{2}\s+\d{1,2})"'</span>, xml)
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Return Data Structure</h6>
+                <div class="code-block">
+{
+    <span class="string">'scraped_at'</span>: <span class="string">'2026-02-22T01:00:00'</span>,
+    <span class="string">'date_range'</span>: <span class="string">'Jan 22 - Feb 20'</span>,
+    <span class="string">'overview'</span>: {<span class="string">'views'</span>: <span class="number">153</span>, <span class="string">'interactions'</span>: <span class="number">6</span>, <span class="string">'new_followers'</span>: <span class="number">0</span>, <span class="string">'content_shared'</span>: <span class="number">1</span>},
+    <span class="string">'views_detail'</span>: {
+        <span class="string">'total'</span>: <span class="number">153</span>, <span class="string">'followers_pct'</span>: <span class="number">6.0</span>, <span class="string">'non_followers_pct'</span>: <span class="number">94.0</span>,
+        <span class="string">'accounts_reached'</span>: <span class="number">115</span>, <span class="string">'profile_visits'</span>: <span class="number">12</span>,
+        <span class="string">'content_type'</span>: {<span class="string">'reels_pct'</span>: <span class="number">99.3</span>, <span class="string">'posts_pct'</span>: <span class="number">0.7</span>}, ...
+    },
+    <span class="string">'interactions_detail'</span>: {<span class="string">'total'</span>: <span class="number">6</span>, <span class="string">'likes'</span>: <span class="keyword">None</span>, ...},
+    <span class="string">'followers_detail'</span>: {<span class="string">'total'</span>: <span class="number">29</span>, <span class="string">'demographics_available'</span>: <span class="keyword">False</span>, ...}
+}
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Usage</h6>
+                <div class="code-block">
+<span class="keyword">from</span> automation.actions.scrape_insights <span class="keyword">import</span> scrape_insights, save_insights_to_db
+
+<span class="comment"># Full scrape</span>
+data = <span class="function">scrape_insights</span>(d, pkg=<span class="string">'com.instagram.androie'</span>)
+
+<span class="comment"># Save to DB</span>
+<span class="function">save_insights_to_db</span>(data, account_id=<span class="string">'myaccount'</span>, device_serial=<span class="string">'192.168.1.100:5555'</span>)
+
+<span class="comment"># Quick overview only (no drill-down)</span>
+overview = <span class="function">scrape_insights_overview</span>(d)
+                </div>
+            </div>
+
+            <!-- ================================================================ -->
+            <!-- 5. Tag-Based Follow Dedup v2 -->
+            <!-- ================================================================ -->
+            <div class="feature-card" id="tag-follow-dedup-v2">
+                <h3>
+                    <span class="feature-icon" style="background:rgba(231,76,111,0.15); color:var(--red);">
+                        <i class="fas fa-filter"></i>
+                    </span>
+                    Tag-Based Follow Dedup v2
+                </h3>
+                <div class="feature-meta">
+                    <span class="badge badge-new">New</span>
+                    <span class="badge badge-dedup">Cross-Device</span>
+                    <span class="badge badge-source">tag_based_automation.py</span>
+                </div>
+                <p>
+                    <strong>Cross-device deduplication</strong> for tag-based follow campaigns. The
+                    <code>tag_followed_targets</code> table tracks every username followed across all devices and accounts,
+                    preventing the same target from being followed by multiple farm accounts. Each record stores
+                    the account that did the follow, which device, and when — enabling farm-wide dedup queries.
+                </p>
+                <p>
+                    Before following a target, the bot checks:
+                </p>
+                <div class="code-block">
+<span class="keyword">SELECT</span> <span class="number">1</span> <span class="keyword">FROM</span> tag_followed_targets
+<span class="keyword">WHERE</span> target_username = <span class="string">?</span>
+  <span class="keyword">AND</span> followed_at > datetime(<span class="string">'now'</span>, <span class="string">'-30 days'</span>)
+<span class="keyword">LIMIT</span> <span class="number">1</span>
+                </div>
+                <p>
+                    If the target was followed by <em>any</em> account in the last 30 days, it's skipped.
+                    This prevents wasted follows and reduces the chance of Instagram detecting coordinated behavior.
+                </p>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Dedup Table Schema</h6>
+                <table class="schema-table">
+                    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+                    <tr><td class="col-name">id</td><td class="col-type">INTEGER PK</td><td>Auto-increment</td></tr>
+                    <tr><td class="col-name">campaign_id</td><td class="col-type">TEXT</td><td>Tag campaign identifier</td></tr>
+                    <tr><td class="col-name">account_username</td><td class="col-type">TEXT</td><td>Our account that followed</td></tr>
+                    <tr><td class="col-name">target_username</td><td class="col-type">TEXT</td><td>Target that was followed</td></tr>
+                    <tr><td class="col-name">device_serial</td><td class="col-type">TEXT</td><td>Device that performed action</td></tr>
+                    <tr><td class="col-name">source_tag</td><td class="col-type">TEXT</td><td>Hashtag or source account</td></tr>
+                    <tr><td class="col-name">followed_at</td><td class="col-type">TIMESTAMP</td><td>When the follow happened</td></tr>
+                </table>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Cross-Device Flow</h6>
+                <div class="flow-steps">
+                    <div class="flow-step">
+                        <span class="step-label">Step 1</span><br>
+                        Bot picks target from follower list of source account
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 2</span><br>
+                        Query <code>tag_followed_targets</code> for target_username across ALL devices
+                    </div>
+                    <div class="flow-step warning">
+                        <span class="step-label">Step 3</span><br>
+                        If found → skip target, move to next
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-label">Step 4</span><br>
+                        If not found → follow target → INSERT into dedup table
+                    </div>
+                    <div class="flow-step success">
+                        <span class="step-label">Step 5</span><br>
+                        All devices share the same dedup table → no duplicates
+                    </div>
+                </div>
+            </div>
+
+            <hr class="docs-section-sep">
+
+            <!-- ================================================================ -->
+            <!-- Database Schema Reference -->
+            <!-- ================================================================ -->
+            <div class="feature-card" id="db-schema">
+                <h3>
+                    <span class="feature-icon" style="background:rgba(255,255,255,0.06); color:var(--text-dim);">
+                        <i class="fas fa-database"></i>
+                    </span>
+                    Database Schema — account_insights_v2
+                </h3>
+                <div class="feature-meta">
+                    <span class="badge badge-scraper">Schema</span>
+                    <span class="badge badge-source">db/phone_farm.db</span>
+                </div>
+                <p>
+                    New comprehensive insights table storing all scraped Professional Dashboard data.
+                    Indexed on <code>account_id</code> and <code>scraped_at</code> for fast queries.
+                    JSON columns store demographics data (cities, countries, age, gender, active times).
+                </p>
+
+                <table class="schema-table">
+                    <thead>
+                        <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="col-name">id</td><td class="col-type">INTEGER PK</td><td>Auto-increment</td></tr>
+                        <tr><td class="col-name">account_id</td><td class="col-type">TEXT NOT NULL</td><td>Username</td></tr>
+                        <tr><td class="col-name">device_serial</td><td class="col-type">TEXT</td><td>Device that scraped</td></tr>
+                        <tr><td class="col-name">scraped_at</td><td class="col-type">TIMESTAMP</td><td>When scraped</td></tr>
+                        <tr><td class="col-name">date_range</td><td class="col-type">TEXT</td><td>"Jan 22 - Feb 20"</td></tr>
+                        <tr><td colspan="3" style="background:rgba(108,92,231,0.04); font-weight:600; font-size:0.75rem; text-transform:uppercase;">Overview</td></tr>
+                        <tr><td class="col-name">views</td><td class="col-type">INTEGER</td><td>Total views</td></tr>
+                        <tr><td class="col-name">interactions</td><td class="col-type">INTEGER</td><td>Total interactions</td></tr>
+                        <tr><td class="col-name">new_followers</td><td class="col-type">INTEGER</td><td>New followers in period</td></tr>
+                        <tr><td class="col-name">content_shared</td><td class="col-type">INTEGER</td><td>Content shared count</td></tr>
+                        <tr><td colspan="3" style="background:rgba(79,168,213,0.04); font-weight:600; font-size:0.75rem; text-transform:uppercase;">Views Detail</td></tr>
+                        <tr><td class="col-name">accounts_reached</td><td class="col-type">INTEGER</td><td>Unique accounts reached</td></tr>
+                        <tr><td class="col-name">accounts_reached_change_pct</td><td class="col-type">REAL</td><td>Change vs previous period</td></tr>
+                        <tr><td class="col-name">views_followers_pct</td><td class="col-type">REAL</td><td>% views from followers</td></tr>
+                        <tr><td class="col-name">views_non_followers_pct</td><td class="col-type">REAL</td><td>% views from non-followers</td></tr>
+                        <tr><td class="col-name">reels_views_pct</td><td class="col-type">REAL</td><td>% views from Reels</td></tr>
+                        <tr><td class="col-name">posts_views_pct</td><td class="col-type">REAL</td><td>% views from Posts</td></tr>
+                        <tr><td class="col-name">profile_visits</td><td class="col-type">INTEGER</td><td>Profile visits count</td></tr>
+                        <tr><td class="col-name">profile_visits_change_pct</td><td class="col-type">REAL</td><td>Profile visits change %</td></tr>
+                        <tr><td class="col-name">external_link_taps</td><td class="col-type">INTEGER</td><td>External link tap count</td></tr>
+                        <tr><td class="col-name">comparison_period</td><td class="col-type">TEXT</td><td>"Dec 23 - Jan 21"</td></tr>
+                        <tr><td colspan="3" style="background:rgba(240,160,64,0.04); font-weight:600; font-size:0.75rem; text-transform:uppercase;">Interactions Detail</td></tr>
+                        <tr><td class="col-name">interactions_followers_pct</td><td class="col-type">REAL</td><td>% from followers</td></tr>
+                        <tr><td class="col-name">interactions_non_followers_pct</td><td class="col-type">REAL</td><td>% from non-followers</td></tr>
+                        <tr><td class="col-name">likes_count</td><td class="col-type">INTEGER</td><td>Total likes</td></tr>
+                        <tr><td class="col-name">reels_interactions_pct</td><td class="col-type">REAL</td><td>% interactions from Reels</td></tr>
+                        <tr><td colspan="3" style="background:rgba(0,210,160,0.04); font-weight:600; font-size:0.75rem; text-transform:uppercase;">Followers Detail</td></tr>
+                        <tr><td class="col-name">total_followers</td><td class="col-type">INTEGER</td><td>Total follower count</td></tr>
+                        <tr><td class="col-name">demographics_available</td><td class="col-type">BOOLEAN</td><td>1 if ≥100 followers</td></tr>
+                        <tr><td class="col-name">top_cities</td><td class="col-type">TEXT (JSON)</td><td>{"City": "XX%"}</td></tr>
+                        <tr><td class="col-name">top_countries</td><td class="col-type">TEXT (JSON)</td><td>{"Country": "XX%"}</td></tr>
+                        <tr><td class="col-name">age_range</td><td class="col-type">TEXT (JSON)</td><td>{"18-24": "XX%"}</td></tr>
+                        <tr><td class="col-name">gender</td><td class="col-type">TEXT (JSON)</td><td>{"Men": XX, "Women": XX}</td></tr>
+                        <tr><td class="col-name">most_active_times</td><td class="col-type">TEXT (JSON)</td><td>["3 PM", "6 PM"]</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ================================================================ -->
+            <!-- API Usage -->
+            <!-- ================================================================ -->
+            <div class="feature-card" id="api-usage">
+                <h3>
+                    <span class="feature-icon" style="background:rgba(255,255,255,0.06); color:var(--text-dim);">
+                        <i class="fas fa-code"></i>
+                    </span>
+                    API &amp; Integration Reference
+                </h3>
+                <div class="feature-meta">
+                    <span class="badge badge-source">Python API</span>
+                </div>
+
+                <h6 class="mt-2 mb-2" style="font-size:0.85rem; font-weight:600;">Insights Scraper</h6>
+                <div class="code-block">
+<span class="keyword">from</span> automation.actions.scrape_insights <span class="keyword">import</span> (
+    scrape_insights,
+    scrape_insights_overview,
+    save_insights_to_db,
+    get_latest_insights,
+    get_insights_history,
+)
+
+<span class="comment"># Full scrape (requires device connected + IG open on Business profile)</span>
+data = <span class="function">scrape_insights</span>(d, pkg=<span class="string">'com.instagram.androie'</span>)
+
+<span class="comment"># Quick overview only</span>
+data = <span class="function">scrape_insights_overview</span>(d, pkg=<span class="string">'com.instagram.androie'</span>)
+
+<span class="comment"># Persist to DB</span>
+row_id = <span class="function">save_insights_to_db</span>(data, account_id=<span class="string">'username'</span>, device_serial=<span class="string">'10.1.11.x:5555'</span>)
+
+<span class="comment"># Query latest</span>
+latest = <span class="function">get_latest_insights</span>(<span class="string">'username'</span>)
+
+<span class="comment"># Query history (last 30 days)</span>
+history = <span class="function">get_insights_history</span>(<span class="string">'username'</span>, days=<span class="number">30</span>)
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Business Switch</h6>
+                <div class="code-block">
+<span class="keyword">from</span> automation.actions.switch_to_business <span class="keyword">import</span> SwitchToBusinessAction
+
+action = <span class="function">SwitchToBusinessAction</span>(
+    device=d, device_serial=serial, account_info=acct,
+    session_id=sid, pkg=<span class="string">'com.instagram.androie'</span>,
+    category=<span class="string">'Artist'</span>
+)
+result = action.<span class="function">execute</span>()
+<span class="comment"># result = {'success': True, 'category': 'Artist', 'error_message': None}</span>
+                </div>
+
+                <h6 class="mt-3 mb-2" style="font-size:0.85rem; font-weight:600;">Story Features</h6>
+                <div class="code-block">
+<span class="comment"># Story features are controlled via account_settings JSON:</span>
+{
+    <span class="string">"story_mention_enabled"</span>: <span class="keyword">true</span>,
+    <span class="string">"story_mention_target"</span>: <span class="string">""</span>,          <span class="comment"># empty = use source username</span>
+    <span class="string">"story_link_sticker_enabled"</span>: <span class="keyword">true</span>,
+    <span class="string">"story_link_sticker_url"</span>: <span class="string">"https://..."</span>,
+    <span class="string">"story_text_overlay_enabled"</span>: <span class="keyword">false</span>,
+    <span class="string">"story_text_overlay"</span>: <span class="string">"Check this out!"</span>
+}
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Smooth scroll for TOC links
+    document.querySelectorAll('.docs-toc a').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            const target = document.querySelector(link.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+
+    // Highlight active TOC item on scroll
+    const sections = document.querySelectorAll('.feature-card[id]');
+    const tocLinks = document.querySelectorAll('.docs-toc a');
+
+    window.addEventListener('scroll', () => {
+        let current = '';
+        sections.forEach(section => {
+            const top = section.getBoundingClientRect().top;
+            if (top < 200) current = '#' + section.id;
+        });
+        tocLinks.forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === current);
+        });
+    });
+</script>
+{% endblock %}
