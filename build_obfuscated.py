@@ -383,12 +383,12 @@ def copy_assets(dry_run: bool = False):
             print(f"  [DRY RUN] Would copy: {src_rel}/ ({file_count} files)")
             continue
         
-        # Copy, ignoring Python bytecode
+        # Copy, ignoring Python bytecode and large media dirs
         if dest.exists():
             shutil.rmtree(dest)
         shutil.copytree(
             src, dest,
-            ignore=shutil.ignore_patterns("*.pyc", "__pycache__"),
+            ignore=shutil.ignore_patterns("*.pyc", "__pycache__", "media_library"),
             dirs_exist_ok=True,
         )
         file_count = sum(1 for _ in dest.rglob("*") if _.is_file())
@@ -422,23 +422,9 @@ def copy_assets(dry_run: bool = False):
         (DIST_DIR / d).mkdir(parents=True, exist_ok=True)
     
     # Copy DB files specifically (SQLite databases)
-    for db_file in (FARM_DIR / "db").glob("*.db"):
-        dest = DIST_DIR / "db" / db_file.name
-        if not dry_run:
-            shutil.copy2(db_file, dest)
-            print(f"  ✓ db/{db_file.name} (SQLite database)")
-            copied += 1
-    
-    # Also check for phone_farm.db in dashboard/ or root
-    for search_dir in [FARM_DIR / "dashboard", FARM_DIR]:
-        for db_file in search_dir.glob("*.db"):
-            rel = db_file.relative_to(FARM_DIR)
-            dest = DIST_DIR / rel
-            if not dry_run and not dest.exists():
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(db_file, dest)
-                print(f"  ✓ {rel} (SQLite database)")
-                copied += 1
+    # Skip shipping our DB — clients create their own on first run
+    # Only copy migrations so the DB can be initialized
+    print(f"  SKIP: *.db files (client creates own database)")
     
     print(f"\n  Total assets copied: {copied}")
     return copied
