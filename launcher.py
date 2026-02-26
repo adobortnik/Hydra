@@ -12,14 +12,35 @@ import time
 import webbrowser
 import threading
 import socket
+import io
 
-# ── Configuration ──
+# Fix encoding for Windows (cp1250 can't handle unicode box chars)
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+# Fix for PyInstaller --windowed mode (no stdin/stdout)
+if sys.stdin is None:
+    sys.stdin = io.StringIO()
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
+
+# â”€â”€ Configuration â”€â”€
 REQUIRED_PYTHON = (3, 12)  # Minimum Python version
 RECOMMENDED_PYTHON = "3.13"
 PORT = 5055
 URL = f'http://localhost:{PORT}'
 
-# ── Paths ──
+# â”€â”€ Paths â”€â”€
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
 else:
@@ -33,9 +54,9 @@ REQUIREMENTS = os.path.join(BASE_DIR, 'requirements.txt')
 
 def print_banner():
     print()
-    print("  ╔══════════════════════════════════════════╗")
-    print("  ║         HYDRA DASHBOARD LAUNCHER         ║")
-    print("  ╚══════════════════════════════════════════╝")
+    print("  â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—")
+    print("  â•‘         HYDRA DASHBOARD LAUNCHER         â•‘")
+    print("  â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•ť")
     print()
 
 
@@ -45,12 +66,12 @@ def check_python_version():
     print(f"  Python:  {v.major}.{v.minor}.{v.micro}")
     
     if (v.major, v.minor) < REQUIRED_PYTHON:
-        print(f"\n  ✗ Python {REQUIRED_PYTHON[0]}.{REQUIRED_PYTHON[1]}+ is required!")
+        print(f"\n  âś— Python {REQUIRED_PYTHON[0]}.{REQUIRED_PYTHON[1]}+ is required!")
         print(f"    Download from: https://www.python.org/downloads/")
         print(f"    Recommended:   Python {RECOMMENDED_PYTHON}")
         return False
     
-    print(f"  Status:  ✓ OK")
+    print(f"  Status:  âś“ OK")
     return True
 
 
@@ -65,7 +86,7 @@ def check_dependencies():
     # Quick check if Flask is importable (main dependency)
     try:
         import flask
-        print(f" ✓ OK (Flask {flask.__version__})")
+        print(f" âś“ OK (Flask {flask.__version__})")
         return True
     except ImportError:
         pass
@@ -77,21 +98,22 @@ def check_dependencies():
     try:
         result = subprocess.run(
             [sys.executable, '-m', 'pip', 'install', '-r', REQUIREMENTS, '--quiet'],
-            capture_output=True, text=True, timeout=120,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, timeout=120,
         )
         if result.returncode == 0:
-            print(f"  Deps:    ✓ Installed successfully")
+            print(f"  Deps:    âś“ Installed successfully")
             return True
         else:
-            print(f"  Deps:    ✗ Installation failed:")
+            print(f"  Deps:    âś— Installation failed:")
             for line in result.stderr.strip().split('\n')[:5]:
                 print(f"           {line}")
             return False
     except subprocess.TimeoutExpired:
-        print(f"  Deps:    ✗ Installation timed out")
+        print(f"  Deps:    âś— Installation timed out")
         return False
     except Exception as e:
-        print(f"  Deps:    ✗ Error: {e}")
+        print(f"  Deps:    âś— Error: {e}")
         return False
 
 
@@ -109,7 +131,7 @@ def wait_and_open_browser():
             time.sleep(1)
             webbrowser.open(URL)
             return
-    print(f"\n  ⚠ Dashboard didn't start within 30 seconds")
+    print(f"\n  âš  Dashboard didn't start within 30 seconds")
 
 
 def main():
@@ -117,7 +139,7 @@ def main():
     
     # Step 1: Check Python
     if not check_python_version():
-        input("\n  Press Enter to exit...")
+        time.sleep(10)  # Show error for 10 seconds
         return
     
     # Step 2: Check if already running
@@ -131,20 +153,20 @@ def main():
     
     # Step 3: Check dependencies
     if not check_dependencies():
-        input("\n  Press Enter to exit...")
+        time.sleep(10)  # Show error for 10 seconds
         return
     
     # Step 4: Verify dashboard files
     if not os.path.exists(DASHBOARD_DIR):
-        print(f"\n  ✗ dashboard/ folder not found!")
+        print(f"\n  âś— dashboard/ folder not found!")
         print(f"    Expected at: {DASHBOARD_DIR}")
-        input("\n  Press Enter to exit...")
+        time.sleep(10)  # Show error for 10 seconds
         return
     
     script = RUN_DASHBOARD if os.path.exists(RUN_DASHBOARD) else SIMPLE_APP
     if not os.path.exists(script):
-        print(f"\n  ✗ {os.path.basename(script)} not found!")
-        input("\n  Press Enter to exit...")
+        print(f"\n  âś— {os.path.basename(script)} not found!")
+        time.sleep(10)  # Show error for 10 seconds
         return
     
     # Step 5: Start dashboard
@@ -153,7 +175,7 @@ def main():
     print(f"\n  Starting dashboard...")
     print(f"  Browser will open automatically when ready.")
     print(f"  Close this window to stop the dashboard.")
-    print(f"\n  {'─' * 42}\n")
+    print(f"\n  {'â”€' * 42}\n")
     
     # Open browser when ready
     browser_thread = threading.Thread(target=wait_and_open_browser, daemon=True)
@@ -177,7 +199,7 @@ def main():
         
         if process.returncode != 0:
             print(f"\n  Dashboard exited with code {process.returncode}")
-            input("\n  Press Enter to exit...")
+            time.sleep(10)  # Show error for 10 seconds
     except KeyboardInterrupt:
         print("\n  Shutting down...")
         process.terminate()
@@ -187,8 +209,9 @@ def main():
             process.kill()
     except Exception as e:
         print(f"\n  Error: {e}")
-        input("\n  Press Enter to exit...")
+        time.sleep(10)  # Show error for 10 seconds
 
 
 if __name__ == '__main__':
     main()
+

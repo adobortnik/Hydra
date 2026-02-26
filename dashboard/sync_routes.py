@@ -334,13 +334,17 @@ def _run_network_scan(ip_range_str, port=5555):
     scanned = 0
     
     try:
-        with ThreadPoolExecutor(max_workers=50) as executor:
+        # Limit concurrency to avoid overwhelming ADB server
+        with ThreadPoolExecutor(max_workers=20) as executor:
             futures = {executor.submit(_try_connect, ip, port): ip for ip in ips}
             
+            connected_ips = []
             for future in as_completed(futures):
                 scanned += 1
                 try:
                     ip, connected, hw_serial = future.result()
+                    if connected:
+                        connected_ips.append(f"{ip}:{port}")
                     if connected and hw_serial:
                         discovered.append({
                             'ip': ip,
@@ -353,6 +357,16 @@ def _run_network_scan(ip_range_str, port=5555):
                     pass
                 
                 _update_state(progress=scanned)
+        
+        # Disconnect IPs that aren't in our discovered list to avoid zombie ADB connections
+        discovered_adb = {d['adb_serial'] for d in discovered}
+        for adb_serial in connected_ips:
+            if adb_serial not in discovered_adb:
+                try:
+                    subprocess.run(f'adb disconnect {adb_serial}',
+                                   capture_output=True, timeout=3, shell=True)
+                except:
+                    pass
         
         # Match against DB
         conn = _get_conn()
@@ -427,21 +441,26 @@ def _run_network_scan(ip_range_str, port=5555):
 
 # ── Apply sync ────────────────────────────────────────────────────
 def _get_tables_with_device_serial():
-    """Find all tables with device_serial-like columns."""
+    """Find all tables with device_serial-like columns.
+    
+    Searches for any column that stores the device serial string (ip_port format).
+    Skips integer FK columns like device_id (those reference devices.id, not serial).
+    """
     conn = _get_conn()
     tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    
+    # Column names that store the device serial string (ip_port format)
+    SERIAL_COLUMNS = {
+        'device_serial', 'deviceid', 'assigned_to_device_serial',
+        'assigned_device_serial', 'device_assigned',
+    }
     
     result = []
     for table in tables:
         cols = [c[1] for c in conn.execute(f"PRAGMA table_info({table})").fetchall()]
-        if 'device_serial' in cols:
-            result.append((table, 'device_serial'))
-        if 'deviceid' in cols:
-            result.append((table, 'deviceid'))
-        if 'assigned_to_device_serial' in cols:
-            result.append((table, 'assigned_to_device_serial'))
-        if 'assigned_device_serial' in cols:
-            result.append((table, 'assigned_device_serial'))
+        for col in cols:
+            if col in SERIAL_COLUMNS:
+                result.append((table, col))
     
     conn.close()
     return result
@@ -459,6 +478,42 @@ def _apply_sync(changes_to_apply):
     all_changes = []
     
     try:
+        # Pre-check: handle UNIQUE conflicts on device_serial
+        merged_devices = []
+        for change in changes_to_apply:
+            existing = conn.execute(
+                "SELECT id, device_serial, hardware_serial, device_name FROM devices "
+                "WHERE device_serial = ? AND device_serial != ?",
+                (change['new_serial'], change['old_serial'])
+            ).fetchone()
+            
+            if not existing:
+                continue  # No conflict, good to go
+            
+            existing = dict(existing)
+            ex_hw = existing.get('hardware_serial') or ''
+            
+            # If the conflicting device has a DIFFERENT hardware_serial, it's a real
+            # physical device at that IP — can't overwrite it
+            if ex_hw and ex_hw != change.get('hardware_serial', ''):
+                return {
+                    'success': False,
+                    'backup_path': backup_path,
+                    'error': f"IP conflict: '{change['new_serial']}' already belongs to "
+                             f"device '{existing['device_name']}' (hw: {ex_hw}). "
+                             f"Two different physical devices can't share the same IP.",
+                    'changes': []
+                }
+            
+            # Conflicting device has same hw_serial (duplicate) or no hw_serial (stale).
+            # Delete the stale/duplicate entry — the real device will take its place.
+            conn.execute("DELETE FROM devices WHERE id = ?", (existing['id'],))
+            merged_devices.append({
+                'deleted_id': existing['id'],
+                'deleted_serial': existing['device_serial'],
+                'reason': 'duplicate' if ex_hw else 'stale_entry'
+            })
+        
         for change in changes_to_apply:
             old_serial = change['old_serial']
             new_serial = change['new_serial']
@@ -494,7 +549,8 @@ def _apply_sync(changes_to_apply):
             'success': True,
             'backup_path': backup_path,
             'changes': all_changes,
-            'devices_updated': len(changes_to_apply)
+            'devices_updated': len(changes_to_apply),
+            'merged_devices': merged_devices
         }
     except Exception as e:
         conn.rollback()
