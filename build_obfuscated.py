@@ -120,9 +120,10 @@ COPY_FILES_PATTERNS = [
 EXCLUDE_PREFIXES = [
     "debug_", "tmp_", "temp_", "check_", "fix_", "verify_",
     "inspect_", "examine_", "collect_", "dump_", "investigate",
-    "tap_", "reset_and_", "report_final", "setup_test",
+    "tap_", "reset_and_", "reset_device", "report_final", "setup_test",
+    "setup_report", "setup_all_tests",
     "quick_", "find_", "extract_", "parse_", "grant_",
-    "do_dashboard_", "screen_capture",
+    "do_dashboard_", "screen_capture", "map_editor",
     "_add_", "_age_", "_apply_", "_bump_", "_check_", "_cleanup",
     "_connect_", "_create_test", "_disable_", "_dump_", "_extend_",
     "_extract_", "_find_", "_fix_", "_follow_", "_inspect_",
@@ -143,7 +144,6 @@ EXCLUDE_FILES = {
 
 # ── Specific files to always INCLUDE (override exclude patterns) ──
 FORCE_INCLUDE = {
-    "dashboard/check_accounts_columns.py",  # needed at runtime? keep if unsure
     "automation/actions/check_profile.py",   # bot action — must not be excluded
     "grant_permissions.py",                  # imported by device_manager_routes
 }
