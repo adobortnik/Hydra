@@ -119,7 +119,8 @@ def deploy_to_release(dry_run=False):
     tmp_base = FARM_DIR / ".deploy_tmp"
     if tmp_base.exists():
         shutil.rmtree(tmp_base, ignore_errors=True)
-    tmp_base.mkdir()
+        time.sleep(1)  # Windows needs a moment after rmtree
+    tmp_base.mkdir(exist_ok=True)
 
     try:
         # Check if release branch exists on remote

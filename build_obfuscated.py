@@ -361,6 +361,62 @@ def run_pyarmor(py_files: list, dry_run: bool = False) -> dict:
     return stats
 
 
+def _sanitize_dist_secrets():
+    """Strip API keys and secrets from dist/ config files."""
+    import re
+    import json as _json
+
+    print(f"\n  Sanitizing secrets in dist/...")
+    sanitized = 0
+
+    # Sanitize global_settings.json
+    gs_path = DIST_DIR / "dashboard" / "global_settings.json"
+    if gs_path.exists():
+        try:
+            data = _json.loads(gs_path.read_text(encoding='utf-8'))
+            # Blank out any API keys
+            if 'ai' in data:
+                for key in list(data['ai'].keys()):
+                    if 'api_key' in key.lower() or 'secret' in key.lower():
+                        if data['ai'][key]:  # only if non-empty
+                            data['ai'][key] = ''
+                            sanitized += 1
+            gs_path.write_text(_json.dumps(data, indent=4, ensure_ascii=False), encoding='utf-8')
+            print(f"  ✓ Sanitized global_settings.json ({sanitized} keys blanked)")
+        except Exception as e:
+            print(f"  WARNING: Failed to sanitize global_settings.json: {e}")
+
+    # Sanitize any api_keys.json
+    for ak_path in DIST_DIR.rglob("api_keys.json"):
+        try:
+            data = _json.loads(ak_path.read_text(encoding='utf-8'))
+            for key in list(data.keys()):
+                if isinstance(data[key], str) and len(data[key]) > 10:
+                    data[key] = ''
+                    sanitized += 1
+            ak_path.write_text(_json.dumps(data, indent=4, ensure_ascii=False), encoding='utf-8')
+            rel = ak_path.relative_to(DIST_DIR)
+            print(f"  ✓ Sanitized {rel}")
+        except Exception:
+            pass
+
+    # Scan all .json and .env files for any remaining API key patterns
+    api_key_pattern = re.compile(r'sk-[a-zA-Z0-9_-]{20,}')
+    for json_file in DIST_DIR.rglob("*.json"):
+        try:
+            content = json_file.read_text(encoding='utf-8')
+            if api_key_pattern.search(content):
+                new_content = api_key_pattern.sub('REDACTED', content)
+                json_file.write_text(new_content, encoding='utf-8')
+                rel = json_file.relative_to(DIST_DIR)
+                print(f"  ✓ Redacted API keys in {rel}")
+                sanitized += 1
+        except Exception:
+            pass
+
+    print(f"  Sanitization complete: {sanitized} items processed")
+
+
 def copy_assets(dry_run: bool = False):
     """Copy non-Python assets to dist/ preserving structure."""
     print(f"\n{'─'*60}")
@@ -425,6 +481,9 @@ def copy_assets(dry_run: bool = False):
     # Skip shipping our DB — clients create their own on first run
     # Only copy migrations so the DB can be initialized
     print(f"  SKIP: *.db files (client creates own database)")
+
+    # ── Sanitize sensitive values in dist/ ──
+    _sanitize_dist_secrets()
     
     print(f"\n  Total assets copied: {copied}")
     return copied
