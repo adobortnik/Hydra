@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """
-Hydra — Deploy to Release Branch
-==================================
-Pushes the obfuscated dist/ to a 'release' branch on GitHub.
-Uses a temporary clone so the main working directory is never touched.
+Hydra — Deploy Release
+========================
+Builds obfuscated dist/ and pushes to the distribution repo on GitHub.
+Source (adobortnik/Hydra) stays private; clients get obfuscated code only.
+
+Distribution repo: happymuffinlabel/hydra (private)
 
 Usage:
     python deploy_release.py              # Full build + deploy
     python deploy_release.py --skip-build # Deploy existing dist/ without rebuilding
 
-Henry's PC setup (one-time):
-    git clone -b release https://github.com/adobortnik/Hydra.git
+Client setup (one-time):
+    git clone https://<TOKEN>@github.com/happymuffinlabel/hydra.git
 
-Henry's PC update:
-    cd Hydra && git pull
+Client update:
+    cd hydra && git pull
 """
 
 import os
@@ -32,7 +34,13 @@ if hasattr(sys.stderr, 'reconfigure'):
 
 FARM_DIR = Path(__file__).parent.resolve()
 DIST_DIR = FARM_DIR / "dist"
-RELEASE_BRANCH = "release"
+
+# Distribution repo (separate from source)
+DIST_REPO = "https://github.com/happymuffinlabel/hydra.git"
+DIST_BRANCH = "main"
+
+# Token file (gitignored) — contains GitHub PAT for happymuffinlabel
+TOKEN_FILE = FARM_DIR / "data" / "deploy_token.txt"
 
 
 def run(cmd, cwd=None, check=True):
@@ -81,22 +89,71 @@ def build_dist():
     return True
 
 
+def get_deploy_token():
+    """Read GitHub PAT for the distribution repo."""
+    if TOKEN_FILE.exists():
+        return TOKEN_FILE.read_text(encoding='utf-8').strip()
+    # Check environment variable as fallback
+    token = os.environ.get('HYDRA_DEPLOY_TOKEN', '')
+    if token:
+        return token
+    return None
+
+
+def get_auth_url(token=None):
+    """Get authenticated URL for the distribution repo."""
+    if token:
+        # Insert token into URL: https://TOKEN@github.com/...
+        return DIST_REPO.replace('https://github.com/', f'https://{token}@github.com/')
+    return DIST_REPO
+
+
 def deploy_to_release():
     print(f"\n{'='*60}")
-    print(f"  STEP 2: Deploying to '{RELEASE_BRANCH}' branch")
+    print(f"  STEP 2: Deploying to distribution repo")
     print(f"{'='*60}\n")
 
-    remote_url = get_remote_url()
-    if not remote_url:
-        print("  ERROR: Could not get remote URL")
+    token = get_deploy_token()
+    if not token:
+        print(f"  ERROR: No deploy token found!")
+        print(f"  Create {TOKEN_FILE} with your GitHub PAT,")
+        print(f"  or set HYDRA_DEPLOY_TOKEN environment variable.")
         return False
-    print(f"  Remote: {remote_url}")
+
+    auth_url = get_auth_url(token)
+    print(f"  Repo:  {DIST_REPO}")
+    print(f"  Token: {'*' * 8}...{token[-4:]}")
 
     commit_hash, commit_msg = get_master_info()
     release_msg = f"Release from master@{commit_hash}: {commit_msg}"
     print(f"  Message: {release_msg}")
 
-    # Use temp directory outside the repo to avoid any contamination
+    # Read current version or auto-increment
+    version_file = DIST_DIR / "version.json"
+    import json
+    if version_file.exists():
+        ver_data = json.loads(version_file.read_text(encoding='utf-8'))
+        version = ver_data.get('version', '1.0.0')
+    else:
+        version = '1.0.0'
+
+    # Auto-increment patch version
+    parts = version.split('.')
+    parts[-1] = str(int(parts[-1]) + 1)
+    new_version = '.'.join(parts)
+
+    # Write updated version.json into dist/
+    import datetime as dt
+    ver_data = {
+        'version': new_version,
+        'build_date': dt.datetime.now().strftime('%Y-%m-%d'),
+        'source_commit': commit_hash,
+        'changelog': commit_msg
+    }
+    version_file.write_text(json.dumps(ver_data, indent=2), encoding='utf-8')
+    print(f"  Version: {version} → {new_version}")
+
+    # Use temp directory outside the repo
     tmp_base = Path(os.environ.get('TEMP', FARM_DIR.parent)) / "hydra_deploy_tmp"
     if tmp_base.exists():
         shutil.rmtree(tmp_base, ignore_errors=True)
@@ -105,34 +162,19 @@ def deploy_to_release():
     repo_dir = tmp_base / "repo"
 
     try:
-        # Check if release branch exists on remote
-        r = run(f"git ls-remote --heads origin {RELEASE_BRANCH}", check=False)
-        release_exists = RELEASE_BRANCH in r.stdout
+        # Clone distribution repo (shallow)
+        print(f"\n  Cloning distribution repo (shallow)...")
+        r = run(f'git clone --depth 1 "{auth_url}" repo', cwd=tmp_base)
+        if r.returncode != 0:
+            print("  ERROR: Clone failed — check token and repo URL")
+            return False
 
-        if release_exists:
-            print(f"\n  Cloning existing '{RELEASE_BRANCH}' branch (shallow)...")
-            r = run(f'git clone -b {RELEASE_BRANCH} --depth 1 "{remote_url}" repo', cwd=tmp_base)
-            if r.returncode != 0:
-                print("  ERROR: Clone failed")
-                return False
-        else:
-            print(f"\n  No release branch yet. Initializing fresh repo...")
-            repo_dir.mkdir()
-            run("git init", cwd=repo_dir)
-            run(f'git remote add origin "{remote_url}"', cwd=repo_dir)
-            # Create orphan branch
-            run(f"git checkout --orphan {RELEASE_BRANCH}", cwd=repo_dir)
-
-        # Verify we're on the right branch
-        r = run("git branch --show-current", cwd=repo_dir, check=False)
-        current = r.stdout.strip()
-        print(f"  Current branch in temp repo: {current}")
-        if current != RELEASE_BRANCH:
-            print(f"  WARNING: Expected {RELEASE_BRANCH}, got {current}. Switching...")
-            run(f"git checkout -b {RELEASE_BRANCH}", cwd=repo_dir, check=False)
+        # Configure git identity
+        run('git config user.email "happymuffinlabel@users.noreply.github.com"', cwd=repo_dir)
+        run('git config user.name "happymuffinlabel"', cwd=repo_dir)
 
         # Clean everything except .git
-        print(f"  Cleaning temp repo...")
+        print(f"  Cleaning repo...")
         for item in repo_dir.iterdir():
             if item.name == '.git':
                 continue
@@ -141,7 +183,7 @@ def deploy_to_release():
             else:
                 item.unlink()
 
-        # Copy dist/ contents to repo root
+        # Copy dist/ contents
         print(f"  Copying dist/ contents...")
         for item in DIST_DIR.iterdir():
             dest = repo_dir / item.name
@@ -150,53 +192,48 @@ def deploy_to_release():
             else:
                 shutil.copy2(item, dest)
 
-        # Copy launcher exe if exists
-        for extra in ["hydra.ico", "Hydra Dashboard.exe"]:
-            src = FARM_DIR / extra
-            if src.exists() and not (repo_dir / extra).exists():
-                shutil.copy2(src, repo_dir / extra)
-
         # README
         (repo_dir / "README.md").write_text(
             f"# Hydra Dashboard\n\n"
             f"## Quick Start\n"
             f"1. Install Python 3.12+\n"
-            f"2. Run `python launcher.py` or double-click `Hydra Dashboard.exe`\n"
+            f"2. Double-click **Start Hydra.bat**\n"
             f"3. Dashboard opens at http://localhost:5055\n\n"
-            f"## Update\n```\ngit pull\n```\n\n"
-            f"Built from: master@{commit_hash}\n",
+            f"## Update\n```\ncd hydra\ngit pull\n```\n"
+            f"Then restart the dashboard.\n",
             encoding='utf-8'
         )
 
-        # .gitignore
+        # .gitignore — protect user data from being overwritten
         (repo_dir / ".gitignore").write_text(
-            "__pycache__/\n*.pyc\nlogs/\n*.log\nscreenshots/\nxml_dumps/\n",
+            "# User data (preserved across updates)\n"
+            "db/phone_farm.db\ndb/phone_farm.db-wal\ndb/phone_farm.db-shm\n"
+            "db/backups/\nmedia_library/\nscreenshots/\nlogs/\n"
+            "__pycache__/\n*.pyc\n"
+            "dashboard/data/global_settings.json\n"
+            "dashboard/data/api_keys.json\n",
             encoding='utf-8'
         )
 
-        # Stage all
+        # Stage
         run("git add -A", cwd=repo_dir)
 
         # Check for changes
         r = run("git diff --cached --stat", cwd=repo_dir, check=False)
         if not r.stdout.strip():
-            print(f"\n  No changes to deploy.")
+            print(f"\n  No changes to deploy (dist/ is identical).")
             return True
 
-        # Commit
-        print(f"\n  Committing...")
-        run(f'git commit -m "{release_msg}"', cwd=repo_dir)
+        # Commit + push
+        print(f"\n  Committing v{new_version}...")
+        run(f'git commit -m "v{new_version}: {commit_msg}"', cwd=repo_dir)
 
-        # Push
-        print(f"  Pushing to origin/{RELEASE_BRANCH}...")
-        r = run(f"git push origin {RELEASE_BRANCH}", cwd=repo_dir, check=False)
+        print(f"  Pushing...")
+        r = run(f"git push origin {DIST_BRANCH}", cwd=repo_dir, check=False)
         if r.returncode != 0:
-            r = run(f"git push --set-upstream origin {RELEASE_BRANCH}", cwd=repo_dir, check=False)
-            if r.returncode != 0:
-                # Force push for orphan branch first push
-                run(f"git push -f origin {RELEASE_BRANCH}", cwd=repo_dir)
+            run(f"git push -f origin {DIST_BRANCH}", cwd=repo_dir)
 
-        print(f"\n  Done! Pushed to origin/{RELEASE_BRANCH}")
+        print(f"\n  ✓ Deployed v{new_version} to {DIST_REPO}")
         return True
 
     finally:
@@ -235,8 +272,8 @@ def main():
     print(f"\n{'='*60}")
     print(f"  ALL DONE ({elapsed:.0f}s)")
     print(f"{'='*60}")
-    print(f"\n  Henry: git clone -b release https://github.com/adobortnik/Hydra.git")
-    print(f"  Update: cd Hydra && git pull\n")
+    print(f"\n  Client setup: git clone https://<TOKEN>@github.com/happymuffinlabel/hydra.git")
+    print(f"  Client update: cd hydra && git pull\n")
 
 
 if __name__ == "__main__":
