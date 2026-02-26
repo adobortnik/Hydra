@@ -1,0 +1,883 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Login Automation - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    .account-checkbox {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .account-checkbox:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    .account-checkbox.selected {
+        background-color: rgba(72, 187, 120, 0.1);
+        border-left: 3px solid #48bb78;
+    }
+    .task-item {
+        transition: all 0.2s;
+        border-left: 3px solid transparent;
+    }
+    .task-item.pending {
+        border-left-color: #fbbf24;
+    }
+    .task-item.completed {
+        border-left-color: #48bb78;
+    }
+    .task-item.failed {
+        border-left-color: #f56565;
+    }
+    .task-item.needs_manual {
+        border-left-color: #ed8936;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="h3 mb-0 text-white">
+                                <i class="fas fa-sign-in-alt me-2"></i>Login Automation
+                            </h1>
+                            <p class="text-white-50 mb-0">Automate Instagram login for multiple accounts with 2FA support</p>
+                        </div>
+                        <div>
+                            <button class="btn btn-info me-2" onclick="refreshStatistics()">
+                                <i class="fas fa-sync-alt me-2"></i>Refresh Stats
+                            </button>
+                            <button class="btn btn-primary" onclick="executeLoginTasks()" id="executeBtn">
+                                <i class="fas fa-play-circle me-2"></i>Execute Login Tasks
+                                <span class="badge bg-danger" id="pendingTasksBadge" style="display: none;">0</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="display-4 text-warning mb-2">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h2 class="h1 text-white mb-2" id="pendingTasks">0</h2>
+                    <p class="text-white-50 mb-0">Pending Tasks</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="display-4 text-success mb-2">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h2 class="h1 text-white mb-2" id="completedTasks">0</h2>
+                    <p class="text-white-50 mb-0">Completed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="display-4 text-danger mb-2">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    <h2 class="h1 text-white mb-2" id="failedTasks">0</h2>
+                    <p class="text-white-50 mb-0">Failed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="display-4 text-info mb-2">
+                        <i class="fas fa-percentage"></i>
+                    </div>
+                    <h2 class="h1 text-white mb-2" id="successRate">0%</h2>
+                    <p class="text-white-50 mb-0">Success Rate</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="row">
+        <!-- Left Column: Account Selection -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-dark-secondary">
+                    <h5 class="mb-0"><i class="fas fa-users me-2"></i>Select Accounts to Login</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Device Selection -->
+                    <div class="mb-3">
+                        <label for="deviceSelect" class="form-label">Select Device</label>
+                        <select id="deviceSelect" class="form-select bg-dark text-white border-secondary" onchange="loadDeviceAccounts()">
+                            <option value="">-- Select Device --</option>
+                        </select>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllAccounts()">
+                            <i class="fas fa-check-double me-1"></i>Select All
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary me-2" onclick="deselectAllAccounts()">
+                            <i class="fas fa-times me-1"></i>Deselect All
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="loginAllOnDevice()">
+                            <i class="fas fa-sign-in-alt me-1"></i>Login All on Device
+                        </button>
+                    </div>
+
+                    <!-- 2FA Token (Optional) -->
+                    <div class="mb-3">
+                        <label for="twoFaToken" class="form-label">
+                            2FA Token (Optional)
+                            <i class="fas fa-info-circle ms-1" data-bs-toggle="tooltip" title="Enter your 2fa.live token if accounts use 2FA"></i>
+                        </label>
+                        <input type="text" id="twoFaToken" class="form-control bg-dark text-white border-secondary" placeholder="CHN44RHFYSYPFCKLL2C5...">
+                        <div class="form-text text-white-50">From 2fa.live - applies to all selected accounts</div>
+                    </div>
+
+                    <!-- Accounts List -->
+                    <div id="accountsList">
+                        <div class="text-center text-white-50 py-5">
+                            <i class="fas fa-users fa-3x mb-3"></i>
+                            <p>Select a device to view accounts</p>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="mt-3">
+                        <button class="btn btn-success w-100 mb-2" onclick="createLoginTasks()" id="createTasksBtn" disabled>
+                            <i class="fas fa-plus-circle me-2"></i>Create Login Tasks for Selected
+                            <span class="badge bg-white text-success ms-2" id="selectedCount">0</span>
+                        </button>
+                        <button class="btn btn-warning w-100" onclick="createStoragePermissionTasks()" id="storagePermissionBtn" disabled>
+                            <i class="fas fa-folder-open me-2"></i>Grant Storage Permission for Selected
+                            <span class="badge bg-white text-warning ms-2" id="storageSelectedCount">0</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Task Queue -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-dark-secondary d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Task Queue</h5>
+                    <div>
+                        <button class="btn btn-sm btn-success me-1" onclick="runParallelProcessor()" id="parallelProcessorBtn">
+                            <i class="fas fa-bolt me-1"></i>Run Parallel Processor
+                        </button>
+                        <button class="btn btn-sm btn-outline-info" onclick="loadTasks()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="clearCompletedTasks()">
+                            <i class="fas fa-trash me-1"></i>Clear Completed
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                    <div id="tasksList">
+                        <div class="text-center text-white-50 py-5">
+                            <i class="fas fa-clipboard-list fa-3x mb-3"></i>
+                            <p>No tasks yet. Create tasks to start.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Login History -->
+            <div class="card">
+                <div class="card-header bg-dark-secondary d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Login History</h5>
+                    <button class="btn btn-sm btn-outline-info" onclick="loadHistory()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    <div id="historyList">
+                        <div class="text-center text-white-50 py-3">
+                            <p>No history yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global state
+let devices = [];
+let accounts = [];
+let selectedAccounts = [];
+let tasks = [];
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadDevices();
+    refreshStatistics();
+    loadTasks();
+    loadHistory();
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+        refreshStatistics();
+        loadTasks();
+    }, 30000);
+});
+
+// Load devices
+async function loadDevices() {
+    try {
+        const response = await fetch('/api/login/devices');
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            devices = data.devices;
+
+            const select = document.getElementById('deviceSelect');
+            select.innerHTML = '<option value="">-- Select Device --</option>';
+
+            devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.deviceid;
+                option.textContent = `${device.devicename || device.deviceid} (${device.deviceid})`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading devices:', error);
+        showAlert('Error loading devices: ' + error.message, 'danger');
+    }
+}
+
+// Load accounts for selected device
+async function loadDeviceAccounts() {
+    const deviceSerial = document.getElementById('deviceSelect').value;
+
+    if (!deviceSerial) {
+        document.getElementById('accountsList').innerHTML = `
+            <div class="text-center text-white-50 py-5">
+                <i class="fas fa-users fa-3x mb-3"></i>
+                <p>Select a device to view accounts</p>
+            </div>
+        `;
+        return;
+    }
+
+    document.getElementById('accountsList').innerHTML = `
+        <div class="text-center text-white-50 py-3">
+            <div class="spinner-border" role="status"></div>
+            <p class="mt-2">Loading accounts...</p>
+        </div>
+    `;
+
+    try {
+        const response = await fetch(`/api/login/devices/${deviceSerial}/accounts`);
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            accounts = data.accounts;
+            selectedAccounts = [];
+            renderAccounts();
+            updateSelectedCount();
+        }
+    } catch (error) {
+        console.error('Error loading accounts:', error);
+        showAlert('Error loading accounts: ' + error.message, 'danger');
+    }
+}
+
+// Render accounts list
+function renderAccounts() {
+    const container = document.getElementById('accountsList');
+
+    if (accounts.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-white-50 py-3">
+                <p>No accounts found on this device</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = accounts.map((account, index) => `
+        <div class="account-checkbox p-3 mb-2 rounded ${selectedAccounts.includes(index) ? 'selected' : ''}"
+             onclick="toggleAccount(${index})" style="cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" ${selectedAccounts.includes(index) ? 'checked' : ''}
+                       onchange="toggleAccount(${index})" onclick="event.stopPropagation()">
+                <label class="form-check-label">
+                    <strong>${account.account}</strong>
+                    <br>
+                    <small class="text-white-50">
+                        <i class="fab fa-instagram me-1"></i>${account.instagram_package || 'com.instagram.android'}
+                        ${account.two_fa_token ? '<span class="badge bg-success ms-2">2FA</span>' : '<span class="badge bg-secondary ms-2">No 2FA</span>'}
+                    </small>
+                </label>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Toggle account selection
+function toggleAccount(index) {
+    const idx = selectedAccounts.indexOf(index);
+    if (idx > -1) {
+        selectedAccounts.splice(idx, 1);
+    } else {
+        selectedAccounts.push(index);
+    }
+    renderAccounts();
+    updateSelectedCount();
+}
+
+// Select/Deselect all
+function selectAllAccounts() {
+    selectedAccounts = accounts.map((_, i) => i);
+    renderAccounts();
+    updateSelectedCount();
+}
+
+function deselectAllAccounts() {
+    selectedAccounts = [];
+    renderAccounts();
+    updateSelectedCount();
+}
+
+// Update selected count
+function updateSelectedCount() {
+    document.getElementById('selectedCount').textContent = selectedAccounts.length;
+    document.getElementById('storageSelectedCount').textContent = selectedAccounts.length;
+    document.getElementById('createTasksBtn').disabled = selectedAccounts.length === 0;
+    document.getElementById('storagePermissionBtn').disabled = selectedAccounts.length === 0;
+}
+
+// Create login tasks for selected accounts
+async function createLoginTasks() {
+    const deviceSerial = document.getElementById('deviceSelect').value;
+    const twoFaToken = document.getElementById('twoFaToken').value.trim() || null;
+
+    if (selectedAccounts.length === 0) {
+        showAlert('Please select at least one account', 'warning');
+        return;
+    }
+
+    const accountsToLogin = selectedAccounts.map(i => ({
+        device_serial: deviceSerial,
+        username: accounts[i].account
+    }));
+
+    document.getElementById('createTasksBtn').disabled = true;
+    document.getElementById('createTasksBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+
+    try {
+        const response = await fetch('/api/login/accounts/selected', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                accounts: accountsToLogin,
+                two_fa_token: twoFaToken
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            let message = data.created > 0 ? `Created ${data.created} login tasks!` : 'No new tasks created.';
+
+            // Show warnings about existing tasks
+            if (data.warnings && data.warnings.length > 0) {
+                message += `\n\n⚠ï¸ Warnings:\n${data.warnings.join('\n')}`;
+            }
+
+            // Show errors if any
+            if (data.errors && data.errors.length > 0) {
+                message += `\n\nâŒ Errors:\n${data.errors.join('\n')}`;
+            }
+
+            showAlert(message, data.warnings && data.warnings.length > 0 ? 'warning' : 'success');
+            selectedAccounts = [];
+            renderAccounts();
+            updateSelectedCount();
+            loadTasks();
+            refreshStatistics();
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating tasks:', error);
+        showAlert('Error creating tasks: ' + error.message, 'danger');
+    } finally {
+        const btn = document.getElementById('createTasksBtn');
+        btn.disabled = selectedAccounts.length === 0;
+        btn.innerHTML = '<i class="fas fa-plus-circle me-2"></i>Create Login Tasks for Selected <span class="badge bg-white text-success ms-2" id="selectedCount">' + selectedAccounts.length + '</span>';
+    }
+}
+
+// Create storage permission tasks for selected accounts
+async function createStoragePermissionTasks() {
+    const deviceSerial = document.getElementById('deviceSelect').value;
+
+    if (!deviceSerial) {
+        showAlert('Please select a device first', 'warning');
+        return;
+    }
+
+    if (selectedAccounts.length === 0) {
+        showAlert('Please select accounts first', 'warning');
+        return;
+    }
+
+    const accountsForPermission = selectedAccounts.map(i => ({
+        device_serial: deviceSerial,
+        username: accounts[i].account
+    }));
+
+    if (!confirm(`Grant storage permission for ${selectedAccounts.length} selected account(s)?`)) {
+        return;
+    }
+
+    const btn = document.getElementById('storagePermissionBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+
+    try {
+        const response = await fetch('/api/login/storage-permission', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                accounts: accountsForPermission
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            let message = `Created ${data.created} storage permission tasks!`;
+
+            if (data.warnings && data.warnings.length > 0) {
+                message += `\n\n⚠ï¸ Warnings:\n${data.warnings.join('\n')}`;
+            }
+
+            if (data.errors && data.errors.length > 0) {
+                message += `\n\nâŒ Errors:\n${data.errors.join('\n')}`;
+            }
+
+            showAlert(message, data.warnings && data.warnings.length > 0 ? 'warning' : 'success');
+            selectedAccounts = [];
+            renderAccounts();
+            updateSelectedCount();
+            loadTasks();
+            refreshStatistics();
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating storage permission tasks:', error);
+        showAlert('Error creating storage permission tasks: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = selectedAccounts.length === 0;
+        btn.innerHTML = '<i class="fas fa-folder-open me-2"></i>Grant Storage Permission for Selected <span class="badge bg-white text-warning ms-2" id="storageSelectedCount">' + selectedAccounts.length + '</span>';
+    }
+}
+
+// Login all accounts on device
+async function loginAllOnDevice() {
+    const deviceSerial = document.getElementById('deviceSelect').value;
+
+    if (!deviceSerial) {
+        showAlert('Please select a device first', 'warning');
+        return;
+    }
+
+    const twoFaToken = document.getElementById('twoFaToken').value.trim() || null;
+
+    if (!confirm(`Create login tasks for ALL accounts on this device?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/login/tasks/device/${deviceSerial}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({two_fa_token: twoFaToken})
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            showAlert(`Created ${data.created} login tasks for all accounts on device!`, 'success');
+            loadTasks();
+            refreshStatistics();
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    }
+}
+
+// Load tasks
+async function loadTasks() {
+    try {
+        // Load all tasks (pending, processing, failed, completed, needs_manual)
+        const response = await fetch('/api/login/tasks');
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            tasks = data.tasks;
+            renderTasks();
+        }
+    } catch (error) {
+        console.error('Error loading tasks:', error);
+    }
+}
+
+// Render tasks
+function renderTasks() {
+    const container = document.getElementById('tasksList');
+
+    if (tasks.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-white-50 py-3">
+                <p>No tasks</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = tasks.map(task => {
+        const statusColor = {
+            'pending': 'warning',
+            'processing': 'info',
+            'completed': 'success',
+            'failed': 'danger',
+            'needs_manual': 'orange'
+        }[task.status] || 'secondary';
+
+        return `
+            <div class="task-item p-3 mb-2 rounded ${task.status}" style="border: 1px solid rgba(255,255,255,0.1);">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <strong>${task.username}</strong>
+                        <br>
+                        <small class="text-white-50">
+                            Device: ${task.device_serial}<br>
+                            Package: ${task.instagram_package}<br>
+                            2FA: ${task.two_fa_token ? '<i class="fas fa-check text-success"></i> Yes' : '<i class="fas fa-times text-danger"></i> No'}
+                        </small>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-${statusColor}">${task.status}</span>
+                        ${(task.status === 'processing' || task.status === 'failed') ? `
+                            <button class="btn btn-sm btn-outline-warning" onclick="restartTask(${task.id})" title="Restart task">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteTask(${task.id})" title="Delete task">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                ${task.error_message ? `<div class="mt-2"><small class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${task.error_message}</small></div>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    // Update badge
+    const pendingCount = tasks.filter(t => t.status === 'pending').length;
+    const badge = document.getElementById('pendingTasksBadge');
+    if (pendingCount > 0) {
+        badge.textContent = pendingCount;
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+// Execute login tasks
+async function executeLoginTasks() {
+    if (!confirm('Execute all pending login tasks?')) {
+        return;
+    }
+
+    const btn = document.getElementById('executeBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Executing...';
+
+    try {
+        const response = await fetch('/api/login/tasks/process', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            const stats = data.stats;
+            showAlert(`Completed! Success: ${stats.successful}/${stats.total_tasks}`, 'success');
+            loadTasks();
+            loadHistory();
+            refreshStatistics();
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error executing tasks: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play-circle me-2"></i>Execute Login Tasks <span class="badge bg-danger" id="pendingTasksBadge" style="display: none;">0</span>';
+    }
+}
+
+// Refresh statistics
+async function refreshStatistics() {
+    try {
+        const response = await fetch('/api/login/statistics');
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            const stats = data.statistics;
+            document.getElementById('pendingTasks').textContent = stats.tasks.pending || 0;
+            document.getElementById('completedTasks').textContent = stats.tasks.completed || 0;
+            document.getElementById('failedTasks').textContent = (stats.tasks.failed || 0) + (stats.tasks.needs_manual || 0);
+            document.getElementById('successRate').textContent = stats.success_rate + '%';
+        }
+    } catch (error) {
+        console.error('Error loading statistics:', error);
+    }
+}
+
+// Load history
+async function loadHistory() {
+    try {
+        const response = await fetch('/api/login/history?limit=10');
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            renderHistory(data.history);
+        }
+    } catch (error) {
+        console.error('Error loading history:', error);
+    }
+}
+
+// Render history
+function renderHistory(history) {
+    const container = document.getElementById('historyList');
+
+    if (history.length === 0) {
+        container.innerHTML = '<div class="text-center text-white-50 py-3"><p>No history yet</p></div>';
+        return;
+    }
+
+    container.innerHTML = history.map(item => {
+        const icon = item.success ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>';
+        const time = new Date(item.logged_in_at).toLocaleString();
+
+        return `
+            <div class="p-2 mb-2 rounded" style="border: 1px solid rgba(255,255,255,0.1);">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        ${icon} <strong>${item.username}</strong>
+                        <br>
+                        <small class="text-white-50">
+                            ${time}<br>
+                            Type: ${item.login_type}${item.two_fa_used ? ' (2FA)' : ''}
+                        </small>
+                    </div>
+                </div>
+                ${item.error_details ? `<div class="mt-1"><small class="text-danger">${item.error_details}</small></div>` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+// Delete a single task
+async function deleteTask(taskId) {
+    if (!confirm('Delete this task?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/login/tasks/${taskId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            showAlert('Task deleted', 'success');
+            loadTasks();
+            refreshStatistics();
+        } else {
+            showAlert('Error: ' + (data.message || 'Failed to delete task'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    }
+}
+
+// Restart a task (reset status to pending)
+async function restartTask(taskId) {
+    if (!confirm('Restart this task? It will be set back to pending status and re-executed.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/login/tasks/${taskId}/restart`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            showAlert('Task restarted successfully', 'success');
+            loadTasks();
+            refreshStatistics();
+        } else {
+            showAlert('Error: ' + (data.message || 'Failed to restart task'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    }
+}
+
+// Clear completed tasks
+async function clearCompletedTasks() {
+    if (!confirm('Clear all completed tasks?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/login/tasks/clear', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({days_old: 0})
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            showAlert(`Cleared ${data.deleted} tasks`, 'success');
+            loadTasks();
+            refreshStatistics();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error: ' + error.message, 'danger');
+    }
+}
+
+// Run parallel processor
+async function runParallelProcessor() {
+    const pendingCount = tasks.filter(t => t.status === 'pending').length;
+
+    if (pendingCount === 0) {
+        showAlert('No pending tasks to process', 'warning');
+        return;
+    }
+
+    // Count tasks by device
+    const tasksByDevice = {};
+    tasks.filter(t => t.status === 'pending').forEach(task => {
+        if (!tasksByDevice[task.device_serial]) {
+            tasksByDevice[task.device_serial] = 0;
+        }
+        tasksByDevice[task.device_serial]++;
+    });
+
+    const deviceCount = Object.keys(tasksByDevice).length;
+    const deviceList = Object.entries(tasksByDevice)
+        .map(([device, count]) => `  â€¢ ${device}: ${count} task(s)`)
+        .join('\n');
+
+    const message = `Process ${pendingCount} pending task(s) across ${deviceCount} device(s) in parallel?\n\n${deviceList}\n\nDevices will run simultaneously for faster processing!`;
+
+    if (!confirm(message)) {
+        return;
+    }
+
+    const btn = document.getElementById('parallelProcessorBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+
+    try {
+        const response = await fetch('/api/login/tasks/process-parallel', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            const stats = data.stats;
+            const duration = data.duration;
+
+            let message = `Parallel Processing Complete!\n\n`;
+            message += `✅ Successful: ${stats.successful}\n`;
+            message += `âŒ Failed: ${stats.failed}\n`;
+            message += `⚠ï¸ Needs Manual: ${stats.needs_manual}\n`;
+            message += `📊 Total: ${stats.total}\n`;
+            message += `â±ï¸ Duration: ${duration} seconds (${Math.floor(duration / 60)}m ${duration % 60}s)`;
+
+            showAlert(message, 'success');
+            loadTasks();
+            refreshStatistics();
+            loadHistory();
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+            if (data.traceback) {
+                console.error('Traceback:', data.traceback);
+            }
+        }
+    } catch (error) {
+        console.error('Error running parallel processor:', error);
+        showAlert('Error running parallel processor: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// Show alert
+function showAlert(message, type) {
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+    alert.style.zIndex = '9999';
+    alert.style.whiteSpace = 'pre-line';  // Preserve line breaks
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alert);
+
+    setTimeout(() => alert.remove(), 8000);  // Increased to 8 seconds for longer messages
+}
+</script>
+{% endblock %}

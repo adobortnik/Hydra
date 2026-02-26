@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Instagram Accounts</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #121212;
+            color: #f8f9fa;
+        }
+        .card {
+            background-color: #1e1e1e;
+            border-color: #333;
+        }
+        .form-control {
+            background-color: #2a2a2a;
+            color: #f8f9fa;
+            border-color: #444;
+        }
+        .form-control:focus {
+            background-color: #2a2a2a;
+            color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Import Instagram Accounts</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Paste accounts from your supplier in the format <code>username:password:2FA_TOKEN</code>, one per line.<br>
+                            <small>2FA tokens can have spaces (will be removed automatically). Example:<br>
+                            <code>user123:pass123:CHN4 4RHF YSYP FCKL L2C5</code></small>
+                        </div>
+
+                        <!-- Device Selection -->
+                        <div class="mb-3">
+                            <label for="deviceSelect" class="form-label">Select Device <span class="text-danger">*</span></label>
+                            <select id="deviceSelect" class="form-select bg-dark text-light border-secondary">
+                                <option value="">-- Select Device --</option>
+                            </select>
+                            <small class="form-text text-muted">Accounts will be imported to this device</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="accountsText" class="form-label">
+                                Accounts
+                                <span class="badge bg-primary" id="accountCount">0 accounts</span>
+                            </label>
+                            <textarea id="accountsText" class="form-control" rows="15"
+                                placeholder="2gg.2.bt:123aaa:CHN4 4RHF YSYP FCKL L2C5 CFHN TY54 PYOD
+aleex._.abd:123aaa:N635 HDUK FMID IJG7 QIEX VYB6 NJPS XR4I
+mepp_thes_heep:123aaa:EVCC AY5U 3PYA UW2F 75N3 DM23 A6E3 UHVF"></textarea>
+                            <small class="form-text text-muted">Paste your accounts here (spaces in 2FA tokens are OK)</small>
+                        </div>
+
+                        <!-- Preview -->
+                        <div id="importPreview" class="mb-3" style="display: none;">
+                            <h6>Import Preview:</h6>
+                            <div id="previewContent" class="p-3 bg-dark border rounded" style="max-height: 200px; overflow-y: auto;">
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="/account-inventory" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Back to Account Inventory
+                            </a>
+                            <div>
+                                <button id="exportBtn" class="btn btn-outline-success me-2" disabled>
+                                    <i class="fas fa-file-export me-1"></i> Export CSV
+                                </button>
+                                <button id="importOnimatorBtn" class="btn btn-success me-2" disabled>
+                                    <i class="fas fa-rocket me-1"></i> Import to Onimator
+                                </button>
+                                <button id="importBtn" class="btn btn-outline-primary" disabled>
+                                    <i class="fas fa-database me-1"></i> Save to Inventory
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load devices on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDevices();
+
+            // Add event listener for textarea to update count and preview
+            document.getElementById('accountsText').addEventListener('input', updateAccountCount);
+            document.getElementById('deviceSelect').addEventListener('change', validateForm);
+        });
+
+        // Load devices from API
+        function loadDevices() {
+            fetch('/api/devices')
+                .then(response => response.json())
+                .then(devices => {
+                    const select = document.getElementById('deviceSelect');
+                    devices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.deviceid;
+                        option.textContent = `${device.devicename || device.deviceid} (${device.deviceid})`;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading devices:', error);
+                });
+        }
+
+        // Update account count and show preview
+        function updateAccountCount() {
+            const accountsText = document.getElementById('accountsText').value.trim();
+            const lines = accountsText.split('\n').filter(line => line.trim());
+
+            document.getElementById('accountCount').textContent = `${lines.length} accounts`;
+
+            // Show preview of first 5 accounts
+            if (lines.length > 0) {
+                const preview = lines.slice(0, 5).map(line => {
+                    const parts = line.split(':');
+                    if (parts.length >= 2) {
+                        const username = parts[0].trim();
+                        const has2fa = parts.length >= 3 && parts[2].trim();
+                        return `<div class="text-white-50 small">
+                            <i class="fas fa-user me-1"></i> ${username}
+                            ${has2fa ? '<span class="badge bg-success ms-2">2FA</span>' : ''}
+                        </div>`;
+                    }
+                    return '';
+                }).join('');
+
+                document.getElementById('previewContent').innerHTML = preview +
+                    (lines.length > 5 ? `<div class="text-muted small mt-2">... and ${lines.length - 5} more</div>` : '');
+                document.getElementById('importPreview').style.display = 'block';
+            } else {
+                document.getElementById('importPreview').style.display = 'none';
+            }
+
+            validateForm();
+        }
+
+        // Validate form
+        function validateForm() {
+            const deviceSelect = document.getElementById('deviceSelect').value;
+            const accountsText = document.getElementById('accountsText').value.trim();
+            const importBtn = document.getElementById('importBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const importOnimatorBtn = document.getElementById('importOnimatorBtn');
+
+            if (deviceSelect && accountsText) {
+                importBtn.disabled = false;
+                exportBtn.disabled = false;
+                importOnimatorBtn.disabled = false;
+            } else {
+                importBtn.disabled = true;
+                exportBtn.disabled = true;
+                importOnimatorBtn.disabled = true;
+            }
+        }
+
+        // Import button handler
+        document.getElementById('importBtn').addEventListener('click', function() {
+            const deviceId = document.getElementById('deviceSelect').value;
+            const accountsText = document.getElementById('accountsText').value.trim();
+
+            if (!deviceId) {
+                alert('Please select a device');
+                return;
+            }
+
+            if (!accountsText) {
+                alert('Please enter accounts to import');
+                return;
+            }
+
+            // Parse accounts and remove spaces from 2FA tokens
+            const lines = accountsText.split('\n').filter(line => line.trim());
+            const processedLines = lines.map(line => {
+                const parts = line.split(':');
+                if (parts.length >= 3) {
+                    // Remove all spaces from 2FA token
+                    parts[2] = parts[2].replace(/\s+/g, '');
+                }
+                return parts.join(':');
+            });
+
+            const processedText = processedLines.join('\n');
+
+            // Confirm import
+            if (!confirm(`Import ${lines.length} accounts to device ${deviceId}?`)) {
+                return;
+            }
+
+            // Show loading state
+            const importBtn = document.getElementById('importBtn');
+            const originalText = importBtn.innerHTML;
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Importing...';
+
+            // Submit the form data using fetch
+            fetch('/api/inventory/accounts/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    accounts_text: processedText,
+                    device_id: deviceId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Reset button state
+                importBtn.disabled = false;
+                importBtn.innerHTML = originalText;
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    alert(`Success! ${data.message}\n\nYou can now:\n1. View imported accounts in Account Inventory\n2. Select and export them to CSV`);
+                    document.getElementById('accountsText').value = '';
+                    document.getElementById('accountCount').textContent = '0 accounts';
+                    document.getElementById('importPreview').style.display = 'none';
+
+                    // Redirect after 2 seconds
+                    setTimeout(() => {
+                        window.location.href = '/account-inventory';
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                // Reset button state
+                importBtn.disabled = false;
+                importBtn.innerHTML = originalText;
+
+                alert('Error importing accounts: ' + error);
+                console.error('Import error:', error);
+            });
+        });
+
+        // Export button handler
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            const deviceId = document.getElementById('deviceSelect').value;
+            const accountsText = document.getElementById('accountsText').value.trim();
+
+            if (!deviceId) {
+                alert('Please select a device');
+                return;
+            }
+
+            if (!accountsText) {
+                alert('Please enter accounts to export');
+                return;
+            }
+
+            // Parse accounts and remove spaces from 2FA tokens
+            const lines = accountsText.split('\n').filter(line => line.trim());
+            const processedLines = lines.map(line => {
+                const parts = line.split(':');
+                if (parts.length >= 3) {
+                    // Remove all spaces from 2FA token
+                    parts[2] = parts[2].replace(/\s+/g, '');
+                }
+                return parts.join(':');
+            });
+
+            // Confirm export
+            if (!confirm(`Export ${lines.length} accounts to CSV for device ${deviceId}?`)) {
+                return;
+            }
+
+            // Show loading state
+            const exportBtn = document.getElementById('exportBtn');
+            const originalText = exportBtn.innerHTML;
+            exportBtn.disabled = true;
+            exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Exporting...';
+
+            // Create CSV content
+            let csvContent = 'deviceid,username,password,appid,start_hour,end_hour,2fa_setup_code\n';
+
+            processedLines.forEach((line, index) => {
+                const parts = line.split(':');
+                if (parts.length >= 2) {
+                    const username = parts[0];
+                    const password = parts[1];
+                    const twoFaToken = parts.length >= 3 ? parts[2] : '';
+
+                    // Determine appid - increment last letter for each account
+                    // Start from 'e' (ASCII 101) and increment for each account
+                    const letterCode = 101 + index; // 101 = 'e', 102 = 'f', etc.
+                    const letter = String.fromCharCode(letterCode);
+                    const appId = `com.instagram.androi${letter}/com.instagram.mainactivity.MainActivity`;
+
+                    // Allocate 2-hour time slots for each account
+                    const startHour = index * 2; // 0, 2, 4, 6, ...
+                    const endHour = (index * 2) + 2; // 2, 4, 6, 8, ... (no wrapping, goes to 24)
+
+                    csvContent += `${deviceId},${username},${password},${appId},${startHour},${endHour},${twoFaToken}\n`;
+                }
+            });
+
+            // Create and download CSV file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            const now = new Date();
+            const dateStr = now.toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' +
+                           now.toTimeString().split(' ')[0].replace(/:/g, '-');
+            const filename = `accounts_export_${dateStr}.csv`;
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Reset button state
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = originalText;
+
+            alert(`Successfully exported ${lines.length} accounts to ${filename}`);
+        });
+
+        // Import to Onimator button handler
+        document.getElementById('importOnimatorBtn').addEventListener('click', function() {
+            const deviceId = document.getElementById('deviceSelect').value;
+            const accountsText = document.getElementById('accountsText').value.trim();
+
+            if (!deviceId) {
+                alert('Please select a device');
+                return;
+            }
+
+            if (!accountsText) {
+                alert('Please enter accounts to import');
+                return;
+            }
+
+            // Parse accounts and remove spaces from 2FA tokens
+            const lines = accountsText.split('\n').filter(line => line.trim());
+            const processedLines = lines.map(line => {
+                const parts = line.split(':');
+                if (parts.length >= 3) {
+                    // Remove all spaces from 2FA token
+                    parts[2] = parts[2].replace(/\s+/g, '');
+                }
+                return parts.join(':');
+            });
+
+            const processedText = processedLines.join('\n');
+
+            // Confirm import
+            if (!confirm(`Import ${lines.length} accounts directly to Onimator for device ${deviceId}?\n\nThis will:\n- Create account folders\n- Add entries to accounts.db\n- Set up default settings`)) {
+                return;
+            }
+
+            // Show loading state
+            const importOnimatorBtn = document.getElementById('importOnimatorBtn');
+            const originalText = importOnimatorBtn.innerHTML;
+            importOnimatorBtn.disabled = true;
+            importOnimatorBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Importing...';
+
+            // Submit to bulk import API
+            fetch('/api/bulk-import/accounts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    device_serial: deviceId,
+                    accounts_text: processedText
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Reset button state
+                importOnimatorBtn.disabled = false;
+                importOnimatorBtn.innerHTML = originalText;
+
+                if (data.success) {
+                    let message = data.message;
+
+                    // Show detailed results if there were any issues
+                    if (data.summary.skipped > 0 || data.summary.errors > 0) {
+                        message += '\n\nDetails:';
+                        data.results.forEach(r => {
+                            if (!r.success) {
+                                message += `\n- ${r.username}: ${r.error}`;
+                            }
+                        });
+                    }
+
+                    alert(message);
+
+                    if (data.summary.success > 0) {
+                        document.getElementById('accountsText').value = '';
+                        document.getElementById('accountCount').textContent = '0 accounts';
+                        document.getElementById('importPreview').style.display = 'none';
+                    }
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                // Reset button state
+                importOnimatorBtn.disabled = false;
+                importOnimatorBtn.innerHTML = originalText;
+
+                alert('Error importing accounts: ' + error);
+                console.error('Import error:', error);
+            });
+        });
+    </script>
+</body>
+</html>

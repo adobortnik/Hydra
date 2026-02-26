@@ -1,0 +1,80 @@
+{
+  "downloaded": [
+    {
+      "filename": "stock_face_selfie_0001.jpg",
+      "category": "face_selfie",
+      "gender_hint": "neutral",
+      "source": "pexels",
+      "source_id": "1812634",
+      "search_term": "guy portrait outdoor natural",
+      "photographer": "Mwabonje Ringa",
+      "downloaded_at": "2026-02-23T13:39:25.767247"
+    },
+    {
+      "filename": "stock_face_selfie_0002.jpg",
+      "category": "face_selfie",
+      "gender_hint": "neutral",
+      "source": "pexels",
+      "source_id": "3525908",
+      "search_term": "guy portrait outdoor natural",
+      "photographer": "Jan Kopřiva",
+      "downloaded_at": "2026-02-23T13:39:27.486393"
+    },
+    {
+      "filename": "stock_full_body_lifestyle_0003.jpg",
+      "category": "full_body_lifestyle",
+      "gender_hint": "male",
+      "source": "pexels",
+      "source_id": "3057984",
+      "search_term": "young man old town casual",
+      "photographer": "Yulia Rozanova",
+      "downloaded_at": "2026-02-23T13:39:31.692042"
+    },
+    {
+      "filename": "stock_aesthetic_artistic_0004.jpg",
+      "category": "aesthetic_artistic",
+      "gender_hint": "neutral",
+      "source": "pexels",
+      "source_id": "947407",
+      "search_term": "indoor plant phone photo",
+      "photographer": "Steve Johnson",
+      "downloaded_at": "2026-02-23T13:39:34.813614"
+    },
+    {
+      "filename": "stock_mirror_selfie_gym_0005.jpg",
+      "category": "mirror_selfie_gym",
+      "gender_hint": "male",
+      "source": "pexels",
+      "source_id": "6254565",
+      "search_term": "man exercise casual",
+      "photographer": "San Photography",
+      "downloaded_at": "2026-02-23T13:39:39.006264"
+    }
+  ],
+  "failed": [],
+  "used_photo_ids": [
+    "pexels_3525908",
+    "pexels_947407",
+    "pexels_6254565",
+    "pexels_3057984",
+    "pexels_1812634"
+  ],
+  "last_updated": "2026-02-23T13:39:39.206563",
+  "stats": {
+    "total_downloaded": 5,
+    "total_failed": 0,
+    "by_category": {
+      "face_selfie": 2,
+      "full_body_lifestyle": 1,
+      "aesthetic_artistic": 1,
+      "mirror_selfie_gym": 1,
+      "back_view_silhouette": 0,
+      "other_diverse": 0
+    },
+    "by_gender": {
+      "female": 0,
+      "male": 2,
+      "neutral": 3
+    }
+  }
+}

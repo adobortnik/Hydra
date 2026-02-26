@@ -1,0 +1,281 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Hydra - Scheduled Posts{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0 text-white">Scheduled Posts</h1>
+                        <p class="text-white-50 mb-0">Manage your Instagram scheduled posts</p>
+                    </div>
+                    <div>
+                        <button id="addScheduledPost" class="btn btn-primary btn-action me-2">
+                            <i class="fas fa-plus me-2"></i>New Post
+                        </button>
+                        <button id="refreshScheduledPosts" class="btn btn-outline-primary btn-action" data-bs-toggle="tooltip" title="Refresh Data">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filters Row -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-white mb-3"><i class="fas fa-search me-2"></i>Search Posts</h5>
+                    <div class="input-group">
+                        <span class="input-group-text bg-dark border-secondary">
+                            <i class="fas fa-search text-white-50"></i>
+                        </span>
+                        <input type="text" id="postSearch" class="form-control bg-dark text-white border-secondary" placeholder="Search by caption...">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-white mb-3"><i class="fas fa-filter me-2"></i>Filter by Status</h5>
+                    <select id="statusFilter" class="form-select bg-dark text-white border-secondary">
+                        <option value="" selected>All Posts</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="published">Published</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-white mb-3"><i class="fas fa-filter me-2"></i>Filter by Account</h5>
+                    <select id="accountFilter" class="form-select bg-dark text-white border-secondary">
+                        <option value="" selected>All Accounts</option>
+                        <!-- Account options will be populated by JavaScript -->
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scheduled Posts Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark">
+                    <h5 class="card-title text-white mb-0 d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-calendar me-2"></i>Scheduled Posts</span>
+                        <div>
+                            <button id="selectAllPosts" class="btn btn-sm btn-outline-primary me-2">
+                                <i class="fas fa-check-square me-1"></i>Select All
+                            </button>
+                            <button id="deleteSelectedPosts" class="btn btn-sm btn-outline-danger" disabled>
+                                <i class="fas fa-trash me-1"></i>Delete Selected
+                            </button>
+                        </div>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table id="scheduledPostsTable" class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th width="40px" class="text-center">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="selectAllCheckbox">
+                                        </div>
+                                    </th>
+                                    <th onclick="sortPostsTable(0)" class="cursor-pointer">
+                                        Date/Time <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortPostsTable(1)" class="cursor-pointer">
+                                        Account <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th>Caption</th>
+                                    <th onclick="sortPostsTable(3)" class="cursor-pointer">
+                                        Type <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th onclick="sortPostsTable(4)" class="cursor-pointer">
+                                        Status <i class="fas fa-sort ms-1"></i>
+                                    </th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduledPostsTableBody">
+                                <tr>
+                                    <td colspan="7" class="text-center">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                        <span class="text-white">Loading scheduled posts...</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Scheduled Post Modal -->
+<div class="modal fade" id="scheduledPostModal" tabindex="-1" aria-labelledby="scheduledPostModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="scheduledPostModalTitle">Add Scheduled Post</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="scheduledPostForm">
+                    <input type="hidden" id="postId" value="">
+                    
+                    <div class="mb-3">
+                        <label for="postAccounts" class="form-label">Select Accounts</label>
+                        <select id="postAccounts" class="form-select bg-dark text-white border-secondary" multiple>
+                            <!-- Account options will be populated by JavaScript -->
+                        </select>
+                        <div class="form-text text-white-50">Hold Ctrl/Cmd to select multiple accounts</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="postType" class="form-label">Post Type</label>
+                        <select id="postType" class="form-select bg-dark text-white border-secondary">
+                            <option value="post">Post</option>
+                            <option value="story">Story</option>
+                            <option value="reel">Reel</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="postCaption" class="form-label">Caption</label>
+                        <textarea id="postCaption" class="form-control bg-dark text-white border-secondary" rows="4"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="postMedia" class="form-label">Media</label>
+                        <div id="mediaPreviewContainer" class="d-none"></div>
+                        <input type="file" id="postMedia" class="form-control bg-dark text-white border-secondary" accept="image/*,video/*">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="postDate" class="form-label">Date</label>
+                            <input type="date" id="postDate" class="form-control bg-dark text-white border-secondary">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="postTime" class="form-label">Time</label>
+                            <input type="time" id="postTime" class="form-control bg-dark text-white border-secondary">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="postLocation" class="form-label">Location (optional)</label>
+                        <input type="text" id="postLocation" class="form-control bg-dark text-white border-secondary">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveScheduledPost">
+                    <i class="fas fa-save me-2"></i>Save Post
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Account Settings Modal -->
+<div class="modal fade" id="bulkSettingsModal" tabindex="-1" aria-labelledby="bulkSettingsModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="bulkSettingsModalTitle">Bulk Account Settings</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="bulkAccounts" class="form-label">Select Accounts</label>
+                    <select id="bulkAccounts" class="form-select bg-dark text-white border-secondary" multiple>
+                        <!-- Account options will be populated by JavaScript -->
+                    </select>
+                    <div class="form-text text-white-50">Hold Ctrl/Cmd to select multiple accounts</div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-dark-secondary">
+                            <div class="card-header bg-dark-secondary border-secondary">
+                                <h5 class="card-title mb-0">Follow Settings</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="bulkFollow">
+                                    <label class="form-check-label" for="bulkFollow">Enable Follow</label>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="bulkUnfollow">
+                                    <label class="form-check-label" for="bulkUnfollow">Enable Unfollow</label>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="bulkFollowLimit" class="form-label">Follow Limit per Day</label>
+                                    <input type="number" id="bulkFollowLimit" class="form-control bg-dark text-white border-secondary" min="0" max="1000">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-dark-secondary">
+                            <div class="card-header bg-dark-secondary border-secondary">
+                                <h5 class="card-title mb-0">Engagement Settings</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="bulkLike">
+                                    <label class="form-check-label" for="bulkLike">Enable Like</label>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="bulkComment">
+                                    <label class="form-check-label" for="bulkComment">Enable Comment</label>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="bulkStory">
+                                    <label class="form-check-label" for="bulkStory">Enable Story</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveBulkSettings">
+                    <i class="fas fa-save me-2"></i>Apply to Selected Accounts
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+<!-- Scheduled Posts JavaScript -->
+<script src="{{ url_for('static', filename='js/scheduled-posts.js') }}"></script>
+{% endblock %}

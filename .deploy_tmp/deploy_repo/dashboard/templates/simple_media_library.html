@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Media Library</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: white; }
+        .media-section { margin-bottom: 20px; padding: 15px; border: 1px solid #333; border-radius: 5px; }
+        .media-grid { display: flex; flex-wrap: wrap; }
+        .media-item { margin: 10px; border: 1px solid #444; padding: 5px; width: 200px; }
+        .media-thumbnail { width: 100%; height: 180px; object-fit: cover; }
+        .folder-item { cursor: pointer; padding: 8px; border-radius: 4px; }
+        .folder-item:hover { background-color: #333; }
+        .folder-item.active { background-color: #0d6efd; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Simple Media Library</h1>
+        <p class="text-muted">This is a simplified version that should work on Windows</p>
+        
+        <div class="row mt-4">
+            <!-- Folders Section -->
+            <div class="col-md-3">
+                <div class="media-section">
+                    <h3>Folders</h3>
+                    <div id="folderList" class="mt-3">
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Media Section -->
+            <div class="col-md-9">
+                <div class="media-section">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3>Media</h3>
+                        <button id="refreshBtn" class="btn btn-outline-primary">Refresh</button>
+                    </div>
+                    <div id="mediaGrid" class="media-grid">
+                        <div class="d-flex justify-content-center w-100">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- jQuery first, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Current selected folder
+        let currentFolderId = null;
+        
+        // Load folders
+        async function loadFolders() {
+            try {
+                const response = await fetch('/api/folders');
+                if (!response.ok) throw new Error('Failed to load folders');
+                
+                const folders = await response.json();
+                displayFolders(folders);
+            } catch (error) {
+                console.error('Error loading folders:', error);
+                document.getElementById('folderList').innerHTML = 
+                    '<div class="alert alert-danger">Failed to load folders</div>';
+            }
+        }
+        
+        // Display folders
+        function displayFolders(folders) {
+            const folderList = document.getElementById('folderList');
+            let html = '';
+            
+            // Add "All Media" option
+            html += `<div class="folder-item ${!currentFolderId ? 'active' : ''}" data-folder-id="">
+                        <i class="bi bi-folder"></i> All Media
+                     </div>`;
+            
+            // Add each folder
+            folders.forEach(folder => {
+                if (!folder.parent_id) { // Only show root folders for simplicity
+                    html += `<div class="folder-item ${folder.id === currentFolderId ? 'active' : ''}" data-folder-id="${folder.id}">
+                                <i class="bi bi-folder"></i> ${folder.name}
+                             </div>`;
+                }
+            });
+            
+            folderList.innerHTML = html;
+            
+            // Add click event listeners
+            document.querySelectorAll('.folder-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const folderId = this.getAttribute('data-folder-id');
+                    selectFolder(folderId);
+                });
+            });
+        }
+        
+        // Select a folder
+        function selectFolder(folderId) {
+            currentFolderId = folderId || null;
+            
+            // Update active state
+            document.querySelectorAll('.folder-item').forEach(item => {
+                item.classList.toggle('active', item.getAttribute('data-folder-id') === folderId);
+            });
+            
+            // Load media for the selected folder
+            loadMedia();
+        }
+        
+        // Load media
+        async function loadMedia() {
+            try {
+                // Show loading indicator
+                document.getElementById('mediaGrid').innerHTML = 
+                    '<div class="d-flex justify-content-center w-100"><div class="spinner-border text-primary" role="status"></div></div>';
+                
+                // Build URL based on current folder
+                let url = '/api/media';
+                if (currentFolderId) {
+                    url = `/api/folders/${currentFolderId}/media`;
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to load media');
+                
+                const media = await response.json();
+                displayMedia(media);
+            } catch (error) {
+                console.error('Error loading media:', error);
+                document.getElementById('mediaGrid').innerHTML = 
+                    '<div class="alert alert-danger">Failed to load media</div>';
+            }
+        }
+        
+        // Display media
+        function displayMedia(mediaItems) {
+            const mediaGrid = document.getElementById('mediaGrid');
+            
+            if (!mediaItems || mediaItems.length === 0) {
+                mediaGrid.innerHTML = '<div class="alert alert-info w-100">No media found</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            mediaItems.forEach(media => {
+                // Determine thumbnail source
+                let thumbnailSrc;
+                if (media.processed_path) {
+                    const filename = media.processed_path.split(/[\\\/]/).pop();
+                    thumbnailSrc = `/api/media/processed/${filename}`;
+                } else {
+                    const filename = media.original_path.split(/[\\\/]/).pop();
+                    thumbnailSrc = `/api/media/original/${filename}`;
+                }
+                
+                html += `
+                <div class="media-item">
+                    <img src="${thumbnailSrc}" class="media-thumbnail" alt="${media.filename}" 
+                         onerror="this.onerror=null; this.src='/static/img/placeholder.jpg';">
+                    <div class="p-2">
+                        <div class="fw-bold">${media.filename}</div>
+                        <div class="small text-muted">${media.media_type}</div>
+                    </div>
+                </div>`;
+            });
+            
+            mediaGrid.innerHTML = html;
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load initial data
+            loadFolders();
+            loadMedia();
+            
+            // Refresh button
+            document.getElementById('refreshBtn').addEventListener('click', function() {
+                loadFolders();
+                loadMedia();
+            });
+        });
+    </script>
+</body>
+</html>

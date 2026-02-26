@@ -1,0 +1,1296 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Account Inventory - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge.bg-success { background-color: #28a745 !important; }
+    .badge.bg-secondary { background-color: #6c757d !important; }
+</style>
+<script>
+    // Current filter state
+    let currentStatusFilter = 'all';
+    let currentSearchTerm = '';
+    
+    // Function to load and display accounts
+    function loadAccounts() {
+        fetch('/api/inventory/accounts')
+            .then(response => response.json())
+            .then(accounts => {
+                // Store all accounts globally for filtering
+                window.allAccounts = accounts;
+                // Apply current filters
+                filterAccounts();
+            })
+            .catch(error => {
+                console.error('Error loading accounts:', error);
+                alert('Failed to load accounts: ' + error);
+            });
+    }
+    
+    // Function to filter accounts by status
+    function filterAccountsByStatus(status) {
+        // Update filter state
+        currentStatusFilter = status;
+        
+        // Update button UI
+        document.getElementById('filterAllBtn').classList.remove('btn-primary');
+        document.getElementById('filterAllBtn').classList.add('btn-outline-primary');
+        document.getElementById('filterAvailableBtn').classList.remove('btn-success');
+        document.getElementById('filterAvailableBtn').classList.add('btn-outline-success');
+        document.getElementById('filterUsedBtn').classList.remove('btn-secondary');
+        document.getElementById('filterUsedBtn').classList.add('btn-outline-secondary');
+        
+        // Highlight active button
+        if (status === 'all') {
+            document.getElementById('filterAllBtn').classList.remove('btn-outline-primary');
+            document.getElementById('filterAllBtn').classList.add('btn-primary');
+        } else if (status === 'available') {
+            document.getElementById('filterAvailableBtn').classList.remove('btn-outline-success');
+            document.getElementById('filterAvailableBtn').classList.add('btn-success');
+        } else if (status === 'used') {
+            document.getElementById('filterUsedBtn').classList.remove('btn-outline-secondary');
+            document.getElementById('filterUsedBtn').classList.add('btn-secondary');
+        }
+        
+        // Apply filters
+        filterAccounts();
+    }
+    
+    // Function to display accounts in the table
+    function displayAccounts(accounts) {
+        const tableBody = document.getElementById('accountInventoryTable');
+        const noAccountsMessage = document.getElementById('noAccountsMessage');
+        
+        tableBody.innerHTML = '';
+        
+        if (!accounts || accounts.length === 0) {
+            noAccountsMessage.classList.remove('d-none');
+            return;
+        }
+        
+        noAccountsMessage.classList.add('d-none');
+        
+        console.log('All accounts:', accounts);
+        accounts.forEach(account => {
+            console.log('Processing account:', account);
+            const row = document.createElement('tr');
+            
+            // Format dates
+            const dateAdded = account.date_added ? new Date(account.date_added).toLocaleString() : '-';
+            const dateUsed = account.date_used ? new Date(account.date_used).toLocaleString() : '-';
+            
+            // Create status badge
+            const statusBadge = document.createElement('span');
+            statusBadge.classList.add('badge');
+            if (account.status === 'available') {
+                statusBadge.classList.add('bg-success');
+                statusBadge.textContent = 'Available';
+            } else {
+                statusBadge.classList.add('bg-secondary');
+                statusBadge.textContent = 'Used';
+            }
+            
+            // Mask password and 2FA
+            const maskedPassword = account.password ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : '-';
+            const masked2FA = account.two_factor_auth ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : '-';
+            
+            row.innerHTML = `
+                <td>${account.username || '-'}</td>
+                <td>
+                    <div class="password-container" data-password="${account.password || ''}">
+                        <span class="masked-password">${maskedPassword}</span>
+                        <button class="btn btn-sm btn-outline-secondary copy-btn ms-2" title="Copy password" ${!account.password ? 'disabled' : ''}>
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <div class="twofa-container" data-twofa="${account.two_factor_auth || ''}">
+                        <span class="masked-twofa">${masked2FA}</span>
+                        <button class="btn btn-sm btn-outline-secondary reveal-btn ms-2" title="Reveal 2FA" ${!account.two_factor_auth ? 'disabled' : ''}>
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary copy-twofa-btn ms-1" title="Copy 2FA" ${!account.two_factor_auth ? 'disabled' : ''}>
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+                <td></td>
+                <td>${account.device_assigned || '-'}</td>
+                <td>${dateAdded}</td>
+                <td>${dateUsed}</td>
+                <td>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-primary edit-account-btn" data-id="${account.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        ${account.status === 'available' ? `
+                        <button class="btn btn-sm btn-outline-success assign-account-btn" data-id="${account.id}">
+                            <i class="fas fa-user-plus"></i>
+                        </button>` : ''}
+                        ${account.status === 'used' && account.device_assigned ? `
+                        <button class="btn btn-sm btn-outline-danger remove-account-btn" data-id="${account.id}" data-username="${account.username}" data-device="${account.device_assigned}">
+                            <i class="fas fa-trash"></i>
+                        </button>` : ''}
+                        <button class="btn btn-sm btn-outline-info buy-followers-btn" data-id="${account.id}" data-username="${account.username}">
+                            <i class="fas fa-shopping-cart"></i>
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="selectAccount${account.id}" data-id="${account.id}" title="Select">
+                    </div>
+                </td>
+            `;
+            
+            // Add status badge to the status cell
+            row.querySelector('td:nth-child(4)').appendChild(statusBadge);
+            
+            tableBody.appendChild(row);
+        });
+        
+        // Add event listeners to edit and assign buttons
+        document.querySelectorAll('.edit-account-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const accountId = this.getAttribute('data-id');
+                openEditModal(accountId);
+            });
+        });
+        
+        document.querySelectorAll('.assign-account-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const accountId = this.getAttribute('data-id');
+                openAssignModal(accountId);
+            });
+        });
+        
+        document.querySelectorAll('.remove-account-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const accountId = this.getAttribute('data-id');
+                const username = this.getAttribute('data-username');
+                const device = this.getAttribute('data-device');
+                openRemoveModal(accountId, username, device);
+            });
+        });
+        
+        document.querySelectorAll('.buy-followers-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const accountId = this.getAttribute('data-id');
+                const username = this.getAttribute('data-username');
+                showBuyFollowersModal(accountId, username);
+            });
+        });
+        
+        // Add event listeners for select checkboxes
+        document.querySelectorAll('input[id^="selectAccount"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateExportButton);
+        });
+        
+        // Add event listeners for password and 2FA copy buttons
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const passwordContainer = this.parentNode;
+                const password = passwordContainer.getAttribute('data-password');
+                navigator.clipboard.writeText(password);
+                alert('Password copied to clipboard');
+            });
+        });
+        
+        document.querySelectorAll('.copy-twofa-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const twofaContainer = this.parentNode;
+                const twofa = twofaContainer.getAttribute('data-twofa');
+                navigator.clipboard.writeText(twofa);
+                //alert('2FA code copied to clipboard');
+            });
+        });
+        
+        document.querySelectorAll('.reveal-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const twofaContainer = this.parentNode;
+                const twofa = twofaContainer.getAttribute('data-twofa');
+                twofaContainer.querySelector('.masked-twofa').textContent = twofa;
+                this.disabled = true;
+                this.querySelector('i').classList.replace('fa-eye', 'fa-eye-slash');
+            });
+        });
+    }
+    
+    // Function to open edit account modal
+    function openEditModal(accountId) {
+        fetch(`/api/inventory/accounts/${accountId}`)
+            .then(response => response.json())
+            .then(account => {
+                document.getElementById('editAccountId').value = account.id;
+                document.getElementById('editUsername').value = account.username || '';
+                document.getElementById('editPassword').value = account.password || '';
+                document.getElementById('edit2FA').value = account.two_factor_auth || '';
+                document.getElementById('editStatus').value = account.status || 'available';
+                document.getElementById('editNotes').value = account.notes || '';
+                
+                const editModal = new bootstrap.Modal(document.getElementById('editAccountModal'));
+                editModal.show();
+            })
+            .catch(error => {
+                console.error('Error loading account details:', error);
+                alert('Failed to load account details: ' + error);
+            });
+    }
+    
+    // Function to open assign account modal
+    function openAssignModal(accountId) {
+        // First, load the account details
+        fetch(`/api/inventory/accounts/${accountId}`)
+            .then(response => response.json())
+            .then(account => {
+                document.getElementById('assignAccountId').value = account.id;
+                document.getElementById('assignUsername').value = account.username || '';
+                
+                // Then load the devices
+                return fetch('/api/devices');
+            })
+            .then(response => response.json())
+            .then(devices => {
+                const deviceSelect = document.getElementById('assignDevice');
+                deviceSelect.innerHTML = '<option value="">Select a device...</option>';
+                
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceid;
+                    option.textContent = device.devicename;
+                    deviceSelect.appendChild(option);
+                });
+                
+                const assignModal = new bootstrap.Modal(document.getElementById('assignAccountModal'));
+                assignModal.show();
+            })
+            .catch(error => {
+                console.error('Error loading data for assignment:', error);
+                alert('Failed to load data for assignment: ' + error);
+            });
+    }
+    
+    // Function to open remove account modal
+    function openRemoveModal(accountId, username, device) {
+        document.getElementById('removeAccountId').value = accountId;
+        document.getElementById('removeUsername').value = username;
+        document.getElementById('removeDevice').value = device;
+        
+        const removeModal = new bootstrap.Modal(document.getElementById('removeAccountModal'));
+        removeModal.show();
+    }
+    
+    // Function to save edited account
+    function saveAccount() {
+        const accountId = document.getElementById('editAccountId').value;
+        const accountData = {
+            username: document.getElementById('editUsername').value,
+            password: document.getElementById('editPassword').value,
+            two_factor_auth: document.getElementById('edit2FA').value,
+            status: document.getElementById('editStatus').value,
+            notes: document.getElementById('editNotes').value
+        };
+        
+        fetch(`/api/inventory/accounts/${accountId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(accountData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                alert('Account updated successfully');
+                bootstrap.Modal.getInstance(document.getElementById('editAccountModal')).hide();
+                loadAccounts(); // Reload the accounts
+            }
+        })
+        .catch(error => {
+            console.error('Error updating account:', error);
+            alert('Failed to update account: ' + error);
+        });
+    }
+    
+    // Function to assign account to device
+    function assignAccount() {
+        const accountId = document.getElementById('assignAccountId').value;
+        const deviceId = document.getElementById('assignDevice').value;
+        
+        if (!deviceId) {
+            alert('Please select a device');
+            return;
+        }
+        
+        fetch(`/api/inventory/accounts/${accountId}/assign`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ device_id: deviceId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                alert('Account assigned successfully');
+                bootstrap.Modal.getInstance(document.getElementById('assignAccountModal')).hide();
+                loadAccounts(); // Reload the accounts
+            }
+        })
+        .catch(error => {
+            console.error('Error assigning account:', error);
+            alert('Failed to assign account: ' + error);
+        });
+    }
+    
+    // Function to remove account from device
+    function removeAccount() {
+        const accountId = document.getElementById('removeAccountId').value;
+        const deviceId = document.getElementById('removeDevice').value;
+        
+        fetch(`/api/inventory/accounts/${accountId}/remove`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ device_id: deviceId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                alert('Account removed successfully');
+                bootstrap.Modal.getInstance(document.getElementById('removeAccountModal')).hide();
+                loadAccounts(); // Reload the accounts
+            }
+        })
+        .catch(error => {
+            console.error('Error removing account:', error);
+            alert('Failed to remove account: ' + error);
+        });
+    }
+    
+    // Function to filter accounts based on current filters
+    function filterAccounts() {
+        // Get search term if provided
+        const searchInput = document.getElementById('searchInput');
+        currentSearchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+        
+        // Make sure we have accounts to filter
+        if (!window.allAccounts) {
+            console.log('No accounts to filter yet');
+            return;
+        }
+        
+        // Apply filters
+        let filteredAccounts = window.allAccounts;
+        
+        // Filter by status if not 'all'
+        if (currentStatusFilter !== 'all') {
+            filteredAccounts = filteredAccounts.filter(account => account.status === currentStatusFilter);
+        }
+        
+        // Filter by search term if provided
+        if (currentSearchTerm) {
+            filteredAccounts = filteredAccounts.filter(account => {
+                // Search in username, device_assigned, or notes
+                return (account.username && account.username.toLowerCase().includes(currentSearchTerm)) ||
+                       (account.device_assigned && account.device_assigned.toLowerCase().includes(currentSearchTerm)) ||
+                       (account.notes && account.notes.toLowerCase().includes(currentSearchTerm));
+            });
+        }
+        
+        // Display filtered accounts
+        displayAccounts(filteredAccounts);
+        
+        // Update filter count in UI
+        const countText = `${filteredAccounts.length} of ${window.allAccounts.length} accounts`;
+        const filterCountElement = document.getElementById('filterCount');
+        if (filterCountElement) {
+            filterCountElement.textContent = countText;
+        }
+    }
+    
+    // Update buttons state based on selections
+    function updateExportButton() {
+        const selectedCheckboxes = document.querySelectorAll('input[id^="selectAccount"]:checked');
+        const selectedCount = selectedCheckboxes.length;
+        const exportBtn = document.getElementById('exportSelectedBtn');
+        const markAsUsedBtn = document.getElementById('markAsUsedBtn');
+        
+        if (selectedCount > 0) {
+            exportBtn.removeAttribute('disabled');
+            exportBtn.innerHTML = `<i class="fas fa-file-export me-1"></i> Export Selected (${selectedCount})`;
+            
+            // Show and enable the Mark as Used button
+            markAsUsedBtn.classList.remove('d-none');
+            markAsUsedBtn.removeAttribute('disabled');
+            markAsUsedBtn.innerHTML = `<i class="fas fa-check-circle me-1"></i> Mark Selected as Used (${selectedCount})`;
+        } else {
+            exportBtn.setAttribute('disabled', 'disabled');
+            exportBtn.innerHTML = `<i class="fas fa-file-export me-1"></i> Export Selected`;
+            
+            // Hide the Mark as Used button
+            markAsUsedBtn.classList.add('d-none');
+        }
+    }
+    
+    // Mark selected accounts as used
+    function markSelectedAccountsAsUsed() {
+        // Get all selected account IDs
+        const selectedCheckboxes = document.querySelectorAll('input[id^="selectAccount"]:checked');
+        console.log('Selected checkboxes:', selectedCheckboxes);
+        
+        // Get all rows with selected checkboxes to extract the actual account IDs from the edit buttons
+        const accountIds = [];
+        selectedCheckboxes.forEach(checkbox => {
+            // Find the closest row
+            const row = checkbox.closest('tr');
+            if (row) {
+                // Find the edit button which has the correct data-id attribute
+                const editButton = row.querySelector('.edit-account-btn');
+                if (editButton) {
+                    const id = parseInt(editButton.getAttribute('data-id'));
+                    console.log('Found account ID from edit button:', id);
+                    accountIds.push(id);
+                }
+            }
+        });
+        
+        if (accountIds.length === 0) {
+            alert('No accounts selected');
+            return;
+        }
+        
+        // Confirm before proceeding
+        if (!confirm(`Are you sure you want to mark ${accountIds.length} selected accounts as used?`)) {
+            return;
+        }
+        
+        // Disable the button while processing
+        const markAsUsedBtn = document.getElementById('markAsUsedBtn');
+        const originalText = markAsUsedBtn.innerHTML;
+        markAsUsedBtn.disabled = true;
+        markAsUsedBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing...';
+        
+        // Debug output
+        console.log('Selected account IDs:', accountIds);
+        
+        // Send request to update accounts
+        fetch('/api/inventory/accounts/bulk-update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                account_ids: accountIds,
+                status: 'used'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Re-enable the button
+            markAsUsedBtn.disabled = false;
+            markAsUsedBtn.innerHTML = originalText;
+            
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            alert(data.message);
+            
+            // Reload accounts to reflect changes
+            loadAccounts();
+        })
+        .catch(error => {
+            console.error('Error marking accounts as used:', error);
+            
+            // Re-enable the button
+            markAsUsedBtn.disabled = false;
+            markAsUsedBtn.innerHTML = originalText;
+            
+            alert('Failed to mark accounts as used: ' + error);
+        });
+    }
+    
+    // Export selected accounts as CSV
+    function exportSelectedAccounts() {
+        // Get all selected account IDs
+        const selectedCheckboxes = document.querySelectorAll('input[id^="selectAccount"]:checked');
+        console.log('Selected checkboxes:', selectedCheckboxes);
+        
+        const selectedIds = Array.from(selectedCheckboxes).map(checkbox => {
+            console.log('Checkbox ID:', checkbox.id);
+            return checkbox.id.replace('selectAccount', '');
+        });
+        
+        if (selectedIds.length === 0) {
+            alert('Please select at least one account to export');
+            return;
+        }
+        
+        console.log('Selected IDs:', selectedIds); // Debug log
+        
+        // Load devices for the dropdown
+        fetch('/api/devices')
+            .then(response => response.json())
+            .then(devices => {
+                const deviceSelect = document.getElementById('exportDevice');
+                // Keep the first option (Use currently assigned devices)
+                const firstOption = deviceSelect.options[0];
+                deviceSelect.innerHTML = '';
+                deviceSelect.appendChild(firstOption);
+                
+                // Add devices to the dropdown
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceid;
+                    option.textContent = device.devicename;
+                    deviceSelect.appendChild(option);
+                });
+                
+                // Show the export modal
+                const exportModal = new bootstrap.Modal(document.getElementById('exportAccountsModal'));
+                exportModal.show();
+                
+                // Add event listener for confirm export button (only once)
+                const confirmExportBtn = document.getElementById('confirmExportBtn');
+                // Remove existing event listeners to avoid duplicates
+                const newConfirmBtn = confirmExportBtn.cloneNode(true);
+                confirmExportBtn.parentNode.replaceChild(newConfirmBtn, confirmExportBtn);
+                
+                newConfirmBtn.addEventListener('click', function() {
+                    const deviceId = document.getElementById('exportDevice').value.trim();
+                    const markAsUsed = document.getElementById('markAsUsed').checked;
+                    
+                    // Create a form to submit the selected IDs
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/export_accounts';
+                    form.style.display = 'none';
+                    
+                    // Add the selected IDs as a hidden input
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'account_ids';
+                    input.value = JSON.stringify(selectedIds);
+                    console.log('Form input value:', input.value);
+                    form.appendChild(input);
+                    
+                    // Add mark as used option as a hidden input
+                    const markAsUsedInput = document.createElement('input');
+                    markAsUsedInput.type = 'hidden';
+                    markAsUsedInput.name = 'mark_as_used';
+                    markAsUsedInput.value = markAsUsed;
+                    form.appendChild(markAsUsedInput);
+                    
+                    // Add device ID as a hidden input if provided
+                    if (deviceId) {
+                        const deviceIdInput = document.createElement('input');
+                        deviceIdInput.type = 'hidden';
+                        deviceIdInput.name = 'device_id';
+                        deviceIdInput.value = deviceId;
+                        form.appendChild(deviceIdInput);
+                        
+                        // Add selected device name to form for better UX feedback
+                        const deviceSelect = document.getElementById('exportDevice');
+                        const selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+                        const deviceNameInput = document.createElement('input');
+                        deviceNameInput.type = 'hidden';
+                        deviceNameInput.name = 'device_name';
+                        deviceNameInput.value = selectedOption.textContent;
+                        form.appendChild(deviceNameInput);
+                    }
+                    
+                    // Close the modal
+                    const exportModal = bootstrap.Modal.getInstance(document.getElementById('exportAccountsModal'));
+                    exportModal.hide();
+                    
+                    // Show a loading message
+                    const exportBtn = document.getElementById('exportSelectedBtn');
+                    const originalText = exportBtn.innerHTML;
+                    exportBtn.disabled = true;
+                    exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Exporting...';
+                    
+                    // Add the form to the document and submit it
+                    document.body.appendChild(form);
+                    form.submit();
+                    
+                    // Reset button after a delay
+                    setTimeout(() => {
+                        exportBtn.disabled = false;
+                        exportBtn.innerHTML = originalText;
+                    }, 2000);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading devices:', error);
+                alert('Failed to load devices: ' + error);
+            });
+    }
+    
+    // Load accounts when the page loads
+    window.onload = function() {
+        loadAccounts();
+        
+        // Add event listeners for the modal buttons
+        document.getElementById('saveAccountBtn').addEventListener('click', saveAccount);
+        document.getElementById('confirmAssignBtn').addEventListener('click', assignAccount);
+        document.getElementById('confirmRemoveBtn').addEventListener('click', removeAccount);
+        
+        // Add event listener for select all checkbox
+        document.getElementById('selectAllAccounts').addEventListener('change', function() {
+            const isChecked = this.checked;
+            document.querySelectorAll('input[id^="selectAccount"]').forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            updateExportButton();
+        });
+        
+        // Add event listener for export button
+        document.getElementById('exportSelectedBtn').addEventListener('click', exportSelectedAccounts);
+    };
+    
+    function importAccounts() {
+        const accountsText = document.getElementById('accountsText').value.trim();
+        if (!accountsText) {
+            alert('Please enter accounts to import');
+            return;
+        }
+        
+        console.log('Importing accounts text:', accountsText);
+        
+        // Show loading state
+        const importButton = document.querySelector('button[onclick="importAccounts()"]');
+        const originalText = importButton.innerHTML;
+        importButton.disabled = true;
+        importButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Importing...';
+        
+        // Submit the form data using fetch
+        fetch('/api/inventory/accounts/import', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ accounts_text: accountsText })
+        })
+        .then(response => {
+            console.log('Import response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            // Reset button state
+            importButton.disabled = false;
+            importButton.innerHTML = originalText;
+            
+            console.log('Import response data:', data);
+            
+            if (data.error) {
+                alert(data.error);
+            } else {
+                // Show success message with counts
+                const addedCount = data.added || 0;
+                const skippedCount = data.skipped || 0;
+                alert(`Successfully imported accounts: Added ${addedCount}, Skipped ${skippedCount} duplicates`);
+                
+                // Clear the input field
+                document.getElementById('accountsText').value = '';
+                
+                // Reset filter to show all accounts
+                currentStatusFilter = 'all';
+                
+                // Update filter buttons UI
+                document.getElementById('filterAllBtn').classList.remove('btn-outline-primary');
+                document.getElementById('filterAllBtn').classList.add('btn-primary');
+                document.getElementById('filterAvailableBtn').classList.remove('btn-success');
+                document.getElementById('filterAvailableBtn').classList.add('btn-outline-success');
+                document.getElementById('filterUsedBtn').classList.remove('btn-secondary');
+                document.getElementById('filterUsedBtn').classList.add('btn-outline-secondary');
+                
+                // Clear any search term
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {
+                    searchInput.value = '';
+                }
+                
+                // Force reload accounts from server (not from cache)
+                window.allAccounts = null; // Clear cached accounts
+                loadAccounts();
+            }
+        })
+        .catch(error => {
+            // Reset button state
+            importButton.disabled = false;
+            importButton.innerHTML = originalText;
+            
+            alert('Error importing accounts: ' + error.message);
+            console.error('Import error:', error);
+        });
+    }
+    
+    let followerServices = [];
+    
+    // Fetch follower services when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchFollowerServices();
+    });
+    
+    function fetchFollowerServices() {
+        fetch('/api/jap/services')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching services:', data.error);
+                    return;
+                }
+                
+                followerServices = data;
+                populateServicesDropdown();
+            })
+            .catch(error => {
+                console.error('Error fetching services:', error);
+            });
+    }
+    
+    function populateServicesDropdown() {
+        const dropdown = document.getElementById('followerService');
+        dropdown.innerHTML = '';
+        
+        if (!followerServices || followerServices.length === 0 || followerServices.error) {
+            dropdown.innerHTML = '<option value="">No services available or API key not configured</option>';
+            return;
+        }
+        
+        // Log all services for debugging
+        console.log('All services:', followerServices);
+        
+        // More flexible filtering for Instagram Followers
+        const instagramFollowerServices = followerServices.filter(service => {
+            const name = (service.name || '').toLowerCase();
+            const category = (service.category || '').toLowerCase();
+            const type = (service.type || '').toLowerCase();
+            
+            // Check for Instagram followers in various combinations
+            const isInstagramFollowers = 
+                // Check name contains both instagram and follower/followers
+                (name.includes('instagram') && (name.includes('follower') || name.includes('followers'))) ||
+                // Check if category is instagram and name or type contains follower
+                (category.includes('instagram') && (name.includes('follower') || name.includes('followers') || type.includes('follower'))) ||
+                // Check if name contains instagram and type is follower
+                (name.includes('instagram') && type.includes('follower')) ||
+                // Check if service is explicitly for Instagram
+                (name.includes('ig ') || name.includes('ig_') || name.startsWith('ig ')) && (name.includes('follower') || name.includes('followers'));
+                
+            return isInstagramFollowers;
+        });
+        
+        // If no Instagram services found, show all follower services as fallback
+        if (instagramFollowerServices.length === 0) {
+            console.log('No Instagram follower services found, showing all follower services');
+            
+            const allFollowerServices = followerServices.filter(service => {
+                const name = (service.name || '').toLowerCase();
+                const type = (service.type || '').toLowerCase();
+                
+                return name.includes('follower') || name.includes('followers') || type.includes('follower');
+            });
+            
+            if (allFollowerServices.length === 0) {
+                dropdown.innerHTML = '<option value="">No follower services available</option>';
+                return;
+            }
+            
+            dropdown.innerHTML = '<option value="">No Instagram Follower services found. Showing all follower services:</option>';
+            
+            allFollowerServices.forEach(service => {
+                const option = document.createElement('option');
+                option.value = service.service;
+                option.textContent = `${service.name} - $${service.rate} per 1000 (Min: ${service.min}, Max: ${service.max})`;
+                option.dataset.min = service.min;
+                option.dataset.max = service.max;
+                option.dataset.rate = service.rate;
+                
+                // Preselect service ID 8839
+                if (service.service == 8839) {
+                    option.selected = true;
+                }
+                
+                dropdown.appendChild(option);
+            });
+        } else {
+            // Sort Instagram follower services by rate (price)
+            instagramFollowerServices.sort((a, b) => parseFloat(a.rate) - parseFloat(b.rate));
+            
+            instagramFollowerServices.forEach(service => {
+                const option = document.createElement('option');
+                option.value = service.service;
+                option.textContent = `${service.name} - $${service.rate} per 1000 (Min: ${service.min}, Max: ${service.max})`;
+                option.dataset.min = service.min;
+                option.dataset.max = service.max;
+                option.dataset.rate = service.rate;
+                
+                // Preselect service ID 8839
+                if (service.service == 8839) {
+                    option.selected = true;
+                }
+                
+                dropdown.appendChild(option);
+            });
+        }
+        
+        // Update quantity help text based on selected service
+        updateQuantityHelp();
+    }
+    
+    function updateQuantityHelp() {
+        const serviceSelect = document.getElementById('followerService');
+        const quantityHelp = document.getElementById('quantityHelp');
+        const quantityInput = document.getElementById('followerQuantity');
+        
+        if (serviceSelect.selectedIndex > -1) {
+            const selectedOption = serviceSelect.options[serviceSelect.selectedIndex];
+            const min = selectedOption.dataset.min;
+            const max = selectedOption.dataset.max;
+            const rate = selectedOption.dataset.rate;
+            
+            if (min && max) {
+                quantityHelp.textContent = `Enter a value between ${min} and ${max}. Cost: $${rate} per 1000 followers.`;
+                quantityInput.min = min;
+                quantityInput.max = max;
+                
+                // Set a default value
+                if (!quantityInput.value || quantityInput.value < min) {
+                    quantityInput.value = min;
+                }
+            }
+        }
+    }
+    
+    function showBuyFollowersModal(accountId, username) {
+        document.getElementById('followerAccountId').value = accountId;
+        document.getElementById('followerUsername').value = username;
+        document.getElementById('instagramProfileUrl').textContent = `https://instagram.com/${username}`;
+        
+        // Reset form and alerts
+        document.getElementById('buyFollowersForm').reset();
+        document.getElementById('buyFollowersError').style.display = 'none';
+        document.getElementById('buyFollowersSuccess').style.display = 'none';
+        
+        // Update services dropdown if needed
+        if (followerServices.length === 0) {
+            fetchFollowerServices();
+        } else {
+            populateServicesDropdown();
+        }
+        
+        $('#buyFollowersModal').modal('show');
+    }
+    
+    // Add event listener for service selection change
+    document.getElementById('followerService').addEventListener('change', updateQuantityHelp);
+    
+    // Function to submit the buy followers form
+    function submitBuyFollowers() {
+        console.log('Buy Followers button clicked');
+        
+        const form = document.getElementById('buyFollowersForm');
+        const formData = new FormData(form);
+        
+        // Debug form data
+        console.log('Form data:');
+        for (let pair of formData.entries()) {
+            console.log(pair[0] + ': ' + pair[1]); 
+        }
+        
+        // Validate form
+        const serviceId = formData.get('service_id');
+        const quantity = formData.get('quantity');
+        const username = formData.get('username');
+        
+        console.log('Validation:', { serviceId, quantity, username });
+        
+        if (!serviceId) {
+            showBuyFollowersError('Please select a service');
+            return;
+        }
+        
+        if (!quantity || quantity <= 0) {
+            showBuyFollowersError('Please enter a valid quantity');
+            return;
+        }
+        
+        // Show loading state
+        const submitButton = document.querySelector('#buyFollowersModal .modal-footer .btn-primary');
+        const originalButtonText = submitButton.textContent;
+        submitButton.textContent = 'Processing...';
+        submitButton.disabled = true;
+        
+        console.log('Submitting order to API...');
+        
+        // Submit order
+        fetch('/api/jap/order-followers', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            console.log('API response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('API response data:', data);
+            if (data.error) {
+                showBuyFollowersError(data.error);
+            } else if (data.order) {
+                showBuyFollowersSuccess(`Order placed successfully! Order ID: ${data.order}`);
+                setTimeout(() => {
+                    $('#buyFollowersModal').modal('hide');
+                }, 3000);
+            } else {
+                showBuyFollowersError('Unknown error occurred');
+            }
+        })
+        .catch(error => {
+            console.error('Error placing order:', error);
+            showBuyFollowersError('Error placing order. Please try again later.');
+        })
+        .finally(() => {
+            // Reset button state
+            submitButton.textContent = originalButtonText;
+            submitButton.disabled = false;
+        });
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Setting up Buy Followers button event listener');
+        const submitButton = document.getElementById('submitBuyFollowers');
+        
+        if (submitButton) {
+            submitButton.addEventListener('click', submitBuyFollowers);
+        } else {
+            console.error('Submit button not found!');
+        }
+    });
+    
+    function showBuyFollowersError(message) {
+        const errorDiv = document.getElementById('buyFollowersError');
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        document.getElementById('buyFollowersSuccess').style.display = 'none';
+    }
+    
+    function showBuyFollowersSuccess(message) {
+        const successDiv = document.getElementById('buyFollowersSuccess');
+        successDiv.textContent = message;
+        successDiv.style.display = 'block';
+        document.getElementById('buyFollowersError').style.display = 'none';
+    }
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4 text-light">Account Inventory</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/" class="text-light">Dashboard</a></li>
+        <li class="breadcrumb-item active text-light">Account Inventory</li>
+    </ol>
+    
+    <div class="row mb-4">
+        <div class="col-xl-12">
+            <div class="card bg-dark text-light border-secondary">
+                <div class="card-header d-flex justify-content-between align-items-center bg-dark text-light border-secondary">
+                    <div>
+                        <i class="fas fa-user-plus me-1"></i>
+                        Import Accounts
+                    </div>
+                    <div>
+                        <a href="/import-accounts" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-external-link-alt me-1"></i> Open Import Page
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Paste accounts in the format <code>username:password:2FA</code>, one per line. The 2FA part is optional.
+                    </div>
+                    <form id="importAccountsForm">
+                        <div class="form-group mb-3">
+                            <label for="accountsText" class="form-label">Accounts</label>
+                            <textarea id="accountsText" name="accounts_text" class="form-control bg-dark text-light border-secondary" rows="5" placeholder="username:password:2FA"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button type="button" onclick="importAccounts()" class="btn btn-primary">
+                                <i class="fas fa-file-import me-1"></i> Import Accounts
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-xl-12">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center bg-dark text-light border-secondary">
+                    <div>
+                        <i class="fas fa-list me-1"></i>
+                        Account Inventory
+                    </div>
+                    <div>
+                        <button id="markAsUsedBtn" class="btn btn-sm btn-outline-warning me-2 d-none" onclick="markSelectedAccountsAsUsed()">
+                            <i class="fas fa-check-circle me-1"></i> Mark Selected as Used
+                        </button>
+                        <button id="exportSelectedBtn" class="btn btn-sm btn-outline-success" disabled>
+                            <i class="fas fa-file-export me-1"></i> Export Selected
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-secondary">
+                        <div class="d-flex align-items-center">
+                            <div class="btn-group me-3">
+                                <button id="filterAllBtn" class="btn btn-sm btn-primary active" onclick="filterAccountsByStatus('all')">
+                                    <i class="fas fa-list me-1"></i> All Accounts
+                                </button>
+                                <button id="filterAvailableBtn" class="btn btn-sm btn-outline-success" onclick="filterAccountsByStatus('available')">
+                                    <i class="fas fa-check-circle me-1"></i> Available
+                                </button>
+                                <button id="filterUsedBtn" class="btn btn-sm btn-outline-secondary" onclick="filterAccountsByStatus('used')">
+                                    <i class="fas fa-times-circle me-1"></i> Used
+                                </button>
+                            </div>
+                            <span id="filterCount" class="text-light small"></span>
+                        </div>
+                        <div class="input-group" style="max-width: 300px;">
+                            <input type="text" id="searchInput" class="form-control bg-dark text-light border-secondary" placeholder="Search accounts..." onkeyup="if(event.key === 'Enter') filterAccounts()">
+                            <button class="btn btn-outline-primary" type="button" onclick="filterAccounts()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Password</th>
+                                    <th>2FA</th>
+                                    <th>Status</th>
+                                    <th>Device</th>
+                                    <th>Date Added</th>
+                                    <th>Date Used</th>
+                                    <th>Actions</th>
+                                    <th>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="selectAllAccounts" title="Select All">
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="accountInventoryTable">
+                                <!-- Accounts will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noAccountsMessage" class="alert alert-warning m-3 d-none">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        No accounts found in inventory. Import some accounts to get started.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Account Modal -->
+<div class="modal fade" id="editAccountModal" tabindex="-1" aria-labelledby="editAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="editAccountModalLabel">Edit Account</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editAccountForm">
+                    <input type="hidden" id="editAccountId">
+                    <div class="mb-3">
+                        <label for="editUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control bg-dark text-light border-secondary" id="editUsername">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPassword" class="form-label">Password</label>
+                        <input type="text" class="form-control bg-dark text-light border-secondary" id="editPassword">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit2FA" class="form-label">2FA</label>
+                        <input type="text" class="form-control bg-dark text-light border-secondary" id="edit2FA">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStatus" class="form-label">Status</label>
+                        <select class="form-select bg-dark text-light border-secondary" id="editStatus">
+                            <option value="available">Available</option>
+                            <option value="used">Used</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editNotes" class="form-label">Notes</label>
+                        <textarea class="form-control bg-dark text-light border-secondary" id="editNotes" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveAccountBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Account Modal -->
+<div class="modal fade" id="assignAccountModal" tabindex="-1" aria-labelledby="assignAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="assignAccountModalLabel">Assign Account to Device</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="assignAccountForm">
+                    <input type="hidden" id="assignAccountId">
+                    <div class="mb-3">
+                        <label for="assignUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control bg-dark text-light border-secondary" id="assignUsername" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="assignDevice" class="form-label">Device</label>
+                        <select class="form-select bg-dark text-light border-secondary" id="assignDevice">
+                            <option value="">Select a device...</option>
+                            <!-- Devices will be loaded here -->
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmAssignBtn">Assign Account</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Remove Account Modal -->
+<div class="modal fade" id="removeAccountModal" tabindex="-1" aria-labelledby="removeAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="removeAccountModalLabel">Remove Account from Device</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="removeAccountForm">
+                    <input type="hidden" id="removeAccountId">
+                    <div class="mb-3">
+                        <label for="removeUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control bg-dark text-light border-secondary" id="removeUsername" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="removeDevice" class="form-label">Device</label>
+                        <input type="text" class="form-control bg-dark text-light border-secondary" id="removeDevice" readonly>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmRemoveBtn">Remove Account</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Accounts Modal -->
+<div class="modal fade" id="exportAccountsModal" tabindex="-1" aria-labelledby="exportAccountsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="exportAccountsModalLabel">Export Accounts</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Select a device ID to use for the exported accounts:</p>
+                <div class="mb-3">
+                    <label for="exportDevice" class="form-label">Device</label>
+                    <select class="form-select bg-dark text-light border-secondary" id="exportDevice">
+                        <option value="">Use currently assigned devices</option>
+                        <!-- Devices will be loaded here -->
+                    </select>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="markAsUsed">
+                    <label class="form-check-label" for="markAsUsed">Mark exported accounts as 'used'</label>
+                </div>
+                <p class="text-muted">Select "Use currently assigned devices" to keep the current device assignments.</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmExportBtn">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Buy Followers Modal -->
+<div class="modal fade" id="buyFollowersModal" tabindex="-1" role="dialog" aria-labelledby="buyFollowersModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="buyFollowersModalLabel">Buy Followers</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="buyFollowersError" class="alert alert-danger" style="display: none;"></div>
+                <div id="buyFollowersSuccess" class="alert alert-success" style="display: none;"></div>
+                
+                <form id="buyFollowersForm">
+                    <input type="hidden" id="followerAccountId" name="accountId">
+                    <input type="hidden" id="followerUsername" name="username">
+                    
+                    <div class="form-group">
+                        <label for="followerService">Service</label>
+                        <select class="form-control bg-dark text-light border-secondary" id="followerService" name="service_id" required>
+                            <option value="">Loading services...</option>
+                        </select>
+                        <small class="form-text text-muted">Select the follower service you want to use.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="followerQuantity">Quantity</label>
+                        <input type="number" class="form-control bg-dark text-light border-secondary" id="followerQuantity" name="quantity" min="1" required>
+                        <small id="quantityHelp" class="form-text text-muted">Enter the number of followers you want to purchase.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Instagram Profile</label>
+                        <p id="instagramProfileUrl" class="form-control-static"></p>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitBuyFollowers()">Buy Followers</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

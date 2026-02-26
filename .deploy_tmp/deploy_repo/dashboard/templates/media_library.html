@@ -1,0 +1,989 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Hydra - Media Library{% endblock %}
+
+{% block head %}
+<!-- jQuery and jQuery UI - Load these first -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+<!-- jQuery Context Menu -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.9.2/jquery.contextMenu.min.js"></script>
+
+<!-- jQuery UI CSS -->
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/dark-hive/jquery-ui.css">
+<!-- jQuery Context Menu -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.9.2/jquery.contextMenu.min.css">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .folder-tree {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    
+    .folder-item {
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        display: flex;
+        align-items: center;
+        color: #e9ecef;
+    }
+    
+    .folder-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .folder-item.active {
+        background-color: rgba(13, 110, 253, 0.25);
+    }
+    
+    .folder-item i {
+        margin-right: 8px;
+        width: 16px;
+        text-align: center;
+    }
+    
+    .folder-item .folder-name {
+        flex-grow: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .folder-item .folder-count {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        margin-left: 8px;
+    }
+    
+    .subfolder-container {
+        padding-left: 24px;
+    }
+    
+    .folder-actions {
+        display: none;
+        margin-left: 8px;
+    }
+    
+    .folder-item:hover .folder-actions {
+        display: block;
+    }
+    
+    .folder-actions button {
+        background: none;
+        border: none;
+        color: #adb5bd;
+        padding: 0 4px;
+        font-size: 0.875rem;
+    }
+    
+    .folder-actions button:hover {
+        color: white;
+    }
+    
+    /* Dropzone styles */
+    .dropzone-container {
+        border: 2px dashed #6c757d;
+        border-radius: 5px;
+        padding: 30px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .dropzone-container:hover {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    
+    .dropzone-container.highlight {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+    
+    .dropzone-message h4 {
+        margin-bottom: 0.5rem;
+        color: #e9ecef;
+    }
+    
+    .dropzone-message p {
+        color: #adb5bd;
+        margin-bottom: 0;
+    }
+    
+    .media-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 20px;
+    }
+    
+    .media-item {
+        position: relative;
+        border-radius: 5px;
+        overflow: hidden;
+        background-color: #2a2a2a;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .media-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .media-thumbnail {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        background-color: #1a1a1a;
+    }
+    
+    .media-info {
+        padding: 10px;
+    }
+    
+    .media-title {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .media-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+    
+    .media-tag {
+        font-size: 10px;
+        background-color: rgba(13, 110, 253, 0.2);
+        color: #adb5bd;
+        padding: 2px 6px;
+        border-radius: 10px;
+    }
+    
+    .media-preview-container {
+        border-radius: 5px;
+        overflow: hidden;
+        background-color: #1a1a1a;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .media-preview {
+        max-width: 100%;
+        max-height: 500px;
+        display: flex;
+        justify-content: center;
+    }
+    
+    .media-preview img,
+    .media-preview video {
+        max-width: 100%;
+        max-height: 500px;
+        object-fit: contain;
+    }
+    
+    .batch-process-list {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #2a2a2a;
+        border-radius: 5px;
+        padding: 10px;
+    }
+    
+    .batch-item {
+        display: flex;
+        align-items: center;
+        padding: 8px;
+        border-bottom: 1px solid #2a2a2a;
+    }
+    
+    .batch-item:last-child {
+        border-bottom: none;
+    }
+    
+    .batch-thumbnail {
+        width: 50px;
+        height: 50px;
+        object-fit: cover;
+        border-radius: 3px;
+        margin-right: 10px;
+    }
+    
+    .batch-item-info {
+        flex-grow: 1;
+    }
+    
+    .batch-item-title {
+        font-size: 14px;
+        margin-bottom: 2px;
+    }
+    
+    .batch-item-status {
+        font-size: 12px;
+        color: #adb5bd;
+    }
+    
+    .processed-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: rgba(25, 135, 84, 0.8);
+        color: white;
+        font-size: 10px;
+        padding: 3px 6px;
+        border-radius: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0 text-white">Media Library</h1>
+                        <p class="text-white-50 mb-0">Manage your Instagram media content</p>
+                    </div>
+                    <div>
+                        <button id="createFolderBtn" class="btn btn-info btn-action me-2">
+                            <i class="fas fa-folder-plus me-2"></i>New Folder
+                        </button>
+                        <button id="uploadMediaBtn" class="btn btn-primary btn-action me-2">
+                            <i class="fas fa-upload me-2"></i>Upload Media
+                        </button>
+                        <button id="batchScheduleBtn" class="btn btn-warning btn-action me-2">
+                            <i class="fas fa-calendar-alt me-2"></i>Batch Schedule
+                        </button>
+                        <button id="batchScheduleStoryBtn" class="btn btn-info btn-action me-2">
+                            <i class="fas fa-circle-notch me-2"></i>Batch Schedule Story
+                        </button>
+                        <button id="batchProcessBtn" class="btn btn-success btn-action me-2">
+                            <i class="fas fa-magic me-2"></i>Batch Process
+                        </button>
+                        <button id="refreshMedia" class="btn btn-outline-primary btn-action" data-bs-toggle="tooltip" title="Refresh Media">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Folder Sidebar -->
+        <div class="col-md-3 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-folder me-2"></i>Folders</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="folderTree" class="folder-tree p-3">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <p class="mt-2 text-white">Loading folders...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <!-- Filters Row -->
+            <div class="row mb-4">
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title text-white mb-3"><i class="fas fa-search me-2"></i>Search Media</h5>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark border-secondary">
+                                    <i class="fas fa-search text-white-50"></i>
+                                </span>
+                                <input type="text" id="mediaSearch" class="form-control bg-dark text-white border-secondary" placeholder="Search by filename or description...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title text-white mb-3"><i class="fas fa-filter me-2"></i>Filter by Type</h5>
+                            <select id="typeFilter" class="form-select bg-dark text-white border-secondary">
+                                <option value="" selected>All Media Types</option>
+                                <option value="image">Images</option>
+                                <option value="video">Videos</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title text-white mb-3"><i class="fas fa-tags me-2"></i>Filter by Tag</h5>
+                            <select id="tagFilter" class="form-select bg-dark text-white border-secondary">
+                                <option value="" selected>All Tags</option>
+                                <!-- Tags will be populated by JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Media Grid -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-dark">
+                            <h5 class="card-title text-white mb-0"><i class="fas fa-photo-video me-2"></i>Media Gallery</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="mediaDropzone" class="dropzone-container mb-4">
+                                <div class="dropzone-message">
+                                    <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                                    <h4>Drag & drop files here</h4>
+                                    <p>or click to browse files</p>
+                                </div>
+                                <input type="file" id="fileInput" multiple class="d-none" accept="image/*,video/*">
+                            </div>
+                            
+                            <div class="media-grid" id="mediaGrid">
+                                <!-- Media items will be populated by JavaScript -->
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                    <p class="mt-2 text-white">Loading media...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Media Modal -->
+<div class="modal fade" id="uploadMediaModal" tabindex="-1" aria-labelledby="uploadMediaModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="uploadMediaModalTitle">Upload Media</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadMediaForm">
+                    <div class="mb-3">
+                        <label for="uploadFiles" class="form-label">Select Files</label>
+                        <input type="file" id="uploadFiles" class="form-control bg-dark text-white border-secondary" multiple accept="image/*,video/*">
+                        <div class="form-text text-white-50">You can select multiple files</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="uploadDescription" class="form-label">Description</label>
+                        <textarea id="uploadDescription" class="form-control bg-dark text-white border-secondary" rows="3" placeholder="Enter a description for the media"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="uploadTags" class="form-label">Tags</label>
+                        <input type="text" id="uploadTags" class="form-control bg-dark text-white border-secondary" placeholder="Enter tags separated by commas">
+                        <div class="form-text text-white-50">Example: summer, beach, vacation</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="uploadFolder" class="form-label">Folder (Optional)</label>
+                        <select id="uploadFolder" class="form-select bg-dark text-white border-secondary">
+                            <option value="" selected>None (Root level)</option>
+                            <!-- Folders will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="processImmediately">
+                        <label class="form-check-label" for="processImmediately">
+                            Process images for anti-detection immediately
+                        </label>
+                        <div class="form-text text-white-50">This will apply subtle modifications to avoid detection</div>
+                    </div>
+                </form>
+                
+                <div id="uploadProgress" class="progress d-none">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveUploadMedia">
+                    <i class="fas fa-upload me-2"></i>Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Media Details Modal -->
+<div class="modal fade" id="mediaDetailsModal" tabindex="-1" aria-labelledby="mediaDetailsModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="mediaDetailsModalTitle">Media Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-7 mb-4 mb-md-0">
+                        <div class="media-preview-container">
+                            <div id="mediaPreview" class="media-preview"></div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-3">
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary me-2" id="viewOriginal">
+                                    <i class="fas fa-image me-1"></i>View Original
+                                </button>
+                                <button class="btn btn-sm btn-outline-success me-2" id="viewProcessed">
+                                    <i class="fas fa-magic me-1"></i>View Processed
+                                </button>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success me-2" id="processMedia">
+                                    <i class="fas fa-magic me-1"></i>Process for Anti-Detection
+                                </button>
+                                <button class="btn btn-sm btn-danger" id="deleteMedia">
+                                    <i class="fas fa-trash me-1"></i>Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-5">
+                        <form id="mediaDetailsForm">
+                            <input type="hidden" id="mediaId">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Filename</label>
+                                <input type="text" id="mediaFilename" class="form-control bg-dark text-white border-secondary" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Type</label>
+                                <input type="text" id="mediaType" class="form-control bg-dark text-white border-secondary" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="mediaFolders" class="form-label">Folders</label>
+                                <select id="mediaFolders" class="form-select bg-dark text-white border-secondary" multiple size="3">
+                                    <!-- Folders will be populated by JavaScript -->
+                                </select>
+                                <div class="d-flex justify-content-between mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="addToFolderBtn">
+                                        <i class="fas fa-folder-plus me-1"></i>Add to Folder
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" id="removeFromFolderBtn">
+                                        <i class="fas fa-folder-minus me-1"></i>Remove from Folder
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="mediaDescription" class="form-label">Description</label>
+                                <textarea id="mediaDescription" class="form-control bg-dark text-white border-secondary" rows="3"></textarea>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="mediaTags" class="form-label">Tags</label>
+                                <input type="text" id="mediaTags" class="form-control bg-dark text-white border-secondary" placeholder="Enter tags separated by commas">
+                                <div class="form-text text-white-50">Example: summer, beach, vacation</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Upload Date</label>
+                                <input type="text" id="mediaUploadDate" class="form-control bg-dark text-white border-secondary" readonly>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Status</label>
+                                <div id="mediaStatus" class="form-control bg-dark text-white border-secondary"></div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary w-100" id="saveMediaDetails">
+                                <i class="fas fa-save me-2"></i>Save Changes
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Batch Process Modal -->
+<div class="modal fade" id="batchProcessModal" tabindex="-1" aria-labelledby="batchProcessModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="batchProcessModalTitle">Batch Process Media</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Batch processing will apply anti-detection modifications to multiple images at once.
+                    This helps avoid Instagram's duplicate content detection by making subtle changes to each image.
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label">Select Images to Process</label>
+                    <div id="batchProcessList" class="batch-process-list">
+                        <!-- Images will be populated by JavaScript -->
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Loading images...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="selectAllImages">
+                    <label class="form-check-label" for="selectAllImages">
+                        Select all unprocessed images
+                    </label>
+                </div>
+                
+                <div id="batchProgress" class="progress d-none">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-success" id="startBatchProcess">
+                    <i class="fas fa-magic me-2"></i>Process Selected Images
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Folder Modal -->
+<div class="modal fade" id="createFolderModal" tabindex="-1" aria-labelledby="createFolderModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="createFolderModalTitle">Create New Folder</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createFolderForm">
+                    <div class="mb-3">
+                        <label for="folderName" class="form-label">Folder Name</label>
+                        <input type="text" id="folderName" class="form-control bg-dark text-white border-secondary" placeholder="Enter folder name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="folderDescription" class="form-label">Description (Optional)</label>
+                        <textarea id="folderDescription" class="form-control bg-dark text-white border-secondary" rows="2" placeholder="Enter folder description"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="parentFolder" class="form-label">Parent Folder (Optional)</label>
+                        <select id="parentFolder" class="form-select bg-dark text-white border-secondary">
+                            <option value="" selected>None (Root level)</option>
+                            <!-- Folders will be populated by JavaScript -->
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveFolder">
+                    <i class="fas fa-save me-2"></i>Create Folder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Folder Modal -->
+<div class="modal fade" id="editFolderModal" tabindex="-1" aria-labelledby="editFolderModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="editFolderModalTitle">Edit Folder</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editFolderForm">
+                    <input type="hidden" id="editFolderId">
+                    <div class="mb-3">
+                        <label for="editFolderName" class="form-label">Folder Name</label>
+                        <input type="text" id="editFolderName" class="form-control bg-dark text-white border-secondary" placeholder="Enter folder name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editFolderDescription" class="form-label">Description</label>
+                        <textarea id="editFolderDescription" class="form-control bg-dark text-white border-secondary" rows="2" placeholder="Enter folder description"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editParentFolder" class="form-label">Parent Folder</label>
+                        <select id="editParentFolder" class="form-select bg-dark text-white border-secondary">
+                            <option value="" selected>None (Root level)</option>
+                            <!-- Folders will be populated by JavaScript -->
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-danger me-auto" id="deleteFolder">
+                    <i class="fas fa-trash me-2"></i>Delete Folder
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="updateFolder">
+                    <i class="fas fa-save me-2"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Batch Schedule Modal -->
+<div class="modal fade" id="batchScheduleModal" tabindex="-1" aria-labelledby="batchScheduleModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="batchScheduleModalTitle">Batch Schedule Posts</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="batchScheduleForm">
+                    <div class="mb-3">
+                        <label for="scheduleFolder" class="form-label">Select Folder</label>
+                        <select id="scheduleFolder" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="" selected disabled>Select a folder</option>
+                            <!-- Folders will be populated by JavaScript -->
+                        </select>
+                        <div class="form-text text-white-50">All media in this folder will be scheduled for posting</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="scheduleDevice" class="form-label">Select Device</label>
+                        <select id="scheduleDevice" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="" selected disabled>Select a device</option>
+                            <!-- Devices will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="scheduleAccount" class="form-label">Select Account</label>
+                        <select id="scheduleAccount" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="" selected disabled>Select an account</option>
+                            <!-- Accounts will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="useAllAccounts">
+                        <label class="form-check-label" for="useAllAccounts">
+                            Schedule for all accounts on this device
+                        </label>
+                        <div class="form-text text-white-50">Each account will receive a uniquely processed version of the media</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="captionTemplateId" class="form-label">Caption Template</label>
+                        <select id="captionTemplateId" class="form-select bg-dark text-white border-secondary">
+                            <option value="" selected>No template (use custom caption)</option>
+                            <!-- Caption templates will be populated by JavaScript -->
+                        </select>
+                        <div class="form-text text-white-50">Select a saved caption template or enter a custom caption below</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="captionTemplate" class="form-label">Custom Caption</label>
+                        <textarea id="captionTemplate" class="form-control bg-dark text-white border-secondary" rows="3" placeholder="Enter caption template for all posts"></textarea>
+                        <div class="form-text text-white-50">Leave empty to use selected caption template</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="scheduleHashtags" class="form-label">Hashtags</label>
+                        <textarea id="scheduleHashtags" class="form-control bg-dark text-white border-secondary" rows="2" placeholder="Enter hashtags to add to all posts"></textarea>
+                        <div class="form-text text-white-50">These will be added to the end of each caption</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="startTime" class="form-label">Start Time</label>
+                            <input type="datetime-local" id="startTime" class="form-control bg-dark text-white border-secondary" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="intervalHours" class="form-label">Interval (Hours)</label>
+                            <input type="number" id="intervalHours" class="form-control bg-dark text-white border-secondary" value="24" min="1" max="168" required>
+                            <div class="form-text text-white-50">Hours between each post</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="repurposeMedia">
+                        <label class="form-check-label" for="repurposeMedia">
+                            Repurpose media (apply subtle changes to avoid detection)
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveBatchSchedule">
+                    <i class="fas fa-calendar-check me-2"></i>Schedule Posts
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Batch Schedule Story Modal -->
+<div class="modal fade" id="batchScheduleStoryModal" tabindex="-1" aria-labelledby="batchScheduleStoryModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="batchScheduleStoryModalTitle">Batch Schedule Stories</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="batchScheduleStoryForm">
+                    <div class="mb-3">
+                        <label for="scheduleStoryFolder" class="form-label">Select Folder</label>
+                        <select id="scheduleStoryFolder" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="" selected disabled>Select a folder</option>
+                            <!-- Folders will be populated by JavaScript -->
+                        </select>
+                        <div class="form-text text-white-50">All media in this folder will be scheduled for story posting</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="scheduleStoryDevice" class="form-label">Select Device</label>
+                        <select id="scheduleStoryDevice" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="" selected disabled>Select a device</option>
+                            <!-- Devices will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="scheduleStoryAccount" class="form-label">Select Account</label>
+                        <select id="scheduleStoryAccount" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="" selected disabled>Select an account</option>
+                            <!-- Accounts will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="useAllAccountsStory">
+                        <label class="form-check-label" for="useAllAccountsStory">
+                            Schedule for all accounts on this device
+                        </label>
+                        <div class="form-text text-white-50">Each account will receive a uniquely processed version of the media</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="storyMentionUsername" class="form-label">Mention Username (Optional)</label>
+                        <input type="text" id="storyMentionUsername" class="form-control bg-dark text-white border-secondary" placeholder="Enter username to mention in stories">
+                        <div class="form-text text-white-50">Leave empty for no mentions</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="startTimeStory" class="form-label">Start Time</label>
+                            <input type="datetime-local" id="startTimeStory" class="form-control bg-dark text-white border-secondary" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="intervalHoursStory" class="form-label">Interval (Hours)</label>
+                            <input type="number" id="intervalHoursStory" class="form-control bg-dark text-white border-secondary" value="2" min="1" max="24" required>
+                            <div class="form-text text-white-50">Hours between each story</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="repurposeMediaStory">
+                        <label class="form-check-label" for="repurposeMediaStory">
+                            Repurpose media (apply subtle changes to avoid detection)
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveBatchScheduleStory">
+                    <i class="fas fa-circle-notch me-2"></i>Schedule Stories
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Posts from Folder Modal -->
+<div class="modal fade" id="scheduleFolderModal" tabindex="-1" aria-labelledby="scheduleFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scheduleFolderModalLabel">Schedule Posts from Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="scheduleFolderForm">
+                    <input type="hidden" id="scheduleFolderId">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="scheduleDevice" class="form-label">Device</label>
+                            <select class="form-select" id="scheduleDevice" required>
+                                <option value="">Select Device</option>
+                                <!-- Devices will be populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="scheduleAccount" class="form-label">Account</label>
+                            <select class="form-select" id="scheduleAccount" required>
+                                <option value="">Select Account</option>
+                                <!-- Accounts will be populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="scheduleStartDate" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="scheduleStartDate" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="scheduleStartTime" class="form-label">Start Time</label>
+                            <input type="time" class="form-control" id="scheduleStartTime" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="scheduleFrequency" class="form-label">Posting Frequency</label>
+                            <select class="form-select" id="scheduleFrequency" required>
+                                <option value="daily">Daily</option>
+                                <option value="every_other_day">Every Other Day</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="schedulePostType" class="form-label">Post Type</label>
+                            <select class="form-select" id="schedulePostType" required>
+                                <option value="photo">Photo</option>
+                                <option value="video">Video</option>
+                                <option value="carousel">Carousel</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="scheduleCaptionTemplate" class="form-label">Caption Template</label>
+                        <textarea class="form-control" id="scheduleCaptionTemplate" rows="3" placeholder="Enter caption template. Use [filename], [date], [time] as placeholders."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="scheduleHashtags" class="form-label">Hashtags</label>
+                        <textarea class="form-control" id="scheduleHashtags" rows="2" placeholder="Enter hashtags (will be added at the end of the caption)"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="scheduleLocation" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="scheduleLocation" placeholder="Enter location (optional)">
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="scheduleRepurpose">
+                        <label class="form-check-label" for="scheduleRepurpose">
+                            Repurpose media (slightly modify images for each post)
+                        </label>
+                    </div>
+                </form>
+                <div id="scheduleSummary" class="alert alert-info mt-3" style="display: none;">
+                    <h6>Schedule Summary:</h6>
+                    <p id="scheduleSummaryText"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveSchedule">Schedule Posts</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+{% block extra_js %}
+<!-- Media Library JavaScript -->
+<script src="{{ url_for('static', filename='js/media-library.js') }}"></script>
+<script src="{{ url_for('static', filename='js/media-library-caption-templates.js') }}"></script>
+<script src="{{ url_for('static', filename='js/media-library-story.js') }}"></script>
+{% endblock %}
+
+<!-- Debug Console Output -->
+<script>
+    console.log('Media Library page loaded');
+    // Intercept AJAX requests to track them
+    (function() {
+        const originalFetch = window.fetch;
+        window.fetch = function() {
+            console.log('Fetch request:', arguments[0]);
+            return originalFetch.apply(this, arguments)
+                .then(response => {
+                    console.log('Fetch response for:', arguments[0], 'status:', response.status);
+                    return response;
+                })
+                .catch(error => {
+                    console.error('Fetch error for:', arguments[0], error);
+                    throw error;
+                });
+        };
+        
+        // Also monitor jQuery AJAX
+        if ($ && $.ajaxSetup) {
+            $.ajaxSetup({
+                beforeSend: function(xhr, settings) {
+                    console.log('jQuery AJAX request:', settings.url);
+                },
+                success: function(data, status, xhr) {
+                    console.log('jQuery AJAX success:', this.url);
+                },
+                error: function(xhr, status, error) {
+                    console.error('jQuery AJAX error:', this.url, error);
+                }
+            });
+        }
+    })();
+    
+    // Check if elements exist
+    setTimeout(function() {
+        console.log('Media grid element exists:', !!document.getElementById('mediaGrid'));
+        console.log('Folder tree element exists:', !!document.getElementById('folderTree'));
+        console.log('Media search element exists:', !!document.getElementById('mediaSearch'));
+    }, 1000);
+</script>
+
+{% endblock %}

@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+{% block title %}Import Accounts V2 - Phone Farm{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-file-import me-2"></i>Import Accounts V2</h2>
+    <a href="/import-accounts" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Old Import
+    </a>
+</div>
+
+<!-- Step indicator -->
+<div class="d-flex mb-4 gap-2" id="steps">
+    <div class="flex-fill text-center p-2 rounded step-active" id="step1badge" style="background:#1a5632;border:1px solid #28a745">
+        <strong>1</strong> Paste Accounts
+    </div>
+    <div class="flex-fill text-center p-2 rounded" id="step2badge" style="background:#1a1a2e;border:1px solid #444">
+        <strong>2</strong> Configure
+    </div>
+    <div class="flex-fill text-center p-2 rounded" id="step3badge" style="background:#1a1a2e;border:1px solid #444">
+        <strong>3</strong> Preview & Import
+    </div>
+</div>
+
+<!-- STEP 1: Paste accounts -->
+<div id="step1" class="card bg-dark border-secondary mb-4">
+    <div class="card-header bg-dark border-secondary">
+        <h5 class="mb-0"><i class="fas fa-paste me-2"></i>Step 1: Paste Accounts</h5>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label">Accounts <small class="text-muted">(username:password:2fa_token — one per line)</small></label>
+            <textarea class="form-control bg-dark text-white border-secondary font-monospace" id="accountsText" rows="10"
+                placeholder="username1:password1:2FA_TOKEN&#10;username2:password2&#10;username3:password3:ANOTHER_TOKEN"></textarea>
+            <div class="d-flex justify-content-between mt-1">
+                <small class="text-muted">2FA token is optional</small>
+                <small class="text-info" id="lineCount">0 accounts</small>
+            </div>
+        </div>
+        <button class="btn btn-primary" onclick="goToStep2()">
+            Next: Configure <i class="fas fa-arrow-right ms-1"></i>
+        </button>
+    </div>
+</div>
+
+<!-- STEP 2: Configure devices + settings -->
+<div id="step2" class="card bg-dark border-secondary mb-4 d-none">
+    <div class="card-header bg-dark border-secondary">
+        <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Step 2: Configure</h5>
+    </div>
+    <div class="card-body">
+        <!-- Device selection -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Target Devices</label>
+                <select id="deviceSelect" class="form-select bg-dark text-white border-secondary" multiple size="6">
+                    <!-- Populated by JS -->
+                </select>
+                <small class="text-muted">Hold Ctrl to select multiple. Accounts will auto-distribute.</small>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary p-3">
+                    <h6><i class="fas fa-info-circle me-1 text-info"></i>Device Slots</h6>
+                    <div id="slotInfo" class="text-muted small">Select a device to see available slots.</div>
+                </div>
+                <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" id="autoDistribute" checked>
+                    <label class="form-check-label" for="autoDistribute">Auto-distribute across devices</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time staggering -->
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Time Slot Duration (hours)</label>
+                <select class="form-select bg-dark text-white border-secondary" id="slotHours">
+                    <option value="1">1 hour</option>
+                    <option value="2" selected>2 hours</option>
+                    <option value="3">3 hours</option>
+                    <option value="4">4 hours</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Start Hour</label>
+                <input type="number" class="form-control bg-dark text-white border-secondary" id="startHour" value="0" min="0" max="23">
+            </div>
+            <div class="col-md-4">
+                <div class="form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" id="autoStagger" checked>
+                    <label class="form-check-label" for="autoStagger">Auto-stagger time slots</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk settings (collapsible) -->
+        <div class="mb-3">
+            <a class="text-info" data-bs-toggle="collapse" href="#bulkSettings">
+                <i class="fas fa-sliders-h me-1"></i> Bulk Account Settings ▾
+            </a>
+        </div>
+        <div class="collapse" id="bulkSettings">
+            <div class="card bg-dark border-secondary p-3 mb-3">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="setFollow">
+                            <label class="form-check-label" for="setFollow">Follow</label>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="setUnfollow">
+                            <label class="form-check-label" for="setUnfollow">Unfollow</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="setLike">
+                            <label class="form-check-label" for="setLike">Like</label>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="setStory">
+                            <label class="form-check-label" for="setStory">Story View</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="setComment">
+                            <label class="form-check-label" for="setComment">Comment</label>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="setMute">
+                            <label class="form-check-label" for="setMute">Mute</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-secondary" onclick="goToStep1()">
+                <i class="fas fa-arrow-left me-1"></i> Back
+            </button>
+            <button class="btn btn-primary" onclick="generatePreview()">
+                Preview Import <i class="fas fa-arrow-right ms-1"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- STEP 3: Preview & Import -->
+<div id="step3" class="card bg-dark border-secondary mb-4 d-none">
+    <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-table me-2"></i>Step 3: Preview & Import</h5>
+        <span id="previewCount" class="badge bg-info">0 accounts</span>
+    </div>
+    <div class="card-body">
+        <!-- Summary -->
+        <div id="previewSummary" class="alert alert-info bg-dark border-info text-white mb-3"></div>
+
+        <!-- Preview table -->
+        <div class="table-responsive" style="max-height:400px;overflow-y:auto">
+            <table class="table table-dark table-sm table-hover">
+                <thead style="position:sticky;top:0;background:#1a1a2e">
+                    <tr>
+                        <th>#</th>
+                        <th>Username</th>
+                        <th>2FA</th>
+                        <th>Device</th>
+                        <th>Clone App</th>
+                        <th>Time Slot</th>
+                    </tr>
+                </thead>
+                <tbody id="previewTableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Errors -->
+        <div id="previewErrors" class="d-none mt-3"></div>
+
+        <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-secondary" onclick="goToStep2()">
+                <i class="fas fa-arrow-left me-1"></i> Back
+            </button>
+            <button class="btn btn-success btn-lg" id="importBtn" onclick="executeImport()">
+                <i class="fas fa-file-import me-1"></i> Import <span id="importCountBtn">0</span> Accounts
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- STEP 4: Result -->
+<div id="step4" class="card bg-dark border-success mb-4 d-none">
+    <div class="card-header bg-dark border-success">
+        <h5 class="mb-0"><i class="fas fa-check-circle text-success me-2"></i>Import Complete</h5>
+    </div>
+    <div class="card-body" id="resultBody">
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let previewData = [];
+let allDevices = [];
+
+$(document).ready(function() {
+    loadDevices();
+
+    // Line counter
+    $('#accountsText').on('input', function() {
+        const lines = $(this).val().trim().split('\n').filter(l => l.trim().length > 0 && l.includes(':'));
+        $('#lineCount').text(lines.length + ' accounts');
+    });
+
+    // Show slot info on device selection
+    $('#deviceSelect').on('change', function() {
+        updateSlotInfo();
+    });
+});
+
+function loadDevices() {
+    $.get('/api/devices/list', function(data) {
+        if (data.status !== 'success') return;
+        allDevices = data.devices;
+        let html = '';
+        data.devices.forEach(d => {
+            const slots = 12 - (d.account_count || 0);
+            const label = `${d.device_name || d.device_serial} — ${slots} slots free`;
+            html += `<option value="${d.device_serial}" data-slots="${slots}" data-accounts="${d.account_count||0}">${label}</option>`;
+        });
+        $('#deviceSelect').html(html);
+    });
+}
+
+function updateSlotInfo() {
+    const selected = $('#deviceSelect').val() || [];
+    if (selected.length === 0) {
+        $('#slotInfo').html('Select a device to see available slots.');
+        return;
+    }
+    let html = '';
+    let totalFree = 0;
+    selected.forEach(serial => {
+        const opt = $(`#deviceSelect option[value="${serial}"]`);
+        const slots = parseInt(opt.data('slots')) || 0;
+        totalFree += slots;
+        html += `<div><code>${serial}</code>: <strong class="${slots > 0 ? 'text-success' : 'text-danger'}">${slots}</strong> free slots</div>`;
+    });
+    html += `<hr class="my-1"><strong>Total free: ${totalFree} slots</strong>`;
+    $('#slotInfo').html(html);
+}
+
+function setStep(n) {
+    ['step1','step2','step3','step4'].forEach((s,i) => {
+        $(`#${s}`).toggleClass('d-none', i+1 !== n);
+        $(`#step${i+1}badge`).css({background: i+1 === n ? '#1a5632' : '#1a1a2e', border: i+1 === n ? '1px solid #28a745' : '1px solid #444'});
+    });
+}
+
+function goToStep1() { setStep(1); }
+
+function goToStep2() {
+    const text = $('#accountsText').val().trim();
+    if (!text) { alert('Paste some accounts first'); return; }
+    const lines = text.split('\n').filter(l => l.trim() && l.includes(':'));
+    if (lines.length === 0) { alert('No valid accounts found (format: username:password[:2fa])'); return; }
+    setStep(2);
+}
+
+function generatePreview() {
+    const selected = $('#deviceSelect').val() || [];
+    if (selected.length === 0) { alert('Select at least one device'); return; }
+
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+
+    const payload = {
+        accounts_text: $('#accountsText').val(),
+        device_serials: selected,
+        auto_distribute: $('#autoDistribute').is(':checked'),
+        auto_stagger: $('#autoStagger').is(':checked'),
+        start_hour: parseInt($('#startHour').val()) || 0,
+        slot_hours: parseInt($('#slotHours').val()) || 2,
+    };
+
+    $.ajax({
+        url: '/api/import/preview',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(data) {
+            btn.disabled = false;
+            btn.innerHTML = 'Preview Import <i class="fas fa-arrow-right ms-1"></i>';
+
+            if (data.status !== 'success') {
+                alert(data.message);
+                return;
+            }
+
+            previewData = data.preview;
+
+            // Summary
+            let summary = `<strong>${data.total}</strong> accounts across <strong>${Object.keys(data.device_counts).length}</strong> device(s)`;
+            const counts = Object.entries(data.device_counts).map(([k,v]) => `<code>${k}</code>: ${v}`).join(', ');
+            summary += `<br><small>${counts}</small>`;
+            $('#previewSummary').html(summary);
+            $('#previewCount').text(data.total + ' accounts');
+            $('#importCountBtn').text(data.total);
+
+            // Table
+            let html = '';
+            data.preview.forEach((acc, i) => {
+                const twofa = acc.has_2fa ? '<span class="badge bg-success">✓</span>' : '<span class="badge bg-secondary">—</span>';
+                const device = acc.device_serial ? `<code>${acc.device_serial}</code>` : '<span class="text-danger">None</span>';
+                const clone = acc.clone_letter ? `<span class="badge bg-info">${acc.clone_letter}</span> <small>${acc.instagram_package}</small>` : '-';
+                const time = `${acc.start_time || '?'}h – ${acc.end_time || '?'}h`;
+                const rowClass = acc.error ? 'table-danger' : '';
+
+                html += `<tr class="${rowClass}">
+                    <td>${i+1}</td>
+                    <td><strong>${acc.username}</strong></td>
+                    <td>${twofa}</td>
+                    <td>${device}</td>
+                    <td>${clone}</td>
+                    <td>${time}</td>
+                </tr>`;
+            });
+            $('#previewTableBody').html(html);
+
+            // Errors
+            if (data.errors.length > 0) {
+                $('#previewErrors').removeClass('d-none').html(
+                    '<div class="alert alert-warning">' +
+                    '<strong>Warnings:</strong><br>' +
+                    data.errors.map(e => `• ${e}`).join('<br>') +
+                    '</div>'
+                );
+            } else {
+                $('#previewErrors').addClass('d-none');
+            }
+
+            setStep(3);
+        },
+        error: function() {
+            btn.disabled = false;
+            btn.innerHTML = 'Preview Import <i class="fas fa-arrow-right ms-1"></i>';
+            alert('Preview request failed');
+        }
+    });
+}
+
+function executeImport() {
+    if (!previewData.length) return;
+    if (!confirm(`Import ${previewData.length} accounts? They will be saved to phone_farm.db with status "pending_login".`)) return;
+
+    const btn = $('#importBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Importing...');
+
+    const settings = {
+        follow_enabled: $('#setFollow').is(':checked') ? 'True' : 'False',
+        unfollow_enabled: $('#setUnfollow').is(':checked') ? 'True' : 'False',
+        like_enabled: $('#setLike').is(':checked') ? 'True' : 'False',
+        story_enabled: $('#setStory').is(':checked') ? 'True' : 'False',
+        comment_enabled: $('#setComment').is(':checked') ? 'True' : 'False',
+        mute_enabled: $('#setMute').is(':checked') ? 'True' : 'False',
+    };
+
+    $.ajax({
+        url: '/api/import/execute',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ accounts: previewData, settings: settings }),
+        success: function(data) {
+            if (data.status !== 'success') {
+                btn.prop('disabled', false).html('<i class="fas fa-file-import me-1"></i> Import');
+                alert(data.message);
+                return;
+            }
+
+            let html = `
+                <div class="row text-center mb-3">
+                    <div class="col"><h3 class="text-success">${data.imported}</h3><small>Imported</small></div>
+                    <div class="col"><h3 class="text-warning">${data.skipped}</h3><small>Skipped</small></div>
+                    <div class="col"><h3 class="text-danger">${data.errors.length}</h3><small>Errors</small></div>
+                </div>`;
+
+            if (data.errors.length > 0) {
+                html += '<div class="alert alert-warning bg-dark border-warning text-white"><strong>Details:</strong><br>' +
+                    data.errors.map(e => `• ${e}`).join('<br>') + '</div>';
+            }
+
+            html += `<div class="d-flex gap-2 mt-3">
+                <a href="/login-automation-v2" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt me-1"></i> Login These Accounts →
+                </a>
+                <a href="/manage-devices" class="btn btn-outline-info">
+                    <i class="fas fa-mobile-alt me-1"></i> View Devices
+                </a>
+                <button class="btn btn-outline-success" onclick="resetForm()">
+                    <i class="fas fa-plus me-1"></i> Import More
+                </button>
+            </div>`;
+
+            $('#resultBody').html(html);
+            setStep(4);
+        },
+        error: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-file-import me-1"></i> Import');
+            alert('Import request failed');
+        }
+    });
+}
+
+function resetForm() {
+    previewData = [];
+    $('#accountsText').val('');
+    $('#lineCount').text('0 accounts');
+    setStep(1);
+}
+</script>
+{% endblock %}

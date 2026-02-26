@@ -1,0 +1,307 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Hydra - Fixed Media Library{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0 text-white">Media Library (Fixed for Windows)</h1>
+                        <p class="text-white-50 mb-0">Manage your Instagram media content</p>
+                    </div>
+                    <div>
+                        <button id="uploadMediaBtn" class="btn btn-primary btn-action me-2">
+                            <i class="fas fa-upload me-2"></i>Upload Media
+                        </button>
+                        <button id="refreshMedia" class="btn btn-outline-primary btn-action" data-bs-toggle="tooltip" title="Refresh Media">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Folder Sidebar -->
+        <div class="col-md-3 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-folder me-2"></i>Folders</h5>
+                    <button id="createFolderBtn" class="btn btn-sm btn-outline-light"><i class="fas fa-plus me-1"></i>New</button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="folderTree" class="folder-tree p-3">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <p class="mt-2 text-white">Loading folders...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Media Content -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h5 class="card-title text-white mb-0"><i class="fas fa-photo-video me-2"></i>Media</h5>
+                    <div class="d-flex">
+                        <div class="input-group input-group-sm me-2" style="width: 200px;">
+                            <input type="text" id="mediaSearch" class="form-control" placeholder="Search media...">
+                            <button class="btn btn-outline-secondary" type="button">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                        <select id="typeFilter" class="form-select form-select-sm me-2" style="width: 120px;">
+                            <option value="">All Types</option>
+                            <option value="image">Images</option>
+                            <option value="video">Videos</option>
+                        </select>
+                        <select id="tagFilter" class="form-select form-select-sm" style="width: 150px;">
+                            <option value="">All Tags</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="mediaGrid">
+                        <div class="col-12 text-center py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 text-white">Loading media...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Media Details Modal -->
+<div class="modal fade" id="mediaDetailsModal" tabindex="-1" aria-labelledby="mediaDetailsModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="mediaDetailsModalTitle">Media Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-7 mb-4 mb-md-0">
+                        <div class="media-preview-container">
+                            <div id="mediaPreview" class="media-preview"></div>
+                        </div>
+                        <div class="d-flex justify-content-center mt-3">
+                            <button id="viewOriginal" class="btn btn-outline-light btn-sm me-2" onclick="viewOriginal()"><i class="fas fa-eye me-1"></i>View Original</button>
+                            <button id="viewProcessed" class="btn btn-outline-light btn-sm" onclick="viewProcessed()"><i class="fas fa-eye me-1"></i>View Processed</button>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <form id="mediaDetailsForm">
+                            <input type="hidden" id="mediaId">
+                            
+                            <div class="mb-3">
+                                <label for="mediaDescription" class="form-label">Description</label>
+                                <textarea id="mediaDescription" class="form-control" rows="3"></textarea>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-danger me-auto" id="deleteMedia" onclick="deleteMedia()"><i class="fas fa-trash me-1"></i>Delete</button>
+                <button type="button" class="btn btn-info" id="processMedia" onclick="processMedia()"><i class="fas fa-magic me-1"></i>Process for Anti-Detection</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveMediaDetails" onclick="saveMediaDetails()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Media Modal -->
+<div class="modal fade" id="uploadMediaModal" tabindex="-1" aria-labelledby="uploadMediaModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="uploadMediaModalTitle">Upload Media</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="dropzone-container" id="dropzone">
+                    <div class="dropzone-message">
+                        <h4><i class="fas fa-cloud-upload-alt fa-2x mb-3"></i><br>Drop files here or click to upload</h4>
+                        <p>Upload images and videos for your Instagram posts</p>
+                    </div>
+                    <input type="file" id="fileInput" multiple accept="image/*,video/*" class="d-none">
+                </div>
+                
+                <div class="mt-4">
+                    <h5>Upload Options</h5>
+                    <div class="mb-3">
+                        <label for="uploadDescription" class="form-label">Description (optional)</label>
+                        <textarea id="uploadDescription" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveUploadMedia">Upload</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+<!-- Create Folder Modal -->
+<div class="modal fade" id="createFolderModal" tabindex="-1" aria-labelledby="createFolderModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="createFolderModalTitle">Create New Folder</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createFolderForm">
+                    <div class="mb-3">
+                        <label for="folderName" class="form-label">Folder Name</label>
+                        <input type="text" class="form-control" id="folderName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="folderParent" class="form-label">Parent Folder (Optional)</label>
+                        <select class="form-select" id="folderParent">
+                            <option value="">None (Root Level)</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveFolder" onclick="createFolder()">Create Folder</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Folder Modal -->
+<div class="modal fade" id="editFolderModal" tabindex="-1" aria-labelledby="editFolderModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="editFolderModalTitle">Edit Folder</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editFolderForm">
+                    <input type="hidden" id="editFolderId">
+                    <div class="mb-3">
+                        <label for="editFolderName" class="form-label">Folder Name</label>
+                        <input type="text" class="form-control" id="editFolderName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editFolderParent" class="form-label">Parent Folder</label>
+                        <select class="form-select" id="editFolderParent">
+                            <option value="">None (Root Level)</option>
+                            <!-- Will be populated dynamically -->
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-danger me-auto" onclick="confirmDeleteFolder(document.getElementById('editFolderId').value)">Delete Folder</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="updateFolder" onclick="updateFolder()">Update Folder</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .folder-tree {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    
+    .folder-item {
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        margin-bottom: 4px;
+    }
+    
+    .folder-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .folder-item.active {
+        background-color: rgba(13, 110, 253, 0.25);
+    }
+    
+    .media-item {
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    
+    .media-item:hover {
+        transform: translateY(-5px);
+    }
+    
+    .card-img-container {
+        height: 200px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #2a2a2a;
+    }
+    
+    .card-img-top {
+        object-fit: cover;
+        width: 100%;
+        height: 100%;
+    }
+    
+    .media-preview-container {
+        background-color: #2a2a2a;
+        border-radius: 5px;
+        padding: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 400px;
+    }
+    
+    .media-preview img,
+    .media-preview video {
+        max-width: 100%;
+        max-height: 400px;
+    }
+    
+    .dropzone-container {
+        border: 2px dashed #6c757d;
+        border-radius: 5px;
+        padding: 30px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .dropzone-container:hover {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Fixed Media Library JavaScript -->
+<script src="{{ url_for('static', filename='js/media-library-fixed.js') }}"></script>
+{% endblock %}

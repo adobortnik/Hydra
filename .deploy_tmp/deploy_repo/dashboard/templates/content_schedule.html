@@ -1,0 +1,2910 @@
+{% extends "base.html" %}
+
+{% block title %}Content Schedule - Hydra{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Summary Cards */
+    .stat-card {
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
+    .stat-card .stat-label { font-size: 0.85rem; opacity: 0.8; }
+    .stat-card .stat-icon { font-size: 1.5rem; opacity: 0.6; }
+
+    /* Tabs */
+    .nav-tabs .nav-link { color: #adb5bd; border: none; padding: 0.75rem 1.25rem; font-weight: 500; }
+    .nav-tabs .nav-link:hover { color: #fff; border-bottom: 2px solid rgba(255,255,255,0.3); }
+    .nav-tabs .nav-link.active { color: #fff; background: transparent; border-bottom: 2px solid #0d6efd; }
+
+    /* Step Wizard */
+    .wizard-steps { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .wizard-step {
+        display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.5rem 1rem; border-radius: 20px;
+        font-size: 0.85rem; cursor: pointer;
+        background: rgba(255,255,255,0.05); color: #adb5bd;
+        border: 1px solid transparent; transition: all 0.2s;
+    }
+    .wizard-step.active { background: rgba(13,110,253,0.2); color: #fff; border-color: #0d6efd; }
+    .wizard-step.completed { background: rgba(25,135,84,0.2); color: #198754; border-color: #198754; }
+    .wizard-step .step-num {
+        width: 24px; height: 24px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.75rem; font-weight: 700;
+        background: rgba(255,255,255,0.1);
+    }
+    .wizard-step.active .step-num { background: #0d6efd; color: #fff; }
+    .wizard-step.completed .step-num { background: #198754; color: #fff; }
+
+    /* Content Type Cards */
+    .type-card {
+        cursor: pointer; padding: 1.5rem; border-radius: 12px;
+        border: 2px solid rgba(255,255,255,0.1); text-align: center;
+        transition: all 0.2s; background: rgba(255,255,255,0.03);
+    }
+    .type-card:hover { border-color: rgba(13,110,253,0.5); background: rgba(13,110,253,0.05); }
+    .type-card.selected { border-color: #0d6efd; background: rgba(13,110,253,0.15); }
+    .type-card i { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .type-card h5 { margin-bottom: 0.25rem; }
+    .type-card p { font-size: 0.85rem; color: #adb5bd; margin-bottom: 0; }
+
+    /* Media Grid */
+    .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.75rem; }
+    .media-thumb {
+        position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden;
+        cursor: pointer; border: 2px solid transparent; transition: all 0.2s;
+    }
+    .media-thumb.selected { border-color: #0d6efd; }
+    .media-thumb img, .media-thumb .video-placeholder {
+        width: 100%; height: 100%; object-fit: cover;
+    }
+    .video-placeholder {
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,0.05); color: #adb5bd;
+    }
+    .media-thumb .check-overlay {
+        position: absolute; top: 6px; right: 6px;
+        width: 22px; height: 22px; border-radius: 50%;
+        background: #0d6efd; color: #fff; display: none;
+        align-items: center; justify-content: center; font-size: 0.7rem;
+    }
+    .media-thumb.selected .check-overlay { display: flex; }
+    .media-thumb .media-name {
+        position: absolute; bottom: 0; left: 0; right: 0;
+        padding: 2px 4px; font-size: 0.65rem;
+        background: rgba(0,0,0,0.7); color: #fff;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* Calendar View */
+    .cal-day { border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.75rem; min-height: 100px; }
+    .cal-day-header { font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem; }
+    .cal-item {
+        font-size: 0.75rem; padding: 4px 8px; margin-bottom: 4px;
+        border-radius: 4px; cursor: pointer; transition: opacity 0.2s;
+    }
+    .cal-item:hover { opacity: 0.8; }
+    .cal-item.type-post { background: rgba(13,110,253,0.2); border-left: 3px solid #0d6efd; }
+    .cal-item.type-reel { background: rgba(111,66,193,0.2); border-left: 3px solid #6f42c1; }
+    .cal-item.type-story { background: rgba(253,126,20,0.2); border-left: 3px solid #fd7e14; }
+
+    /* Table styles */
+    .table-dark-custom { background: transparent; }
+    .table-dark-custom th { color: #adb5bd; font-weight: 600; font-size: 0.85rem; border-color: rgba(255,255,255,0.1); }
+    .table-dark-custom td { border-color: rgba(255,255,255,0.05); vertical-align: middle; }
+
+    /* Status badges */
+    .badge-pending { background: rgba(255,193,7,0.2); color: #ffc107; }
+    .badge-posting { background: rgba(13,110,253,0.2); color: #0d6efd; }
+    .badge-completed { background: rgba(25,135,84,0.2); color: #198754; }
+    .badge-failed { background: rgba(220,53,69,0.2); color: #dc3545; }
+    .badge-cancelled { background: rgba(108,117,125,0.2); color: #6c757d; }
+
+    /* Folder list */
+    .folder-item-cs {
+        padding: 0.75rem 1rem; border-radius: 8px; cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.1); margin-bottom: 0.5rem;
+        transition: all 0.2s; display: flex; align-items: center; justify-content: space-between;
+    }
+    .folder-item-cs:hover { background: rgba(255,255,255,0.05); }
+    .folder-item-cs.selected { border-color: #0d6efd; background: rgba(13,110,253,0.1); }
+
+    /* Account checkbox list */
+    .account-checkbox-list { max-height: 300px; overflow-y: auto; }
+    .account-check-item {
+        padding: 0.5rem 0.75rem; border-radius: 6px;
+        border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0.25rem;
+    }
+    .account-check-item:hover { background: rgba(255,255,255,0.03); }
+
+    /* Schedule preview */
+    .schedule-preview-item {
+        display: flex; gap: 1rem; padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        font-size: 0.85rem;
+    }
+
+    /* Step panels */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    /* Edit modal */
+    .edit-modal .form-control, .edit-modal .form-select {
+        background: #1a1d21; color: #fff; border-color: rgba(255,255,255,0.15);
+    }
+
+    /* Content type badges */
+    .badge-post { background: rgba(13,110,253,0.2); color: #0d6efd; }
+    .badge-reel { background: rgba(111,66,193,0.2); color: #6f42c1; }
+    .badge-story { background: rgba(253,126,20,0.2); color: #fd7e14; }
+
+    /* Media type overlay badge */
+    .media-thumb .media-type-badge {
+        position: absolute; top: 6px; left: 6px;
+        padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600;
+        pointer-events: none;
+    }
+    .media-type-badge.type-image { background: rgba(13,110,253,0.85); color: #fff; }
+    .media-type-badge.type-video { background: rgba(111,66,193,0.85); color: #fff; }
+
+    /* Dropzone */
+    .upload-dropzone {
+        border: 2px dashed rgba(255,255,255,0.15); border-radius: 12px;
+        padding: 1.25rem; text-align: center; cursor: pointer;
+        transition: all 0.25s; background: rgba(255,255,255,0.02);
+        margin-bottom: 1rem;
+    }
+    .upload-dropzone:hover, .upload-dropzone.dragover {
+        border-color: #0d6efd; background: rgba(13,110,253,0.08);
+    }
+    .upload-dropzone i { font-size: 1.5rem; color: #6c757d; }
+    .upload-dropzone.dragover i { color: #0d6efd; }
+    .upload-dropzone p { margin: 0.5rem 0 0; font-size: 0.85rem; color: #adb5bd; }
+    .upload-progress-bar { height: 3px; border-radius: 2px; overflow: hidden; margin-top: 0.5rem; display:none; }
+    .upload-progress-bar .bar { height: 100%; width: 0; background: #0d6efd; transition: width 0.3s; }
+
+    /* Strategy cards */
+    .strategy-card {
+        cursor: pointer; padding: 1rem; border-radius: 10px;
+        border: 2px solid rgba(255,255,255,0.08); transition: all 0.2s;
+        background: rgba(255,255,255,0.02); margin-bottom: 0.5rem;
+    }
+    .strategy-card:hover { border-color: rgba(13,110,253,0.4); background: rgba(13,110,253,0.04); }
+    .strategy-card.selected { border-color: #0d6efd; background: rgba(13,110,253,0.12); }
+    .strategy-card .strategy-icon { font-size: 1.25rem; margin-right: 0.75rem; }
+    .strategy-card h6 { margin-bottom: 0.15rem; }
+    .strategy-card small { color: #adb5bd; }
+
+    /* New folder inline */
+    .new-folder-inline {
+        display: flex; gap: 0.5rem; align-items: center;
+        padding: 0.5rem; margin-bottom: 0.5rem;
+    }
+    .new-folder-inline input {
+        flex: 1; font-size: 0.85rem;
+    }
+
+    /* Media filter tabs */
+    .media-filter-tabs { display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .media-filter-tab {
+        padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.8rem;
+        cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+        color: #adb5bd; transition: all 0.2s; background: transparent;
+    }
+    .media-filter-tab:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
+    .media-filter-tab.active { background: rgba(13,110,253,0.2); border-color: #0d6efd; color: #0d6efd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="fas fa-calendar-alt me-2 text-primary"></i>Content Schedule</h3>
+    <div>
+        <button class="btn btn-sm btn-success me-2" onclick="openTestPostModal()">
+            <i class="fas fa-paper-plane me-1"></i>Test Post Now
+        </button>
+        <button class="btn btn-sm btn-outline-light me-2" onclick="loadStats()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4" id="statsRow">
+    <div class="col-md-3 col-6">
+        <div class="stat-card bg-dark border border-secondary">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-value text-warning" id="statPending">0</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+                <div class="stat-icon text-warning"><i class="fas fa-clock"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card bg-dark border border-secondary">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-value text-primary" id="statPosting">0</div>
+                    <div class="stat-label">Posting Now</div>
+                </div>
+                <div class="stat-icon text-primary"><i class="fas fa-spinner fa-pulse"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card bg-dark border border-secondary">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-value text-success" id="statCompleted">0</div>
+                    <div class="stat-label">Completed Today</div>
+                </div>
+                <div class="stat-icon text-success"><i class="fas fa-check-circle"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card bg-dark border border-secondary">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-value text-danger" id="statFailed">0</div>
+                    <div class="stat-label">Failed Today</div>
+                </div>
+                <div class="stat-icon text-danger"><i class="fas fa-exclamation-triangle"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Tabs -->
+<ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#tab-calendar" role="tab">
+            <i class="fas fa-calendar me-1"></i>Calendar
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-batch" role="tab">
+            <i class="fas fa-layer-group me-1"></i>Batch Schedule
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-pending" role="tab">
+            <i class="fas fa-list me-1"></i>Pending Queue
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-history" role="tab">
+            <i class="fas fa-history me-1"></i>History
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-batches" role="tab">
+            <i class="fas fa-boxes-stacked me-1"></i>Batches
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content" id="mainTabContent">
+
+    <!-- ============ CALENDAR TAB ============ -->
+    <div class="tab-pane fade show active" id="tab-calendar" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-light" onclick="calendarNav(-7)"><i class="fas fa-chevron-left"></i></button>
+                <h5 class="mb-0" id="calendarTitle">This Week</h5>
+                <button class="btn btn-sm btn-outline-light" onclick="calendarNav(7)"><i class="fas fa-chevron-right"></i></button>
+                <button class="btn btn-sm btn-outline-primary ms-2" onclick="calendarNav(0)">Today</button>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="badge rounded-pill" style="background:rgba(13,110,253,0.2);color:#0d6efd">Post</span>
+                <span class="badge rounded-pill" style="background:rgba(111,66,193,0.2);color:#6f42c1">Reel</span>
+                <span class="badge rounded-pill" style="background:rgba(253,126,20,0.2);color:#fd7e14">Story</span>
+            </div>
+        </div>
+        <div class="row g-2" id="calendarGrid">
+            <!-- Filled by JS -->
+        </div>
+    </div>
+
+    <!-- ============ BATCH SCHEDULE TAB ============ -->
+    <div class="tab-pane fade" id="tab-batch" role="tabpanel">
+        <!-- Wizard Steps -->
+        <div class="wizard-steps" id="wizardSteps">
+            <div class="wizard-step active" data-step="1" onclick="goToStep(1)">
+                <span class="step-num">1</span> Content Type
+            </div>
+            <div class="wizard-step" data-step="2" onclick="goToStep(2)">
+                <span class="step-num">2</span> Select Media
+            </div>
+            <div class="wizard-step" data-step="3" onclick="goToStep(3)">
+                <span class="step-num">3</span> Configure
+            </div>
+            <div class="wizard-step" data-step="4" onclick="goToStep(4)">
+                <span class="step-num">4</span> Select Targets
+            </div>
+            <div class="wizard-step" data-step="5" onclick="goToStep(5)">
+                <span class="step-num">5</span> Schedule Timing
+            </div>
+            <div class="wizard-step" data-step="6" onclick="goToStep(6)">
+                <span class="step-num">6</span> Review & Confirm
+            </div>
+        </div>
+
+        <!-- Step 1: Content Type -->
+        <div class="step-panel active" id="step1">
+            <h5 class="mb-3">What type of content?</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="type-card" data-type="post" onclick="selectContentType('post')">
+                        <i class="fas fa-image text-primary"></i>
+                        <h5>Post</h5>
+                        <p>Feed photo/video post with caption</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="type-card" data-type="reel" onclick="selectContentType('reel')">
+                        <i class="fas fa-film text-purple" style="color:#6f42c1"></i>
+                        <h5>Reel</h5>
+                        <p>Short-form video with music</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="type-card" data-type="story" onclick="selectContentType('story')">
+                        <i class="fas fa-circle-notch text-warning"></i>
+                        <h5>Story</h5>
+                        <p>24h story with mentions/links</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 text-end">
+                <button class="btn btn-primary" onclick="nextStep()" id="btnStep1Next" disabled>
+                    Next <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Select Media -->
+        <div class="step-panel" id="step2">
+            <h5 class="mb-3">Select media files</h5>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-dark border-secondary mb-3">
+                        <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-folder me-2"></i>Media Folders</span>
+                            <button class="btn btn-sm btn-outline-success py-0 px-2" onclick="toggleNewFolderInput()" title="New Folder">
+                                <i class="fas fa-plus me-1"></i>New
+                            </button>
+                        </div>
+                        <div class="card-body p-0" style="max-height:400px; overflow-y:auto;">
+                            <div id="newFolderArea" class="p-2" style="display:none">
+                                <div class="new-folder-inline">
+                                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                           id="newFolderName" placeholder="Folder name..." onkeydown="if(event.key==='Enter')createNewFolder()">
+                                    <button class="btn btn-sm btn-success" onclick="createNewFolder()"><i class="fas fa-check"></i></button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleNewFolderInput()"><i class="fas fa-times"></i></button>
+                                </div>
+                            </div>
+                            <div id="folderList" class="p-2">
+                                <div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Content type filter hint -->
+                    <div id="mediaTypeFilterHint" class="alert alert-info py-2 px-3 mb-0" style="font-size:0.8rem; display:none;">
+                        <i class="fas fa-filter me-1"></i>Filtering: <strong id="mediaTypeFilterLabel">all files</strong>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <!-- Upload dropzone -->
+                    <div class="upload-dropzone" id="uploadDropzone"
+                         ondragover="event.preventDefault(); this.classList.add('dragover')"
+                         ondragleave="this.classList.remove('dragover')"
+                         ondrop="handleDropzoneUpload(event)"
+                         onclick="document.getElementById('dropzoneFileInput').click()">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drag & drop files here or <strong class="text-primary">click to upload</strong></p>
+                        <input type="file" id="dropzoneFileInput" multiple accept="image/*,video/*" style="display:none"
+                               onchange="handleFileInputUpload(this.files)">
+                        <div class="upload-progress-bar" id="uploadProgressBar"><div class="bar" id="uploadProgressFill"></div></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted" id="mediaSelectionInfo">Select a folder</span>
+                        <div>
+                            <!-- Media type filter tabs -->
+                            <div class="media-filter-tabs d-inline-flex me-2" id="mediaFilterTabs">
+                                <span class="media-filter-tab active" data-filter="all" onclick="setMediaFilter('all')">All</span>
+                                <span class="media-filter-tab" data-filter="image" onclick="setMediaFilter('image')">📷 Images</span>
+                                <span class="media-filter-tab" data-filter="video" onclick="setMediaFilter('video')">🎬 Videos</span>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="selectAllMedia()">Select All</button>
+                            <button class="btn btn-sm btn-outline-secondary ms-1" onclick="deselectAllMedia()">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="media-grid" id="mediaGrid">
+                        <div class="text-muted text-center py-5 w-100">
+                            <i class="fas fa-photo-video fa-3x mb-2 d-block"></i>
+                            Select a folder to browse media
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-primary" onclick="nextStep()" id="btnStep2Next" disabled>
+                    Next <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 3: Configure -->
+        <div class="step-panel" id="step3">
+            <h5 class="mb-3">Configure content</h5>
+
+            <!-- Post config -->
+            <div id="configPost" class="config-section">
+                <div class="mb-3">
+                    <label class="form-label">Caption Template</label>
+                    <textarea class="form-control bg-dark text-white border-secondary" id="captionTemplate" rows="3"
+                              placeholder="Enter caption for all posts..." oninput="onCaptionInput()"></textarea>
+                    
+                    <!-- AI Caption Generation Row -->
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="aiToneSelect" style="width:auto;min-width:140px">
+                            <option value="engaging">✨ Engaging</option>
+                            <option value="funny">😄 Funny</option>
+                            <option value="professional">💼 Professional</option>
+                            <option value="motivational">💪 Motivational</option>
+                            <option value="casual">😎 Casual</option>
+                            <option value="edgy">🔥 Edgy</option>
+                        </select>
+                        <button class="btn btn-sm btn-outline-info" onclick="showAiGenerateForm()" id="btnAiGenerate" title="Generate caption with AI">
+                            ✨ Generate with AI
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning d-none" onclick="previewAiTags()" id="btnPreviewAi" title="Preview AI tag replacements">
+                            <i class="fas fa-eye me-1"></i>Preview AI
+                        </button>
+                    </div>
+
+                    <!-- AI Generate Inline Form (hidden by default) -->
+                    <div class="collapse mt-2" id="aiGenerateForm">
+                        <div class="card card-body bg-dark border-secondary p-3">
+                            <div class="mb-2">
+                                <label class="form-label small text-muted mb-1">Custom prompt (optional)</label>
+                                <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" 
+                                       id="aiCustomPrompt" placeholder="e.g. Write something about morning motivation and fitness...">
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <button class="btn btn-sm btn-info" onclick="generateAiCaption()" id="btnDoGenerate">
+                                    <i class="fas fa-magic me-1"></i>Generate
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="$('#aiGenerateForm').collapse('hide')">Cancel</button>
+                                <span class="spinner-border spinner-border-sm text-info d-none" id="aiSpinner"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Preview Collapse -->
+                    <div class="collapse mt-2" id="aiPreviewPanel">
+                        <div class="card card-body bg-dark border-secondary p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-muted"><i class="fas fa-wand-magic-sparkles me-1"></i>AI Preview — 3 sample captions</span>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="$('#aiPreviewPanel').collapse('hide')">×</button>
+                            </div>
+                            <div id="aiPreviewContent">
+                                <span class="text-muted small">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-text text-muted">
+                        Applied to every scheduled item. 
+                        <span class="text-info">Use <code>[AI]</code> or <code>[AI:your prompt]</code> in the caption for unique AI text per post.</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Hashtags</label>
+                    <textarea class="form-control bg-dark text-white border-secondary" id="hashtagsInput" rows="2"
+                              placeholder="#hashtag1 #hashtag2 ..."></textarea>
+                </div>
+                <div class="mb-3" id="locationGroup">
+                    <label class="form-label">Location (optional)</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="locationInput"
+                           placeholder="e.g. New York, NY">
+                </div>
+            </div>
+
+            <!-- Reel config (additional) -->
+            <div id="configReel" class="config-section" style="display:none">
+                <div class="mb-3">
+                    <label class="form-label">Music Search Query (optional)</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="musicSearchInput"
+                           placeholder="e.g. trending audio 2025">
+                    <div class="form-text text-muted">Bot will search for this music on Instagram</div>
+                </div>
+            </div>
+
+            <!-- Story config (additional) -->
+            <div id="configStory" class="config-section" style="display:none">
+                <div class="mb-3">
+                    <label class="form-label">Mention Username (optional)</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="mentionInput"
+                           placeholder="@username">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Link URL (optional)</label>
+                    <input type="url" class="form-control bg-dark text-white border-secondary" id="linkUrlInput"
+                           placeholder="https://...">
+                </div>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right ms-1"></i></button>
+            </div>
+        </div>
+
+        <!-- Step 4: Select Targets -->
+        <div class="step-panel" id="step4">
+            <h5 class="mb-3">Select target accounts</h5>
+            <p class="text-muted small mb-3">Pick accounts from one or multiple devices. Use the filter to narrow down, selections persist across filter changes.</p>
+            <div class="row">
+                <div class="col-md-5">
+                    <div class="mb-3">
+                        <label class="form-label">Filter by Device</label>
+                        <select class="form-select bg-dark text-white border-secondary" id="targetDevice" onchange="loadTargetAccounts()">
+                            <option value="all">All Devices</option>
+                        </select>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="selectAllAccounts" onchange="toggleAllAccounts()">
+                        <label class="form-check-label" for="selectAllAccounts">
+                            <strong>Select all visible</strong>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label">Accounts <span class="text-muted" id="accountCountLabel">(0 selected)</span></label>
+                    <div class="account-checkbox-list border border-secondary rounded p-2" id="accountCheckboxList" style="max-height:400px;overflow-y:auto">
+                        <div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-primary" onclick="nextStep()" id="btnStep4Next" disabled>
+                    Next <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 5: Schedule Timing -->
+        <div class="step-panel" id="step5">
+            <h5 class="mb-3">Schedule timing</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <!-- Strategy selection -->
+                    <label class="form-label fw-bold mb-2">Distribution Strategy</label>
+                    <div class="strategy-card selected" data-strategy="work_hours" onclick="selectStrategy('work_hours')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-success"><i class="fas fa-user-clock"></i></span>
+                            <div>
+                                <h6 class="mb-0">Work-Hour Aware</h6>
+                                <small>Schedule within each account's work hours</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="strategy-card" data-strategy="even_spread" onclick="selectStrategy('even_spread')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-primary"><i class="fas fa-arrows-alt-h"></i></span>
+                            <div>
+                                <h6 class="mb-0">Even Spread</h6>
+                                <small>Distribute evenly across a date range</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="strategy-card" data-strategy="fill_week" onclick="selectStrategy('fill_week')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-success"><i class="fas fa-calendar-week"></i></span>
+                            <div>
+                                <h6 class="mb-0">Fill Week</h6>
+                                <small>Auto-fill next 7 days with staggered times</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="strategy-card" data-strategy="custom_interval" onclick="selectStrategy('custom_interval')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-warning"><i class="fas fa-stopwatch"></i></span>
+                            <div>
+                                <h6 class="mb-0">Custom Interval</h6>
+                                <small>Start time + fixed hours between posts</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="strategy-card" data-strategy="random_times" onclick="selectStrategy('random_times')">
+                        <div class="d-flex align-items-start">
+                            <span class="strategy-icon text-info"><i class="fas fa-random"></i></span>
+                            <div>
+                                <h6 class="mb-0">Random Times</h6>
+                                <small>Random posting times within a daily window</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary my-3">
+
+                    <!-- Strategy-specific options -->
+                    <!-- Work-Hour Aware options -->
+                    <div id="strategyWorkHours">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="whStartDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="whEndDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Posts Per Day / Account</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="whPostsPerDay" value="1" min="1" max="10">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Buffer (min from edges)</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="whBufferMinutes" value="15" min="0" max="120">
+                            </div>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="whRandomize" checked>
+                            <label class="form-check-label" for="whRandomize">
+                                <small>Randomize within work window</small>
+                            </label>
+                        </div>
+                        <div class="form-text text-muted mt-2">
+                            <i class="fas fa-info-circle me-1"></i>Each account's posts are scheduled within its own start/end work hours.
+                            Accounts without work hours use 8:00–22:00.
+                        </div>
+                    </div>
+
+                    <!-- Even Spread options -->
+                    <div id="strategyEvenSpread" style="display:none">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenStartDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenEndDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Posts Per Day</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenPostsPerDay" value="2" min="1" max="10">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Active Window</label>
+                                <div class="d-flex gap-1 align-items-center">
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenWindowStart" value="9" min="0" max="23" style="width:60px">
+                                    <span class="text-muted">-</span>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="evenWindowEnd" value="21" min="0" max="23" style="width:60px">
+                                    <span class="text-muted" style="font-size:0.75rem">h</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fill Week options -->
+                    <div id="strategyFillWeek" style="display:none">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Posts Per Day</label>
+                                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="fillWeekPostsPerDay">
+                                    <option value="1">1 per day</option>
+                                    <option value="2" selected>2 per day</option>
+                                    <option value="3">3 per day</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Starting</label>
+                                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="fillWeekStartDay">
+                                    <option value="today">Today</option>
+                                    <option value="tomorrow">Tomorrow</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-text text-muted mt-2">
+                            Times auto-stagger: morning (9am), afternoon (1pm), evening (6pm)
+                        </div>
+                    </div>
+
+                    <!-- Custom Interval options (original) -->
+                    <div id="strategyCustomInterval" style="display:none">
+                        <div class="mb-2">
+                            <label class="form-label">Start Time</label>
+                            <input type="datetime-local" class="form-control form-control-sm bg-dark text-white border-secondary" id="scheduleStartTime">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Interval (hours)</label>
+                            <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="scheduleInterval"
+                                   value="1" min="0.25" max="168" step="0.25">
+                        </div>
+                    </div>
+
+                    <!-- Random Times options -->
+                    <div id="strategyRandomTimes" style="display:none">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomStartDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomEndDate">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Posts Per Day</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomPostsPerDay" value="2" min="1" max="10">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Time Window</label>
+                                <div class="d-flex gap-1 align-items-center">
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomWindowStart" value="9" min="0" max="23" style="width:60px">
+                                    <span class="text-muted">-</span>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="randomWindowEnd" value="21" min="0" max="23" style="width:60px">
+                                    <span class="text-muted" style="font-size:0.75rem">h</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 mb-3">
+                        <label class="form-label">Batch Name (optional)</label>
+                        <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="batchNameInput"
+                               placeholder="e.g. Monday morning posts">
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="roundRobinCheck" checked>
+                        <label class="form-check-label" for="roundRobinCheck">
+                            <small>Round-robin media across accounts</small>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-header border-secondary"><i class="fas fa-eye me-2"></i>Schedule Preview</div>
+                        <div class="card-body p-2" style="max-height:400px; overflow-y:auto;" id="schedulePreview">
+                            <div class="text-muted text-center py-3">Set timing to preview</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right ms-1"></i></button>
+            </div>
+        </div>
+
+        <!-- Step 6: Review & Confirm -->
+        <div class="step-panel" id="step6">
+            <h5 class="mb-3">Review & Confirm</h5>
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted">Content Type</small>
+                            <div class="fw-bold" id="reviewType">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Media Files</small>
+                            <div class="fw-bold" id="reviewMedia">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Target Accounts</small>
+                            <div class="fw-bold" id="reviewAccounts">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Total Scheduled Items</small>
+                            <div class="fw-bold text-primary" id="reviewTotal">-</div>
+                        </div>
+                    </div>
+                    <hr class="border-secondary">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <small class="text-muted">Start Time</small>
+                            <div id="reviewStart">-</div>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">End Time (approx)</small>
+                            <div id="reviewEnd">-</div>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">Strategy</small>
+                            <div id="reviewInterval">-</div>
+                        </div>
+                    </div>
+                    <hr class="border-secondary">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">Caption</small>
+                            <div class="text-truncate" id="reviewCaption" style="max-width:100%">-</div>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">Hashtags</small>
+                            <div class="text-truncate" id="reviewHashtags" style="max-width:100%">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-dark-custom" id="reviewTable">
+                    <thead><tr><th>#</th><th>Time</th><th>Account</th><th>Media</th></tr></thead>
+                    <tbody id="reviewTableBody"></tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
+                <button class="btn btn-success btn-lg" onclick="submitBatch()" id="btnSubmitBatch">
+                    <i class="fas fa-calendar-check me-2"></i>Schedule All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ PENDING QUEUE TAB ============ -->
+    <div class="tab-pane fade" id="tab-pending" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Pending Queue</h5>
+            <div class="d-flex gap-2">
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="pendingTypeFilter" style="width:auto" onchange="loadPending()">
+                    <option value="">All Types</option>
+                    <option value="post">Posts</option>
+                    <option value="reel">Reels</option>
+                    <option value="story">Stories</option>
+                </select>
+                <button class="btn btn-sm btn-outline-light" onclick="loadPending()"><i class="fas fa-sync-alt"></i></button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Time</th><th>Type</th><th>Account</th><th>Device</th>
+                        <th>Caption</th><th>Status</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="pendingTableBody">
+                    <tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <nav id="pendingPagination"></nav>
+    </div>
+
+    <!-- ============ HISTORY TAB ============ -->
+    <div class="tab-pane fade" id="tab-history" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">History</h5>
+            <div class="d-flex gap-2">
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="historyTypeFilter" style="width:auto" onchange="loadHistory()">
+                    <option value="">All Types</option>
+                    <option value="post">Posts</option>
+                    <option value="reel">Reels</option>
+                    <option value="story">Stories</option>
+                </select>
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="historyStatusFilter" style="width:auto" onchange="loadHistory()">
+                    <option value="completed,failed">Completed + Failed</option>
+                    <option value="completed">Completed Only</option>
+                    <option value="failed">Failed Only</option>
+                </select>
+                <button class="btn btn-sm btn-outline-light" onclick="loadHistory()"><i class="fas fa-sync-alt"></i></button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Scheduled</th><th>Posted</th><th>Type</th><th>Account</th>
+                        <th>Caption</th><th>Status</th><th>Error</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ============ BATCHES TAB ============ -->
+    <div class="tab-pane fade" id="tab-batches" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Batch History</h5>
+            <button class="btn btn-sm btn-outline-light" onclick="loadBatches()"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-dark-custom">
+                <thead>
+                    <tr>
+                        <th>Batch</th><th>Type</th><th>Total</th><th>Completed</th>
+                        <th>Failed</th><th>Status</th><th>Created</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="batchesTableBody">
+                    <tr><td colspan="8" class="text-center text-muted py-4">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white edit-modal">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Scheduled Item</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editItemId">
+                <div class="mb-3">
+                    <label class="form-label">Caption</label>
+                    <textarea class="form-control" id="editCaption" rows="3"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Hashtags</label>
+                    <textarea class="form-control" id="editHashtags" rows="2"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Scheduled Time</label>
+                    <input type="datetime-local" class="form-control" id="editScheduledTime">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="editStatus">
+                        <option value="pending">Pending</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-danger me-auto" onclick="deleteItem()">
+                    <i class="fas fa-trash me-1"></i>Delete
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveEditItem()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Post Now Modal -->
+<div class="modal fade" id="testPostModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-paper-plane me-2 text-success"></i>Test Post Now</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="testPostBody">
+                <!-- Form Section (hidden when posting) -->
+                <div id="testPostForm">
+                    <div class="row g-3">
+                        <!-- Device Filter -->
+                        <div class="col-md-4">
+                            <label class="form-label">Device</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="tpDevice" onchange="filterTpAccounts()">
+                                <option value="">-- All devices --</option>
+                            </select>
+                        </div>
+                        <!-- Account -->
+                        <div class="col-md-8">
+                            <label class="form-label">Account</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="tpAccount">
+                                <option value="">-- Select account --</option>
+                            </select>
+                        </div>
+                        <!-- Content Type -->
+                        <div class="col-md-6">
+                            <label class="form-label">Content Type</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="tpContentType" onchange="onTpContentTypeChange()">
+                                <option value="post">Post</option>
+                                <option value="reel">Reel</option>
+                                <option value="story">Story</option>
+                            </select>
+                        </div>
+                        <!-- Media Selection -->
+                        <div class="col-12">
+                            <label class="form-label">Media File</label>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="tpMediaFolder" onchange="loadTpFolderFiles()">
+                                        <option value="">-- Select folder --</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" id="tpMediaFile">
+                                        <option value="">-- Select file --</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="tpMediaPreview" class="text-center p-2 rounded border border-secondary" style="display:none; max-height:200px; overflow:hidden;">
+                            </div>
+                        </div>
+                        <!-- Caption -->
+                        <div class="col-12">
+                            <label class="form-label">Caption</label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="tpCaption" rows="2" placeholder="Enter caption..."></textarea>
+                        </div>
+                        <!-- Hashtags -->
+                        <div class="col-12">
+                            <label class="form-label">Hashtags</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="tpHashtags" placeholder="#hashtag1 #hashtag2 ...">
+                        </div>
+                        <!-- Music (Reel only) -->
+                        <div class="col-md-6" id="tpMusicGroup" style="display:none">
+                            <label class="form-label">Music Search Query</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="tpMusic" placeholder="e.g. trending audio 2025">
+                        </div>
+                        <!-- Location -->
+                        <div class="col-md-6" id="tpLocationGroup">
+                            <label class="form-label">Location (optional)</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="tpLocation" placeholder="e.g. New York, NY">
+                        </div>
+                    </div>
+                </div>
+                <!-- Progress Section (shown during posting) -->
+                <div id="testPostProgress" style="display:none">
+                    <div class="text-center mb-3">
+                        <div class="spinner-border text-success mb-2" role="status" id="tpSpinner">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5 id="tpProgressTitle">Starting test post...</h5>
+                        <p class="text-muted mb-0" id="tpProgressAccount"></p>
+                    </div>
+                    <div class="card bg-secondary bg-opacity-10 border-secondary">
+                        <div class="card-body p-2" style="max-height:250px; overflow-y:auto;" id="tpProgressLog">
+                        </div>
+                    </div>
+                    <div id="tpResultBanner" class="mt-3" style="display:none"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="btnTestPost" onclick="submitTestPost()">
+                    <i class="fas fa-play me-1"></i>Post Now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999" id="toastContainer"></div>
+
+<!-- Batch Progress Modal -->
+<div class="modal fade" id="batchProgressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-cogs me-2 text-primary"></i>Scheduling Batch</h5>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span id="batchProgressLabel">Starting...</span>
+                        <span id="batchProgressPct" class="text-primary fw-bold">0%</span>
+                    </div>
+                    <div class="progress" style="height: 24px; background: rgba(255,255,255,0.1); border-radius: 12px;">
+                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                             id="batchProgressBar" role="progressbar" style="width: 0%; border-radius: 12px;"
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+                <div class="text-muted small" id="batchProgressDetail" style="min-height: 1.5em;">
+                    <i class="fas fa-spinner fa-spin me-1"></i>Initializing...
+                </div>
+                <!-- Errors area (hidden by default) -->
+                <div id="batchProgressErrors" class="mt-2" style="display:none;">
+                    <div class="alert alert-danger py-2 px-3 mb-0" style="font-size:0.85rem; max-height:120px; overflow-y:auto;">
+                        <i class="fas fa-exclamation-triangle me-1"></i><span id="batchProgressErrorText"></span>
+                    </div>
+                </div>
+                <!-- Success result (hidden by default) -->
+                <div id="batchProgressResult" class="mt-3" style="display:none;">
+                    <div class="alert alert-success py-2 px-3 mb-0">
+                        <i class="fas fa-check-circle me-2"></i><strong>Batch scheduled successfully!</strong>
+                        <div class="mt-2 small" id="batchResultDetails"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary" id="batchProgressFooter" style="display:none;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="onBatchProgressClose()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API = '/api/content-schedule';
+
+// ============ TOAST HELPER ============
+function showToast(message, type = 'info', duration = 5000) {
+    const icons = {
+        success: 'fa-check-circle text-success',
+        error: 'fa-exclamation-circle text-danger',
+        warning: 'fa-exclamation-triangle text-warning',
+        info: 'fa-info-circle text-primary'
+    };
+    const icon = icons[type] || icons.info;
+    const id = 'toast_' + Date.now();
+    const html = `
+        <div id="${id}" class="toast align-items-center border-0" role="alert" aria-live="assertive" data-bs-delay="${duration}" style="background: #1e2126; border: 1px solid rgba(255,255,255,0.1) !important;">
+            <div class="d-flex">
+                <div class="toast-body text-white">
+                    <i class="fas ${icon} me-2"></i>${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>`;
+    $('#toastContainer').append(html);
+    const el = document.getElementById(id);
+    const toast = new bootstrap.Toast(el);
+    toast.show();
+    el.addEventListener('hidden.bs.toast', () => el.remove());
+}
+
+// ============ STATE ============
+let wizardState = {
+    step: 1,
+    contentType: null,
+    selectedMedia: [],       // [{name, path, full_path}]
+    caption: '',
+    hashtags: '',
+    location: '',
+    musicSearch: '',
+    mentionUsername: '',
+    linkUrl: '',
+    selectedAccounts: [],    // [{account_id, device_serial, username, start_time, end_time}]
+    startTime: '',
+    intervalHours: 1,
+    batchName: '',
+    strategy: 'work_hours',
+    // Work-Hour Aware state
+    whStartDate: '',
+    whEndDate: '',
+    whPostsPerDay: 1,
+    whBufferMinutes: 15,
+    whRandomize: true,
+    // Strategy-specific state
+    evenStartDate: '',
+    evenEndDate: '',
+    evenPostsPerDay: 2,
+    evenWindowStart: 9,
+    evenWindowEnd: 21,
+    fillWeekPostsPerDay: 2,
+    fillWeekStartDay: 'today',
+    randomStartDate: '',
+    randomEndDate: '',
+    randomPostsPerDay: 2,
+    randomWindowStart: 9,
+    randomWindowEnd: 21,
+    roundRobin: true,
+    // Generated schedule
+    generatedSchedule: []  // [{time, accountIdx, mediaIdx}]
+};
+let calendarOffset = 0;  // weeks offset from current
+let allDevices = [];
+let allFolderFiles = [];
+let currentFolderId = '';
+let mediaTypeFilter = 'all';  // 'all', 'image', 'video'
+
+// ============ INIT ============
+$(document).ready(function() {
+    loadStats();
+    loadCalendar();
+    loadDevicesForWizard();
+    loadFolders();
+
+    // Set default dates
+    const now = new Date();
+    now.setHours(now.getHours() + 1, 0, 0, 0);
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    $('#scheduleStartTime').val(local);
+
+    // Set default date range for strategies
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const weekLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    $('#evenStartDate, #randomStartDate, #whStartDate').val(todayStr);
+    $('#evenEndDate, #randomEndDate, #whEndDate').val(weekLater);
+
+    // Tab change handlers
+    $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        const target = $(e.target).attr('href');
+        if (target === '#tab-pending') loadPending();
+        if (target === '#tab-history') loadHistory();
+        if (target === '#tab-batches') loadBatches();
+        if (target === '#tab-calendar') loadCalendar();
+    });
+
+    // Preview update on timing change (bind all strategy inputs)
+    $('#scheduleStartTime, #scheduleInterval').on('change input', updateSchedulePreview);
+    $('#evenStartDate, #evenEndDate, #evenPostsPerDay, #evenWindowStart, #evenWindowEnd').on('change input', updateSchedulePreview);
+    $('#fillWeekPostsPerDay, #fillWeekStartDay').on('change', updateSchedulePreview);
+    $('#randomStartDate, #randomEndDate, #randomPostsPerDay, #randomWindowStart, #randomWindowEnd').on('change input', updateSchedulePreview);
+    $('#whStartDate, #whEndDate, #whPostsPerDay, #whBufferMinutes, #whRandomize').on('change input', updateSchedulePreview);
+    $('#roundRobinCheck').on('change', updateSchedulePreview);
+});
+
+// ============ STATS ============
+function loadStats() {
+    $.get(API + '/stats', function(data) {
+        $('#statPending').text(data.pending || 0);
+        $('#statPosting').text(data.posting || 0);
+        $('#statCompleted').text(data.completed_today || 0);
+        $('#statFailed').text(data.failed_today || 0);
+    });
+}
+
+// ============ CALENDAR ============
+function calendarNav(days) {
+    if (days === 0) calendarOffset = 0;
+    else calendarOffset += days;
+    loadCalendar();
+}
+
+function loadCalendar() {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay() + 1 + calendarOffset);
+
+    const dateFrom = startOfWeek.toISOString().slice(0, 10);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+    const dateTo = endOfWeek.toISOString().slice(0, 10);
+
+    $('#calendarTitle').text(formatDateRange(startOfWeek, endOfWeek));
+
+    $.get(API + '?date_from=' + dateFrom + '&date_to=' + dateTo + '&limit=500', function(data) {
+        const items = data.items || [];
+        const grid = $('#calendarGrid');
+        grid.empty();
+
+        for (let d = 0; d < 7; d++) {
+            const date = new Date(startOfWeek);
+            date.setDate(startOfWeek.getDate() + d);
+            const dateStr = date.toISOString().slice(0, 10);
+            const isToday = dateStr === today.toISOString().slice(0, 10);
+
+            const dayItems = items.filter(i => i.scheduled_time && i.scheduled_time.startsWith(dateStr));
+
+            let itemsHtml = '';
+            dayItems.forEach(item => {
+                const time = item.scheduled_time ? item.scheduled_time.slice(11, 16) : '??:??';
+                const statusIcon = item.status === 'completed' ? '<i class="fas fa-check text-success"></i>' : item.status === 'failed' ? '<i class="fas fa-times text-danger"></i>' : '';
+                const ctBadge = calTypeIcon(item.content_type);
+                itemsHtml += `
+                    <div class="cal-item type-${item.content_type}" onclick="openEditModal(${item.id})" title="${item.username} - ${item.content_type}">
+                        <strong>${time}</strong> ${statusIcon} ${ctBadge} ${item.username || 'Unknown'}
+                    </div>`;
+            });
+
+            grid.append(`
+                <div class="col">
+                    <div class="cal-day ${isToday ? 'border-primary' : ''}">
+                        <div class="cal-day-header ${isToday ? 'text-primary' : ''}">${dayNames[date.getDay()]} ${date.getDate()}</div>
+                        ${itemsHtml || '<div class="text-muted" style="font-size:0.75rem">No items</div>'}
+                    </div>
+                </div>`);
+        }
+    });
+}
+
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function formatDateRange(start, end) {
+    const opts = { month: 'short', day: 'numeric' };
+    return start.toLocaleDateString('en-US', opts) + ' - ' + new Date(end.getTime() - 86400000).toLocaleDateString('en-US', opts);
+}
+
+// ============ WIZARD NAVIGATION ============
+function goToStep(n) {
+    if (n > wizardState.step + 1) return; // can't skip ahead
+    wizardState.step = n;
+    updateWizardUI();
+}
+
+function nextStep() {
+    if (wizardState.step < 6) {
+        // Collect data from current step before moving
+        collectStepData();
+        wizardState.step++;
+        updateWizardUI();
+        onStepEnter(wizardState.step);
+    }
+}
+
+function prevStep() {
+    if (wizardState.step > 1) {
+        collectStepData();
+        wizardState.step--;
+        updateWizardUI();
+    }
+}
+
+function updateWizardUI() {
+    // Update step indicators
+    $('.wizard-step').each(function() {
+        const s = parseInt($(this).data('step'));
+        $(this).removeClass('active completed');
+        if (s === wizardState.step) $(this).addClass('active');
+        else if (s < wizardState.step) $(this).addClass('completed');
+    });
+
+    // Show/hide panels
+    $('.step-panel').removeClass('active');
+    $(`#step${wizardState.step}`).addClass('active');
+}
+
+function onStepEnter(step) {
+    if (step === 2) { applyAutoMediaFilter(); loadFolders(); }
+    if (step === 3) showConfigForType();
+    if (step === 4) { loadDevicesForWizard(); loadTargetAccounts(); }
+    if (step === 5) updateSchedulePreview();
+    if (step === 6) buildReview();
+}
+
+function collectStepData() {
+    const s = wizardState.step;
+    if (s === 3) {
+        wizardState.caption = $('#captionTemplate').val();
+        wizardState.hashtags = $('#hashtagsInput').val();
+        wizardState.location = $('#locationInput').val();
+        wizardState.musicSearch = $('#musicSearchInput').val();
+        wizardState.mentionUsername = $('#mentionInput').val();
+        wizardState.linkUrl = $('#linkUrlInput').val();
+    }
+    if (s === 5) {
+        wizardState.batchName = $('#batchNameInput').val();
+        wizardState.roundRobin = $('#roundRobinCheck').is(':checked');
+        // Collect strategy-specific data
+        const strat = wizardState.strategy;
+        if (strat === 'work_hours') {
+            wizardState.whStartDate = $('#whStartDate').val();
+            wizardState.whEndDate = $('#whEndDate').val();
+            wizardState.whPostsPerDay = parseInt($('#whPostsPerDay').val()) || 1;
+            wizardState.whBufferMinutes = parseInt($('#whBufferMinutes').val()) || 15;
+            wizardState.whRandomize = $('#whRandomize').is(':checked');
+        } else if (strat === 'even_spread') {
+            wizardState.evenStartDate = $('#evenStartDate').val();
+            wizardState.evenEndDate = $('#evenEndDate').val();
+            wizardState.evenPostsPerDay = parseInt($('#evenPostsPerDay').val()) || 2;
+            wizardState.evenWindowStart = parseInt($('#evenWindowStart').val()) || 9;
+            wizardState.evenWindowEnd = parseInt($('#evenWindowEnd').val()) || 21;
+        } else if (strat === 'fill_week') {
+            wizardState.fillWeekPostsPerDay = parseInt($('#fillWeekPostsPerDay').val()) || 2;
+            wizardState.fillWeekStartDay = $('#fillWeekStartDay').val();
+        } else if (strat === 'custom_interval') {
+            wizardState.startTime = $('#scheduleStartTime').val();
+            wizardState.intervalHours = parseFloat($('#scheduleInterval').val()) || 1;
+        } else if (strat === 'random_times') {
+            wizardState.randomStartDate = $('#randomStartDate').val();
+            wizardState.randomEndDate = $('#randomEndDate').val();
+            wizardState.randomPostsPerDay = parseInt($('#randomPostsPerDay').val()) || 2;
+            wizardState.randomWindowStart = parseInt($('#randomWindowStart').val()) || 9;
+            wizardState.randomWindowEnd = parseInt($('#randomWindowEnd').val()) || 21;
+        }
+    }
+}
+
+// ============ STRATEGY SELECTION ============
+function selectStrategy(strategy) {
+    wizardState.strategy = strategy;
+    $('.strategy-card').removeClass('selected');
+    $(`.strategy-card[data-strategy="${strategy}"]`).addClass('selected');
+
+    // Show/hide strategy panels
+    $('#strategyWorkHours, #strategyEvenSpread, #strategyFillWeek, #strategyCustomInterval, #strategyRandomTimes').hide();
+    if (strategy === 'work_hours') $('#strategyWorkHours').show();
+    else if (strategy === 'even_spread') $('#strategyEvenSpread').show();
+    else if (strategy === 'fill_week') $('#strategyFillWeek').show();
+    else if (strategy === 'custom_interval') $('#strategyCustomInterval').show();
+    else if (strategy === 'random_times') $('#strategyRandomTimes').show();
+
+    updateSchedulePreview();
+}
+
+// ============ STEP 1: CONTENT TYPE ============
+function selectContentType(type) {
+    wizardState.contentType = type;
+    $('.type-card').removeClass('selected');
+    $(`.type-card[data-type="${type}"]`).addClass('selected');
+    $('#btnStep1Next').prop('disabled', false);
+}
+
+// ============ STEP 2: MEDIA SELECTION ============
+function loadFolders() {
+    $.get(API + '/media-folders', function(data) {
+        const folders = data.folders || [];
+        let html = '';
+        if (folders.length === 0) {
+            html = '<div class="text-muted text-center py-3">No media folders found. Create one!</div>';
+        } else {
+            folders.forEach(f => {
+                const icon = f.is_virtual ? 'fa-photo-video text-info' : 'fa-folder text-warning';
+                const sel = currentFolderId === f.id ? 'selected' : '';
+                const escapedId = (f.id || f.path || '').replace(/'/g, "\\'");
+                html += `<div class="folder-item-cs ${sel}" onclick="loadFolderMedia('${escapedId}')" data-path="${escapedId}">
+                    <span><i class="fas ${icon} me-2"></i>${f.name}</span>
+                    <span class="badge bg-secondary">${f.media_count}</span>
+                </div>`;
+            });
+        }
+        $('#folderList').html(html);
+    });
+}
+
+function toggleNewFolderInput() {
+    const area = $('#newFolderArea');
+    area.toggle();
+    if (area.is(':visible')) $('#newFolderName').focus();
+}
+
+function createNewFolder() {
+    const name = $('#newFolderName').val().trim();
+    if (!name) return;
+    $.ajax({
+        url: API + '/media-folders',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ name: name }),
+        success: function(data) {
+            $('#newFolderName').val('');
+            $('#newFolderArea').hide();
+            loadFolders();
+            // Auto-select the new folder
+            if (data.id) setTimeout(() => loadFolderMedia(data.id), 300);
+        },
+        error: function(xhr) {
+            showToast('Error creating folder: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown'), 'error');
+        }
+    });
+}
+
+function loadFolderMedia(folderId) {
+    currentFolderId = folderId;
+    $('.folder-item-cs').removeClass('selected');
+    $(`.folder-item-cs[data-path="${folderId}"]`).addClass('selected');
+
+    $('#mediaGrid').html('<div class="text-muted text-center py-5 w-100"><i class="fas fa-spinner fa-spin fa-2x"></i></div>');
+
+    $.get(API + '/media-folders/' + encodeURIComponent(folderId), function(data) {
+        allFolderFiles = data.files || [];
+        // Apply content type auto-filter
+        applyAutoMediaFilter();
+        renderMediaGrid();
+    });
+}
+
+function applyAutoMediaFilter() {
+    // Auto-filter based on content type if reel selected (only videos)
+    const ct = wizardState.contentType;
+    if (ct === 'reel') {
+        mediaTypeFilter = 'video';
+        $('#mediaTypeFilterHint').show();
+        $('#mediaTypeFilterLabel').text('videos only (Reel)');
+        $('.media-filter-tab').removeClass('active');
+        $('.media-filter-tab[data-filter="video"]').addClass('active');
+    } else {
+        if (mediaTypeFilter === 'video' && ct !== 'reel') {
+            // Reset to all when switching away from reel
+        }
+        $('#mediaTypeFilterHint').hide();
+    }
+}
+
+function setMediaFilter(filter) {
+    mediaTypeFilter = filter;
+    $('.media-filter-tab').removeClass('active');
+    $(`.media-filter-tab[data-filter="${filter}"]`).addClass('active');
+    renderMediaGrid();
+}
+
+function getFilteredFiles() {
+    if (mediaTypeFilter === 'all') return allFolderFiles;
+    if (mediaTypeFilter === 'image') return allFolderFiles.filter(f => !f.is_video);
+    if (mediaTypeFilter === 'video') return allFolderFiles.filter(f => f.is_video);
+    return allFolderFiles;
+}
+
+function renderMediaGrid() {
+    const grid = $('#mediaGrid');
+    const filteredFiles = getFilteredFiles();
+    if (filteredFiles.length === 0) {
+        const msg = allFolderFiles.length > 0
+            ? 'No matching files for current filter'
+            : 'No media files in this folder';
+        grid.html(`<div class="text-muted text-center py-5 w-100">${msg}</div>`);
+        updateMediaInfo();
+        return;
+    }
+
+    let html = '';
+    filteredFiles.forEach(f => {
+        const isSelected = wizardState.selectedMedia.some(m => m.path === f.path);
+        const sel = isSelected ? 'selected' : '';
+        const typeBadge = f.is_video
+            ? '<span class="media-type-badge type-video"><i class="fas fa-film me-1"></i>Video</span>'
+            : '<span class="media-type-badge type-image"><i class="fas fa-image me-1"></i>Img</span>';
+        const escapedPath = (f.path || '').replace(/'/g, "\\'");
+
+        // Determine thumbnail URL
+        let thumbContent;
+        if (f.is_video) {
+            thumbContent = `<div class="video-placeholder"><i class="fas fa-video fa-2x"></i></div>`;
+        } else if (f.thumb_url) {
+            thumbContent = `<img src="${f.thumb_url}" alt="${f.name}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'video-placeholder\\'><i class=\\'fas fa-image fa-2x\\'></i></div>'">`;
+        } else {
+            thumbContent = `<img src="${API}/media-file/${encodeURIComponent(f.path)}" alt="${f.name}" loading="lazy">`;
+        }
+
+        html += `<div class="media-thumb ${sel}" data-path="${escapedPath}" onclick="toggleMedia(this, '${escapedPath}')">
+            ${thumbContent}
+            ${typeBadge}
+            <div class="check-overlay"><i class="fas fa-check"></i></div>
+            <div class="media-name">${f.name}</div>
+        </div>`;
+    });
+    grid.html(html);
+    updateMediaInfo();
+}
+
+function toggleMedia(el, path) {
+    const idx = wizardState.selectedMedia.findIndex(m => m.path === path);
+    if (idx >= 0) {
+        wizardState.selectedMedia.splice(idx, 1);
+        $(el).removeClass('selected');
+    } else {
+        const file = allFolderFiles.find(f => f.path === path);
+        if (file) wizardState.selectedMedia.push(file);
+        $(el).addClass('selected');
+    }
+    updateMediaInfo();
+}
+
+function selectAllMedia() {
+    const filtered = getFilteredFiles();
+    filtered.forEach(f => {
+        if (!wizardState.selectedMedia.some(m => m.path === f.path)) {
+            wizardState.selectedMedia.push(f);
+        }
+    });
+    renderMediaGrid();
+}
+
+function deselectAllMedia() {
+    const filtered = getFilteredFiles();
+    const filteredPaths = filtered.map(f => f.path);
+    wizardState.selectedMedia = wizardState.selectedMedia.filter(m => !filteredPaths.includes(m.path));
+    renderMediaGrid();
+}
+
+function updateMediaInfo() {
+    const count = wizardState.selectedMedia.length;
+    const total = allFolderFiles.length;
+    const filtered = getFilteredFiles().length;
+    let infoText = `${count} file${count !== 1 ? 's' : ''} selected`;
+    if (filtered < total) infoText += ` (showing ${filtered}/${total})`;
+    $('#mediaSelectionInfo').text(infoText);
+    $('#btnStep2Next').prop('disabled', count === 0);
+}
+
+// ============ DRAG & DROP UPLOAD ============
+function handleDropzoneUpload(e) {
+    e.preventDefault();
+    document.getElementById('uploadDropzone').classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length) uploadFiles(files);
+}
+
+function handleFileInputUpload(files) {
+    if (files.length) uploadFiles(files);
+    // Reset file input so same file can be re-selected
+    document.getElementById('dropzoneFileInput').value = '';
+}
+
+function uploadFiles(files) {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+        formData.append('file', files[i]);
+    }
+    formData.append('folder_id', currentFolderId || '');
+
+    // Show progress
+    const progressBar = $('#uploadProgressBar');
+    const progressFill = $('#uploadProgressFill');
+    progressBar.show();
+    progressFill.css('width', '10%');
+
+    $.ajax({
+        url: API + '/upload',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        xhr: function() {
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    progressFill.css('width', pct + '%');
+                }
+            });
+            return xhr;
+        },
+        success: function(data) {
+            progressFill.css('width', '100%');
+            setTimeout(() => { progressBar.hide(); progressFill.css('width', '0'); }, 1000);
+
+            // Refresh current folder view
+            if (currentFolderId) {
+                loadFolderMedia(currentFolderId);
+            }
+            // Refresh folder list (counts may have changed)
+            loadFolders();
+
+            const count = (data.files || []).filter(f => f.success).length;
+            if (count > 0) {
+                // Auto-select uploaded files
+                (data.files || []).forEach(f => {
+                    if (f.success && !wizardState.selectedMedia.some(m => m.path === f.path)) {
+                        wizardState.selectedMedia.push(f);
+                    }
+                });
+                updateMediaInfo();
+            }
+        },
+        error: function(xhr) {
+            progressBar.hide(); progressFill.css('width', '0');
+            showToast('Upload failed: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'), 'error');
+        }
+    });
+}
+
+// ============ STEP 3: CONFIGURE ============
+function showConfigForType() {
+    const t = wizardState.contentType;
+    $('#configReel, #configStory').hide();
+    $('#locationGroup').toggle(t === 'post');
+    if (t === 'reel') $('#configReel').show();
+    if (t === 'story') $('#configStory').show();
+
+    // Restore values
+    $('#captionTemplate').val(wizardState.caption);
+    $('#hashtagsInput').val(wizardState.hashtags);
+    $('#locationInput').val(wizardState.location);
+    $('#musicSearchInput').val(wizardState.musicSearch);
+    $('#mentionInput').val(wizardState.mentionUsername);
+    $('#linkUrlInput').val(wizardState.linkUrl);
+
+    // Check AI tag visibility
+    onCaptionInput();
+}
+
+// --- AI Caption Generation ---
+function onCaptionInput() {
+    const text = $('#captionTemplate').val() || '';
+    const hasAiTag = /\[AI(?::[^\]]*)?\]/.test(text);
+    if (hasAiTag) {
+        $('#btnPreviewAi').removeClass('d-none');
+    } else {
+        $('#btnPreviewAi').addClass('d-none');
+        $('#aiPreviewPanel').collapse('hide');
+    }
+}
+
+function showAiGenerateForm() {
+    $('#aiGenerateForm').collapse('toggle');
+}
+
+function generateAiCaption() {
+    const btn = $('#btnDoGenerate');
+    const spinner = $('#aiSpinner');
+    const tone = $('#aiToneSelect').val();
+    const customPrompt = $('#aiCustomPrompt').val().trim();
+    const contentType = wizardState.contentType || 'post';
+
+    const prompt = customPrompt || `Write a short engaging Instagram caption for a ${contentType}. Be creative and use emojis naturally.`;
+
+    btn.prop('disabled', true);
+    spinner.removeClass('d-none');
+
+    $.ajax({
+        url: API + '/ai-caption',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ prompt: prompt, tone: tone, content_type: contentType, count: 1 }),
+        success: function(data) {
+            btn.prop('disabled', false);
+            spinner.addClass('d-none');
+            if (data.captions && data.captions.length > 0) {
+                $('#captionTemplate').val(data.captions[0]);
+                wizardState.caption = data.captions[0];
+                onCaptionInput();
+                $('#aiGenerateForm').collapse('hide');
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false);
+            spinner.addClass('d-none');
+            const err = xhr.responseJSON ? xhr.responseJSON.error : 'AI generation failed';
+            showToast(err, 'error');
+        }
+    });
+}
+
+function previewAiTags() {
+    const text = $('#captionTemplate').val() || '';
+    const tone = $('#aiToneSelect').val();
+    const contentType = wizardState.contentType || 'post';
+
+    // Extract the prompt from the first [AI:...] tag, or use default
+    const match = text.match(/\[AI(?::([^\]]*))?\]/);
+    let prompt = `Write a short engaging Instagram caption for a ${contentType}. Be creative and use emojis naturally.`;
+    if (match && match[1]) {
+        prompt = match[1].trim();
+    }
+
+    $('#aiPreviewPanel').collapse('show');
+    $('#aiPreviewContent').html('<span class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Generating 3 previews...</span>');
+
+    $.ajax({
+        url: API + '/ai-caption',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ prompt: prompt, tone: tone, content_type: contentType, count: 3 }),
+        success: function(data) {
+            if (data.captions && data.captions.length > 0) {
+                let html = '';
+                data.captions.forEach((cap, i) => {
+                    // Show the full caption with AI tag replaced
+                    const preview = text.replace(/\[AI(?:[^\]]*)?\]/, cap);
+                    html += `<div class="p-2 mb-1 rounded" style="background:rgba(255,255,255,0.05);font-size:0.85rem">
+                        <span class="badge bg-secondary me-1">${i+1}</span>${$('<span>').text(preview).html()}
+                    </div>`;
+                });
+                html += '<div class="text-muted mt-1" style="font-size:0.75rem">Each post will get a unique variation at schedule time.</div>';
+                $('#aiPreviewContent').html(html);
+            }
+        },
+        error: function(xhr) {
+            const err = xhr.responseJSON ? xhr.responseJSON.error : 'Preview failed';
+            $('#aiPreviewContent').html(`<span class="text-danger small">⚠️ ${$('<span>').text(err).html()}</span>`);
+        }
+    });
+}
+
+// ============ STEP 4: TARGET ACCOUNTS ============
+var _allAccounts = [];  // cache all accounts across devices
+
+function loadDevicesForWizard() {
+    $.get(API + '/devices', function(data) {
+        allDevices = data.devices || [];
+        const sel = $('#targetDevice');
+        sel.find('option:not(:first)').remove();
+        allDevices.forEach(d => {
+            sel.append(`<option value="${d.device_serial}">${d.device_name || d.device_serial} (${d.account_count} accts)</option>`);
+        });
+    });
+    // Pre-load all accounts
+    $.get(API + '/accounts', function(data) {
+        _allAccounts = data.accounts || [];
+    });
+}
+
+function loadTargetAccounts() {
+    const deviceFilter = $('#targetDevice').val();
+
+    // Use cached accounts or fetch fresh
+    function renderAccounts(accounts) {
+        _allAccounts = accounts;
+        const filtered = (!deviceFilter || deviceFilter === 'all')
+            ? accounts
+            : accounts.filter(a => a.device_serial === deviceFilter);
+
+        let html = '';
+        if (filtered.length === 0) {
+            html = '<div class="text-muted text-center py-3">No active accounts found</div>';
+        } else {
+            // Group by device for clarity
+            const byDevice = {};
+            filtered.forEach(a => {
+                const key = a.device_serial;
+                if (!byDevice[key]) byDevice[key] = [];
+                byDevice[key].push(a);
+            });
+
+            const deviceKeys = Object.keys(byDevice).sort();
+            const showHeaders = deviceKeys.length > 1;
+
+            deviceKeys.forEach(ds => {
+                const devName = (allDevices.find(d => d.device_serial === ds) || {}).device_name || ds;
+                if (showHeaders) {
+                    html += `<div class="px-2 py-1 mt-2 mb-1" style="font-size:0.75rem;color:#6c757d;border-bottom:1px solid rgba(255,255,255,0.05)">
+                        <i class="fas fa-mobile-alt me-1"></i>${devName}
+                    </div>`;
+                }
+                byDevice[ds].forEach(a => {
+                    const checked = wizardState.selectedAccounts.some(
+                        sa => sa.username === a.username && sa.device_serial === a.device_serial
+                    ) ? 'checked' : '';
+                    // Format work hours label
+                    const st = parseInt(a.start_time) || 0;
+                    const et = parseInt(a.end_time) || 0;
+                    let workHoursLabel;
+                    if (st === et || (st === 0 && et === 0)) {
+                        workHoursLabel = '<span class="badge bg-secondary bg-opacity-50 ms-2" style="font-size:0.7rem">24h</span>';
+                    } else {
+                        workHoursLabel = `<span class="badge bg-success bg-opacity-25 text-success ms-2" style="font-size:0.7rem">${String(st).padStart(2,'0')}:00–${String(et).padStart(2,'0')}:00</span>`;
+                    }
+                    html += `<div class="account-check-item">
+                        <div class="form-check">
+                            <input class="form-check-input acct-check" type="checkbox" ${checked}
+                                   data-id="${a.id}" data-serial="${a.device_serial}" data-username="${a.username}"
+                                   data-start-time="${st}" data-end-time="${et}"
+                                   onchange="updateAccountSelection()">
+                            <label class="form-check-label">
+                                <strong>${a.username}</strong>${workHoursLabel}
+                                ${showHeaders ? '' : '<small class="text-muted ms-2">' + ds + '</small>'}
+                            </label>
+                        </div>
+                    </div>`;
+                });
+            });
+        }
+        $('#accountCheckboxList').html(html);
+        // Don't call updateAccountSelection here — preserve existing selections
+        // Just update the count display
+        const count = wizardState.selectedAccounts.length;
+        $('#accountCountLabel').text(`(${count} selected)`);
+        $('#btnStep4Next').prop('disabled', count === 0);
+    }
+
+    if (_allAccounts.length > 0) {
+        renderAccounts(_allAccounts);
+    } else {
+        $.get(API + '/accounts', function(data) {
+            renderAccounts(data.accounts || []);
+        });
+    }
+}
+
+function toggleAllAccounts() {
+    const checked = $('#selectAllAccounts').is(':checked');
+    $('.acct-check').prop('checked', checked);
+    updateAccountSelection();
+}
+
+function updateAccountSelection() {
+    wizardState.selectedAccounts = [];
+    $('.acct-check:checked').each(function() {
+        wizardState.selectedAccounts.push({
+            account_id: parseInt($(this).data('id')),
+            device_serial: $(this).data('serial'),
+            username: $(this).data('username'),
+            start_time: $(this).data('start-time'),
+            end_time: $(this).data('end-time')
+        });
+    });
+    const count = wizardState.selectedAccounts.length;
+    $('#accountCountLabel').text(`(${count} selected)`);
+    $('#btnStep4Next').prop('disabled', count === 0);
+}
+
+// ============ STEP 5: SCHEDULE TIMING ============
+function generateScheduleTimes() {
+    /**
+     * Generate an array of Date objects based on the selected strategy.
+     * Returns enough times for all media x accounts (round-robin or duplicate).
+     * For work_hours strategy, returns null — buildScheduleItems handles it directly.
+     */
+    collectStepData();
+    const mediaCount = wizardState.selectedMedia.length;
+    const acctCount = wizardState.selectedAccounts.length;
+    if (!mediaCount || !acctCount) return [];
+
+    const strat = wizardState.strategy;
+
+    // Work-hour aware generates times per-account, handled in buildScheduleItems
+    if (strat === 'work_hours') return null;
+
+    const roundRobin = wizardState.roundRobin;
+    const totalItems = roundRobin ? mediaCount : mediaCount * acctCount;
+
+    let times = [];
+
+    if (strat === 'even_spread') {
+        const startDate = wizardState.evenStartDate ? new Date(wizardState.evenStartDate) : new Date();
+        const endDate = wizardState.evenEndDate ? new Date(wizardState.evenEndDate) : new Date(Date.now() + 7*86400000);
+        const ppd = wizardState.evenPostsPerDay || 2;
+        const wStart = wizardState.evenWindowStart || 9;
+        const wEnd = wizardState.evenWindowEnd || 21;
+        const windowHours = Math.max(wEnd - wStart, 1);
+
+        let d = new Date(startDate);
+        while (times.length < totalItems && d <= endDate) {
+            for (let p = 0; p < ppd && times.length < totalItems; p++) {
+                const hourOffset = ppd > 1 ? (windowHours / ppd) * p + (windowHours / ppd / 2) : windowHours / 2;
+                const t = new Date(d);
+                t.setHours(wStart + Math.floor(hourOffset), Math.round((hourOffset % 1) * 60), 0, 0);
+                times.push(t);
+            }
+            d.setDate(d.getDate() + 1);
+        }
+    } else if (strat === 'fill_week') {
+        const ppd = parseInt(wizardState.fillWeekPostsPerDay) || 2;
+        const slotHours = [9, 13, 18]; // morning, afternoon, evening
+        const startDay = wizardState.fillWeekStartDay === 'tomorrow' ? 1 : 0;
+        for (let dayOff = startDay; dayOff < startDay + 7 && times.length < totalItems; dayOff++) {
+            const d = new Date();
+            d.setDate(d.getDate() + dayOff);
+            for (let p = 0; p < ppd && p < 3 && times.length < totalItems; p++) {
+                const t = new Date(d);
+                t.setHours(slotHours[p], Math.floor(Math.random() * 30), 0, 0);
+                times.push(t);
+            }
+        }
+    } else if (strat === 'custom_interval') {
+        const startStr = wizardState.startTime;
+        const interval = wizardState.intervalHours || 1;
+        if (!startStr) return [];
+        const start = new Date(startStr);
+        for (let i = 0; i < totalItems; i++) {
+            times.push(new Date(start.getTime() + i * interval * 3600000));
+        }
+    } else if (strat === 'random_times') {
+        const startDate = wizardState.randomStartDate ? new Date(wizardState.randomStartDate) : new Date();
+        const endDate = wizardState.randomEndDate ? new Date(wizardState.randomEndDate) : new Date(Date.now() + 7*86400000);
+        const ppd = wizardState.randomPostsPerDay || 2;
+        const wStart = wizardState.randomWindowStart || 9;
+        const wEnd = wizardState.randomWindowEnd || 21;
+        const windowMinutes = Math.max((wEnd - wStart) * 60, 60);
+
+        let d = new Date(startDate);
+        while (times.length < totalItems && d <= endDate) {
+            for (let p = 0; p < ppd && times.length < totalItems; p++) {
+                const randomMinutes = Math.floor(Math.random() * windowMinutes);
+                const t = new Date(d);
+                t.setHours(wStart, 0, 0, 0);
+                t.setMinutes(t.getMinutes() + randomMinutes);
+                times.push(t);
+            }
+            d.setDate(d.getDate() + 1);
+        }
+        // Sort random times
+        times.sort((a, b) => a - b);
+    }
+
+    return times;
+}
+
+/**
+ * Get the effective work window for an account (hours).
+ * Returns {start, end} in hours (0-23). Handles always-active and midnight-wrap.
+ */
+function getAccountWorkWindow(account) {
+    let st = parseInt(account.start_time) || 0;
+    let et = parseInt(account.end_time) || 0;
+    // If both 0 or equal → "always active" → use default 8-22
+    if (st === et || (st === 0 && et === 0)) {
+        return { start: 8, end: 22, alwaysActive: true };
+    }
+    return { start: st, end: et, alwaysActive: false };
+}
+
+/**
+ * Generate times for one account within its work window for a date range.
+ * Returns array of Date objects.
+ */
+function generateTimesForAccount(account, startDate, endDate, postsPerDay, bufferMinutes, randomize) {
+    const ww = getAccountWorkWindow(account);
+    const buf = bufferMinutes || 0;
+    let times = [];
+
+    // Calculate effective window in minutes from midnight
+    let wStartMin, wEndMin, windowMinutes;
+    if (ww.start < ww.end) {
+        // Normal window: e.g. 8-16
+        wStartMin = ww.start * 60 + buf;
+        wEndMin = ww.end * 60 - buf;
+        windowMinutes = wEndMin - wStartMin;
+    } else {
+        // Midnight wrap: e.g. 22-4 → we schedule in the first segment (22:00–23:59)
+        // To keep it simple and avoid cross-midnight dates, use the longer segment
+        const segmentA = (24 - ww.start) * 60 - buf; // from start to midnight
+        const segmentB = ww.end * 60 - buf;           // from midnight to end
+        if (segmentA >= segmentB) {
+            wStartMin = ww.start * 60 + buf;
+            wEndMin = 24 * 60;
+            windowMinutes = wEndMin - wStartMin;
+        } else {
+            wStartMin = 0 + buf;
+            wEndMin = ww.end * 60 - buf;
+            windowMinutes = wEndMin - wStartMin;
+        }
+    }
+
+    if (windowMinutes <= 0) windowMinutes = 60; // safety: at least 1 hour
+
+    let d = new Date(startDate);
+    while (d <= endDate) {
+        for (let p = 0; p < postsPerDay; p++) {
+            let minuteOffset;
+            if (randomize) {
+                minuteOffset = Math.floor(Math.random() * windowMinutes);
+            } else {
+                // Evenly spaced within window
+                minuteOffset = postsPerDay > 1
+                    ? Math.floor((windowMinutes / postsPerDay) * p + (windowMinutes / postsPerDay / 2))
+                    : Math.floor(windowMinutes / 2);
+            }
+            const totalMin = wStartMin + minuteOffset;
+            const t = new Date(d);
+            t.setHours(Math.floor(totalMin / 60), totalMin % 60, 0, 0);
+            times.push(t);
+        }
+        d.setDate(d.getDate() + 1);
+    }
+
+    // Sort times
+    times.sort((a, b) => a - b);
+    return times;
+}
+
+function buildScheduleItems() {
+    /**
+     * Build the full schedule: [{time, accountIdx, mediaIdx, account, media}]
+     * For work_hours strategy, generates per-account times.
+     */
+    const strat = wizardState.strategy;
+    const mediaCount = wizardState.selectedMedia.length;
+    const acctCount = wizardState.selectedAccounts.length;
+    if (!mediaCount || !acctCount) return [];
+
+    let items = [];
+
+    if (strat === 'work_hours') {
+        // --- Work-Hour Aware: per-account scheduling ---
+        collectStepData();
+        const startDate = wizardState.whStartDate ? new Date(wizardState.whStartDate) : new Date();
+        const endDate = wizardState.whEndDate ? new Date(wizardState.whEndDate) : new Date(Date.now() + 7*86400000);
+        const ppd = wizardState.whPostsPerDay || 1;
+        const buf = wizardState.whBufferMinutes || 15;
+        const randomize = wizardState.whRandomize;
+        const roundRobin = wizardState.roundRobin;
+
+        // For each account, generate their times and assign media
+        let mediaPointer = 0; // global media pointer for round-robin across accounts
+        for (let a = 0; a < acctCount; a++) {
+            const acct = wizardState.selectedAccounts[a];
+            const acctTimes = generateTimesForAccount(acct, startDate, endDate, ppd, buf, randomize);
+
+            // How many media items for this account?
+            let mediaForAcct;
+            if (roundRobin) {
+                // Each account gets a slice of media (cycling)
+                mediaForAcct = [];
+                for (let t = 0; t < acctTimes.length; t++) {
+                    if (mediaPointer >= mediaCount) mediaPointer = 0;
+                    mediaForAcct.push(mediaPointer);
+                    mediaPointer++;
+                }
+            } else {
+                // Each account gets ALL media
+                mediaForAcct = [];
+                for (let t = 0; t < acctTimes.length; t++) {
+                    mediaForAcct.push(t % mediaCount);
+                }
+            }
+
+            // Limit to available slots
+            const slotCount = Math.min(acctTimes.length, mediaForAcct.length);
+            for (let i = 0; i < slotCount; i++) {
+                items.push({
+                    time: acctTimes[i],
+                    accountIdx: a,
+                    mediaIdx: mediaForAcct[i],
+                    account: acct,
+                    media: wizardState.selectedMedia[mediaForAcct[i]]
+                });
+            }
+        }
+
+        // Sort all items by time
+        items.sort((a, b) => a.time - b.time);
+
+    } else {
+        // --- Standard strategies ---
+        const times = generateScheduleTimes();
+        if (!times || !times.length) return [];
+
+        const roundRobin = wizardState.roundRobin;
+
+        if (roundRobin) {
+            // Each media file goes to one account, cycling through accounts
+            for (let i = 0; i < times.length && i < mediaCount; i++) {
+                const acctIdx = i % acctCount;
+                items.push({
+                    time: times[i],
+                    accountIdx: acctIdx,
+                    mediaIdx: i,
+                    account: wizardState.selectedAccounts[acctIdx],
+                    media: wizardState.selectedMedia[i]
+                });
+            }
+        } else {
+            // Each media to every account
+            let idx = 0;
+            for (let m = 0; m < mediaCount; m++) {
+                for (let a = 0; a < acctCount; a++) {
+                    if (idx < times.length) {
+                        items.push({
+                            time: times[idx],
+                            accountIdx: a,
+                            mediaIdx: m,
+                            account: wizardState.selectedAccounts[a],
+                            media: wizardState.selectedMedia[m]
+                        });
+                    }
+                    idx++;
+                }
+            }
+        }
+    }
+
+    wizardState.generatedSchedule = items;
+    return items;
+}
+
+function updateSchedulePreview() {
+    const items = buildScheduleItems();
+    const preview = $('#schedulePreview');
+
+    if (!items.length) {
+        preview.html('<div class="text-muted text-center py-3">Configure media & accounts first</div>');
+        return;
+    }
+
+    let html = `<div class="text-muted mb-2">Total: <strong class="text-white">${items.length} items</strong>
+        ${wizardState.roundRobin ? '<span class="badge bg-info bg-opacity-25 text-info ms-2">Round-robin</span>' : ''}
+    </div>`;
+
+    const showCount = Math.min(items.length, 25);
+    for (let i = 0; i < showCount; i++) {
+        const item = items[i];
+        html += `<div class="schedule-preview-item">
+            <span class="text-muted" style="min-width:30px">${i + 1}.</span>
+            <span style="min-width:130px">${formatDateTime(item.time)}</span>
+            <span class="text-primary">${item.account.username}</span>
+            <span class="text-muted ms-auto text-truncate" style="max-width:150px">${item.media.name}</span>
+        </div>`;
+    }
+    if (items.length > showCount) {
+        html += `<div class="text-muted text-center py-2">... and ${items.length - showCount} more items</div>`;
+    }
+    preview.html(html);
+}
+
+// ============ STEP 6: REVIEW ============
+function buildReview() {
+    collectStepData();
+    const items = buildScheduleItems();
+
+    const mediaCount = wizardState.selectedMedia.length;
+    const acctCount = wizardState.selectedAccounts.length;
+    const total = items.length;
+
+    const start = items.length ? items[0].time : new Date();
+    const end = items.length ? items[items.length - 1].time : new Date();
+
+    // Strategy label
+    const stratLabels = {
+        'work_hours': 'Work-Hour Aware',
+        'even_spread': 'Even Spread',
+        'fill_week': 'Fill Week',
+        'custom_interval': 'Custom Interval',
+        'random_times': 'Random Times'
+    };
+
+    $('#reviewType').html(typeIcon(wizardState.contentType));
+    $('#reviewMedia').text(mediaCount + ' files');
+    $('#reviewAccounts').text(acctCount + ' accounts');
+    $('#reviewTotal').text(total + ' items');
+    $('#reviewStart').text(formatDateTime(start));
+    $('#reviewEnd').text(formatDateTime(end));
+    $('#reviewInterval').text(stratLabels[wizardState.strategy] || wizardState.strategy);
+    $('#reviewCaption').text(wizardState.caption || '(none)');
+    $('#reviewHashtags').text(wizardState.hashtags || '(none)');
+
+    // Build review table
+    let tbody = '';
+    const showMax = 50;
+    for (let i = 0; i < Math.min(items.length, showMax); i++) {
+        const item = items[i];
+        tbody += `<tr>
+            <td>${i + 1}</td>
+            <td>${formatDateTime(item.time)}</td>
+            <td>${item.account.username}</td>
+            <td class="text-truncate" style="max-width:200px">${item.media.name}</td>
+        </tr>`;
+    }
+    if (total > showMax) tbody += `<tr><td colspan="4" class="text-muted text-center">... ${total - showMax} more</td></tr>`;
+    $('#reviewTableBody').html(tbody);
+}
+
+// ============ SUBMIT BATCH ============
+let _batchPollTimer = null;
+
+function submitBatch() {
+    const btn = $('#btnSubmitBatch');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Scheduling...');
+
+    const items = wizardState.generatedSchedule;
+    if (!items || !items.length) {
+        btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
+        showToast('No schedule items generated. Go back and configure timing.', 'warning');
+        return;
+    }
+
+    // Build schedule_items array for smart batch endpoint
+    const scheduleItems = items.map(item => ({
+        media_path: item.media.full_path,
+        account_id: item.account.account_id,
+        device_serial: item.account.device_serial,
+        username: item.account.username,
+        scheduled_time: item.time.toISOString()
+    }));
+
+    const payload = {
+        content_type: wizardState.contentType,
+        schedule_items: scheduleItems,
+        caption_template: wizardState.caption,
+        hashtags: wizardState.hashtags,
+        location: wizardState.location,
+        music_search_query: wizardState.musicSearch,
+        mention_username: wizardState.mentionUsername,
+        link_url: wizardState.linkUrl,
+        batch_name: wizardState.batchName,
+        strategy: wizardState.strategy,
+        media_paths: wizardState.selectedMedia.map(m => m.full_path),
+        accounts: wizardState.selectedAccounts,
+        start_time: items[0].time.toISOString(),
+        interval_hours: wizardState.intervalHours || 1
+    };
+
+    $.ajax({
+        url: API + '/batch',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(data) {
+            btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
+
+            if (data.status === 'processing' && data.batch_id) {
+                showBatchProgressModal(data.batch_id, data.total_estimate || items.length);
+            } else {
+                showToast('Batch scheduled! ' + (data.total_items || '?') + ' items created.', 'success', 8000);
+                resetWizard();
+                loadStats();
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fas fa-calendar-check me-2"></i>Schedule All');
+            const err = xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error';
+            const details = xhr.responseJSON && xhr.responseJSON.details;
+            let msg = 'Failed to schedule batch: ' + err;
+            if (details && Array.isArray(details)) {
+                msg += '<br><small>' + details.slice(0, 3).join('<br>') + '</small>';
+            }
+            showToast(msg, 'error', 10000);
+        }
+    });
+}
+
+function showBatchProgressModal(batchId, totalEstimate) {
+    $('#batchProgressBar').css('width', '0%').removeClass('bg-danger');
+    $('#batchProgressBar').addClass('progress-bar-striped progress-bar-animated bg-success');
+    $('#batchProgressPct').text('0%');
+    $('#batchProgressLabel').text('Processing 0/' + totalEstimate + ' items...');
+    $('#batchProgressDetail').html('<i class="fas fa-spinner fa-spin me-1"></i>Initializing...');
+    $('#batchProgressErrors').hide();
+    $('#batchProgressResult').hide();
+    $('#batchProgressFooter').hide();
+
+    var modal = new bootstrap.Modal('#batchProgressModal');
+    modal.show();
+
+    _batchPollTimer = setInterval(function() { pollBatchProgress(batchId); }, 500);
+}
+
+function pollBatchProgress(batchId) {
+    $.get(API + '/batch/' + batchId + '/progress', function(data) {
+        var done = data.done || 0;
+        var total = data.total || 1;
+        var pct = Math.min(Math.round((done / total) * 100), 100);
+        var currentItem = data.current_item || '';
+
+        $('#batchProgressBar').css('width', pct + '%');
+        $('#batchProgressPct').text(pct + '%');
+        $('#batchProgressLabel').text('Processing ' + done + '/' + total + ' items... (' + pct + '%)');
+        $('#batchProgressDetail').html(
+            data.status === 'processing'
+                ? '<i class="fas fa-spinner fa-spin me-1"></i>' + currentItem
+                : currentItem
+        );
+
+        if (data.errors && data.errors.length > 0) {
+            $('#batchProgressErrors').show();
+            $('#batchProgressErrorText').text(data.errors.join('; '));
+        }
+
+        if (data.status === 'completed') {
+            clearInterval(_batchPollTimer);
+            _batchPollTimer = null;
+
+            $('#batchProgressBar').css('width', '100%').removeClass('progress-bar-animated');
+            $('#batchProgressPct').text('100%');
+            $('#batchProgressLabel').text('Completed \u2014 ' + total + ' items scheduled');
+            $('#batchProgressDetail').html('<i class="fas fa-check text-success me-1"></i>All items saved successfully.');
+
+            if (data.result) {
+                var r = data.result;
+                var detailHtml = 'Batch ID: <code>' + r.batch_id + '</code><br>' +
+                    'Items: <strong>' + r.total_items + '</strong> | ' +
+                    'Accounts: <strong>' + r.accounts + '</strong> | ' +
+                    'Media: <strong>' + r.media_files + '</strong>';
+                if (r.start_time) {
+                    detailHtml += '<br>From: ' + new Date(r.start_time).toLocaleString();
+                }
+                if (r.end_time) {
+                    detailHtml += ' \u2192 ' + new Date(r.end_time).toLocaleString();
+                }
+                $('#batchResultDetails').html(detailHtml);
+                $('#batchProgressResult').show();
+            }
+
+            $('#batchProgressFooter').show();
+            showToast('Batch scheduling completed! \ud83c\udf89', 'success', 6000);
+
+        } else if (data.status === 'failed') {
+            clearInterval(_batchPollTimer);
+            _batchPollTimer = null;
+
+            $('#batchProgressBar').removeClass('bg-success progress-bar-animated').addClass('bg-danger');
+            $('#batchProgressLabel').text('Batch failed');
+            $('#batchProgressDetail').html('<i class="fas fa-times text-danger me-1"></i>' + (data.current_item || 'Unknown error'));
+            $('#batchProgressFooter').show();
+            showToast('Batch scheduling failed.', 'error', 8000);
+        }
+    }).fail(function() {
+        clearInterval(_batchPollTimer);
+        _batchPollTimer = null;
+        $('#batchProgressDetail').html('<i class="fas fa-exclamation-triangle text-warning me-1"></i>Lost connection to progress tracker.');
+        $('#batchProgressFooter').show();
+    });
+}
+
+function onBatchProgressClose() {
+    if (_batchPollTimer) {
+        clearInterval(_batchPollTimer);
+        _batchPollTimer = null;
+    }
+    resetWizard();
+    loadStats();
+    loadCalendar();
+}
+
+function resetWizard() {
+    wizardState = {
+        step: 1, contentType: null, selectedMedia: [], caption: '', hashtags: '',
+        location: '', musicSearch: '', mentionUsername: '', linkUrl: '',
+        selectedAccounts: [], startTime: '', intervalHours: 1, batchName: '',
+        strategy: 'work_hours',
+        whStartDate: '', whEndDate: '', whPostsPerDay: 1, whBufferMinutes: 15, whRandomize: true,
+        evenStartDate: '', evenEndDate: '',
+        evenPostsPerDay: 2, evenWindowStart: 9, evenWindowEnd: 21,
+        fillWeekPostsPerDay: 2, fillWeekStartDay: 'today',
+        randomStartDate: '', randomEndDate: '', randomPostsPerDay: 2,
+        randomWindowStart: 9, randomWindowEnd: 21, roundRobin: true,
+        generatedSchedule: []
+    };
+    $('.type-card').removeClass('selected');
+    $('#btnStep1Next').prop('disabled', true);
+    mediaTypeFilter = 'all';
+    currentFolderId = '';
+    selectStrategy('work_hours');
+    goToStep(1);
+}
+
+// ============ PENDING QUEUE ============
+function loadPending() {
+    const type = $('#pendingTypeFilter').val();
+    let url = API + '?status=pending,posting&limit=100';
+    if (type) url += '&content_type=' + type;
+
+    $.get(url, function(data) {
+        const items = data.items || [];
+        let html = '';
+        if (items.length === 0) {
+            html = '<tr><td colspan="7" class="text-center text-muted py-4">No pending items</td></tr>';
+        } else {
+            items.forEach(item => {
+                html += `<tr>
+                    <td>${formatDateTime(new Date(item.scheduled_time))}</td>
+                    <td>${typeIcon(item.content_type)}</td>
+                    <td>${item.username || '-'}</td>
+                    <td><small class="text-muted">${item.device_serial || '-'}</small></td>
+                    <td class="text-truncate" style="max-width:200px">${item.caption || '-'}</td>
+                    <td>${statusBadge(item.status)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-light" onclick="openEditModal(${item.id})" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger ms-1" onclick="cancelItem(${item.id})" title="Cancel">
+                            <i class="fas fa-ban"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+        }
+        $('#pendingTableBody').html(html);
+    });
+}
+
+// ============ HISTORY ============
+function loadHistory() {
+    const type = $('#historyTypeFilter').val();
+    const status = $('#historyStatusFilter').val();
+    let url = API + '?status=' + status + '&limit=100';
+    if (type) url += '&content_type=' + type;
+
+    $.get(url, function(data) {
+        const items = data.items || [];
+        let html = '';
+        if (items.length === 0) {
+            html = '<tr><td colspan="7" class="text-center text-muted py-4">No history items</td></tr>';
+        } else {
+            items.forEach(item => {
+                html += `<tr>
+                    <td>${formatDateTime(new Date(item.scheduled_time))}</td>
+                    <td>${item.posted_at ? formatDateTime(new Date(item.posted_at)) : '-'}</td>
+                    <td>${typeIcon(item.content_type)}</td>
+                    <td>${item.username || '-'}</td>
+                    <td class="text-truncate" style="max-width:200px">${item.caption || '-'}</td>
+                    <td>${statusBadge(item.status)}</td>
+                    <td class="text-truncate text-danger" style="max-width:150px">${item.error_message || '-'}</td>
+                </tr>`;
+            });
+        }
+        $('#historyTableBody').html(html);
+    });
+}
+
+// ============ BATCHES ============
+function loadBatches() {
+    $.get(API + '/batches', function(data) {
+        const batches = data.batches || [];
+        let html = '';
+        if (batches.length === 0) {
+            html = '<tr><td colspan="8" class="text-center text-muted py-4">No batches yet</td></tr>';
+        } else {
+            batches.forEach(b => {
+                const progress = b.total_items > 0
+                    ? Math.round((b.completed_items / b.total_items) * 100)
+                    : 0;
+                html += `<tr>
+                    <td>
+                        <strong>${b.name || b.batch_id}</strong>
+                        <br><small class="text-muted">${b.batch_id}</small>
+                    </td>
+                    <td>${typeIcon(b.content_type)}</td>
+                    <td>${b.total_items}</td>
+                    <td class="text-success">${b.completed_items}</td>
+                    <td class="text-danger">${b.failed_items}</td>
+                    <td>${statusBadge(b.status)}
+                        <div class="progress mt-1" style="height:4px">
+                            <div class="progress-bar bg-success" style="width:${progress}%"></div>
+                        </div>
+                    </td>
+                    <td><small>${formatDateTime(new Date(b.created_at))}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-light" onclick="viewBatchDetail('${b.batch_id}')" title="View">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${b.status === 'active' ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="cancelBatch('${b.batch_id}')" title="Cancel">
+                            <i class="fas fa-ban"></i>
+                        </button>` : ''}
+                    </td>
+                </tr>`;
+            });
+        }
+        $('#batchesTableBody').html(html);
+    });
+}
+
+function viewBatchDetail(batchId) {
+    // Switch to pending tab filtered by batch
+    $('a[href="#tab-pending"]').tab('show');
+    $.get(API + '?batch_id=' + batchId + '&limit=500', function(data) {
+        const items = data.items || [];
+        let html = '';
+        items.forEach(item => {
+            html += `<tr>
+                <td>${formatDateTime(new Date(item.scheduled_time))}</td>
+                <td>${typeIcon(item.content_type)}</td>
+                <td>${item.username || '-'}</td>
+                <td><small class="text-muted">${item.device_serial || '-'}</small></td>
+                <td class="text-truncate" style="max-width:200px">${item.caption || '-'}</td>
+                <td>${statusBadge(item.status)}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-light" onclick="openEditModal(${item.id})"><i class="fas fa-edit"></i></button>
+                    ${item.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="cancelItem(${item.id})"><i class="fas fa-ban"></i></button>` : ''}
+                </td>
+            </tr>`;
+        });
+        if (!html) html = '<tr><td colspan="7" class="text-center text-muted py-4">No items in this batch</td></tr>';
+        $('#pendingTableBody').html(html);
+    });
+}
+
+function cancelBatch(batchId) {
+    if (!confirm('Cancel all pending items in this batch?')) return;
+    $.ajax({
+        url: API + '/batches/' + batchId,
+        method: 'DELETE',
+        success: function(data) {
+            showToast('Batch cancelled: ' + (data.cancelled || 0) + ' items cancelled', 'success');
+            loadBatches();
+            loadStats();
+        },
+        error: function(xhr) {
+            showToast((xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'), 'error');
+        }
+    });
+}
+
+// ============ EDIT MODAL ============
+function openEditModal(itemId) {
+    $.get(API + '/' + itemId, function(item) {
+        $('#editItemId').val(item.id);
+        $('#editCaption').val(item.caption || '');
+        $('#editHashtags').val(item.hashtags || '');
+        $('#editStatus').val(item.status);
+        if (item.scheduled_time) {
+            const dt = item.scheduled_time.replace(' ', 'T').slice(0, 16);
+            $('#editScheduledTime').val(dt);
+        }
+        new bootstrap.Modal('#editItemModal').show();
+    });
+}
+
+function saveEditItem() {
+    const id = $('#editItemId').val();
+    const payload = {
+        caption: $('#editCaption').val(),
+        hashtags: $('#editHashtags').val(),
+        scheduled_time: $('#editScheduledTime').val(),
+        status: $('#editStatus').val()
+    };
+    $.ajax({
+        url: API + '/' + id,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function() {
+            bootstrap.Modal.getInstance(document.getElementById('editItemModal')).hide();
+            loadPending();
+            loadCalendar();
+            loadStats();
+        },
+        error: function(xhr) {
+            showToast((xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'), 'error');
+        }
+    });
+}
+
+function deleteItem() {
+    const id = $('#editItemId').val();
+    if (!confirm('Delete this scheduled item?')) return;
+    $.ajax({
+        url: API + '/' + id,
+        method: 'DELETE',
+        success: function() {
+            bootstrap.Modal.getInstance(document.getElementById('editItemModal')).hide();
+            loadPending();
+            loadCalendar();
+            loadStats();
+        }
+    });
+}
+
+function cancelItem(id) {
+    if (!confirm('Cancel this item?')) return;
+    $.ajax({
+        url: API + '/' + id,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({ status: 'cancelled' }),
+        success: function() { loadPending(); loadStats(); }
+    });
+}
+
+// ============ HELPERS ============
+function typeIcon(type) {
+    if (type === 'post') return '<span class="badge badge-post"><i class="fas fa-image me-1"></i>Post</span>';
+    if (type === 'reel') return '<span class="badge badge-reel"><i class="fas fa-film me-1"></i>Reel</span>';
+    if (type === 'story') return '<span class="badge badge-story"><i class="fas fa-circle-notch me-1"></i>Story</span>';
+    return type || '-';
+}
+
+function calTypeIcon(type) {
+    if (type === 'post') return '<i class="fas fa-image" style="color:#0d6efd;font-size:0.7rem" title="Post"></i>';
+    if (type === 'reel') return '<i class="fas fa-film" style="color:#6f42c1;font-size:0.7rem" title="Reel"></i>';
+    if (type === 'story') return '<i class="fas fa-circle-notch" style="color:#fd7e14;font-size:0.7rem" title="Story"></i>';
+    return '';
+}
+
+function statusBadge(status) {
+    const map = {
+        pending: 'badge-pending', posting: 'badge-posting',
+        completed: 'badge-completed', failed: 'badge-failed',
+        cancelled: 'badge-cancelled', active: 'badge-pending',
+        completed_with_errors: 'badge-failed'
+    };
+    return `<span class="badge ${map[status] || 'bg-secondary'}">${status}</span>`;
+}
+
+function formatDateTime(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '-';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+           date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// ============ TEST POST NOW ============
+let tpPollTimer = null;
+let tpAllFolderFiles = [];
+let tpAllAccounts = [];
+
+function openTestPostModal() {
+    // Reset form
+    $('#testPostForm').show();
+    $('#testPostProgress').hide();
+    $('#tpResultBanner').hide();
+    $('#btnTestPost').prop('disabled', false).html('<i class="fas fa-play me-1"></i>Post Now');
+    $('#tpCaption').val('');
+    $('#tpHashtags').val('');
+    $('#tpMusic').val('');
+    $('#tpLocation').val('');
+    $('#tpMediaFile').html('<option value="">-- Select file --</option>');
+    $('#tpMediaPreview').hide();
+    tpAllFolderFiles = [];
+    $('#tpDevice').val('');
+
+    // Load accounts + populate device filter
+    $.get(API + '/accounts', function(data) {
+        tpAllAccounts = data.accounts || [];
+        // Build unique devices
+        const devices = {};
+        tpAllAccounts.forEach(function(a) {
+            const ds = a.device_serial || 'unknown';
+            const dn = a.device_name || ds;
+            if (!devices[ds]) devices[ds] = dn;
+        });
+        let devOpts = '<option value="">-- All devices --</option>';
+        Object.keys(devices).sort().forEach(function(ds) {
+            devOpts += '<option value="' + ds + '">' + devices[ds] + ' (' + ds + ')</option>';
+        });
+        $('#tpDevice').html(devOpts);
+        filterTpAccounts();
+    });
+
+    // Load media folders
+    $.get(API + '/media-folders', function(data) {
+        const folders = data.folders || [];
+        let opts = '<option value="">-- Select folder --</option>';
+        folders.forEach(function(f) {
+            opts += '<option value="' + f.path + '">' + f.name + ' (' + f.media_count + ' files)</option>';
+        });
+        $('#tpMediaFolder').html(opts);
+    });
+
+    onTpContentTypeChange();
+    new bootstrap.Modal('#testPostModal').show();
+}
+
+function filterTpAccounts() {
+    const selectedDevice = $('#tpDevice').val();
+    const filtered = selectedDevice
+        ? tpAllAccounts.filter(a => a.device_serial === selectedDevice)
+        : tpAllAccounts;
+    let opts = '<option value="">-- Select account --</option>';
+    filtered.forEach(function(a) {
+        opts += '<option value="' + a.id + '">' + a.username + ' (' + (a.device_name || a.device_serial) + ')</option>';
+    });
+    $('#tpAccount').html(opts);
+}
+
+function onTpContentTypeChange() {
+    var ct = $('#tpContentType').val();
+    if (ct === 'reel') {
+        $('#tpMusicGroup').show();
+    } else {
+        $('#tpMusicGroup').hide();
+    }
+}
+
+function loadTpFolderFiles() {
+    var folder = $('#tpMediaFolder').val();
+    if (!folder) {
+        $('#tpMediaFile').html('<option value="">-- Select file --</option>');
+        tpAllFolderFiles = [];
+        return;
+    }
+    $.get(API + '/media-folders/' + encodeURIComponent(folder), function(data) {
+        tpAllFolderFiles = data.files || [];
+        var opts = '<option value="">-- Select file --</option>';
+        tpAllFolderFiles.forEach(function(f) {
+            var sizeKB = Math.round(f.size / 1024);
+            var icon = f.is_video ? '[Video]' : '[Image]';
+            opts += '<option value="' + f.path + '" data-full="' + f.full_path + '">' + icon + ' ' + f.name + ' (' + sizeKB + ' KB)</option>';
+        });
+        $('#tpMediaFile').html(opts);
+    });
+
+    // Preview on change
+    $('#tpMediaFile').off('change').on('change', function() {
+        var path = $(this).val();
+        if (!path) {
+            $('#tpMediaPreview').hide();
+            return;
+        }
+        var file = tpAllFolderFiles.find(function(f) { return f.path === path; });
+        if (file && !file.is_video) {
+            var imgUrl = file.thumb_url || (API + '/media-file/' + encodeURIComponent(path));
+            $('#tpMediaPreview').html('<img src="' + imgUrl + '" style="max-height:180px; border-radius:8px;">').show();
+        } else if (file && file.is_video) {
+            $('#tpMediaPreview').html('<div class="py-4 text-muted"><i class="fas fa-video fa-3x mb-2 d-block"></i>' + file.name + '</div>').show();
+        } else {
+            $('#tpMediaPreview').hide();
+        }
+    });
+}
+
+function submitTestPost() {
+    var accountId = $('#tpAccount').val();
+    var contentType = $('#tpContentType').val();
+    var mediaPath = $('#tpMediaFile').val();
+    var caption = $('#tpCaption').val();
+    var hashtags = $('#tpHashtags').val();
+    var music = $('#tpMusic').val();
+    var location = $('#tpLocation').val();
+
+    if (!accountId) { showToast('Please select an account', 'warning'); return; }
+    if (!mediaPath) { showToast('Please select a media file', 'warning'); return; }
+
+    // Find full_path from the files list
+    var file = tpAllFolderFiles.find(function(f) { return f.path === mediaPath; });
+    var fullPath = file ? file.full_path : mediaPath;
+
+    var payload = {
+        account_id: parseInt(accountId),
+        content_type: contentType,
+        media_path: fullPath,
+        caption: caption,
+        hashtags: hashtags,
+        music_search_query: music,
+        location: location
+    };
+
+    $('#btnTestPost').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Starting...');
+
+    $.ajax({
+        url: API + '/test-post',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(resp) {
+            if (resp.status !== 'success') {
+                showToast((resp.message || 'Unknown error'), 'error');
+                $('#btnTestPost').prop('disabled', false).html('<i class="fas fa-play me-1"></i>Post Now');
+                return;
+            }
+            // Switch to progress view
+            $('#testPostForm').hide();
+            $('#testPostProgress').show();
+            $('#tpProgressTitle').text('Starting test post...');
+            $('#tpProgressAccount').text('@' + ($('#tpAccount option:selected').text()));
+            $('#tpProgressLog').html('');
+            $('#tpSpinner').show();
+            $('#tpResultBanner').hide();
+            $('#btnTestPost').hide();
+
+            // Start polling
+            var testId = resp.test_id;
+            var lastStepCount = 0;
+            tpPollTimer = setInterval(function() {
+                $.get(API + '/test-post/status?test_id=' + testId, function(data) {
+                    if (data.status !== 'success' || !data.progress) return;
+                    var p = data.progress;
+
+                    $('#tpProgressTitle').text(p.message || p.status);
+
+                    // Append new steps
+                    var steps = p.steps || [];
+                    for (var i = lastStepCount; i < steps.length; i++) {
+                        var s = steps[i];
+                        var time = s.time ? s.time.split('T')[1].split('.')[0] : '';
+                        var cls = 'text-info';
+                        if (p.status === 'failed' && i === steps.length - 1) cls = 'text-danger';
+                        if (p.status === 'completed' && i === steps.length - 1) cls = 'text-success';
+                        $('#tpProgressLog').append(
+                            '<div class="' + cls + '" style="font-size:0.85rem;">' +
+                            '<small class="text-muted me-2">' + time + '</small>' + s.msg + '</div>'
+                        );
+                    }
+                    lastStepCount = steps.length;
+                    // Auto-scroll log
+                    var logEl = document.getElementById('tpProgressLog');
+                    if (logEl) logEl.scrollTop = logEl.scrollHeight;
+
+                    // Check completion
+                    if (p.status === 'completed' || p.status === 'failed') {
+                        clearInterval(tpPollTimer);
+                        tpPollTimer = null;
+                        $('#tpSpinner').hide();
+                        if (p.success) {
+                            $('#tpResultBanner').html(
+                                '<div class="alert alert-success mb-0"><i class="fas fa-check-circle me-2"></i>Test post completed successfully!</div>'
+                            ).show();
+                        } else {
+                            $('#tpResultBanner').html(
+                                '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>Test post failed: ' +
+                                (p.error || 'Unknown error') + '</div>'
+                            ).show();
+                        }
+                    }
+                });
+            }, 2000);
+        },
+        error: function(xhr) {
+            var err = xhr.responseJSON ? xhr.responseJSON.message : 'Request failed';
+            showToast(err, 'error');
+            $('#btnTestPost').prop('disabled', false).html('<i class="fas fa-play me-1"></i>Post Now');
+        }
+    });
+}
+
+// Clean up poll timer when modal closes
+$(document).on('hidden.bs.modal', '#testPostModal', function() {
+    if (tpPollTimer) {
+        clearInterval(tpPollTimer);
+        tpPollTimer = null;
+    }
+});
+</script>
+{% endblock %}
