@@ -204,10 +204,26 @@ def discover_python_files() -> list:
     return sorted(py_files)
 
 
+# ── DB files to SKIP (user data, created at runtime) ──
+SKIP_DB_FILES = {
+    "phone_farm.db", "phone_farm.db-wal", "phone_farm.db-shm",
+    "login_automation.db", "profile_automation.db",
+    "account_inventory.db", "media_library.db",
+    "devices.db",
+}
+
+# Skip DB files matching these path patterns
+SKIP_DB_DIRS = {
+    "bot_data",   # GramAddict per-device DBs
+    "backups",    # DB backups
+}
+
+
 def discover_asset_files() -> list:
     """
     Discover non-Python files that should be copied as-is.
     Returns list of (src_path, dest_path) tuples.
+    Skips user-specific DB files that are created at runtime.
     """
     assets = []
     
@@ -218,6 +234,12 @@ def discover_asset_files() -> list:
         
         for f in files:
             if f.endswith(".py") or f.endswith(".pyc") or f.endswith(".pyo"):
+                continue
+            
+            # Skip runtime DB files
+            if f in SKIP_DB_FILES:
+                continue
+            if f.endswith('.db') and any(skip_dir in str(rel_root) for skip_dir in SKIP_DB_DIRS):
                 continue
             
             rel_path = rel_root / f
