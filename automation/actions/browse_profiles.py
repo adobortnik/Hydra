@@ -48,11 +48,11 @@ class BrowseProfilesAction:
         pkg = account_info.get('package', package)
         self.ctrl = IGController(device, device_serial, pkg)
 
-        # Load settings
-        self.time_min = int(self.settings.get('browse_profiles_time_min', 30))
-        self.time_max = int(self.settings.get('browse_profiles_time_max', 120))
-        self.can_like = self.settings.get('browse_profiles_can_like', True)
-        self.daily_limit = int(self.settings.get('browse_profiles_limit_perday', 10))
+        # Load settings (guard against None values stored in DB)
+        self.time_min = int(self.settings.get('browse_profiles_time_min') or 30)
+        self.time_max = int(self.settings.get('browse_profiles_time_max') or 120)
+        self.can_like = bool(self.settings.get('browse_profiles_can_like', True))
+        self.daily_limit = int(self.settings.get('browse_profiles_limit_perday') or 10)
 
     def execute(self):
         """
