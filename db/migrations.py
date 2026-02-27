@@ -89,9 +89,11 @@ CREATE TABLE IF NOT EXISTS follower_snapshots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     account_id INTEGER NOT NULL,
     username TEXT,
+    device_serial TEXT,
     followers INTEGER DEFAULT 0,
     following INTEGER DEFAULT 0,
     posts INTEGER DEFAULT 0,
+    posts_count INTEGER DEFAULT 0,
     captured_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (account_id) REFERENCES accounts(id)
 );
@@ -329,6 +331,14 @@ MIGRATIONS = [
      'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%is_private%'"},
     {'sql': "ALTER TABLE accounts ADD COLUMN private_switched_at TEXT",
      'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%private_switched_at%'"},
+
+    # follower_snapshots — columns added after initial table creation
+    {'name': 'add_device_serial_to_follower_snapshots',
+     'sql': "ALTER TABLE follower_snapshots ADD COLUMN device_serial TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='follower_snapshots' AND sql LIKE '%device_serial%'"},
+    {'name': 'add_posts_count_to_follower_snapshots',
+     'sql': "ALTER TABLE follower_snapshots ADD COLUMN posts_count INTEGER DEFAULT 0",
+     'check': "SELECT sql FROM sqlite_master WHERE name='follower_snapshots' AND sql LIKE '%posts_count%'"},
 ]
 
 

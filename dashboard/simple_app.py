@@ -2490,6 +2490,19 @@ def _auth_required_response():
 # Ensure config exists at import time
 _load_auth_config()
 
+# Ensure DB schema is up to date (runs migrations for missing columns)
+try:
+    import sys as _sys
+    _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _parent not in _sys.path:
+        _sys.path.insert(0, _parent)
+    from db.migrations import ensure_schema as _ensure_schema
+    _db_path = os.path.join(_parent, 'db', 'phone_farm.db')
+    if os.path.exists(_db_path):
+        _ensure_schema(_db_path)
+except Exception as _e:
+    print(f"[WARNING] Schema migration failed: {_e}")
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024  # 512 MB per request
