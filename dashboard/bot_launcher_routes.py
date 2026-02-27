@@ -147,10 +147,10 @@ def _find_run_device_processes(use_cache=True):
     return processes
 
 
-def _find_process_for_serial(serial):
+def _find_process_for_serial(serial, use_cache=True):
     """Find PID(s) for a specific device serial."""
     serial_db = serial.replace(':', '_')
-    procs = _find_run_device_processes()
+    procs = _find_run_device_processes(use_cache=use_cache)
     return [p for p in procs if p['serial'] == serial_db]
 
 
@@ -350,15 +350,15 @@ def launch_single(serial):
     """
     serial_db = serial.replace(':', '_')
 
-    # Check if already running
-    existing = _find_process_for_serial(serial_db)
+    # Check if already running (skip cache — need fresh data for launch decisions)
+    existing = _find_process_for_serial(serial_db, use_cache=False)
     if existing:
         return jsonify({
-            'success': False,
-            'error': 'already_running',
+            'success': True,
+            'already_running': True,
             'message': f'Bot already running for {serial_db}',
             'pid': existing[0]['pid'],
-        }), 409
+        })
 
     # Verify device exists in DB
     conn = _get_db()
@@ -375,11 +375,6 @@ def launch_single(serial):
 
     success, info = _launch_device(serial_db)
     if success:
-        # Re-check for the actual PID (takes a moment to show up)
-        time.sleep(1.5)
-        procs = _find_process_for_serial(serial_db)
-        pid = procs[0]['pid'] if procs else None
-
         # Mark device as connected/online
         try:
             update_device_status(serial_db, 'connected')
@@ -391,7 +386,6 @@ def launch_single(serial):
             'success': True,
             'serial': serial_db,
             'device_name': info.get('device_name'),
-            'pid': pid,
             'status': 'launched',
         })
     else:

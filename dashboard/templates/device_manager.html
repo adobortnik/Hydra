@@ -724,7 +724,7 @@ async function startAllBots() {
         try {
             const resp = await fetch(`/api/bot/launch/${encodeURIComponent(dev.device_serial)}`, { method: 'POST' });
             const data = await resp.json();
-            if (data.success) ok++; else fail++;
+            if (data.success || data.already_running) ok++; else fail++;
         } catch (e) {
             fail++;
         }
