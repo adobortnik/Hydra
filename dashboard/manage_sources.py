@@ -181,9 +181,16 @@ _DB_SOURCE_TYPE_MAP = {
 
 
 # Get all accounts from all devices with their sources from phone_farm.db
+# Settings-based source types (stored in settings_json, not account_sources)
+_SETTINGS_SOURCE_TYPES = {
+    'browse_profiles': 'browse_profiles_sources',
+}
+
+
 def get_all_accounts_with_sources(source_type='follow'):
     try:
         db_source_type = _DB_SOURCE_TYPE_MAP.get(source_type, source_type)
+        settings_key = _SETTINGS_SOURCE_TYPES.get(source_type)
 
         conn = get_db_connection(PHONE_FARM_DB)
         cursor = conn.cursor()
@@ -201,14 +208,33 @@ def get_all_accounts_with_sources(source_type='follow'):
             device_id = row['device_serial']
             account_name = row['username']
 
-            # Get sources for this account + source_type
-            cursor.execute(
-                'SELECT value FROM account_sources WHERE account_id = ? AND source_type = ? ORDER BY value',
-                (acct_id, db_source_type)
-            )
-            source_rows = cursor.fetchall()
-            sources_content = '\n'.join(r['value'] for r in source_rows)
-            usernames_count = len(source_rows)
+            if settings_key:
+                # Read from settings_json
+                cursor.execute(
+                    'SELECT settings_json FROM account_settings WHERE account_id = ?',
+                    (acct_id,)
+                )
+                settings_row = cursor.fetchone()
+                sources_content = ''
+                if settings_row and settings_row['settings_json']:
+                    import json as _json
+                    try:
+                        sj = _json.loads(settings_row['settings_json'])
+                        sources_content = sj.get(settings_key, '') or ''
+                    except Exception:
+                        pass
+                username_list = [u.strip() for u in sources_content.split('\n') if u.strip()]
+                usernames_count = len(username_list)
+                sources_content = '\n'.join(username_list)
+            else:
+                # Read from account_sources table
+                cursor.execute(
+                    'SELECT value FROM account_sources WHERE account_id = ? AND source_type = ? ORDER BY value',
+                    (acct_id, db_source_type)
+                )
+                source_rows = cursor.fetchall()
+                sources_content = '\n'.join(r['value'] for r in source_rows)
+                usernames_count = len(source_rows)
 
             # Get tags
             cursor.execute('''
@@ -254,6 +280,7 @@ def update_sources_files(account_data, source_type=None):
             source_type = account_data.get('source_type', 'follow')
 
         db_source_type = _DB_SOURCE_TYPE_MAP.get(source_type, source_type)
+        settings_key = _SETTINGS_SOURCE_TYPES.get(source_type)
 
         if not account_ids or not usernames:
             return {
@@ -290,16 +317,43 @@ def update_sources_files(account_data, source_type=None):
 
                 acct_id = row[0]
 
-                # Delete old sources for this type, then insert new
-                cursor.execute(
-                    'DELETE FROM account_sources WHERE account_id = ? AND source_type = ?',
-                    (acct_id, db_source_type)
-                )
-                for username in username_list:
+                if settings_key:
+                    # Write to settings_json
+                    import json as _json
                     cursor.execute(
-                        'INSERT INTO account_sources (account_id, source_type, value) VALUES (?, ?, ?)',
-                        (acct_id, db_source_type, username)
+                        'SELECT settings_json FROM account_settings WHERE account_id = ?',
+                        (acct_id,)
                     )
+                    srow = cursor.fetchone()
+                    sj = {}
+                    if srow and srow[0]:
+                        try:
+                            sj = _json.loads(srow[0])
+                        except Exception:
+                            pass
+                    sj[settings_key] = '\n'.join(username_list)
+                    new_json = _json.dumps(sj)
+                    if srow:
+                        cursor.execute(
+                            'UPDATE account_settings SET settings_json = ? WHERE account_id = ?',
+                            (new_json, acct_id)
+                        )
+                    else:
+                        cursor.execute(
+                            'INSERT INTO account_settings (account_id, settings_json) VALUES (?, ?)',
+                            (acct_id, new_json)
+                        )
+                else:
+                    # Write to account_sources table
+                    cursor.execute(
+                        'DELETE FROM account_sources WHERE account_id = ? AND source_type = ?',
+                        (acct_id, db_source_type)
+                    )
+                    for username in username_list:
+                        cursor.execute(
+                            'INSERT INTO account_sources (account_id, source_type, value) VALUES (?, ?, ?)',
+                            (acct_id, db_source_type, username)
+                        )
 
                 success_count += 1
 
@@ -362,6 +416,7 @@ def api_sources_types():
         {'key': 'dm', 'label': 'DM Sources'},
         {'key': 'reels', 'label': 'Reels Sources'},
         {'key': 'whitelist', 'label': 'Whitelist'},
+        {'key': 'browse_profiles', 'label': 'Browse Profiles Sources'},
     ])
 
 
