@@ -1133,13 +1133,18 @@ class BotEngine:
         if not real_actions:
             actions.append(('engage', self._action_engage))
 
-        # Randomize order slightly (but keep check_profile first, engage second)
+        # Order: check_profile -> job orders (by priority) -> regular actions (shuffled) -> engage/HBE last
         if len(actions) > 1:
             profile_actions = [a for a in actions if a[0] == 'check_profile']
-            engage_actions = [a for a in actions if a[0] == 'engage']
-            other_actions = [a for a in actions if a[0] not in ('engage', 'check_profile')]
+            job_actions_list = [a for a in actions if a[0].startswith('job_')]
+            engage_actions = [a for a in actions if a[0] in ('engage', 'browse_profiles')]
+            other_actions = [a for a in actions if a[0] not in
+                            ('check_profile', 'engage', 'browse_profiles')
+                            and not a[0].startswith('job_')]
             random.shuffle(other_actions)
-            actions = profile_actions + engage_actions + other_actions
+            random.shuffle(engage_actions)
+            # job_actions_list already sorted by priority from _check_job_orders
+            actions = profile_actions + job_actions_list + other_actions + engage_actions
 
         return actions
 
