@@ -196,13 +196,19 @@ class BrowseProfilesAction:
 
                 # Maybe like (only if enabled and random chance)
                 if self.can_like and likes == 0 and random.random() < 0.3:
-                    if self.ctrl.like_post():
-                        likes += 1
-                        log.info("[%s] Liked a post on @%s's profile",
-                                 self.device_serial, target_username)
-                        log_action(
-                            self.session_id, self.device_serial, self.username,
-                            'like', target_username=target_username, success=True)
+                    try:
+                        like_btn = self.device(descriptionContains="Like")
+                        if like_btn.exists(timeout=1):
+                            like_btn.click()
+                            time.sleep(1)
+                            likes += 1
+                            log.info("[%s] Liked a post on @%s's profile",
+                                     self.device_serial, target_username)
+                            log_action(
+                                self.session_id, self.device_serial, self.username,
+                                'like', target_username=target_username, success=True)
+                    except Exception as e:
+                        log.debug("[%s] Like attempt failed: %s", self.device_serial, e)
 
                 # Go back to profile
                 self.ctrl.press_back()
@@ -268,20 +274,19 @@ class BrowseProfilesAction:
             self.device.click(tap_x, tap_y)
             time.sleep(2)
 
-            # Verify we opened something (not still on profile grid)
-            # Check if we're on a post detail or reel view
-            screen = self.ctrl.detect_screen()
-            if screen in (Screen.POST_DETAIL, Screen.REEL_VIEWER):
-                return True
-
-            # Check for like button which indicates we're viewing a post
+            # Verify we opened something (check for post/reel indicators)
+            # Like button or comment field = we're on a post
             like_btn = self.device(descriptionContains="Like")
-            if like_btn.exists(timeout=1):
+            if like_btn.exists(timeout=2):
                 return True
 
-            # Check for comment field
             comment_field = self.device(textContains="Add a comment")
             if comment_field.exists(timeout=1):
+                return True
+
+            # Comment button (row_feed_button_comment)
+            comment_btn = self.device(resourceIdMatches=".*row_feed_button_comment")
+            if comment_btn.exists(timeout=1):
                 return True
 
             # Might still be on profile — that's ok, the tap just missed
