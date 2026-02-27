@@ -177,20 +177,14 @@ _DB_SOURCE_TYPE_MAP = {
     'reels': 'watch_reels_sources',
     'whitelist': 'whitelist',
     'close_friends': 'close_friends',
-}
-
-
-# Get all accounts from all devices with their sources from phone_farm.db
-# Settings-based source types (stored in settings_json, not account_sources)
-_SETTINGS_SOURCE_TYPES = {
     'browse_profiles': 'browse_profiles_sources',
 }
 
 
+# Get all accounts from all devices with their sources from phone_farm.db
 def get_all_accounts_with_sources(source_type='follow'):
     try:
         db_source_type = _DB_SOURCE_TYPE_MAP.get(source_type, source_type)
-        settings_key = _SETTINGS_SOURCE_TYPES.get(source_type)
 
         conn = get_db_connection(PHONE_FARM_DB)
         cursor = conn.cursor()
@@ -208,33 +202,14 @@ def get_all_accounts_with_sources(source_type='follow'):
             device_id = row['device_serial']
             account_name = row['username']
 
-            if settings_key:
-                # Read from settings_json
-                cursor.execute(
-                    'SELECT settings_json FROM account_settings WHERE account_id = ?',
-                    (acct_id,)
-                )
-                settings_row = cursor.fetchone()
-                sources_content = ''
-                if settings_row and settings_row['settings_json']:
-                    import json as _json
-                    try:
-                        sj = _json.loads(settings_row['settings_json'])
-                        sources_content = sj.get(settings_key, '') or ''
-                    except Exception:
-                        pass
-                username_list = [u.strip() for u in sources_content.split('\n') if u.strip()]
-                usernames_count = len(username_list)
-                sources_content = '\n'.join(username_list)
-            else:
-                # Read from account_sources table
-                cursor.execute(
-                    'SELECT value FROM account_sources WHERE account_id = ? AND source_type = ? ORDER BY value',
-                    (acct_id, db_source_type)
-                )
-                source_rows = cursor.fetchall()
-                sources_content = '\n'.join(r['value'] for r in source_rows)
-                usernames_count = len(source_rows)
+            # Get sources for this account + source_type
+            cursor.execute(
+                'SELECT value FROM account_sources WHERE account_id = ? AND source_type = ? ORDER BY value',
+                (acct_id, db_source_type)
+            )
+            source_rows = cursor.fetchall()
+            sources_content = '\n'.join(r['value'] for r in source_rows)
+            usernames_count = len(source_rows)
 
             # Get tags
             cursor.execute('''
@@ -280,7 +255,6 @@ def update_sources_files(account_data, source_type=None):
             source_type = account_data.get('source_type', 'follow')
 
         db_source_type = _DB_SOURCE_TYPE_MAP.get(source_type, source_type)
-        settings_key = _SETTINGS_SOURCE_TYPES.get(source_type)
 
         if not account_ids or not usernames:
             return {
@@ -317,43 +291,16 @@ def update_sources_files(account_data, source_type=None):
 
                 acct_id = row[0]
 
-                if settings_key:
-                    # Write to settings_json
-                    import json as _json
+                # Delete old sources for this type, then insert new
+                cursor.execute(
+                    'DELETE FROM account_sources WHERE account_id = ? AND source_type = ?',
+                    (acct_id, db_source_type)
+                )
+                for username in username_list:
                     cursor.execute(
-                        'SELECT settings_json FROM account_settings WHERE account_id = ?',
-                        (acct_id,)
+                        'INSERT INTO account_sources (account_id, source_type, value) VALUES (?, ?, ?)',
+                        (acct_id, db_source_type, username)
                     )
-                    srow = cursor.fetchone()
-                    sj = {}
-                    if srow and srow[0]:
-                        try:
-                            sj = _json.loads(srow[0])
-                        except Exception:
-                            pass
-                    sj[settings_key] = '\n'.join(username_list)
-                    new_json = _json.dumps(sj)
-                    if srow:
-                        cursor.execute(
-                            'UPDATE account_settings SET settings_json = ? WHERE account_id = ?',
-                            (new_json, acct_id)
-                        )
-                    else:
-                        cursor.execute(
-                            'INSERT INTO account_settings (account_id, settings_json) VALUES (?, ?)',
-                            (acct_id, new_json)
-                        )
-                else:
-                    # Write to account_sources table
-                    cursor.execute(
-                        'DELETE FROM account_sources WHERE account_id = ? AND source_type = ?',
-                        (acct_id, db_source_type)
-                    )
-                    for username in username_list:
-                        cursor.execute(
-                            'INSERT INTO account_sources (account_id, source_type, value) VALUES (?, ?, ?)',
-                            (acct_id, db_source_type, username)
-                        )
 
                 success_count += 1
 
@@ -431,6 +378,41 @@ def api_sources_info():
         return jsonify({'error': 'device_id and account_name required'}), 400
 
     action_type = _DASHBOARD_TYPE_MAP.get(action_type, action_type)
+
+    # DB-backed source types — read from account_sources table
+    db_key = _DB_SOURCE_TYPE_MAP.get(action_type)
+    if db_key:
+        try:
+            conn = get_db_connection(PHONE_FARM_DB)
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT id FROM accounts WHERE device_serial = ? AND username = ?',
+                (device_id, account_name)
+            )
+            row = cursor.fetchone()
+            content = ''
+            count = 0
+            if row:
+                acct_id = row['id']
+                cursor.execute(
+                    'SELECT value FROM account_sources WHERE account_id = ? AND source_type = ? ORDER BY value',
+                    (acct_id, db_key)
+                )
+                vals = [r['value'] for r in cursor.fetchall()]
+                content = '\n'.join(vals)
+                count = len(vals)
+            conn.close()
+            return jsonify({
+                'device_id': device_id,
+                'account_name': account_name,
+                'action_type': action_type,
+                'source_type': db_key,
+                'exists': count > 0,
+                'count': count,
+                'content': content,
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     if _HAS_SOURCE_MANAGER:
         info = get_source_info(device_id, account_name, action_type)

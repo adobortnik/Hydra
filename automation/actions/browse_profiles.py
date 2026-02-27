@@ -141,9 +141,22 @@ class BrowseProfilesAction:
 
     def _get_sources(self):
         """
-        Get list of source usernames from settings.
-        browse_profiles_sources is newline-separated in settings_json.
+        Get list of source usernames from account_sources table.
+        Falls back to settings_json for backwards compatibility.
         """
+        from db.database import get_db
+        try:
+            conn = get_db()
+            rows = conn.execute(
+                "SELECT value FROM account_sources WHERE account_id = ? AND source_type = 'browse_profiles_sources' ORDER BY value",
+                (self.account_id,)
+            ).fetchall()
+            if rows:
+                return [r[0].strip().lstrip('@') for r in rows if r[0] and r[0].strip()]
+        except Exception as e:
+            log.debug("[%s] Failed reading account_sources: %s", self.device_serial, e)
+
+        # Fallback: settings_json (backwards compat)
         raw = self.settings.get('browse_profiles_sources', '')
         if not raw or not isinstance(raw, str):
             return []

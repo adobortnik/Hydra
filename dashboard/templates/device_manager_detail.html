@@ -1748,7 +1748,11 @@
                     <div class="row g-3 mt-2">
                         <div class="col-md-12">
                             <label class="form-label">Source Usernames <span class="text-muted">(one per line)</span></label>
-                            <textarea class="form-control sp-setting" id="sp_browse_profiles_sources" data-key="browse_profiles_sources" rows="4" placeholder="username1&#10;username2&#10;username3" style="font-family: monospace; font-size: 0.85rem;"></textarea>
+                            <textarea class="form-control" id="sp_browse_profiles_sources" rows="4" placeholder="username1&#10;username2&#10;username3" style="font-family: monospace; font-size: 0.85rem;"></textarea>
+                            <button class="btn btn-sm btn-outline-primary mt-1" id="sp_browse_profiles_save_btn" onclick="saveBrowseProfilesSources()">
+                                <i class="fas fa-save me-1"></i>Save Sources
+                            </button>
+                            <span class="text-success small ms-2 d-none" id="sp_browse_profiles_saved_msg">✓ Saved</span>
                         </div>
                     </div>
                     <div class="row g-3 mt-2">
@@ -2468,6 +2472,9 @@ function populateSettings(settings, accountData) {
 
     // Update tab status dots
     updateTabDots();
+
+    // Load browse profiles sources from account_sources
+    loadBrowseProfilesSources();
 }
 
 // ── Conditional Fields (show/hide based on checkbox) ──
@@ -2620,6 +2627,48 @@ function saveAllSettings() {
         statusEl.textContent = 'Error';
         statusEl.style.color = '#dc3545';
     });
+}
+
+// ── Browse Profiles Sources (account_sources table) ──
+function loadBrowseProfilesSources() {
+    if (!spCurrentDevice || !spCurrentAccount) return;
+    fetch(`/api/sources/info?device_id=${encodeURIComponent(spCurrentDevice)}&account_name=${encodeURIComponent(spCurrentAccount)}&action_type=browse_profiles`)
+        .then(r => r.json())
+        .then(data => {
+            const ta = document.getElementById('sp_browse_profiles_sources');
+            if (ta && data.content !== undefined) {
+                ta.value = data.content || '';
+            }
+        })
+        .catch(err => console.warn('Failed to load browse profiles sources:', err));
+}
+
+function saveBrowseProfilesSources() {
+    if (!spCurrentDevice || !spCurrentAccount) return;
+    const ta = document.getElementById('sp_browse_profiles_sources');
+    const usernames = ta.value.trim();
+    const accountId = spCurrentDevice + '/' + spCurrentAccount;
+
+    fetch('/api/sources/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            account_ids: [accountId],
+            usernames: usernames,
+            source_type: 'browse_profiles'
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        const msg = document.getElementById('sp_browse_profiles_saved_msg');
+        if (data.success) {
+            msg.classList.remove('d-none');
+            setTimeout(() => msg.classList.add('d-none'), 2000);
+        } else {
+            showSpToast(data.message || 'Save failed', 'error');
+        }
+    })
+    .catch(err => showSpToast('Save error: ' + err, 'error'));
 }
 
 // ── Sources (load/save) ──
