@@ -2252,6 +2252,12 @@ function renderAccounts(accounts) {
                     onclick="openAccountSettings('${a.device_serial}', '${a.username}')">
                     <i class="fas fa-sliders-h"></i>
                 </button>
+                ${(a.status === 'logged_out' || a.status === 'suspended' || a.status === 'banned' || a.status === 'verification')
+                    ? `<button class="btn-settings" title="Auto-Fix: Replace from inventory"
+                        style="background:linear-gradient(135deg,#f59e0b,#d97706);margin-left:4px;"
+                        onclick="event.stopPropagation();showDevAutoFix(${a.id},'${escHtml(a.username)}','${a.status}')">
+                        <i class="fas fa-wrench"></i>
+                    </button>` : ''}
             </td>
         </tr>`;
     }).join('');
@@ -3916,5 +3922,95 @@ function bulkSetLink() {
         btn.innerHTML = '🔗 Set Link on Selected';
     });
 }
+
+// ── Auto-Fix (replace broken account from inventory) ──
+let pendingAutoFixId = null;
+
+function showDevAutoFix(accountId, username, status) {
+    pendingAutoFixId = accountId;
+    const body = document.getElementById('devAutoFixBody');
+    body.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-warning"></div><p class="mt-2">Loading preview...</p></div>';
+    document.getElementById('devAutoFixConfirmBtn').disabled = true;
+
+    new bootstrap.Modal(document.getElementById('devAutoFixModal')).show();
+
+    fetch(`/api/account-health/auto-fix-preview/${accountId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                body.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                return;
+            }
+            const old = data.old_account || {};
+            const inv = data.inventory_account || {};
+            body.innerHTML = `
+                <div class="mb-3">
+                    <h6 class="text-danger"><i class="fas fa-times-circle me-1"></i>Remove (${status})</h6>
+                    <div class="bg-dark p-2 rounded"><strong>@${old.username || username}</strong><br>
+                    <small class="text-muted">${old.device_serial || ''}</small></div>
+                </div>
+                <div class="text-center mb-3"><i class="fas fa-arrow-down text-warning fa-lg"></i></div>
+                <div>
+                    <h6 class="text-success"><i class="fas fa-check-circle me-1"></i>Replace with</h6>
+                    <div class="bg-dark p-2 rounded"><strong>@${inv.username || '?'}</strong><br>
+                    <small class="text-muted">${inv.email || inv.phone || ''}</small></div>
+                </div>`;
+            document.getElementById('devAutoFixConfirmBtn').disabled = false;
+        })
+        .catch(err => {
+            body.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+        });
+}
+
+function confirmDevAutoFix() {
+    if (!pendingAutoFixId) return;
+    const btn = document.getElementById('devAutoFixConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Replacing...';
+
+    fetch('/api/account-health/auto-fix', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ account_id: pendingAutoFixId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        bootstrap.Modal.getInstance(document.getElementById('devAutoFixModal')).hide();
+        if (data.success) {
+            showSpToast(`Replaced with @${data.new_username || '?'}`, 'success');
+            refreshDetail();
+        } else {
+            showSpToast(data.error || 'Auto-fix failed', 'error');
+        }
+    })
+    .catch(err => {
+        bootstrap.Modal.getInstance(document.getElementById('devAutoFixModal')).hide();
+        showSpToast('Error: ' + err.message, 'error');
+    })
+    .finally(() => {
+        pendingAutoFixId = null;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-wrench me-1"></i>Replace Account';
+    });
+}
 </script>
+
+<!-- Auto-Fix Modal -->
+<div class="modal fade" id="devAutoFixModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-wrench me-2 text-warning"></i>Auto-Fix Account</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="devAutoFixBody"></div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning btn-sm" id="devAutoFixConfirmBtn" onclick="confirmDevAutoFix()" disabled>
+                    <i class="fas fa-wrench me-1"></i>Replace Account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
