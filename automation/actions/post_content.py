@@ -556,9 +556,10 @@ class PostContentAction:
                 self.ctrl.press_back()
                 return False
 
-        random_sleep(2, 4, label="story_camera_loading")
+        random_sleep(2, 4, label="add_to_story_gallery_loading")
 
-        # Step 2: Open gallery in story camera and select media
+        # Step 2: Select media from the "Add to story" gallery grid
+        # (we're already on the gallery screen — no need to open camera first)
         if not self._select_media_in_story_mode():
             log.warning("[%s] CONTENT: Could not select media for story",
                         self.device_serial)
@@ -814,78 +815,159 @@ class PostContentAction:
 
     def _select_media_in_story_mode(self):
         """
-        In story camera mode, open the gallery picker and select pushed media.
+        Select media from the "Add to story" gallery grid.
 
-        Story camera typically has a small gallery thumbnail at bottom-left
-        that opens the full gallery picker.
+        We're already on the "Add to story" screen which shows a 3-column grid:
+          - First cell: Camera tile (camera icon + "Camera" text)
+          - Remaining cells: media thumbnails (most recent first)
+
+        Our pushed media will be the first thumbnail (second cell in grid).
+        We need to skip the Camera cell and tap the first actual media thumbnail.
 
         Returns True if media was selected.
         """
-        # Method 1: Look for gallery/recent media thumbnail in story camera
-        for desc in ["Gallery", "Recent", "Photos", "Choose from gallery"]:
-            el = self.device(descriptionContains=desc)
-            if el.exists(timeout=3):
-                el.click()
-                time.sleep(3)
-                log.debug("[%s] CONTENT: Opened gallery in story mode via desc='%s'",
-                          self.device_serial, desc)
-                break
-        else:
-            # Method 2: Resource ID for the gallery preview thumbnail
-            for rid in ['gallery_preview', 'camera_roll_preview',
-                        'recent_image_thumbnail', 'media_preview']:
-                el = self.device(resourceIdMatches=f".*{rid}.*")
-                if el.exists(timeout=2):
-                    el.click()
-                    time.sleep(3)
-                    log.debug("[%s] CONTENT: Opened gallery in story mode via rid='%s'",
-                              self.device_serial, rid)
-                    break
-            else:
-                # Method 3: Swipe up from bottom to open gallery picker
-                # (common gesture in story camera)
-                w, h = self.device.window_size()
-                self.device.swipe(w // 2, int(h * 0.85), w // 2, int(h * 0.3),
-                                  duration=0.4)
-                time.sleep(3)
-                log.debug("[%s] CONTENT: Swiped up to open gallery in story mode",
-                          self.device_serial)
-
-        # Now select the most recent item (our pushed media)
         random_sleep(1, 2, label="story_gallery_loaded")
 
-        # Look for gallery grid items
-        for rid in ['gallery_grid_item_image', 'media_thumbnail',
-                    'gallery_image_view']:
-            grid_item = self.device(resourceIdMatches=f".*{rid}.*")
-            if grid_item.exists(timeout=3):
-                try:
-                    grid_item[0].click()
-                    time.sleep(3)
-                    log.debug("[%s] CONTENT: Selected media for story via rid='%s'",
-                              self.device_serial, rid)
-                    return True
-                except Exception:
-                    continue
+        w, h = self.device.window_size()
 
-        # Fallback: tap first clickable ImageView
-        xml = self.ctrl.dump_xml("story_gallery")
+        # --- Strategy 1: XML-based — find clickable thumbnails, skip Camera ---
+        xml = self.ctrl.dump_xml("story_gallery_grid")
+
+        # Find the "Open camera" button to know where Camera cell is (skip it)
+        camera_bounds = None
+        # Method A: desc="Open camera" button
+        camera_match = re.search(
+            r'<node[^>]*content-desc="Open camera"[^>]*'
+            r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+            xml
+        )
+        # Method B: text="Camera" element
+        if not camera_match:
+            camera_match = re.search(
+                r'<node[^>]*text="Camera"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                xml
+            )
+        # Method C: gallery_grid_camera_item_icon resource-id
+        if not camera_match:
+            camera_match = re.search(
+                r'<node[^>]*resource-id="[^"]*gallery_grid_camera[^"]*"[^>]*'
+                r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                xml
+            )
+        if camera_match:
+            camera_bounds = tuple(int(v) for v in camera_match.groups())
+            log.debug("[%s] CONTENT: Found Camera cell at bounds %s",
+                      self.device_serial, camera_bounds)
+
+        # Find grid top boundary — grid starts BELOW Recents / multi-select row
+        # Use camera top y as reference (grid cells are at same level as Camera)
+        if camera_bounds:
+            grid_top_y = camera_bounds[1]  # Camera top y = grid top
+            log.debug("[%s] CONTENT: Grid top y from Camera bounds: %d",
+                      self.device_serial, grid_top_y)
+        else:
+            # Fallback: find Recents text
+            grid_top_y = int(h * 0.38)  # conservative default
+            recents_match = re.search(
+                r'<node[^>]*text="Recents"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                xml
+            )
+            if recents_match:
+                grid_top_y = int(recents_match.group(4))  # bottom of "Recents" text
+                log.debug("[%s] CONTENT: Recents text bottom at y=%d",
+                          self.device_serial, grid_top_y)
+
+        # Collect all clickable elements in the grid area
+        # Grid cells are ViewGroup (clickable), NOT ImageView
         thumb_pattern = (
-            r'<node[^>]*class="android\.widget\.ImageView"[^>]*'
+            r'<node[^>]*class="android\.widget\.ViewGroup"[^>]*'
             r'clickable="true"[^>]*'
             r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
         )
         thumbs = re.findall(thumb_pattern, xml)
-        if thumbs:
-            x1, y1, x2, y2 = [int(v) for v in thumbs[0]]
-            if (x2 - x1) > 50 and (y2 - y1) > 50:
-                self.device.click((x1 + x2) // 2, (y1 + y2) // 2)
-                time.sleep(3)
-                return True
 
-        # Last resort: tap the bottom-left of screen (gallery thumbnail location)
-        w, h = self.device.window_size()
-        self.device.click(int(w * 0.08), int(h * 0.9))
+        # Also try Button and other clickable types
+        if len(thumbs) < 2:
+            thumb_pattern_generic = (
+                r'<node[^>]*'
+                r'clickable="true"[^>]*'
+                r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
+            )
+            thumbs = re.findall(thumb_pattern_generic, xml)
+
+        # Filter: only items in the grid area (below Recents) and big enough to be thumbnails
+        # Grid cells are roughly 350x625px on 1080px screens — require at least 150px
+        min_thumb_size = 150
+        grid_items = []
+        for t in thumbs:
+            x1, y1, x2, y2 = [int(v) for v in t]
+            item_w = x2 - x1
+            item_h = y2 - y1
+            if item_w > min_thumb_size and item_h > min_thumb_size and y1 >= grid_top_y:
+                # Skip if this overlaps with the Camera cell OR has camera desc
+                if camera_bounds:
+                    cam_x1, cam_y1, cam_x2, cam_y2 = camera_bounds
+                    cx = (x1 + x2) // 2
+                    cy = (y1 + y2) // 2
+                    if cam_x1 <= cx <= cam_x2 and cam_y1 <= cy <= cam_y2:
+                        log.debug("[%s] CONTENT: Skipping Camera cell at [%d,%d][%d,%d]",
+                                  self.device_serial, x1, y1, x2, y2)
+                        continue
+                # Also skip by checking if this node has "camera" in its desc
+                # (look at nearby XML context for "Open camera" or "Camera" desc)
+                node_context = xml[max(0, xml.find(f'[{x1},{y1}][{x2},{y2}]') - 200):
+                                   xml.find(f'[{x1},{y1}][{x2},{y2}]') + 50]
+                if 'camera' in node_context.lower() or 'Open camera' in node_context:
+                    log.debug("[%s] CONTENT: Skipping camera-related element at [%d,%d][%d,%d]",
+                              self.device_serial, x1, y1, x2, y2)
+                    continue
+                grid_items.append((x1, y1, x2, y2))
+
+        # Sort by position: top-to-bottom, then left-to-right
+        grid_items.sort(key=lambda b: (b[1], b[0]))
+
+        if grid_items:
+            # Tap the first non-Camera thumbnail
+            x1, y1, x2, y2 = grid_items[0]
+            tap_x = (x1 + x2) // 2
+            tap_y = (y1 + y2) // 2
+            self.device.click(tap_x, tap_y)
+            log.info("[%s] CONTENT: Tapped first media thumbnail at (%d, %d)",
+                     self.device_serial, tap_x, tap_y)
+            time.sleep(3)
+            return True
+
+        # --- Strategy 2: Coordinate-based fallback ---
+        # The grid is 3 columns. Camera is top-left (col 1).
+        # First media thumbnail is the SECOND cell (col 2, first row).
+        # Column width ≈ w/3, so second cell center is at x ≈ w*0.5
+        # Grid starts roughly 35% down the screen
+        log.debug("[%s] CONTENT: XML strategy found no thumbnails, using coordinate fallback",
+                  self.device_serial)
+
+        # Try to find any clickable element via resource-id first
+        for rid in ['gallery_grid_item_image', 'media_thumbnail',
+                     'gallery_image_view', 'thumbnail']:
+            grid_item = self.device(resourceIdMatches=f".*{rid}.*")
+            if grid_item.exists(timeout=2):
+                try:
+                    # Skip first if it might be Camera
+                    count = grid_item.count
+                    idx = 1 if count > 1 else 0
+                    grid_item[idx].click()
+                    time.sleep(3)
+                    log.info("[%s] CONTENT: Selected media for story via rid='%s' idx=%d",
+                             self.device_serial, rid, idx)
+                    return True
+                except Exception:
+                    continue
+
+        # Pure coordinate fallback: tap second column, first grid row
+        tap_x = int(w * 0.5)
+        tap_y = int(h * 0.42)
+        log.info("[%s] CONTENT: Tapping coordinate fallback (%d, %d) for second grid cell",
+                 self.device_serial, tap_x, tap_y)
+        self.device.click(tap_x, tap_y)
         time.sleep(3)
         return True
 
@@ -894,9 +976,24 @@ class PostContentAction:
         Tap the story creation entry point from home screen.
         This is the "Your story" / "+" circle at top-left of the stories tray.
 
+        The clickable Button has content-desc like:
+          "robin.rieff_prime's story, 0 of 16, Unseen."
+        The text label "Your story" is on a non-clickable TextView below.
+
         Returns True if tapped.
         """
-        # Method 1: Content description
+        # Method 1: Content description — IG clone uses "{username}\u2019s story, 0 of N"
+        # "0 of N" = first story slot = user's own story
+        # Note: IG uses RIGHT SINGLE QUOTE, so use descriptionContains (not regex)
+        el = self.device(descriptionContains="story, 0 of")
+        if el.exists(timeout=5):
+            el.click()
+            time.sleep(4)
+            log.debug("[%s] CONTENT: Tapped story create via descContains 'story, 0 of'",
+                      self.device_serial)
+            return True
+
+        # Method 2: Classic "Your story" / "Add to story" descriptions
         for desc in ["Your story", "Add to story", "Create story",
                       "Your Story"]:
             el = self.device(descriptionContains=desc)
@@ -907,7 +1004,7 @@ class PostContentAction:
                           self.device_serial, desc)
                 return True
 
-        # Method 2: Resource ID for story ring / create button
+        # Method 3: Resource ID for story ring / create button
         for rid in ['reel_viewer_subtitle', 'story_ring', 'your_story']:
             el = self.device(resourceIdMatches=f".*{rid}.*")
             if el.exists(timeout=2):
@@ -915,15 +1012,55 @@ class PostContentAction:
                 time.sleep(3)
                 return True
 
-        # Method 3: Tap top-left area where "Your story" typically appears
+        # Method 4: "Your story" text label (tap the parent or nearby area)
+        el = self.device(text="Your story")
+        if el.exists(timeout=3):
+            # Get the bounds and tap slightly above (on the story ring, not the text)
+            try:
+                info = el.info
+                bounds = info.get('bounds', {})
+                center_x = (bounds.get('left', 0) + bounds.get('right', 0)) // 2
+                above_y = bounds.get('top', 0) - 50  # Tap above the text (on the ring)
+                if above_y > 0:
+                    self.device.click(center_x, above_y)
+                    time.sleep(3)
+                    log.debug("[%s] CONTENT: Tapped above 'Your story' text at (%d, %d)",
+                              self.device_serial, center_x, above_y)
+                    return True
+            except Exception:
+                pass
+            el.click()
+            time.sleep(3)
+            log.debug("[%s] CONTENT: Tapped story create via text='Your story'",
+                      self.device_serial)
+            return True
+
+        # Method 5: XML search for first story button in the stories tray
+        xml = self.ctrl.dump_xml("story_create_xml")
+        # Match "story, 0 of N" pattern (user's own story is always index 0)
+        story_btn = re.search(
+            r'<node[^>]*content-desc="[^"]*story, 0 of \d+[^"]*"[^>]*'
+            r'clickable="true"[^>]*'
+            r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+            xml
+        )
+        if story_btn:
+            x1, y1, x2, y2 = [int(v) for v in story_btn.groups()]
+            self.device.click((x1 + x2) // 2, (y1 + y2) // 2)
+            time.sleep(3)
+            log.debug("[%s] CONTENT: Tapped story create via XML bounds",
+                      self.device_serial)
+            return True
+
+        # Method 6: Coordinate fallback — stories tray is below header
         w, h = self.device.window_size()
-        self.device.click(int(w * 0.08), int(h * 0.12))
+        self.device.click(int(w * 0.10), int(h * 0.17))
         time.sleep(3)
 
-        # Check if we entered story camera
         xml = self.ctrl.dump_xml("story_create_check")
-        if ('camera' in xml.lower() or 'shutter' in xml.lower() or
-                'gallery' in xml.lower()):
+        if ('add to story' in xml.lower() or 'camera' in xml.lower() or
+                'shutter' in xml.lower() or 'gallery' in xml.lower() or
+                'recents' in xml.lower()):
             return True
 
         return False
@@ -1189,154 +1326,358 @@ class PostContentAction:
         """
         Add a @mention sticker in the story editor.
 
-        Reuses patterns from share_to_story.py's _add_story_mention().
-        Flow: Tap sticker button → tap Mention sticker → type username → confirm.
+        Proven flow from share_to_story.py _add_story_mention():
+        1. Open sticker picker (swipe up from center, fallback to button)
+        2. Try direct click on @MENTION text, then search "mention" as fallback
+        3. Type username in mention form, tap suggestion
+        4. IG auto-places sticker and returns to preview
         """
+        clean_username = mention_username.lstrip('@')
         log.info("[%s] CONTENT: Adding mention @%s to story",
-                 self.device_serial, mention_username)
+                 self.device_serial, clean_username)
 
-        # Tap sticker icon
+        # Step 1: Open sticker picker — swipe up first (proven more reliable)
         sticker_found = False
-        for selector in [
-            self.device(resourceIdMatches=".*asset_button.*"),
-            self.device(description="Emojis and stickers"),
-            self.device(descriptionContains="sticker"),
-        ]:
-            if selector.exists(timeout=3):
-                selector.click()
-                time.sleep(3)
-                sticker_found = True
-                log.debug("[%s] CONTENT: Tapped sticker button", self.device_serial)
-                break
+        w, h = self.device.window_size()
+        self.device.swipe(w // 2, int(h * 0.5), w // 2, int(h * 0.15), duration=0.3)
+        time.sleep(2)
+
+        if self.device(className="android.widget.EditText").exists(timeout=2):
+            sticker_found = True
+            log.debug("[%s] CONTENT: Opened sticker picker via swipe up",
+                      self.device_serial)
 
         if not sticker_found:
-            log.warning("[%s] CONTENT: Sticker button not found", self.device_serial)
+            for selector in [
+                self.device(description="Emojis and stickers"),
+                self.device(resourceIdMatches=".*asset_button.*"),
+                self.device(descriptionContains="sticker"),
+            ]:
+                if selector.exists(timeout=2):
+                    selector.click()
+                    time.sleep(3)
+                    sticker_found = True
+                    log.debug("[%s] CONTENT: Opened sticker picker via button",
+                              self.device_serial)
+                    break
+
+        if not sticker_found:
+            log.warning("[%s] CONTENT: Could not open sticker picker for mention",
+                        self.device_serial)
             return False
 
-        # Find and tap "Mention Sticker"
-        mention_sticker = self.device(description="Mention Sticker")
-        if not mention_sticker.exists(timeout=3):
-            mention_sticker = self.device(descriptionContains="Mention")
-        if not mention_sticker.exists(timeout=3):
-            # Search for it
+        # Step 2+3: Find and click MENTION sticker
+        # Try direct click first (sticker grid often shows @MENTION in first row)
+        mention_clicked = False
+
+        for text_val in ["@MENTION", "MENTION", "@Mention", "Mention"]:
+            el = self.device(textContains=text_val)
+            if el.exists(timeout=2):
+                el.click()
+                time.sleep(2)
+                mention_clicked = True
+                log.debug("[%s] CONTENT: Clicked MENTION sticker via text='%s' (direct)",
+                          self.device_serial, text_val)
+                break
+
+        if not mention_clicked:
+            for desc_val in ["Mention Sticker", "MENTION", "Mention", "@MENTION",
+                             "mention sticker"]:
+                el = self.device(descriptionContains=desc_val)
+                if not el.exists(timeout=1):
+                    el = self.device(description=desc_val)
+                if el.exists(timeout=1):
+                    el.click()
+                    time.sleep(2)
+                    mention_clicked = True
+                    log.debug("[%s] CONTENT: Clicked MENTION sticker via desc='%s'",
+                              self.device_serial, desc_val)
+                    break
+
+        # Fallback: search for it
+        if not mention_clicked:
             search = self.device(className="android.widget.EditText")
+            if not search.exists(timeout=2):
+                search = self.device(resourceIdMatches=".*search.*edit.*text.*")
             if search.exists(timeout=2):
                 search.click()
                 time.sleep(0.5)
-                search.set_text("Mention")
-                time.sleep(2)
-                mention_sticker = self.device(descriptionContains="Mention")
+                search.set_text("mention")
+                time.sleep(3)
+                log.debug("[%s] CONTENT: Typed 'mention' in sticker search",
+                          self.device_serial)
 
-        if mention_sticker.exists(timeout=3):
-            mention_sticker.click()
-            time.sleep(2)
-        else:
-            log.warning("[%s] CONTENT: Mention sticker not found", self.device_serial)
+                for text_val in ["@MENTION", "MENTION", "Mention"]:
+                    el = self.device(textContains=text_val)
+                    if el.exists(timeout=2):
+                        el.click()
+                        time.sleep(2)
+                        mention_clicked = True
+                        log.debug("[%s] CONTENT: Clicked MENTION sticker via search + text='%s'",
+                                  self.device_serial, text_val)
+                        break
+
+        # XML fallback
+        if not mention_clicked:
+            xml = self.ctrl.dump_xml("mention_sticker_search")
+            for pattern in [r'text="@MENTION"', r'text="MENTION"', r'text="Mention"',
+                            r'description="Mention Sticker"']:
+                match = re.search(
+                    pattern + r'[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+                if not match:
+                    match = re.search(
+                        r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*' + pattern, xml)
+                if match:
+                    x = (int(match.group(1)) + int(match.group(3))) // 2
+                    y = (int(match.group(2)) + int(match.group(4))) // 2
+                    self.device.click(x, y)
+                    time.sleep(2)
+                    mention_clicked = True
+                    log.debug("[%s] CONTENT: Clicked MENTION sticker via XML bounds (%d,%d)",
+                              self.device_serial, x, y)
+                    break
+
+        if not mention_clicked:
+            log.warning("[%s] CONTENT: MENTION sticker not found in search results",
+                        self.device_serial)
             self.ctrl.press_back()
             return False
 
-        # Type the username in the mention search
-        edit = self.device(className="android.widget.EditText")
-        if edit.exists(timeout=3):
-            edit.click()
+        # Step 4: Enter username in mention form and select from suggestions
+        time.sleep(1)
+        username_field = self.device(className="android.widget.EditText")
+        if username_field.exists(timeout=3):
+            username_field.click()
             time.sleep(0.5)
-            adb_serial = self.device_serial.replace('_', ':')
-            # Remove @ prefix if present
-            clean_username = mention_username.lstrip('@')
-            subprocess.run(
-                ['adb', '-s', adb_serial, 'shell', 'input', 'text', clean_username],
-                capture_output=True, timeout=10)
-            time.sleep(3)
+            username_field.set_text(clean_username)
+            time.sleep(3)  # Wait for suggestions to load
+            log.debug("[%s] CONTENT: Typed username: %s",
+                      self.device_serial, clean_username)
 
-            # Select the first result
-            result = self.device(textContains=clean_username)
-            if result.exists(timeout=3):
-                result.click()
-                time.sleep(2)
-                log.info("[%s] CONTENT: Mention @%s added to story",
-                         self.device_serial, clean_username)
-                return True
+            # Click first suggestion (exact match should be first)
+            suggestion_clicked = False
+            target_lower = clean_username.lower()
 
-            # Fallback: tap first result area
-            w, h = self.device.window_size()
-            self.device.click(w // 2, int(h * 0.35))
+            for selector in [
+                self.device(textContains=clean_username),
+                self.device(descriptionContains=clean_username),
+            ]:
+                if selector.exists(timeout=2):
+                    count = min(selector.count, 5)
+                    for i in range(count):
+                        try:
+                            text = (selector[i].get_text() or "").strip().lower()
+                            if text == target_lower or target_lower in text:
+                                selector[i].click()
+                                time.sleep(1.5)
+                                suggestion_clicked = True
+                                log.info("[%s] CONTENT: Clicked mention suggestion: '%s'",
+                                         self.device_serial, clean_username)
+                                break
+                        except Exception:
+                            continue
+                    if suggestion_clicked:
+                        break
+
+            if not suggestion_clicked:
+                # XML fallback for suggestion
+                xml = self.ctrl.dump_xml("mention_suggestions")
+                match = re.search(
+                    r'text="' + re.escape(clean_username) + r'"[^>]*'
+                    r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                    xml, re.IGNORECASE)
+                if match:
+                    x = (int(match.group(1)) + int(match.group(3))) // 2
+                    y = (int(match.group(2)) + int(match.group(4))) // 2
+                    self.device.click(x, y)
+                    time.sleep(1.5)
+                    suggestion_clicked = True
+                    log.info("[%s] CONTENT: Clicked mention suggestion via XML",
+                             self.device_serial)
+
+            if not suggestion_clicked:
+                log.warning("[%s] CONTENT: Could not find suggestion for @%s — tapping Done anyway",
+                            self.device_serial, clean_username)
+        else:
+            log.warning("[%s] CONTENT: Username input field not found in mention form",
+                        self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Step 5: After clicking suggestion, IG auto-places the mention sticker
+        # and returns to story preview. Only tap Done if stuck in editing mode.
+        time.sleep(2)
+        if self.device(textContains="Your story").exists(timeout=3):
+            log.debug("[%s] CONTENT: Mention placed, already in story preview",
+                      self.device_serial)
+        elif self.device(text="Done").exists(timeout=2):
+            self.device(text="Done").click()
             time.sleep(2)
-            return True
+            log.debug("[%s] CONTENT: Clicked Done after mention placement",
+                      self.device_serial)
+        elif self.device(description="Done").exists(timeout=2):
+            self.device(description="Done").click()
+            time.sleep(2)
+            log.debug("[%s] CONTENT: Clicked Done (desc) after mention placement",
+                      self.device_serial)
 
-        self.ctrl.press_back()
-        return False
+        log.info("[%s] CONTENT: Mention @%s added to story via sticker",
+                 self.device_serial, clean_username)
+        return True
 
     def _add_link_sticker(self, url):
         """
         Add a link sticker in the story editor.
 
-        Reuses patterns from share_to_story.py's _add_link_sticker().
-        Flow: Tap sticker button → tap Link sticker → enter URL → Done.
+        Proven flow from share_to_story.py _add_link_sticker():
+        1. Open sticker picker (swipe up from center, fallback to button)
+        2. Type "link" in search bar
+        3. Tap LINK sticker (desc="Link Sticker" or text="LINK")
+        4. Enter URL in first EditText field
+        5. Tap Done
         """
+        if not url:
+            return False
+
         log.info("[%s] CONTENT: Adding link sticker: %s",
                  self.device_serial, url[:50])
 
-        # Tap sticker icon
+        # Step 1: Open sticker picker — swipe up first (proven more reliable)
         sticker_found = False
-        for selector in [
-            self.device(resourceIdMatches=".*asset_button.*"),
-            self.device(description="Emojis and stickers"),
-            self.device(descriptionContains="sticker"),
-        ]:
-            if selector.exists(timeout=3):
-                selector.click()
-                time.sleep(3)
-                sticker_found = True
-                break
+        w, h = self.device.window_size()
+        self.device.swipe(w // 2, int(h * 0.5), w // 2, int(h * 0.15), duration=0.3)
+        time.sleep(2)
+
+        if self.device(className="android.widget.EditText").exists(timeout=2):
+            sticker_found = True
+            log.debug("[%s] CONTENT: Opened sticker picker via swipe up",
+                      self.device_serial)
 
         if not sticker_found:
-            log.warning("[%s] CONTENT: Sticker button not found for link",
+            for selector in [
+                self.device(description="Emojis and stickers"),
+                self.device(resourceIdMatches=".*asset_button.*"),
+                self.device(descriptionContains="sticker"),
+            ]:
+                if selector.exists(timeout=2):
+                    selector.click()
+                    time.sleep(3)
+                    sticker_found = True
+                    log.debug("[%s] CONTENT: Opened sticker picker via button",
+                              self.device_serial)
+                    break
+
+        if not sticker_found:
+            log.warning("[%s] CONTENT: Could not open sticker picker for link",
                         self.device_serial)
             return False
 
-        # Find and tap "Link Sticker"
-        link_sticker = self.device(description="Link Sticker")
-        if not link_sticker.exists(timeout=3):
-            link_sticker = self.device(descriptionContains="Link")
+        # Step 2: Type "link" in search bar
+        search = self.device(className="android.widget.EditText")
+        if not search.exists(timeout=3):
+            search = self.device(resourceIdMatches=".*search.*edit.*text.*")
 
-        if not link_sticker.exists(timeout=3):
-            # Search for it
-            search = self.device(className="android.widget.EditText")
-            if search.exists(timeout=2):
-                search.click()
-                time.sleep(0.5)
-                search.set_text("Link")
-                time.sleep(2)
-                link_sticker = self.device(descriptionContains="Link")
-
-        if link_sticker.exists(timeout=3):
-            link_sticker.click()
-            time.sleep(2)
+        if search.exists(timeout=3):
+            search.click()
+            time.sleep(0.5)
+            search.set_text("link")
+            time.sleep(3)  # Wait for search results to load
+            log.debug("[%s] CONTENT: Typed 'link' in sticker search",
+                      self.device_serial)
         else:
-            log.warning("[%s] CONTENT: Link sticker not found", self.device_serial)
+            log.warning("[%s] CONTENT: Sticker search bar not found",
+                        self.device_serial)
             self.ctrl.press_back()
             return False
 
-        # Enter URL
-        url_field = self.device(className="android.widget.EditText")
-        if url_field.exists(timeout=3):
-            url_field.click()
+        # Step 3: Tap LINK sticker result
+        link_clicked = False
+
+        # Try description first
+        for desc_val in ["Link Sticker", "LINK"]:
+            el = self.device(description=desc_val)
+            if el.exists(timeout=2):
+                el.click()
+                time.sleep(2)
+                link_clicked = True
+                log.debug("[%s] CONTENT: Clicked LINK sticker via desc='%s'",
+                          self.device_serial, desc_val)
+                break
+
+        # Try exact text match
+        if not link_clicked:
+            for text_val in ["LINK", "Link"]:
+                el = self.device(text=text_val)
+                if el.exists(timeout=2):
+                    el.click()
+                    time.sleep(2)
+                    link_clicked = True
+                    log.debug("[%s] CONTENT: Clicked LINK sticker via text='%s'",
+                              self.device_serial, text_val)
+                    break
+
+        # XML fallback
+        if not link_clicked:
+            xml = self.ctrl.dump_xml("sticker_search_results")
+            for pattern in [r'description="Link Sticker"', r'text="LINK"',
+                            r'text="Link"']:
+                match = re.search(
+                    pattern + r'[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+                if match:
+                    x = (int(match.group(1)) + int(match.group(3))) // 2
+                    y = (int(match.group(2)) + int(match.group(4))) // 2
+                    self.device.click(x, y)
+                    time.sleep(2)
+                    link_clicked = True
+                    log.debug("[%s] CONTENT: Clicked LINK sticker via XML bounds (%d,%d)",
+                              self.device_serial, x, y)
+                    break
+
+        if not link_clicked:
+            log.warning("[%s] CONTENT: LINK sticker not found in search results",
+                        self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Step 4: Enter URL in the link form
+        # Form has 2 EditText fields: URL (first) + name/label (second, optional)
+        time.sleep(1)
+        url_fields = self.device(className="android.widget.EditText")
+        if url_fields.exists(timeout=3):
+            url_fields[0].click()
             time.sleep(0.5)
-            url_field.set_text(url)
+            url_fields[0].set_text(url)
+            time.sleep(1)
+            log.debug("[%s] CONTENT: Entered URL: %s",
+                      self.device_serial, url[:50])
+        else:
+            log.warning("[%s] CONTENT: URL input field not found",
+                        self.device_serial)
+            self.ctrl.press_back()
+            return False
+
+        # Step 5: Tap Done to confirm
+        done_clicked = False
+        for selector in [
+            self.device(text="Done"),
+            self.device(description="Done"),
+            self.device(resourceIdMatches=".*done_button.*"),
+        ]:
+            if selector.exists(timeout=2):
+                selector.click()
+                time.sleep(2)
+                done_clicked = True
+                log.debug("[%s] CONTENT: Confirmed link sticker with Done",
+                          self.device_serial)
+                break
+
+        if not done_clicked:
+            self.device.press('enter')
             time.sleep(1)
 
-            # Confirm
-            for text in ["Done", "OK", "Add"]:
-                done = self.device(text=text)
-                if done.exists(timeout=2):
-                    done.click()
-                    time.sleep(2)
-                    log.info("[%s] CONTENT: Link sticker added: %s",
-                             self.device_serial, url[:50])
-                    return True
-
-        self.ctrl.press_back()
-        return False
+        log.info("[%s] CONTENT: Link sticker added: %s",
+                 self.device_serial, url[:50])
+        return True
 
     def _dismiss_about_reels_modal(self):
         """
@@ -1437,41 +1778,132 @@ class PostContentAction:
 
     def _tap_story_share(self):
         """
-        Tap the "Share to Story" / "Your Story" button to publish a story.
+        Tap the "Your Story" publish button in the story editor bottom bar.
+
+        Proven flow from share_to_story.py _publish_story():
+        - Primary: desc="Your story" in BOTTOM action bar (y > 70% of screen)
+        - The bottom bar has: "Your story" | "Close Friends" | "Share to" (arrow)
+        - Must verify element is in bottom bar, not a sticker/overlay in the editor
 
         Returns True if tapped.
         """
-        # Patterns from share_to_story.py _publish_story()
-        publish_patterns = [
-            ("description", "Your story"),
-            ("text", "Your story"),
-            ("description", "Share to"),
-            ("text", "Share"),
-            ("text", "Done"),
-            ("text", "Post"),
-            ("description", "Share"),
-            ("description", "Share to your story"),
-        ]
+        w, h = self.device.window_size()
+        bottom_threshold = int(h * 0.70)
+        xml = self.ctrl.dump_xml("story_share_screen")
 
-        for attr, pattern in publish_patterns:
+        # Method 1: "Your story" button — verify it's in the bottom bar
+        for attempt in range(3):
+            # Try by content-desc (most reliable)
+            el = self.device(description="Your story")
+            if el.exists(timeout=3):
+                try:
+                    info = el.info
+                    bounds = info.get('bounds', {})
+                    el_y = bounds.get('top', 0)
+                    if el_y >= bottom_threshold:
+                        el.click()
+                        time.sleep(3)
+                        log.info("[%s] CONTENT: Published story via desc='Your story' y=%d (attempt %d)",
+                                 self.device_serial, el_y, attempt + 1)
+                        return True
+                    else:
+                        log.debug("[%s] CONTENT: desc='Your story' found but y=%d < %d (not publish bar)",
+                                  self.device_serial, el_y, bottom_threshold)
+                except Exception:
+                    el.click()
+                    time.sleep(3)
+                    log.info("[%s] CONTENT: Published story via desc='Your story' (attempt %d)",
+                             self.device_serial, attempt + 1)
+                    return True
+
+            # Try by text — also verify bottom bar
+            el = self.device(text="Your story")
+            if el.exists(timeout=2):
+                try:
+                    info = el.info
+                    bounds = info.get('bounds', {})
+                    el_y = bounds.get('top', 0)
+                    if el_y >= bottom_threshold:
+                        el.click()
+                        time.sleep(3)
+                        log.info("[%s] CONTENT: Published story via text='Your story' y=%d (attempt %d)",
+                                 self.device_serial, el_y, attempt + 1)
+                        return True
+                except Exception:
+                    pass
+
+            if attempt < 2:
+                log.debug("[%s] CONTENT: 'Your story' not in bottom bar, retry %d...",
+                          self.device_serial, attempt + 2)
+                time.sleep(3)
+
+        # Method 2: "Share to" arrow button (the ">" next to Your story / Close Friends)
+        share_to = self.device(description="Share to")
+        if share_to.exists(timeout=2):
+            share_to.click()
+            time.sleep(3)
+            log.info("[%s] CONTENT: Published story via 'Share to' arrow",
+                     self.device_serial)
+            return True
+
+        # Method 3: Click the action bar by resource-id (left side = "Your story")
+        action_bar = self.device(resourceIdMatches=".*story_share_controls_action_bar.*")
+        if action_bar.exists(timeout=2):
+            try:
+                info = action_bar.info
+                bounds = info.get('bounds', {})
+                left_x = bounds.get('left', 0) + 100
+                center_y = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
+                if left_x > 0:
+                    self.device.click(left_x, center_y)
+                    time.sleep(3)
+                    log.info("[%s] CONTENT: Published story via action bar left-side click",
+                             self.device_serial)
+                    return True
+            except Exception as e:
+                log.debug("[%s] CONTENT: Action bar click failed: %s",
+                          self.device_serial, e)
+
+        # Method 4: Other text/desc patterns
+        for attr, pattern in [("text", "Share"), ("text", "Done"), ("text", "Post"),
+                              ("description", "Share"),
+                              ("description", "Share to your story")]:
             if attr == "text":
                 el = self.device(text=pattern)
             else:
                 el = self.device(description=pattern)
-            if el.exists(timeout=3):
+            if el.exists(timeout=2):
                 el.click()
                 time.sleep(3)
                 log.debug("[%s] CONTENT: Published story via %s='%s'",
                           self.device_serial, attr, pattern)
                 return True
 
-        # Resource ID fallback
-        for rid in ['share_story_button', 'done_button', 'share_button']:
-            el = self.device(resourceIdMatches=f".*{rid}.*")
+        # Method 5: Known resource-id patterns
+        for rid_pattern in ["share_story_button", "done_button", "share_button",
+                            "action_bar_button_action"]:
+            el = self.device(resourceIdMatches=f".*{rid_pattern}.*")
             if el.exists(timeout=2):
                 el.click()
                 time.sleep(3)
+                log.debug("[%s] CONTENT: Published story via rid=%s",
+                          self.device_serial, rid_pattern)
                 return True
+
+        # Method 6: XML bounds search for share-like buttons in bottom area
+        share_nodes = re.findall(
+            r'<node[^>]*(?:text|content-desc)="([^"]*(?:[Ss]hare|[Dd]one|[Pp]ost|[Ss]end|[Ss]tory)[^"]*)"[^>]*'
+            r'clickable="true"[^>]*'
+            r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+            xml)
+        for desc, x1, y1, x2, y2 in share_nodes:
+            x = (int(x1) + int(x2)) // 2
+            y = (int(y1) + int(y2)) // 2
+            self.device.click(x, y)
+            time.sleep(3)
+            log.debug("[%s] CONTENT: Published story via XML match '%s'",
+                      self.device_serial, desc[:40])
+            return True
 
         log.warning("[%s] CONTENT: Story share button not found",
                     self.device_serial)

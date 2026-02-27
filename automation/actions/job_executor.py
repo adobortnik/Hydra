@@ -499,9 +499,10 @@ class JobExecutor:
             self.device, self.device_serial, self.account, self.session_id)
 
         # Override comment templates if job has specific text
+        # Each line = separate comment option (random.choice picks one per post)
         if self.comment_text and self.comment_text != '[AI]':
-            comment_action.comment_templates = [self.comment_text]
-            # Also override settings so _get_comment uses our template
+            lines = [l.strip() for l in self.comment_text.split('\n') if l.strip()]
+            comment_action.comment_templates = lines if lines else [self.comment_text]
             comment_action.settings['comment_text'] = self.comment_text
         elif self.comment_text == '[AI]':
             comment_action.settings['comment_text'] = '[AI]'
@@ -939,8 +940,10 @@ class JobExecutor:
         )
 
         # Override message templates if job has specific comment_text
+        # Each line = separate message option (random.choice picks one per DM)
         if self.comment_text and self.comment_text.strip():
-            dm_action.message_templates = [self.comment_text]
+            lines = [l.strip() for l in self.comment_text.split('\n') if l.strip()]
+            dm_action.message_templates = lines if lines else [self.comment_text]
 
         dm_action.ctrl.ensure_app()
         dm_action.ctrl.dismiss_popups()

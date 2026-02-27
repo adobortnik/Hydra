@@ -34,6 +34,9 @@ def load_settings():
                 "profile_pictures": {
                     "default_strategy": "rotate",
                     "quality": "high"
+                },
+                "jap": {
+                    "api_key": ""
                 }
             }
     except Exception as e:
@@ -71,6 +74,16 @@ def get_settings():
         else:
             settings['ai']['has_anthropic_key'] = False
 
+        # Mask JAP API key too
+        jap_key = settings.get('jap', {}).get('api_key', '')
+        if jap_key:
+            settings.setdefault('jap', {})
+            settings['jap']['api_key_masked'] = jap_key[:8] + '...' if len(jap_key) > 8 else '***'
+            settings['jap']['has_key'] = True
+        else:
+            settings.setdefault('jap', {})
+            settings['jap']['has_key'] = False
+
         return jsonify({
             'success': True,
             'settings': settings
@@ -100,6 +113,14 @@ def update_settings():
         if 'profile_pictures' in data:
             current_settings.setdefault('profile_pictures', {})
             current_settings['profile_pictures'].update(data['profile_pictures'])
+
+        if 'jap' in data:
+            current_settings.setdefault('jap', {})
+            current_settings['jap'].update(data['jap'])
+            # Sync to legacy file
+            jap_key = data['jap'].get('api_key', '')
+            if jap_key:
+                _sync_jap_key_to_legacy(jap_key)
 
         # Save updated settings
         if save_settings(current_settings):
@@ -245,3 +266,96 @@ def get_ai_config():
         'api_key': ai_settings.get(f'{provider}_api_key', ''),
         'enabled': ai_settings.get('enabled', False)
     }
+
+
+# =============================================================================
+# JAP (JustAnotherPanel) API Key — integrated into global settings
+# =============================================================================
+
+@settings_bp.route('/jap', methods=['GET'])
+def get_jap_settings():
+    """Get JustAnotherPanel API key status."""
+    settings = load_settings()
+    jap_key = settings.get('jap', {}).get('api_key', '')
+    return jsonify({
+        'success': True,
+        'has_key': bool(jap_key),
+        'api_key_masked': (jap_key[:8] + '...') if len(jap_key) > 8 else ('***' if jap_key else ''),
+    })
+
+
+@settings_bp.route('/jap', methods=['POST'])
+def update_jap_settings():
+    """Save JustAnotherPanel API key to global_settings.json."""
+    try:
+        data = request.json
+        api_key = (data.get('api_key') or '').strip()
+
+        settings = load_settings()
+        settings.setdefault('jap', {})
+        settings['jap']['api_key'] = api_key
+
+        if save_settings(settings):
+            # Also write to legacy file so existing code picks it up
+            _sync_jap_key_to_legacy(api_key)
+            return jsonify({'success': True, 'message': 'JAP API key saved'})
+        return jsonify({'success': False, 'error': 'Failed to save'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@settings_bp.route('/jap/test', methods=['POST'])
+def test_jap_key():
+    """Test if the JAP API key works by fetching services."""
+    import requests as _req
+    try:
+        data = request.json or {}
+        api_key = (data.get('api_key') or '').strip()
+
+        if not api_key:
+            settings = load_settings()
+            api_key = settings.get('jap', {}).get('api_key', '')
+
+        if not api_key:
+            return jsonify({'success': False, 'error': 'No JAP API key'}), 400
+
+        resp = _req.post('https://justanotherpanel.com/api/v2',
+                         data={'key': api_key, 'action': 'services'}, timeout=10)
+        services = resp.json()
+        if isinstance(services, list) and len(services) > 0:
+            return jsonify({'success': True,
+                            'message': f'Key valid — {len(services)} services available'})
+        elif isinstance(services, dict) and services.get('error'):
+            return jsonify({'success': False, 'error': services['error']}), 400
+        else:
+            return jsonify({'success': False, 'error': 'Unexpected response'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+def get_jap_api_key():
+    """Helper: get JAP API key from global_settings or legacy file."""
+    settings = load_settings()
+    key = settings.get('jap', {}).get('api_key', '')
+    if key:
+        return key
+    # Fallback: legacy txt file
+    import os as _os
+    legacy = _os.path.join(_os.path.dirname(__file__), '..', 'data', 'api_keys', 'jap_api_key.txt')
+    if _os.path.exists(legacy):
+        with open(legacy) as f:
+            return f.read().strip()
+    return ''
+
+
+def _sync_jap_key_to_legacy(api_key):
+    """Write key to legacy file so simple_app.py / jap_api_utils.py pick it up."""
+    import os as _os
+    legacy_dir = _os.path.join(_os.path.dirname(__file__), '..', 'data', 'api_keys')
+    _os.makedirs(legacy_dir, exist_ok=True)
+    legacy_file = _os.path.join(legacy_dir, 'jap_api_key.txt')
+    try:
+        with open(legacy_file, 'w') as f:
+            f.write(api_key)
+    except Exception:
+        pass

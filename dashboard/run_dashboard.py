@@ -94,10 +94,47 @@ def run():
             time.sleep(RESTART_DELAY)
 
 
+def kill_old_dashboard():
+    """Kill any leftover dashboard processes on port 5055 before starting."""
+    import signal
+    my_pid = os.getpid()
+    try:
+        # Find PIDs listening on port 5055
+        result = subprocess.run(
+            ['netstat', '-ano'], capture_output=True, text=True, timeout=5
+        )
+        pids_to_kill = set()
+        for line in result.stdout.splitlines():
+            if ':5055' in line and 'LISTENING' in line:
+                parts = line.strip().split()
+                if parts:
+                    try:
+                        pid = int(parts[-1])
+                        if pid != my_pid and pid != 0:
+                            pids_to_kill.add(pid)
+                    except ValueError:
+                        pass
+
+        if pids_to_kill:
+            log(f"Killing {len(pids_to_kill)} old dashboard process(es): {pids_to_kill}")
+            for pid in pids_to_kill:
+                try:
+                    subprocess.run(['taskkill', '/f', '/pid', str(pid)],
+                                   capture_output=True, timeout=5)
+                except Exception:
+                    pass
+            time.sleep(2)
+        else:
+            log("No old dashboard processes found on port 5055")
+    except Exception as e:
+        log(f"Warning: could not check for old processes: {e}")
+
+
 if __name__ == '__main__':
     log("=" * 60)
     log("Dashboard watchdog starting")
     log("=" * 60)
+    kill_old_dashboard()
     try:
         run()
     except KeyboardInterrupt:
