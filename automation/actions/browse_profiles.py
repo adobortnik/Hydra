@@ -144,7 +144,7 @@ class BrowseProfilesAction:
         Get list of source usernames from account_sources table.
         Falls back to settings_json for backwards compatibility.
         """
-        from db.database import get_db
+        from automation.actions.helpers import get_db
         try:
             conn = get_db()
             rows = conn.execute(
