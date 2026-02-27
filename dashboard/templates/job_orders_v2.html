@@ -957,7 +957,7 @@ async function openDetail(id) {
         const cb = document.getElementById('detailCommentBlock');
         if (j.job_type === 'comment' && (j.comment_text || j.comment_list_id)) {
             cb.classList.remove('d-none');
-            let commentHtml = j.comment_text ? esc(j.comment_text) : '';
+            let commentHtml = j.comment_text ? '<span style="white-space:pre-line">' + esc(j.comment_text) + '</span>' : '';
             if (j.comment_list_id) {
                 const listName = commentLists.find(l => l.id === j.comment_list_id);
                 commentHtml = '<span class="badge bg-info me-2"><i class="fas fa-list me-1"></i>' + (listName ? esc(listName.name) : 'List #' + j.comment_list_id) + '</span>' + commentHtml;
@@ -1452,7 +1452,7 @@ function renderReview() {
         <div class="review-item"><span class="review-label">Job Name</span><span class="review-value">${esc(document.getElementById('cfgJobName').value)}</span></div>
         <div class="review-item"><span class="review-label">Type</span><span class="review-value">${TYPE_ICONS[chosenType]||''} ${chosenType}</span></div>
         <div class="review-item"><span class="review-label">Target</span><span class="review-value">${esc(target)}</span></div>
-        ${chosenType === 'comment' ? `<div class="review-item"><span class="review-label">Comment</span><span class="review-value">${esc(document.getElementById('cfgCommentText').value)}</span></div>` : ''}
+        ${chosenType === 'comment' ? `<div class="review-item"><span class="review-label">Comment</span><span class="review-value" style="white-space:pre-line">${esc(document.getElementById('cfgCommentText').value)}</span></div>` : ''}
         ${chosenType === 'comment' && document.getElementById('cfgCommentListId').value ? `<div class="review-item"><span class="review-label">Comment List</span><span class="review-value">${esc(document.getElementById('cfgCommentListId').selectedOptions[0].text)}</span></div>` : ''}
         ${false ? `<div class="review-item"><span class="review-label">AI Mode</span><span class="review-value">Enabled</span></div>` : ''}
         ${chosenType === 'comment' && document.getElementById('cfgVisionAi').checked ? `<div class="review-item"><span class="review-label">Vision AI</span><span class="review-value">Enabled</span></div>` : ''}
