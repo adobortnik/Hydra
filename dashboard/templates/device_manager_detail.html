@@ -3953,7 +3953,7 @@ function showDevAutoFix(accountId, username, status) {
                 <div>
                     <h6 class="text-success"><i class="fas fa-check-circle me-1"></i>Replace with</h6>
                     <div class="bg-dark p-2 rounded"><strong>@${inv.username || '?'}</strong><br>
-                    <small class="text-muted">${inv.email || inv.phone || ''}</small></div>
+                    <small class="text-muted">${inv.two_factor_auth ? '🔑 2FA: Yes' : '2FA: No'}</small></div>
                 </div>`;
             document.getElementById('devAutoFixConfirmBtn').disabled = false;
         })
