@@ -173,8 +173,19 @@ class JobExecutor:
             result['message'] = 'daily_limit_reached'
             return result
 
-        # Check total target
-        total_done = self.job.get('completed_count', 0)
+        # Check total target — always read FRESH from DB (not stale snapshot)
+        if self.target_count > 0:
+            try:
+                _conn = get_db()
+                _row = _conn.execute(
+                    "SELECT completed_count FROM job_orders WHERE id = ?",
+                    (self.job_id,)).fetchone()
+                total_done = _row[0] if _row else 0
+            except Exception:
+                total_done = self.job.get('completed_count', 0)
+        else:
+            total_done = self.job.get('completed_count', 0)
+
         if self.target_count > 0 and total_done >= self.target_count:
             msg = "Target reached for job #%d (%d/%d)" % (
                 self.job_id, total_done, self.target_count)
