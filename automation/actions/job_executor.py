@@ -503,7 +503,8 @@ class JobExecutor:
         if self.comment_text and self.comment_text != '[AI]':
             lines = [l.strip() for l in self.comment_text.split('\n') if l.strip()]
             comment_action.comment_templates = lines if lines else [self.comment_text]
-            comment_action.settings['comment_text'] = self.comment_text
+            # Clear settings comment_text so _get_comment uses templates (random pick per line)
+            comment_action.settings['comment_text'] = ''
         elif self.comment_text == '[AI]':
             comment_action.settings['comment_text'] = '[AI]'
 
@@ -657,6 +658,21 @@ class JobExecutor:
         for i in range(session_target + 3):
             if result['actions_done'] >= session_target:
                 break
+
+            # Re-check global target count from DB (other devices may have completed)
+            if self.target_count > 0:
+                try:
+                    from automation.actions.helpers import get_db as _get_db
+                    _conn = _get_db()
+                    _row = _conn.execute(
+                        "SELECT completed_count FROM job_orders WHERE id = ?",
+                        (self.job_id,)).fetchone()
+                    if _row and _row[0] >= self.target_count:
+                        log.info("[%s] JOB #%d: Global target reached (%d/%d), stopping",
+                                 self.device_serial, self.job_id, _row[0], self.target_count)
+                        break
+                except Exception:
+                    pass
 
             try:
                 # Use CommentAction's proven comment flow
