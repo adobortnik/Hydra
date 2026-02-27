@@ -183,14 +183,35 @@ def deploy_to_release():
             else:
                 item.unlink()
 
-        # Copy dist/ contents
+        # Files/dirs to NEVER ship to client repo
+        DEPLOY_SKIP_FILES = {
+            'deploy_token.txt', 'deploy_release.py',
+            'phone_farm.db', 'phone_farm.db-wal', 'phone_farm.db-shm',
+            'login_automation.db', 'profile_automation.db',
+            'account_inventory.db', 'media_library.db',
+            'scheduled_posts.db', 'devices.db',
+            'global_settings.json', 'api_keys.json',
+        }
+        DEPLOY_SKIP_DIRS = {'backups', '__pycache__'}
+
+        def _copy_filtered(src_dir, dst_dir):
+            for item in src_dir.iterdir():
+                if item.name in DEPLOY_SKIP_FILES:
+                    continue
+                if item.name in DEPLOY_SKIP_DIRS:
+                    continue
+                if item.suffix == '.db' and 'bot_data' in str(item):
+                    continue
+                dest = dst_dir / item.name
+                if item.is_dir():
+                    shutil.copytree(item, dest,
+                                    ignore=shutil.ignore_patterns(*DEPLOY_SKIP_FILES, *DEPLOY_SKIP_DIRS))
+                else:
+                    shutil.copy2(item, dest)
+
+        # Copy dist/ contents (filtered)
         print(f"  Copying dist/ contents...")
-        for item in DIST_DIR.iterdir():
-            dest = repo_dir / item.name
-            if item.is_dir():
-                shutil.copytree(item, dest)
-            else:
-                shutil.copy2(item, dest)
+        _copy_filtered(DIST_DIR, repo_dir)
 
         # README
         (repo_dir / "README.md").write_text(
