@@ -101,6 +101,28 @@
         color: #fff !important;
         border-color: #0d6efd !important;
     }
+    /* ── Group Filter Buttons ── */
+    .group-filter-btn {
+        border: 1px solid #495057;
+        border-radius: 16px;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        background: #2c3034;
+        color: #adb5bd;
+        transition: all 0.15s;
+        white-space: nowrap;
+    }
+    .group-filter-btn:hover { border-color: #0d6efd; color: #e0e0e0; }
+    .group-filter-btn.active { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+    .group-badge {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        background: #495057;
+        color: #adb5bd;
+    }
+    .group-filter-btn.active .group-badge { background: rgba(255,255,255,0.2); color: #fff; }
 </style>
 {% endblock %}
 
@@ -162,6 +184,9 @@
                                 <button class="btn btn-sm btn-outline-secondary w-100" id="clearFiltersBtn">
                                     <i class="fas fa-filter-circle-xmark me-1"></i> Clear Filters
                                 </button>
+                            </div>
+                            <div class="d-flex gap-2 mb-2 flex-wrap" id="groupFilterBar">
+                                <!-- Populated by JS -->
                             </div>
                             <div class="select-all-container">
                                 <div class="form-check">
@@ -261,6 +286,9 @@ username3
                                 <button class="btn btn-sm btn-outline-secondary w-100" id="settingsClearFiltersBtn">
                                     <i class="fas fa-filter-circle-xmark me-1"></i> Clear Filters
                                 </button>
+                            </div>
+                            <div class="d-flex gap-2 mb-2 flex-wrap" id="settingsGroupFilterBar">
+                                <!-- Populated by JS -->
                             </div>
                             <div class="select-all-container">
                                 <div class="form-check">
@@ -407,8 +435,9 @@ username3
         }
     }
 
-    function applyFilters(accounts, deviceSelect, tagSelect, search) {
+    function applyFilters(accounts, deviceSelect, tagSelect, search, activeGroup) {
         let f = [...accounts];
+        if (activeGroup) f = f.filter(a => getGroupKey(a) === activeGroup);
         const devs = Array.from(deviceSelect.selectedOptions).map(o => o.value);
         const tags = Array.from(tagSelect.selectedOptions).map(o => o.value);
         if (devs.length) f = f.filter(a => devs.includes(a.device_id));
@@ -418,6 +447,36 @@ username3
             f = f.filter(a => a.account_name.toLowerCase().includes(s) || a.device_id.toLowerCase().includes(s));
         }
         return f;
+    }
+
+    // ─── Group Filter Helpers ──────────────────────────────────────────
+    function getGroupKey(acct) {
+        if (acct.device_group) return acct.device_group;
+        const name = (acct.device_name || acct.device_id || '').toUpperCase();
+        const m = name.match(/^([A-Z]+)/);
+        return m ? m[1] : name.split(/[\s_]/)[0] || '?';
+    }
+
+    function renderGroupBar(barId, accounts, activeGroup, onSelect) {
+        const bar = document.getElementById(barId);
+        if (!bar) return;
+        const groups = {};
+        accounts.forEach(a => { const g = getGroupKey(a); groups[g] = (groups[g]||0) + 1; });
+        const sorted = Object.keys(groups).sort();
+        if (sorted.length <= 1) { bar.innerHTML = ''; return; }
+        const total = accounts.length;
+        bar.innerHTML =
+            `<span class="group-filter-btn ${!activeGroup?'active':''}" data-group="">${escHtml('All')} <span class="group-badge">${total}</span></span>` +
+            sorted.map(g =>
+                `<span class="group-filter-btn ${activeGroup===g?'active':''}" data-group="${escHtml(g)}">${escHtml(g)} <span class="group-badge">${groups[g]}</span></span>`
+            ).join('');
+        bar.querySelectorAll('.group-filter-btn').forEach(btn => {
+            btn.onclick = () => onSelect(btn.dataset.group || '');
+        });
+    }
+
+    function escHtml(s) {
+        const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
     }
 
     // ─── Icon map for source types ─────────────────────────────────────
@@ -531,9 +590,17 @@ username3
         $updateBtn.disabled = selectedAccounts.size === 0 || !$editor.value.trim();
     }
 
+    let srcActiveGroup = '';
+
     function doFilter() {
-        filteredAccounts = applyFilters(allAccounts, $deviceSel, $tagSel, currentSearch);
+        filteredAccounts = applyFilters(allAccounts, $deviceSel, $tagSel, currentSearch, srcActiveGroup);
         renderAccounts();
+    }
+
+    function onSrcGroupSelect(g) {
+        srcActiveGroup = g;
+        renderGroupBar('groupFilterBar', allAccounts, srcActiveGroup, onSrcGroupSelect);
+        doFilter();
     }
 
     // Wire shared-pane events once
@@ -541,9 +608,10 @@ username3
     $deviceSel.addEventListener('change', doFilter);
     $tagSel.addEventListener('change', doFilter);
     $clearFilters.addEventListener('click', function() {
-        $search.value = ''; currentSearch = '';
+        $search.value = ''; currentSearch = ''; srcActiveGroup = '';
         $deviceSel.selectedIndex = -1;
         $tagSel.selectedIndex = -1;
+        renderGroupBar('groupFilterBar', allAccounts, srcActiveGroup, onSrcGroupSelect);
         doFilter();
     });
     $selectAll.addEventListener('change', function() {
@@ -613,6 +681,8 @@ username3
             renderAccounts();
             populateDeviceDropdown($deviceSel, allAccounts);
             await populateTagDropdown($tagSel);
+            srcActiveGroup = '';
+            renderGroupBar('groupFilterBar', allAccounts, srcActiveGroup, onSrcGroupSelect);
         } catch (err) {
             $accountsList.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${err.message}</div>`;
         }
@@ -722,9 +792,15 @@ username3
         const sMentSt  = document.getElementById('enableMentionToStory');
         const sPostTyp = document.getElementById('postTypeToShare');
 
-        let accts = [], filtered = [], selected = new Set(), search = '';
+        let accts = [], filtered = [], selected = new Set(), search = '', sActiveGroup = '';
 
-        function doFilter() { filtered = applyFilters(accts, sDevice, sTag, search); render(); }
+        function doFilter() { filtered = applyFilters(accts, sDevice, sTag, search, sActiveGroup); render(); }
+
+        function onSettingsGroupSelect(g) {
+            sActiveGroup = g;
+            renderGroupBar('settingsGroupFilterBar', accts, sActiveGroup, onSettingsGroupSelect);
+            doFilter();
+        }
 
         function render() {
             if (!filtered.length) {
@@ -750,7 +826,7 @@ username3
         sSearch.addEventListener('input', function() { search = this.value; doFilter(); });
         sDevice.addEventListener('change', doFilter);
         sTag.addEventListener('change', doFilter);
-        sClearF.addEventListener('click', function() { sSearch.value=''; search=''; sDevice.selectedIndex=-1; sTag.selectedIndex=-1; doFilter(); });
+        sClearF.addEventListener('click', function() { sSearch.value=''; search=''; sDevice.selectedIndex=-1; sTag.selectedIndex=-1; sActiveGroup=''; renderGroupBar('settingsGroupFilterBar', accts, sActiveGroup, onSettingsGroupSelect); doFilter(); });
         sSelAll.addEventListener('change', function() { filtered.forEach(a => { const id=`${a.device_id}/${a.account_name}`; this.checked?selected.add(id):selected.delete(id); }); render(); });
         sClearS.addEventListener('click', function() { selected.clear(); render(); });
 
@@ -785,6 +861,8 @@ username3
                 accts = await r.json(); filtered=[...accts]; render();
                 populateDeviceDropdown(sDevice, accts);
                 await populateTagDropdown(sTag);
+                sActiveGroup = '';
+                renderGroupBar('settingsGroupFilterBar', accts, sActiveGroup, onSettingsGroupSelect);
             } catch(e) {
                 sList.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
             }

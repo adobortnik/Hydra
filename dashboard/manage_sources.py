@@ -190,7 +190,8 @@ def get_all_accounts_with_sources(source_type='follow'):
         cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT a.id, a.device_serial, a.username, d.device_name
+            SELECT a.id, a.device_serial, a.username, d.device_name,
+                   COALESCE(d.device_group, '') AS device_group
             FROM accounts a
             JOIN devices d ON a.device_serial = d.device_serial
             ORDER BY a.device_serial, a.username
@@ -221,6 +222,8 @@ def get_all_accounts_with_sources(source_type='follow'):
 
             all_accounts.append({
                 'device_id': device_id,
+                'device_name': row['device_name'] or '',
+                'device_group': row['device_group'] or '',
                 'account_name': account_name,
                 'sources_exists': usernames_count > 0,
                 'sources_content': sources_content,

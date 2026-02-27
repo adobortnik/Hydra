@@ -183,65 +183,61 @@ class BrowseProfilesAction:
 
         random_sleep(1.5, 3, label="profile_loaded")
 
-        # 2. Scroll through their posts grid slowly
-        grid_scrolls = random.randint(2, 5)
-        for i in range(grid_scrolls):
-            elapsed = time.time() - start_time
-            if elapsed >= target_duration:
-                break
+        # 2. Main browsing loop — keep doing organic actions until target_duration
+        posts_opened = 0
+        highlight_viewed = False
 
-            self._slow_scroll_down()
-            random_sleep(2, 5, label="grid_scroll")
+        while (time.time() - start_time) < target_duration:
+            # Pick a random action: scroll grid, open post, view highlight
+            roll = random.random()
 
-        # 3. Maybe open 1-2 posts and watch briefly
-        posts_to_open = random.randint(0, 2)
-        for i in range(posts_to_open):
-            elapsed = time.time() - start_time
-            if elapsed >= target_duration:
-                break
-
-            opened = self._try_open_grid_post()
-            if opened:
-                # Watch for 5-15 seconds
-                watch_time = random.uniform(5, 15)
-                log.debug("[%s] Watching post for %.1fs", self.device_serial, watch_time)
-                time.sleep(watch_time)
-
-                # Maybe like (only if enabled and random chance)
-                if self.can_like and likes == 0 and random.random() < 0.3:
-                    try:
-                        like_btn = self.device(descriptionContains="Like")
-                        if like_btn.exists(timeout=1):
-                            like_btn.click()
-                            time.sleep(1)
-                            likes += 1
-                            log.info("[%s] Liked a post on @%s's profile",
-                                     self.device_serial, target_username)
-                            log_action(
-                                self.session_id, self.device_serial, self.username,
-                                'like', target_username=target_username, success=True)
-                    except Exception as e:
-                        log.debug("[%s] Like attempt failed: %s", self.device_serial, e)
-
-                # Go back to profile
-                self.ctrl.press_back()
-                random_sleep(1, 2, label="back_to_profile")
-
-        # 4. Maybe view a highlight (low chance, not forced)
-        elapsed = time.time() - start_time
-        if elapsed < target_duration and random.random() < 0.2:
-            self._try_view_highlight()
-
-        # 5. If we still have time left, scroll a bit more
-        elapsed = time.time() - start_time
-        remaining_time = target_duration - elapsed
-        if remaining_time > 5:
-            extra_scrolls = random.randint(1, 3)
-            for _ in range(extra_scrolls):
-                if time.time() - start_time >= target_duration:
-                    break
+            if roll < 0.50:
+                # Scroll grid (most common)
                 self._slow_scroll_down()
-                random_sleep(2, 4, label="extra_scroll")
+                random_sleep(2, 5, label="grid_scroll")
+
+            elif roll < 0.85 and posts_opened < 3:
+                # Try to open a post
+                opened = self._try_open_grid_post()
+                if opened:
+                    posts_opened += 1
+                    watch_time = random.uniform(5, 15)
+                    log.debug("[%s] Watching post for %.1fs", self.device_serial, watch_time)
+                    time.sleep(watch_time)
+
+                    # Maybe like (only if enabled and random chance)
+                    if self.can_like and likes == 0 and random.random() < 0.3:
+                        try:
+                            like_btn = self.device(descriptionContains="Like")
+                            if like_btn.exists(timeout=1):
+                                like_btn.click()
+                                time.sleep(1)
+                                likes += 1
+                                log.info("[%s] Liked a post on @%s's profile",
+                                         self.device_serial, target_username)
+                                log_action(
+                                    self.session_id, self.device_serial, self.username,
+                                    'like', target_username=target_username, success=True)
+                        except Exception as e:
+                            log.debug("[%s] Like attempt failed: %s", self.device_serial, e)
+
+                    # Go back to profile
+                    self.ctrl.press_back()
+                    random_sleep(1, 2, label="back_to_profile")
+                else:
+                    # Tap missed, just scroll instead
+                    self._slow_scroll_down()
+                    random_sleep(1, 3, label="missed_tap_scroll")
+
+            elif not highlight_viewed and random.random() < 0.3:
+                # Try to view a highlight (once per profile)
+                self._try_view_highlight()
+                highlight_viewed = True
+
+            else:
+                # Default: scroll
+                self._slow_scroll_down()
+                random_sleep(2, 4, label="default_scroll")
 
         # 6. Navigate back
         self.ctrl.press_back()
