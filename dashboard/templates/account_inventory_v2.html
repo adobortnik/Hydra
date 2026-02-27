@@ -160,7 +160,7 @@
                                     <th>#</th>
                                     <th>Username</th>
                                     <th>Password</th>
-                                    <th>Email</th>
+                                    <th>2FA</th>
                                     <th>Status</th>
                                     <th>Assigned To</th>
                                     <th>Added</th>
@@ -273,7 +273,7 @@ function renderInventory(accounts) {
             <td class="password-cell" onclick="togglePassword(this, '${esc(a.password)}')" title="Click to reveal">
                 ••••••••
             </td>
-            <td class="text-muted">${esc(a.email || '-')}</td>
+            <td class="text-muted">${esc(a.two_factor_auth || '-')}</td>
             <td><span class="badge-inv badge-${a.status}">${esc(a.status)}</span></td>
             <td class="text-muted">${esc(a.assigned_to_device_serial || a.device_assigned || '-')}</td>
             <td class="text-muted">${a.date_added ? timeAgo(a.date_added) : '-'}</td>
