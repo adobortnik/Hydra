@@ -73,7 +73,7 @@ class FollowAction:
             self.daily_limit = 0
 
         if self.daily_limit <= 0:
-            self.daily_limit = int(self.settings.get('default_action_limit_perday', '28'))
+            self.daily_limit = int(self.settings.get('default_action_limit_perday') or 28)
 
         follow_action = self.account.get('follow_action', '10,20')
         if ',' in str(follow_action):

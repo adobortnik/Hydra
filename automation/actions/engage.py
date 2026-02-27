@@ -92,8 +92,8 @@ class EngageAction:
         """
         viewed = 0
 
-        min_stories = int(self.settings.get('min_viewhomefeedstory', 5))
-        max_stories = int(self.settings.get('max_viewhomefeedstory', 10))
+        min_stories = int(self.settings.get('min_viewhomefeedstory') or 5)
+        max_stories = int(self.settings.get('max_viewhomefeedstory') or 10)
         target = random.randint(min_stories, max_stories)
 
         log.info("[%s] Viewing up to %d home stories", self.device_serial, target)
@@ -142,15 +142,15 @@ class EngageAction:
             # Watch stories
             for i in range(target):
                 # Watch for a bit
-                min_delay = int(self.settings.get('min_viewhomefeedstory_delay', 3))
-                max_delay = int(self.settings.get('max_viewhomefeedstory_delay', 5))
+                min_delay = int(self.settings.get('min_viewhomefeedstory_delay') or 3)
+                max_delay = int(self.settings.get('max_viewhomefeedstory_delay') or 5)
                 watch_time = random.uniform(min_delay, max_delay)
                 time.sleep(watch_time)
 
                 viewed += 1
 
                 # Maybe like the story
-                like_pct = int(self.settings.get('percent_to_like_homefeedstory', 50))
+                like_pct = int(self.settings.get('percent_to_like_homefeedstory') or 50)
                 if random.randint(1, 100) <= like_pct:
                     self.ctrl.like_story()
 
@@ -183,8 +183,8 @@ class EngageAction:
         Scroll through the home feed for warmup using IGController.
         Returns number of scroll actions.
         """
-        min_scrolls = int(self.settings.get('min_scrollhomefeed', 5))
-        max_scrolls = int(self.settings.get('max_scrollhomefeed', 10))
+        min_scrolls = int(self.settings.get('min_scrollhomefeed') or 5)
+        max_scrolls = int(self.settings.get('max_scrollhomefeed') or 10)
         target = random.randint(min_scrolls, max_scrolls)
 
         log.info("[%s] Scrolling home feed %d times", self.device_serial, target)
@@ -200,14 +200,14 @@ class EngageAction:
                 # Scroll and verify we're still on home feed
                 self.ctrl.scroll_feed("down")
 
-                min_delay = int(self.settings.get('min_scrollhomefeed_delay', 3))
-                max_delay = int(self.settings.get('max_scrollhomefeed_delay', 5))
+                min_delay = int(self.settings.get('min_scrollhomefeed_delay') or 3)
+                max_delay = int(self.settings.get('max_scrollhomefeed_delay') or 5)
                 random_sleep(min_delay, max_delay, label="feed_scroll")
 
                 scrolls += 1
 
                 # Maybe like a post while scrolling
-                like_pct = int(self.settings.get('percent_to_like_homefeed', 50))
+                like_pct = int(self.settings.get('percent_to_like_homefeed') or 50)
                 if random.randint(1, 100) <= like_pct:
                     if self.ctrl.like_post():
                         log_action(self.session_id, self.device_serial,
@@ -233,8 +233,8 @@ class EngageAction:
         Browse the explore page for engagement using IGController.
         Returns number of scroll actions.
         """
-        min_scrolls = int(self.settings.get('min_scrollexplorepage', 5))
-        max_scrolls = int(self.settings.get('max_scrollexplorepage', 10))
+        min_scrolls = int(self.settings.get('min_scrollexplorepage') or 5)
+        max_scrolls = int(self.settings.get('max_scrollexplorepage') or 10)
         target = random.randint(min_scrolls, max_scrolls)
 
         log.info("[%s] Scrolling explore page %d times", self.device_serial, target)
@@ -249,14 +249,14 @@ class EngageAction:
             for _ in range(target):
                 self.ctrl.scroll_feed("down")
 
-                min_delay = int(self.settings.get('min_scrollexplorepage_delay', 5))
-                max_delay = int(self.settings.get('max_scrollexplorepage_delay', 7))
+                min_delay = int(self.settings.get('min_scrollexplorepage_delay') or 5)
+                max_delay = int(self.settings.get('max_scrollexplorepage_delay') or 7)
                 random_sleep(min_delay, max_delay, label="explore_scroll")
 
                 scrolls += 1
 
                 # Maybe open and like a post
-                like_pct = int(self.settings.get('percent_to_like_explorepagepost', 50))
+                like_pct = int(self.settings.get('percent_to_like_explorepagepost') or 50)
                 if random.randint(1, 100) <= like_pct:
                     if self.ctrl.open_explore_post():
                         self.ctrl.like_post()

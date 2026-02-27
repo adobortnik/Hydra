@@ -89,12 +89,12 @@ class CommentAction:
 
     def _init_limits(self):
         """Initialize comment limits from account settings."""
-        self.daily_limit = int(self.settings.get('comment_limit_perday', '25'))
+        self.daily_limit = int(self.settings.get('comment_limit_perday') or 25)
         if self.daily_limit <= 0:
             self.daily_limit = 25
 
-        min_c = int(self.settings.get('min_comment', '5'))
-        max_c = int(self.settings.get('max_comment', '10'))
+        min_c = int(self.settings.get('min_comment') or 5)
+        max_c = int(self.settings.get('max_comment') or 10)
         if min_c <= 0:
             min_c = 3
         if max_c <= 0:
@@ -103,8 +103,8 @@ class CommentAction:
             min_c, max_c = max_c, min_c
         self.session_target = random.randint(min_c, max_c)
 
-        self.min_delay = int(self.settings.get('comment_min_delay', '5'))
-        self.max_delay = int(self.settings.get('comment_max_delay', '15'))
+        self.min_delay = int(self.settings.get('comment_min_delay') or 5)
+        self.max_delay = int(self.settings.get('comment_max_delay') or 15)
         if self.min_delay < 3:
             self.min_delay = 3
         if self.max_delay < self.min_delay:

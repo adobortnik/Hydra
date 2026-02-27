@@ -46,12 +46,12 @@ class SavePostAction:
 
     def _init_limits(self):
         """Initialize save limits."""
-        self.daily_limit = int(self.settings.get('save_limit_perday', '15'))
+        self.daily_limit = int(self.settings.get('save_limit_perday') or 15)
         if self.daily_limit <= 0:
             self.daily_limit = 15
 
-        min_save = int(self.settings.get('min_save_action', '3'))
-        max_save = int(self.settings.get('max_save_action', '8'))
+        min_save = int(self.settings.get('min_save_action') or 3)
+        max_save = int(self.settings.get('max_save_action') or 8)
         if min_save <= 0:
             min_save = 3
         if max_save <= 0:

@@ -83,12 +83,12 @@ class DMAction:
 
     def _init_limits(self):
         """Initialize DM limits from account settings."""
-        self.daily_limit = int(self.settings.get('directmessage_daily_limit', '20'))
+        self.daily_limit = int(self.settings.get('directmessage_daily_limit') or 20)
         if self.daily_limit <= 0:
             self.daily_limit = 20
 
-        min_dm = int(self.settings.get('directmessage_min', '3'))
-        max_dm = int(self.settings.get('directmessage_max', '5'))
+        min_dm = int(self.settings.get('directmessage_min') or 3)
+        max_dm = int(self.settings.get('directmessage_max') or 5)
         if min_dm <= 0:
             min_dm = 2
         if max_dm <= 0:
@@ -97,8 +97,8 @@ class DMAction:
             min_dm, max_dm = max_dm, min_dm
         self.session_target = random.randint(min_dm, max_dm)
 
-        self.min_delay = int(self.settings.get('directmessage_min_delay', '10'))
-        self.max_delay = int(self.settings.get('directmessage_max_delay', '30'))
+        self.min_delay = int(self.settings.get('directmessage_min_delay') or 10)
+        self.max_delay = int(self.settings.get('directmessage_max_delay') or 30)
         if self.min_delay < 5:
             self.min_delay = 5
         if self.max_delay < self.min_delay:

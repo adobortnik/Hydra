@@ -71,10 +71,10 @@ class ReelsAction:
 
     def _init_limits(self):
         """Initialize reel watching limits from settings."""
-        self.daily_limit = int(self.settings.get('watch_reel_limit_perday', '50'))
+        self.daily_limit = int(self.settings.get('watch_reel_limit_perday') or 50)
 
-        min_reels = int(self.settings.get('min_reels_to_watch', '10'))
-        max_reels = int(self.settings.get('max_reels_to_watch', '20'))
+        min_reels = int(self.settings.get('min_reels_to_watch') or 10)
+        max_reels = int(self.settings.get('max_reels_to_watch') or 20)
         if min_reels <= 0:
             min_reels = 5
         if max_reels <= 0:
@@ -83,15 +83,15 @@ class ReelsAction:
             max_reels = min_reels + 5
         self.session_target = random.randint(min_reels, max_reels)
 
-        self.min_watch_sec = int(self.settings.get('min_sec_reel_watch', '10'))
-        self.max_watch_sec = int(self.settings.get('max_sec_reel_watch', '20'))
+        self.min_watch_sec = int(self.settings.get('min_sec_reel_watch') or 10)
+        self.max_watch_sec = int(self.settings.get('max_sec_reel_watch') or 20)
         if self.min_watch_sec <= 0:
             self.min_watch_sec = 5
         if self.max_watch_sec <= 0:
             self.max_watch_sec = 15
 
         self.like_enabled = bool(self.settings.get('enable_like_reel', False))
-        self.like_percent = int(self.settings.get('like_reel_percent', '40'))
+        self.like_percent = int(self.settings.get('like_reel_percent') or 40)
         self.save_enabled = bool(self.settings.get('enable_save_reels_after_watching', False))
 
         log.info("[%s] Reels limits: daily=%d, session_target=%d, "

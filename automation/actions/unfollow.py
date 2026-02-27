@@ -59,7 +59,7 @@ class UnfollowAction:
             except ValueError:
                 self.daily_limit = 0
         else:
-            self.daily_limit = int(self.settings.get('unfollow_limit_perday', '60'))
+            self.daily_limit = int(self.settings.get('unfollow_limit_perday') or 60)
 
         if self.daily_limit <= 0:
             self.daily_limit = 60

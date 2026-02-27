@@ -53,13 +53,13 @@ class LikeAction:
             except ValueError:
                 self.daily_limit = 0
         else:
-            self.daily_limit = int(self.settings.get('like_limit_perday', '20'))
+            self.daily_limit = int(self.settings.get('like_limit_perday') or 20)
 
         if self.daily_limit <= 0:
             self.daily_limit = 20
 
-        min_like = int(self.settings.get('min_likepost_action', '10'))
-        max_like = int(self.settings.get('max_likepost_action', '20'))
+        min_like = int(self.settings.get('min_likepost_action') or 10)
+        max_like = int(self.settings.get('max_likepost_action') or 20)
         if min_like <= 0:
             min_like = 5
         if max_like <= 0:
@@ -141,7 +141,7 @@ class LikeAction:
                         break
 
                 # Random chance to skip (human-like)
-                like_chance = int(self.settings.get('percent_to_like_homefeed', '50'))
+                like_chance = int(self.settings.get('percent_to_like_homefeed') or 50)
                 if random.randint(1, 100) <= like_chance:
                     # Try to like the visible post
                     if self.ctrl.like_post():

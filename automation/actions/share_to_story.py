@@ -55,12 +55,12 @@ class ShareToStoryAction:
         self.settings = get_account_settings(self.account_id)
 
         # Limits from settings
-        self.daily_limit = int(self.settings.get('shared_post_limit_perday', 1))
-        self.per_source_limit = int(self.settings.get('shared_post_limit_persource_perday', 2))
+        self.daily_limit = int(self.settings.get('shared_post_limit_perday') or 1)
+        self.per_source_limit = int(self.settings.get('shared_post_limit_persource_perday') or 2)
         self.mention = self.settings.get('sharepost_mention', '').strip()
         self.post_type = self.settings.get('post_type_to_share', 'post_reels')
-        self.min_watch = int(self.settings.get('min_sec_share_reel_watch', 5))
-        self.max_watch = int(self.settings.get('max_sec_share_reel_watch', 10))
+        self.min_watch = int(self.settings.get('min_sec_share_reel_watch') or 5)
+        self.max_watch = int(self.settings.get('max_sec_share_reel_watch') or 10)
 
         # Story editor features
         self.enable_mention = _to_bool(self.settings.get('enable_mention_to_story', False))
