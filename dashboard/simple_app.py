@@ -871,13 +871,16 @@ def init_account_inventory_db():
     )
     ''')
     
-    # Add appid column if it doesn't exist
-    try:
-        cursor.execute("SELECT appid FROM account_inventory LIMIT 1")
-    except sqlite3.OperationalError:
-        # Column doesn't exist, add it
-        cursor.execute("ALTER TABLE account_inventory ADD COLUMN appid TEXT DEFAULT 'com.instagram.android'")
-        conn.commit()
+    # Add missing columns if they don't exist
+    for col_name, col_def in [
+        ('appid', "TEXT DEFAULT 'com.instagram.android'"),
+        ('email', 'TEXT'),
+        ('phone', 'TEXT'),
+    ]:
+        try:
+            cursor.execute("SELECT %s FROM account_inventory LIMIT 1" % col_name)
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE account_inventory ADD COLUMN %s %s" % (col_name, col_def))
     
     conn.commit()
     conn.close()

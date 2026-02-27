@@ -1160,9 +1160,23 @@ def api_inventory_import():
 
             username = parts[0].strip()
             password = parts[1].strip()
-            email = parts[2].strip() if len(parts) > 2 else None
-            phone = parts[3].strip() if len(parts) > 3 else None
-            two_fa = parts[4].strip() if len(parts) > 4 else None
+
+            # Smart detection for 3-field format (username:password:2fa_or_email)
+            # If only 3 fields and the 3rd has no '@', treat as 2FA token
+            if len(parts) == 3:
+                third = parts[2].strip()
+                if '@' in third:
+                    email = third
+                    phone = None
+                    two_fa = None
+                else:
+                    email = None
+                    phone = None
+                    two_fa = third if third else None
+            else:
+                email = parts[2].strip() if len(parts) > 2 else None
+                phone = parts[3].strip() if len(parts) > 3 else None
+                two_fa = parts[4].strip() if len(parts) > 4 else None
 
             if not username or not password:
                 errors.append("Line %d: empty username or password" % line_num)
