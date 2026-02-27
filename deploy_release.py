@@ -191,21 +191,43 @@ def deploy_to_release():
             'account_inventory.db', 'media_library.db',
             'scheduled_posts.db', 'devices.db',
             'global_settings.json', 'api_keys.json',
+            'jap_api_key.txt',
         }
-        DEPLOY_SKIP_DIRS = {'backups', '__pycache__'}
+        DEPLOY_SKIP_DIRS = {'backups', '__pycache__', 'media_library',
+                            'screenshots', 'logs', 'test_results',
+                            'xml_dumps', 'api_keys'}
+        # Extensions to skip everywhere (runtime data)
+        DEPLOY_SKIP_EXTENSIONS = {'.db', '.db-wal', '.db-shm'}
+
+        def _should_skip(path):
+            """Check if a file/dir should be skipped from deploy."""
+            name = path.name
+            if name in DEPLOY_SKIP_FILES:
+                return True
+            if name in DEPLOY_SKIP_DIRS:
+                return True
+            if path.is_file() and path.suffix in DEPLOY_SKIP_EXTENSIONS:
+                return True
+            return False
+
+        def _ignore_func(directory, contents):
+            """shutil.copytree ignore function — skip deploy files."""
+            skip = set()
+            for name in contents:
+                full = Path(directory) / name
+                if name in DEPLOY_SKIP_FILES or name in DEPLOY_SKIP_DIRS:
+                    skip.add(name)
+                elif full.is_file() and full.suffix in DEPLOY_SKIP_EXTENSIONS:
+                    skip.add(name)
+            return skip
 
         def _copy_filtered(src_dir, dst_dir):
             for item in src_dir.iterdir():
-                if item.name in DEPLOY_SKIP_FILES:
-                    continue
-                if item.name in DEPLOY_SKIP_DIRS:
-                    continue
-                if item.suffix == '.db' and 'bot_data' in str(item):
+                if _should_skip(item):
                     continue
                 dest = dst_dir / item.name
                 if item.is_dir():
-                    shutil.copytree(item, dest,
-                                    ignore=shutil.ignore_patterns(*DEPLOY_SKIP_FILES, *DEPLOY_SKIP_DIRS))
+                    shutil.copytree(item, dest, ignore=_ignore_func)
                 else:
                     shutil.copy2(item, dest)
 
@@ -225,14 +247,26 @@ def deploy_to_release():
             encoding='utf-8'
         )
 
-        # .gitignore — protect user data from being overwritten
+        # .gitignore — protect ALL user data from being overwritten on git pull
         (repo_dir / ".gitignore").write_text(
-            "# User data (preserved across updates)\n"
-            "db/phone_farm.db\ndb/phone_farm.db-wal\ndb/phone_farm.db-shm\n"
-            "db/backups/\nmedia_library/\nscreenshots/\nlogs/\n"
-            "__pycache__/\n*.pyc\n"
+            "# ===== User data (NEVER overwrite on git pull) =====\n"
+            "\n# Databases\n"
+            "*.db\n*.db-wal\n*.db-shm\n"
+            "\n# Settings & API keys\n"
             "dashboard/data/global_settings.json\n"
-            "dashboard/data/api_keys.json\n",
+            "dashboard/data/api_keys.json\n"
+            "data/api_keys/\n"
+            "dashboard/auth_config.json\n"
+            "\n# Runtime data\n"
+            "media_library/\nscreenshots/\nlogs/\n"
+            "db/backups/\ntest_results/\n"
+            "automation/xml_dumps/\n"
+            "scheduled_posts/\n"
+            "\n# Bot data\n"
+            "dashboard/uiAutomator/bot_data/\n"
+            "dashboard/uiAutomator/profile_pictures/\n"
+            "\n# Python cache\n"
+            "__pycache__/\n*.pyc\n*.pyo\n",
             encoding='utf-8'
         )
 

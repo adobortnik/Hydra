@@ -529,6 +529,9 @@ CATEGORY_FIELDS = {
         'enable_scrollexplorepage', 'min_scrollexplorepage', 'max_scrollexplorepage',
         'min_scrollexplorepage_delay', 'max_scrollexplorepage_delay',
         'percent_to_like_explorepagepost',
+        'enable_browse_profiles', 'browse_profiles_sources',
+        'browse_profiles_limit_perday', 'browse_profiles_can_like',
+        'browse_profiles_time_min', 'browse_profiles_time_max',
     ],
     'post': [
         'enable_scheduled_post',

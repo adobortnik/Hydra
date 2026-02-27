@@ -114,7 +114,7 @@ COPY_FILES_PATTERNS = [
     "*.json", "*.txt", "*.md", "*.bat", "*.ps1", "*.sh",
     "*.html", "*.css", "*.js", "*.jpg", "*.jpeg", "*.png",
     "*.gif", "*.webp", "*.ico", "*.svg",
-    "*.db", "*.sqlite", "*.sqlite3",
+    # "*.db", "*.sqlite", "*.sqlite3",  # REMOVED — DB files are runtime data, never ship
     "*.yaml", "*.yml", "*.toml", "*.cfg", "*.ini",
     "*.csv", "*.vbs",
     "requirements.txt",
@@ -236,10 +236,15 @@ def discover_asset_files() -> list:
             if f.endswith(".py") or f.endswith(".pyc") or f.endswith(".pyo"):
                 continue
             
-            # Skip runtime DB files
-            if f in SKIP_DB_FILES:
+            # Skip ALL .db files — clients create their own at runtime
+            if f.endswith('.db') or f.endswith('.db-wal') or f.endswith('.db-shm'):
                 continue
-            if f.endswith('.db') and any(skip_dir in str(rel_root) for skip_dir in SKIP_DB_DIRS):
+            # Skip user settings and API keys
+            if f in ('global_settings.json', 'api_keys.json', 'auth_config.json',
+                      'jap_api_key.txt', 'deploy_token.txt'):
+                continue
+            # Skip api_keys directory
+            if 'api_keys' in str(rel_root):
                 continue
             
             rel_path = rel_root / f
@@ -471,7 +476,13 @@ def copy_assets(dry_run: bool = False):
             shutil.rmtree(dest)
         shutil.copytree(
             src, dest,
-            ignore=shutil.ignore_patterns("*.pyc", "__pycache__", "media_library"),
+            ignore=shutil.ignore_patterns(
+                "*.pyc", "__pycache__", "media_library",
+                # Runtime data — never ship to clients
+                "*.db", "*.db-wal", "*.db-shm",
+                "global_settings.json", "auth_config.json",
+                "api_keys.json", "jap_api_key.txt", "deploy_token.txt",
+            ),
             dirs_exist_ok=True,
         )
         file_count = sum(1 for _ in dest.rglob("*") if _.is_file())

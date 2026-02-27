@@ -1124,6 +1124,10 @@ class BotEngine:
         if self.settings.get('enable_save_post', False):
             actions.append(('save_post', self._action_save_post))
 
+        # Browse profiles (organic profile visiting)
+        if self.settings.get('enable_browse_profiles', False):
+            actions.append(('browse_profiles', self._action_browse_profiles))
+
         # If no specific actions enabled, at least do engagement
         if not actions:
             actions.append(('engage', self._action_engage))
@@ -1331,6 +1335,16 @@ class BotEngine:
         from automation.actions.save_post import SavePostAction
         action = SavePostAction(self._device, self.device_serial,
                                 self.account, self.session_id)
+        return action.execute()
+
+    def _action_browse_profiles(self):
+        """Run browse profiles action (organic profile visiting)."""
+        from automation.actions.browse_profiles import BrowseProfilesAction
+        action = BrowseProfilesAction(
+            self._device, self.device_serial,
+            self.account, self.session_id,
+            package=self.account.get('package', 'com.instagram.android'),
+        )
         return action.execute()
 
     def _action_share_to_story(self):

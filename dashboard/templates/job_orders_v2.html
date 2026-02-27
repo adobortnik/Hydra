@@ -100,7 +100,31 @@
     #quickReportCard .card-header:hover { background: rgba(220, 53, 69, 0.15); }
     .form-range { accent-color: #dc3545; }
 
-    /* â"€â"€â"€ Misc â"€â"€â"€ */
+    /* ─── Group Filter Buttons ─── */
+    .group-filter-btn {
+        border: 1px solid #495057;
+        border-radius: 16px;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        background: #2c3034;
+        color: #adb5bd;
+        transition: all 0.15s;
+        white-space: nowrap;
+    }
+    .group-filter-btn:hover { border-color: #0d6efd; color: #e0e0e0; }
+    .group-filter-btn.active { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+    .group-badge {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        background: #495057;
+        color: #adb5bd;
+        margin-left: 0.35rem;
+        vertical-align: middle;
+    }
+
+    /* ─── Misc ─── */
     .btn-icon { padding: 0.25rem 0.5rem; font-size: 0.85rem; }
     .text-truncate-200 { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
 </style>
@@ -401,11 +425,19 @@
                 <!-- STEP 3: Select Accounts -->
                 <div class="wizard-step" data-step="3">
                     <h6 class="mb-3">Select Accounts</h6>
-                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <!-- Group filter buttons -->
+                    <div class="d-flex gap-2 mb-2 flex-wrap" id="groupFilterBar">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
                         <select class="form-select form-select-sm bg-dark text-white border-secondary" id="deviceFilter" style="max-width:220px">
                             <option value="">All Devices</option>
                         </select>
                         <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="accountSearch" placeholder="Search accounts…" style="max-width:220px">
+                        <div class="form-check ms-2">
+                            <input type="checkbox" class="form-check-input" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)">
+                            <label class="form-check-label text-white" for="selectAllCheckbox">Select All</label>
+                        </div>
                         <span class="badge bg-info align-self-center" id="selectedCount">0 selected</span>
                     </div>
                     <div class="account-picker" id="accountPicker">
@@ -614,8 +646,10 @@
 // STATE
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 let allJobs = [];
-let availableDevices = [];   // [{device_serial, device_name, accounts:[]}]
+let availableDevices = [];   // [{device_serial, device_name, device_group, accounts:[]}]
+let availableGroups = [];    // sorted unique group names
 let selectedAccounts = new Set();
+let activeGroupFilter = '';  // '' = all groups
 let wizardStep = 1;
 let chosenType = '';
 let currentDetailJobId = null;
@@ -1080,9 +1114,13 @@ function resetWizard() {
     wizardStep = 1;
     chosenType = '';
     selectedAccounts.clear();
+    activeGroupFilter = '';
     document.querySelectorAll('.job-type-card').forEach(c => c.classList.remove('selected'));
     document.getElementById('cfgJobName').value = '';
     document.getElementById('cfgTarget').value = '';
+    // Reset select all checkbox
+    const selAllCb = document.getElementById('selectAllCheckbox');
+    if (selAllCb) { selAllCb.checked = false; selAllCb.indeterminate = false; }
     document.getElementById('cfgCommentText').value = '';
     document.getElementById('cfgTargetCount').value = '50';
     document.getElementById('cfgLimitHour').value = '50';
@@ -1206,14 +1244,120 @@ async function loadAvailableAccounts() {
         const r = await fetch('/api/jobs-v2/available-accounts');
         const d = await r.json();
         availableDevices = d.devices || [];
+        availableGroups = d.groups || [];
+        activeGroupFilter = '';
 
         // Populate device filter
         const sel = document.getElementById('deviceFilter');
         sel.innerHTML = '<option value="">All Devices</option>' +
-            availableDevices.map(dv => `<option value="${esc(dv.device_serial)}">${esc(dv.device_name)} (${dv.accounts.length})</option>`).join('');
+            availableDevices.map(dv => `<option value="${esc(dv.device_serial)}">${esc(dv.device_name)}${dv.device_group ? ' [' + esc(dv.device_group) + ']' : ''} (${dv.accounts.length})</option>`).join('');
 
+        // Populate group filter bar
+        renderGroupFilterBar();
         renderAccountPicker();
     } catch(e) { console.error('Load accounts error', e); }
+}
+
+function renderGroupFilterBar() {
+    const bar = document.getElementById('groupFilterBar');
+    if (!bar) return;
+
+    // Collect groups: from API + derive from device names if no explicit groups
+    let groups = [...availableGroups];
+
+    // If no explicit groups, derive from device name prefixes (e.g., "S8", "SAMSUNG RENTED", "ROBIN", etc.)
+    if (groups.length === 0) {
+        const nameGroups = {};
+        availableDevices.forEach(dv => {
+            const name = (dv.device_name || '').toUpperCase();
+            // Try to extract a group prefix from device name
+            let prefix = '';
+            if (name.startsWith('S8 ')) prefix = 'S8';
+            else if (name.startsWith('SAMSUNG RENTED')) prefix = 'SAMSUNG RENTED';
+            else if (name.startsWith('SAMSUNG')) prefix = 'SAMSUNG';
+            else if (name.startsWith('DEVICE ')) prefix = 'DEVICE';
+            else {
+                // Use first word as group (e.g., ROBIN, JETT, CRAIG, etc.)
+                prefix = name.split(/\s+/)[0];
+            }
+            if (prefix) {
+                if (!nameGroups[prefix]) nameGroups[prefix] = 0;
+                nameGroups[prefix] += dv.accounts.length;
+            }
+        });
+        // Only show groups with 2+ devices or meaningful groups
+        groups = Object.keys(nameGroups).filter(g => {
+            const deviceCount = availableDevices.filter(dv => getDeviceGroupKey(dv) === g).length;
+            return deviceCount >= 1;
+        }).sort();
+    }
+
+    if (groups.length <= 1) {
+        bar.innerHTML = '';
+        return;
+    }
+
+    // Count accounts per group
+    const groupCounts = {};
+    groups.forEach(g => { groupCounts[g] = 0; });
+    availableDevices.forEach(dv => {
+        const gk = getDeviceGroupKey(dv);
+        if (gk in groupCounts) groupCounts[gk] += dv.accounts.length;
+    });
+
+    bar.innerHTML =
+        `<span class="group-filter-btn active" onclick="filterByGroup('')">All <span class="group-badge">${availableDevices.reduce((s,d) => s + d.accounts.length, 0)}</span></span>` +
+        groups.map(g =>
+            `<span class="group-filter-btn" onclick="filterByGroup('${esc(g)}')">${esc(g)} <span class="group-badge">${groupCounts[g] || 0}</span></span>`
+        ).join('');
+}
+
+function getDeviceGroupKey(dv) {
+    // If device has explicit group, use it
+    if (dv.device_group) return dv.device_group;
+    // Derive from name
+    const name = (dv.device_name || '').toUpperCase();
+    if (name.startsWith('S8 ')) return 'S8';
+    if (name.startsWith('SAMSUNG RENTED')) return 'SAMSUNG RENTED';
+    if (name.startsWith('SAMSUNG')) return 'SAMSUNG';
+    if (name.startsWith('DEVICE ')) return 'DEVICE';
+    return name.split(/\s+/)[0] || 'OTHER';
+}
+
+function filterByGroup(group) {
+    activeGroupFilter = group;
+    // Update button states
+    document.querySelectorAll('#groupFilterBar .group-filter-btn').forEach(btn => {
+        const btnGroup = btn.getAttribute('onclick').match(/filterByGroup\('(.*)'\)/)?.[1] || '';
+        btn.classList.toggle('active', btnGroup === group);
+    });
+    // Reset select all checkbox
+    document.getElementById('selectAllCheckbox').checked = false;
+    renderAccountPicker();
+}
+
+function toggleSelectAll(checked) {
+    const filter = document.getElementById('deviceFilter').value;
+    const search = document.getElementById('accountSearch').value.toLowerCase();
+
+    // Get visible devices based on current filters
+    let devices = getFilteredDevices();
+    if (filter) devices = devices.filter(d => d.device_serial === filter);
+
+    devices.forEach(dv => {
+        let accts = dv.accounts;
+        if (search) accts = accts.filter(a => a.username.toLowerCase().includes(search));
+        accts.forEach(a => {
+            if (checked) selectedAccounts.add(a.id);
+            else selectedAccounts.delete(a.id);
+        });
+    });
+    renderAccountPicker();
+}
+
+function getFilteredDevices() {
+    if (!activeGroupFilter) return availableDevices;
+    return availableDevices.filter(dv => getDeviceGroupKey(dv) === activeGroupFilter);
 }
 
 function renderAccountPicker() {
@@ -1222,7 +1366,7 @@ function renderAccountPicker() {
     const container = document.getElementById('accountPicker');
 
     let html = '';
-    let devices = availableDevices;
+    let devices = getFilteredDevices();
     if (filter) devices = devices.filter(d => d.device_serial === filter);
 
     devices.forEach(dv => {
@@ -1231,11 +1375,14 @@ function renderAccountPicker() {
         if (!accts.length) return;
 
         const allSelected = accts.every(a => selectedAccounts.has(a.id));
+        const groupKey = getDeviceGroupKey(dv);
+        const groupLabel = dv.device_group || groupKey;
         html += `<div class="device-group">
             <div class="device-group-header">
                 <div>
                     <input type="checkbox" class="form-check-input me-2" ${allSelected?'checked':''} onchange="toggleDevice('${dv.device_serial}', this.checked)">
                     <strong>${esc(dv.device_name)}</strong>
+                    <span class="group-badge">${esc(groupLabel)}</span>
                     <span class="text-muted ms-2">(${accts.length} accounts)</span>
                 </div>
             </div>`;
@@ -1254,22 +1401,49 @@ function renderAccountPicker() {
     if (!html) html = '<div class="text-center text-muted py-3">No accounts found</div>';
     container.innerHTML = html;
     updateSelectedCount();
+    updateSelectAllCheckbox();
 }
 
 function toggleAccount(id, checked) {
     if (checked) selectedAccounts.add(id); else selectedAccounts.delete(id);
     updateSelectedCount();
+    updateSelectAllCheckbox();
 }
 
 function toggleDevice(serial, checked) {
     const dv = availableDevices.find(d => d.device_serial === serial);
     if (!dv) return;
-    dv.accounts.forEach(a => { if (checked) selectedAccounts.add(a.id); else selectedAccounts.delete(a.id); });
+    const search = document.getElementById('accountSearch').value.toLowerCase();
+    let accts = dv.accounts;
+    if (search) accts = accts.filter(a => a.username.toLowerCase().includes(search));
+    accts.forEach(a => { if (checked) selectedAccounts.add(a.id); else selectedAccounts.delete(a.id); });
     renderAccountPicker();
 }
 
 function updateSelectedCount() {
     document.getElementById('selectedCount').textContent = selectedAccounts.size + ' selected';
+}
+
+function updateSelectAllCheckbox() {
+    const cb = document.getElementById('selectAllCheckbox');
+    if (!cb) return;
+    const filter = document.getElementById('deviceFilter').value;
+    const search = document.getElementById('accountSearch').value.toLowerCase();
+    let devices = getFilteredDevices();
+    if (filter) devices = devices.filter(d => d.device_serial === filter);
+
+    let total = 0, selected = 0;
+    devices.forEach(dv => {
+        let accts = dv.accounts;
+        if (search) accts = accts.filter(a => a.username.toLowerCase().includes(search));
+        accts.forEach(a => {
+            total++;
+            if (selectedAccounts.has(a.id)) selected++;
+        });
+    });
+
+    cb.checked = total > 0 && selected === total;
+    cb.indeterminate = selected > 0 && selected < total;
 }
 
 function renderReview() {

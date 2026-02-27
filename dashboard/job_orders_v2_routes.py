@@ -383,27 +383,33 @@ def api_available_accounts():
     try:
         accounts = rows_to_dicts(conn.execute("""
             SELECT a.id, a.username, a.device_serial, a.status, a.instagram_package,
-                   d.device_name
+                   d.device_name, d.device_group
             FROM accounts a
             LEFT JOIN devices d ON d.id = a.device_id
-            ORDER BY d.device_name, a.username
+            ORDER BY d.device_group, d.device_name, a.username
         """).fetchall())
 
         # Group by device
         devices = {}
+        all_groups = set()
         for acct in accounts:
             serial = acct['device_serial'] or 'unassigned'
             name = acct['device_name'] or serial
+            group = acct.get('device_group') or ''
+            if group:
+                all_groups.add(group)
             if serial not in devices:
                 devices[serial] = {
                     'device_serial': serial,
                     'device_name': name,
+                    'device_group': group,
                     'accounts': []
                 }
             devices[serial]['accounts'].append(acct)
 
         return jsonify({
             'devices': list(devices.values()),
+            'groups': sorted(all_groups),
             'total': len(accounts)
         })
     finally:
