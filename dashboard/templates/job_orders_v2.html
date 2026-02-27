@@ -1531,7 +1531,10 @@ function esc(s) {
 function fmtDate(iso) {
     if (!iso) return '-';
     try {
-        const d = new Date(iso + (iso.includes('T') ? '' : 'T00:00:00') + 'Z');
+        // SQLite datetime('now') returns "2026-02-27 17:50:00" — replace space with T
+        const normalized = iso.includes('T') ? iso : iso.replace(' ', 'T');
+        const d = new Date(normalized + (normalized.endsWith('Z') ? '' : 'Z'));
+        if (isNaN(d.getTime())) return iso;
         return d.toLocaleString();
     } catch(e) { return iso; }
 }
