@@ -152,12 +152,20 @@ def api_dm_devices():
             ORDER BY d.created_at ASC, d.device_serial
         """).fetchall())
 
-        # Attach bot_status — detect from log files (most reliable)
+        # Attach bot_status — process detection + log file freshness
         import os as _os
         from datetime import datetime as _dt, timedelta as _td
         logs_dir = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), 'logs')
         today_str = _dt.utcnow().strftime('%Y-%m-%d')
         hung_threshold = _td(minutes=10)  # no log activity for 10min = hung
+
+        # Build a map of actually running run_device.py processes
+        try:
+            from bot_launcher_routes import _find_run_device_processes
+            running_procs = _find_run_device_processes()
+            running_map = {p['serial']: p for p in running_procs}
+        except Exception:
+            running_map = {}
 
         for dev in devices:
             serial = dev['device_serial']
@@ -166,26 +174,33 @@ def api_dm_devices():
             dev['bot_started_at'] = None
             dev['bot_last_check'] = None
 
-            # Check today's log file modification time
-            log_file = _os.path.join(logs_dir, f"{serial}_{today_str}.log")
-            if _os.path.exists(log_file):
-                mtime = _dt.utcfromtimestamp(_os.path.getmtime(log_file))
-                age = _dt.utcnow() - mtime
-                if age < hung_threshold:
+            proc = running_map.get(serial)
+            if proc:
+                # Process is running — check log freshness for hung detection
+                dev['bot_pid'] = proc['pid']
+                log_file = _os.path.join(logs_dir, f"{serial}_{today_str}.log")
+                if _os.path.exists(log_file):
+                    mtime = _dt.utcfromtimestamp(_os.path.getmtime(log_file))
+                    age = _dt.utcnow() - mtime
+                    dev['bot_last_check'] = mtime.isoformat()
+                    if age < hung_threshold:
+                        dev['bot_status'] = 'active'
+                    else:
+                        dev['bot_status'] = 'hung'
+                else:
+                    # Process running but no log today — just started or something off
                     dev['bot_status'] = 'active'
-                elif age < _td(hours=2):
-                    dev['bot_status'] = 'hung'
-                # else stays 'stopped'
-                dev['bot_last_check'] = mtime.isoformat()
+            # else: no process = stopped (stays 'stopped')
 
-            # Also check bot_status table for PID info
+            # Get started_at from bot_status table
             bs = conn.execute(
                 "SELECT pid, started_at FROM bot_status WHERE device_serial = ?",
                 (serial,)
             ).fetchone()
             if bs:
-                dev['bot_pid'] = bs['pid']
                 dev['bot_started_at'] = bs['started_at']
+                if not proc:
+                    dev['bot_pid'] = None  # Stale PID, process not running
 
         return jsonify({'devices': devices, 'total': len(devices)})
     except Exception as e:

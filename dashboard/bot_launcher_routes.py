@@ -24,6 +24,10 @@ import glob
 from flask import Blueprint, jsonify, request
 from phone_farm_db import update_device_status
 
+# Simple TTL cache for process scanning (avoid hitting WMIC on every refresh)
+_proc_cache = {'data': [], 'ts': 0}
+_PROC_CACHE_TTL = 5  # seconds
+
 bot_launcher_bp = Blueprint('bot_launcher', __name__, url_prefix='/api/bot')
 
 # Paths
@@ -99,11 +103,15 @@ def _get_device_active_account(serial):
 # Process helpers (Windows)
 # ---------------------------------------------------------------------------
 
-def _find_run_device_processes():
+def _find_run_device_processes(use_cache=True):
     """
     Find all python processes running run_device.py.
     Returns list of dicts: {pid, serial, cmdline}
+    Uses a short TTL cache to avoid hammering WMIC on rapid refreshes.
     """
+    if use_cache and (time.time() - _proc_cache['ts']) < _PROC_CACHE_TTL:
+        return _proc_cache['data']
+
     processes = []
     try:
         result = subprocess.run(
@@ -134,6 +142,8 @@ def _find_run_device_processes():
                 })
     except Exception as e:
         print(f'[bot_launcher] Error scanning processes: {e}')
+    _proc_cache['data'] = processes
+    _proc_cache['ts'] = time.time()
     return processes
 
 
@@ -143,6 +153,10 @@ def _find_process_for_serial(serial):
     procs = _find_run_device_processes()
     return [p for p in procs if p['serial'] == serial_db]
 
+
+def _invalidate_proc_cache():
+    """Invalidate the process list cache after start/stop."""
+    _proc_cache['ts'] = 0
 
 def _kill_pid(pid, force=True):
     """Kill a process by PID."""
@@ -372,6 +386,7 @@ def launch_single(serial):
         except Exception:
             pass
 
+        _invalidate_proc_cache()
         return jsonify({
             'success': True,
             'serial': serial_db,
@@ -482,6 +497,7 @@ def stop_single(serial):
         except Exception:
             pass
 
+    _invalidate_proc_cache()
     return jsonify({
         'success': True,
         'serial': serial_db,
