@@ -1128,8 +1128,9 @@ class BotEngine:
         if self.settings.get('enable_browse_profiles', False):
             actions.append(('browse_profiles', self._action_browse_profiles))
 
-        # If no specific actions enabled, at least do engagement
-        if not actions:
+        # If no specific actions enabled, at least do engagement as fallback
+        real_actions = [a for a in actions if a[0] not in ('check_profile',)]
+        if not real_actions:
             actions.append(('engage', self._action_engage))
 
         # Randomize order slightly (but keep check_profile first, engage second)
