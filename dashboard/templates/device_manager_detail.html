@@ -1734,6 +1734,44 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Browse Profiles -->
+                <div class="sp-section">
+                    <h6><i class="fas fa-user-friends me-1"></i> Browse Profiles</h6>
+                    <p class="text-muted small mb-2">Visit random profiles organically — scroll their grid, watch posts/reels, look like a real user.</p>
+                    <div class="sp-toggle-row">
+                        <label>Enable Browse Profiles</label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_browse_profiles" data-key="enable_browse_profiles">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-12">
+                            <label class="form-label">Source Usernames <span class="text-muted">(one per line)</span></label>
+                            <textarea class="form-control sp-setting" id="sp_browse_profiles_sources" data-key="browse_profiles_sources" rows="4" placeholder="username1&#10;username2&#10;username3" style="font-family: monospace; font-size: 0.85rem;"></textarea>
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-4">
+                            <label class="form-label">Daily Limit</label>
+                            <input type="number" class="form-control sp-setting" id="sp_browse_profiles_limit_perday" data-key="browse_profiles_limit_perday" placeholder="10">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Min Time (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_browse_profiles_time_min" data-key="browse_profiles_time_min" placeholder="30">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Max Time (sec)</label>
+                            <input type="number" class="form-control sp-setting" id="sp_browse_profiles_time_max" data-key="browse_profiles_time_max" placeholder="120">
+                        </div>
+                    </div>
+                    <div class="sp-toggle-row mt-2">
+                        <label>Allow Liking <span class="text-muted">(~30% chance, max 1/profile)</span></label>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input sp-setting" type="checkbox" id="sp_browse_profiles_can_like" data-key="browse_profiles_can_like">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- ─── Insights Tab ─── -->
