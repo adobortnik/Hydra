@@ -501,12 +501,10 @@ function renderDevices(devices) {
             <td><span class="bot-badge ${botClass}">${botLabel}</span></td>
             <td>
                 <div class="action-btns">
-                    <button class="btn-action btn-start" onclick="startBot('${escAttr(dev.device_serial)}')" title="Start Bot"
-                        style="${dev.bot_status === 'active' ? 'display:none' : ''}">
+                    <button class="btn-action btn-start" onclick="startBot('${escAttr(dev.device_serial)}')" title="Start Bot">
                         <i class="fas fa-play fa-xs"></i> Start
                     </button>
-                    <button class="btn-action btn-stop" onclick="stopBot('${escAttr(dev.device_serial)}')" title="Stop Bot"
-                        style="${dev.bot_status === 'active' || dev.bot_status === 'hung' ? '' : 'display:none'}">
+                    <button class="btn-action btn-stop" onclick="stopBot('${escAttr(dev.device_serial)}')" title="Stop Bot">
                         <i class="fas fa-stop fa-xs"></i> Stop
                     </button>
                     <a href="/device-manager/${serialEncoded}" class="btn-action btn-manage">
