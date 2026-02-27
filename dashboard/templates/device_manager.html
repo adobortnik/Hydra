@@ -697,9 +697,9 @@ function cancelBatchOperation() {
 async function startAllBots() {
     if (batchRunning) return showToast('Batch operation already running', 'warning');
 
-    // Get devices that aren't running
+    // Get devices that aren't running (any device status — bot process check is what matters)
     const stoppedDevices = devicesData.filter(d =>
-        d.status === 'connected' && d.bot_status !== 'active' && d.account_count > 0
+        d.bot_status !== 'active' && d.account_count > 0
     );
 
     if (!stoppedDevices.length) {
