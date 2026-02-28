@@ -227,13 +227,23 @@ class InstagramActions:
                 if kw in xml_lower:
                     return '2fa'
 
+            # Check for ads choice modal — user IS logged in, just needs dismissal
+            # "Make a choice about your ads" / "choose if you see ads on Meta Products"
+            if ("make a choice about your ads" in xml_lower or
+                "choice about your ads" in xml_lower or
+                "choose if you see ads" in xml_lower):
+                log.info("[%s] Ads choice modal detected — account is logged in, dismissing",
+                         self.device_serial)
+                self._dismiss_ads_choice_modal()
+                return 'logged_in'
+
             # Check for login/signup screens BEFORE checking logged_in
             # Use specific IG login/signup text that won't appear on normal screens
 
             # Signup/intro screen — very specific phrases
+            # NOTE: "get started" removed — it also appears on ads choice modal
             if ("already have an account" in xml_lower or
-                "create new account" in xml_lower or
-                "get started" in xml_lower):
+                "create new account" in xml_lower):
                 log.info("[%s] Signup/intro screen detected", self.device_serial)
                 return 'signup'
 
@@ -275,6 +285,7 @@ class InstagramActions:
                 "save login info", "add your phone number",
                 "set up on new device", "add a profile photo",
                 "welcome to instagram", "syncing your contacts",
+                "choice about your ads", "choose if you see ads",
             ]
             for kw in post_login_kw:
                 if kw in xml_lower:
@@ -529,6 +540,77 @@ class InstagramActions:
         except Exception:
             return True
 
+    def _dismiss_ads_choice_modal(self):
+        """
+        Dismiss the 'Make a choice about your ads' GDPR-style modal.
+        Flow: tap 'Get started' → then decline personalized ads.
+        """
+        try:
+            log.info("[%s] Dismissing ads choice modal...", self.device_serial)
+
+            # Step 1: Tap "Get started"
+            get_started = self.device(text="Get started")
+            if not get_started.exists(timeout=3):
+                get_started = self.device(textContains="Get started")
+            if get_started.exists(timeout=3):
+                get_started.click()
+                time.sleep(3)
+            else:
+                log.warning("[%s] 'Get started' button not found on ads modal", self.device_serial)
+                return False
+
+            # Step 2: Look for decline/reject options for personalized ads
+            # IG typically shows "Manage settings" or "Decline optional permissions"
+            # or options like "Less personalized ads" / "Not now" / "Decline"
+            decline_selectors = [
+                self.device(textContains="Decline optional"),
+                self.device(textContains="Less personalized"),
+                self.device(textContains="Manage"),
+                self.device(text="Not now"),
+                self.device(text="Not Now"),
+                self.device(text="Skip"),
+                self.device(text="Continue without"),
+                self.device(textContains="Decline"),
+                self.device(textContains="Reject"),
+                self.device(textContains="Don't allow"),
+            ]
+
+            time.sleep(2)
+            for sel in decline_selectors:
+                if sel.exists(timeout=2):
+                    sel.click()
+                    log.info("[%s] Clicked decline/manage on ads settings: %s",
+                             self.device_serial, sel.info.get('text', '?') if sel.exists() else '?')
+                    time.sleep(3)
+                    break
+
+            # Step 3: If there's a confirm/done button after declining, click it
+            confirm_selectors = [
+                self.device(text="Confirm"),
+                self.device(text="Done"),
+                self.device(text="OK"),
+                self.device(text="Save"),
+                self.device(textContains="Continue"),
+            ]
+            for sel in confirm_selectors:
+                if sel.exists(timeout=3):
+                    sel.click()
+                    log.info("[%s] Confirmed ads choice", self.device_serial)
+                    time.sleep(2)
+                    break
+
+            log.info("[%s] Ads choice modal dismissed", self.device_serial)
+            return True
+
+        except Exception as e:
+            log.error("[%s] Error dismissing ads choice modal: %s", self.device_serial, e)
+            # Try pressing back as fallback
+            try:
+                self.device.press('back')
+            except:
+                pass
+            return False
+
     def dismiss_post_login_modals(self, max_attempts=8):
         """
         Dismiss any post-login modals — contacts, notifications, save login,
@@ -541,6 +623,14 @@ class InstagramActions:
             dismissed_count = 0
             for attempt in range(max_attempts):
                 time.sleep(1)
+
+                # Ads choice modal ("Make a choice about your ads" + "Get started")
+                xml_check_ads = self.device.dump_hierarchy().lower()
+                if "make a choice about your ads" in xml_check_ads or \
+                   ("choice" in xml_check_ads and "ads" in xml_check_ads and "get started" in xml_check_ads):
+                    self._dismiss_ads_choice_modal()
+                    dismissed_count += 1
+                    continue
 
                 # Android system permission dialog ("Allow" / "Don't allow")
                 # ALLOW storage, photos, camera, audio, media — needed for content posting
