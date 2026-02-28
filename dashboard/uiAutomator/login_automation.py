@@ -226,15 +226,12 @@ class LoginAutomation:
             self.device.app_stop(instagram_package)
             time.sleep(1)
 
-            # CRITICAL: Clear app data to ensure fresh login screen
-            # Without this, a previously logged-in account stays logged in
-            # and the login flow can't enter new credentials
-            self.clear_app_data(instagram_package)
-            time.sleep(2)
+            # New Identity is already handled by auto-fix (account_health_routes)
+            # before this login flow runs. No need to reset again here.
 
             # Use uiautomator2's app_start with monkey (most reliable)
             self.device.app_start(instagram_package, use_monkey=True)
-            print("[OK] Instagram launched with monkey (fresh start after data clear)")
+            print("[OK] Instagram launched with monkey")
             time.sleep(5)  # Give app time to launch
 
             # Verify app is running
