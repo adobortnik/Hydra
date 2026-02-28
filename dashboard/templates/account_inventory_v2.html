@@ -192,11 +192,11 @@
             </div>
             <div class="modal-body">
                 <p class="text-muted mb-2">
-                    Paste accounts, one per line. Format: <code>username:password[:email[:phone[:2fa_token]]]</code>
+                    Paste accounts, one per line. Format: <code>username:password:2fa_code</code>
                 </p>
                 <div class="import-area">
                     <textarea id="importText" class="form-control" rows="8"
-                        placeholder="user1:pass123:user1@gmail.com&#10;user2:pass456:user2@gmail.com&#10;user3:pass789"></textarea>
+                        placeholder="user1:pass123:ABC2DEFGH3IJK&#10;user2:pass456:XYZ9LMNOP4QRS&#10;user3:pass789"></textarea>
                 </div>
                 <div class="mt-3" id="importResult" style="display:none;">
                     <div class="alert alert-info mb-0" id="importResultText"></div>
