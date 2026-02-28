@@ -620,9 +620,17 @@
             <a href="/device-manager" class="back-btn">
                 <i class="fas fa-arrow-left me-1"></i> Back to Device List
             </a>
-            <h3 class="mt-2 mb-1" id="deviceName">
-                <i class="fas fa-mobile-alt me-2 text-warning"></i>Loading...
-            </h3>
+            <div class="d-flex align-items-center mt-2 mb-1">
+                <button class="btn btn-sm btn-outline-secondary me-2" id="prevDeviceBtn" onclick="navigateDevice(-1)" title="Previous device">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <h3 class="mb-0" id="deviceName">
+                    <i class="fas fa-mobile-alt me-2 text-warning"></i>Loading...
+                </h3>
+                <button class="btn btn-sm btn-outline-secondary ms-2" id="nextDeviceBtn" onclick="navigateDevice(1)" title="Next device">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
             <div class="device-serial-header" id="deviceSerial">{{ device_serial }}</div>
         </div>
         <div class="d-flex align-items-center gap-3">
@@ -2252,12 +2260,14 @@ function renderAccounts(accounts) {
                     onclick="openAccountSettings('${a.device_serial}', '${a.username}')">
                     <i class="fas fa-sliders-h"></i>
                 </button>
+                <!-- Auto-fix button hidden for now
                 ${(a.status === 'logged_out' || a.status === 'suspended' || a.status === 'banned' || a.status === 'verification')
                     ? `<button class="btn-settings" title="Auto-Fix: Replace from inventory"
                         style="background:linear-gradient(135deg,#f59e0b,#d97706);margin-left:4px;"
                         onclick="event.stopPropagation();showDevAutoFix(${a.id},'${escHtml(a.username)}','${a.status}')">
                         <i class="fas fa-wrench"></i>
                     </button>` : ''}
+                -->
             </td>
         </tr>`;
     }).join('');
@@ -3922,6 +3932,40 @@ function bulkSetLink() {
         btn.innerHTML = '🔗 Set Link on Selected';
     });
 }
+
+// ── Device Navigation (prev/next) ──
+let allDeviceSerials = [];
+const currentSerial = '{{ device_serial }}';
+
+async function loadDeviceList() {
+    try {
+        const resp = await fetch('/api/devices');
+        const data = await resp.json();
+        if (data.devices) {
+            allDeviceSerials = data.devices.map(d => d.device_serial).sort();
+        }
+        updateNavButtons();
+    } catch (e) {
+        console.warn('Could not load device list for nav', e);
+    }
+}
+
+function updateNavButtons() {
+    const idx = allDeviceSerials.indexOf(currentSerial);
+    document.getElementById('prevDeviceBtn').disabled = (idx <= 0);
+    document.getElementById('nextDeviceBtn').disabled = (idx < 0 || idx >= allDeviceSerials.length - 1);
+}
+
+function navigateDevice(dir) {
+    const idx = allDeviceSerials.indexOf(currentSerial);
+    const newIdx = idx + dir;
+    if (newIdx >= 0 && newIdx < allDeviceSerials.length) {
+        window.location.href = '/device-manager/' + encodeURIComponent(allDeviceSerials[newIdx]);
+    }
+}
+
+// Load device list on page load
+loadDeviceList();
 
 // ── Auto-Fix (replace broken account from inventory) ──
 let pendingAutoFixId = null;
