@@ -1469,9 +1469,20 @@ class LoginAutomation:
                 result['error'] = "Failed to enter credentials"
                 return result
 
-            # Quick check for Wrong Password modal (appears instantly)
+            # Quick check for Wrong Password / Can't find account modals (appear instantly)
             time.sleep(3)
             xml_quick = self.device.dump_hierarchy().lower()
+
+            # Can't find account (username doesn't exist or is banned)
+            cant_find_keywords = ["can't find account", "can\u2019t find account",
+                                  "find an account with", "try another mobile number"]
+            for kw in cant_find_keywords:
+                if kw in xml_quick:
+                    print(f"\n[X] ACCOUNT NOT FOUND: '{kw}'")
+                    result['error'] = "Account not found on Instagram"
+                    result['login_type'] = 'account_not_found'
+                    return result
+
             wrong_pw_keywords = ["wrong password", "incorrect password", "password you entered is incorrect",
                                  "password was incorrect", "the password you entered"]
             for kw in wrong_pw_keywords:
