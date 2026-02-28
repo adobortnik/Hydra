@@ -55,9 +55,111 @@ def get_job_today_count(job_id, account_id):
         return 0
 
 
+def claim_job_slot(job_id):
+    """
+    Atomically claim a slot for this job order.
+    Uses UPDATE ... WHERE completed_count < target_count to prevent overshoot.
+    
+    Returns:
+        True if slot was claimed (ok to proceed)
+        False if target already reached (stop)
+    """
+    try:
+        conn = get_db()
+        cursor = conn.execute("""
+            UPDATE job_orders
+            SET completed_count = completed_count + 1,
+                updated_at = datetime('now')
+            WHERE id = ? AND target_count > 0
+              AND completed_count < target_count
+              AND status != 'completed'
+        """, (job_id,))
+        rows_affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        if rows_affected > 0:
+            log.debug("JOB #%d: Claimed slot (atomic)", job_id)
+            return True
+        else:
+            log.info("JOB #%d: No slot available (target reached or job completed)", job_id)
+            return False
+    except Exception as e:
+        log.error("JOB #%d: Failed to claim slot: %s", job_id, e)
+        return False
+
+
+def unclaim_job_slot(job_id):
+    """
+    Release a claimed slot (e.g., when the action fails).
+    Decrements completed_count back down.
+    """
+    try:
+        conn = get_db()
+        conn.execute("""
+            UPDATE job_orders
+            SET completed_count = MAX(0, completed_count - 1),
+                updated_at = datetime('now')
+            WHERE id = ?
+        """, (job_id,))
+        conn.commit()
+        conn.close()
+        log.debug("JOB #%d: Released slot (action failed)", job_id)
+    except Exception as e:
+        log.error("JOB #%d: Failed to unclaim slot: %s", job_id, e)
+
+
+def wait_for_global_delay(job_id, delay_seconds):
+    """
+    Check last action time for this job across ALL devices.
+    If less than delay_seconds have passed, sleep the remaining time.
+    
+    Returns True if we waited (or no wait needed), False on error.
+    """
+    if delay_seconds <= 0:
+        return True
+    try:
+        conn = get_db()
+        row = conn.execute("""
+            SELECT MAX(created_at) as last_action
+            FROM job_history
+            WHERE job_id = ? AND status = 'success'
+        """, (job_id,)).fetchone()
+        conn.close()
+        
+        if not row or not row['last_action']:
+            return True  # No previous actions, no need to wait
+        
+        last_action_str = row['last_action']
+        # Parse the timestamp
+        try:
+            last_action = datetime.datetime.fromisoformat(last_action_str)
+        except (ValueError, TypeError):
+            return True
+        
+        now = datetime.datetime.now()
+        elapsed = (now - last_action).total_seconds()
+        
+        if elapsed < delay_seconds:
+            wait_time = delay_seconds - elapsed
+            log.info("JOB #%d: Global delay — last action %.0fs ago, waiting %.0fs more",
+                     job_id, elapsed, wait_time)
+            time.sleep(wait_time)
+        
+        return True
+    except Exception as e:
+        log.error("JOB #%d: Error checking global delay: %s", job_id, e)
+        return True  # Don't block on error
+
+
 def record_job_action(job_id, account_id, action_type, target=None,
-                      success=True, error_message=None):
-    """Insert a row into job_history and update counters."""
+                      success=True, error_message=None, used_claim=False):
+    """
+    Insert a row into job_history and update counters.
+    
+    If used_claim=True, the job_orders.completed_count was already bumped
+    atomically by claim_job_slot() — don't recalculate from assignments.
+    """
     try:
         conn = get_db()
         conn.execute("""
@@ -68,7 +170,7 @@ def record_job_action(job_id, account_id, action_type, target=None,
               'success' if success else 'error', error_message))
 
         if success:
-            # Bump assignment completed_count
+            # Bump assignment completed_count (per-account tracking)
             conn.execute("""
                 UPDATE job_assignments
                 SET completed_count = completed_count + 1,
@@ -76,16 +178,18 @@ def record_job_action(job_id, account_id, action_type, target=None,
                 WHERE job_id = ? AND account_id = ?
             """, (job_id, account_id))
 
-            # Recalculate job_orders.completed_count as SUM of all assignments
-            conn.execute("""
-                UPDATE job_orders
-                SET completed_count = (
-                    SELECT COALESCE(SUM(completed_count), 0)
-                    FROM job_assignments WHERE job_id = ?
-                ),
-                updated_at = datetime('now')
-                WHERE id = ?
-            """, (job_id, job_id))
+            if not used_claim:
+                # Legacy path: recalculate job_orders.completed_count from assignments
+                conn.execute("""
+                    UPDATE job_orders
+                    SET completed_count = (
+                        SELECT COALESCE(SUM(completed_count), 0)
+                        FROM job_assignments WHERE job_id = ?
+                    ),
+                    updated_at = datetime('now')
+                    WHERE id = ?
+                """, (job_id, job_id))
+            # else: completed_count already bumped by claim_job_slot()
 
             # Check if job target reached → mark completed
             conn.execute("""
@@ -148,11 +252,15 @@ class JobExecutor:
         self.hourly_limit = job['limit_per_hour'] or 50
         self.comment_text = job.get('comment_text', '')
         self.priority = job.get('priority', 0)
+        self.action_delay = job.get('action_delay_seconds', 0) or 0
 
     def execute(self):
         """
         Run the job action.
         Returns dict: {success, actions_done, errors, skipped, message}
+        
+        Uses atomic claim system when target_count > 0 to prevent overshoot.
+        Respects global action_delay_seconds between actions across all devices.
         """
         result = {
             'success': False,
@@ -173,20 +281,23 @@ class JobExecutor:
             result['message'] = 'daily_limit_reached'
             return result
 
-        # Check total target — always read FRESH from DB (not stale snapshot)
+        # Check total target — fresh from DB
         if self.target_count > 0:
             try:
                 _conn = get_db()
                 _row = _conn.execute(
-                    "SELECT completed_count FROM job_orders WHERE id = ?",
+                    "SELECT completed_count, status FROM job_orders WHERE id = ?",
                     (self.job_id,)).fetchone()
                 total_done = _row[0] if _row else 0
+                job_status = _row[1] if _row else 'active'
             except Exception:
                 total_done = self.job.get('completed_count', 0)
+                job_status = 'active'
         else:
             total_done = self.job.get('completed_count', 0)
+            job_status = 'active'
 
-        if self.target_count > 0 and total_done >= self.target_count:
+        if job_status == 'completed' or (self.target_count > 0 and total_done >= self.target_count):
             msg = "Target reached for job #%d (%d/%d)" % (
                 self.job_id, total_done, self.target_count)
             log.info("[%s] JOB #%d (%s): %s",
@@ -670,20 +781,19 @@ class JobExecutor:
             if result['actions_done'] >= session_target:
                 break
 
-            # Re-check global target count from DB (other devices may have completed)
+            # Atomic claim: try to reserve a slot before doing the action
             if self.target_count > 0:
-                try:
-                    from automation.actions.helpers import get_db as _get_db
-                    _conn = _get_db()
-                    _row = _conn.execute(
-                        "SELECT completed_count FROM job_orders WHERE id = ?",
-                        (self.job_id,)).fetchone()
-                    if _row and _row[0] >= self.target_count:
-                        log.info("[%s] JOB #%d: Global target reached (%d/%d), stopping",
-                                 self.device_serial, self.job_id, _row[0], self.target_count)
-                        break
-                except Exception:
-                    pass
+                if not claim_job_slot(self.job_id):
+                    log.info("[%s] JOB #%d: No slot available (target reached), stopping",
+                             self.device_serial, self.job_id)
+                    break
+                claimed = True
+            else:
+                claimed = False
+
+            # Global delay: wait if another device posted too recently
+            if self.action_delay > 0:
+                wait_for_global_delay(self.job_id, self.action_delay)
 
             try:
                 # Use CommentAction's proven comment flow
@@ -694,6 +804,9 @@ class JobExecutor:
                     log.debug("[%s] JOB #%d: No comment button on current post",
                               self.device_serial, self.job_id)
                     result['skipped'] += 1
+                    # Release the claimed slot — we didn't actually comment
+                    if claimed:
+                        unclaim_job_slot(self.job_id)
                 else:
                     # _post_comment handles: click btn → find input → 
                     # set_text (reliable) → click Post → verify
@@ -702,7 +815,8 @@ class JobExecutor:
                     if success:
                         result['actions_done'] += 1
                         record_job_action(self.job_id, self.account_id,
-                                          'comment', source, success=True)
+                                          'comment', source, success=True,
+                                          used_claim=claimed)
                         log_action(self.session_id, self.device_serial,
                                    self.username, 'comment',
                                    target_username=source, success=True)
@@ -714,6 +828,9 @@ class JobExecutor:
                         random_sleep(5, 15, label="comment_delay")
                     else:
                         result['errors'] += 1
+                        # Release the claimed slot — comment failed
+                        if claimed:
+                            unclaim_job_slot(self.job_id)
 
                 # Scroll to next post
                 comment_action.ctrl.scroll_feed("down", amount=0.5)

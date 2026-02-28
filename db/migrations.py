@@ -131,7 +131,8 @@ CREATE TABLE IF NOT EXISTS job_orders (
     comment_list_id INTEGER,
     ai_mode TEXT,
     vision_ai INTEGER DEFAULT 0,
-    finished_at TEXT
+    finished_at TEXT,
+    action_delay_seconds INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS job_assignments (
@@ -271,6 +272,9 @@ MIGRATIONS = [
     {'name': 'add_finished_at_to_job_orders',
      'sql': "ALTER TABLE job_orders ADD COLUMN finished_at TEXT",
      'check': "SELECT sql FROM sqlite_master WHERE name='job_orders' AND sql LIKE '%finished_at%'"},
+    {'name': 'add_action_delay_seconds_to_job_orders',
+     'sql': "ALTER TABLE job_orders ADD COLUMN action_delay_seconds INTEGER DEFAULT 0",
+     'check': "SELECT sql FROM sqlite_master WHERE name='job_orders' AND sql LIKE '%action_delay_seconds%'"},
 
     # accounts — columns that may be missing on older DBs
     {'name': 'add_followers_to_accounts',

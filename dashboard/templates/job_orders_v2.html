@@ -412,13 +412,20 @@
                             <input type="number" class="form-control bg-dark text-white border-secondary" id="cfgLimitDay" value="200" min="1">
                         </div>
                     </div>
-                    <div class="mt-3">
-                        <label class="form-label">Priority</label>
-                        <select class="form-select bg-dark text-white border-secondary" id="cfgPriority">
-                            <option value="0">Low</option>
-                            <option value="1" selected>Medium</option>
-                            <option value="2">High</option>
-                        </select>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="cfgPriority">
+                                <option value="0">Low</option>
+                                <option value="1" selected>Medium</option>
+                                <option value="2">High</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Delay Between Actions (sec)</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="cfgActionDelay" value="0" min="0" placeholder="0 = no delay">
+                            <small class="text-muted">Global delay across all devices (e.g. 300 = 5 min)</small>
+                        </div>
                     </div>
                 </div>
 
@@ -595,13 +602,20 @@
                         <input type="number" class="form-control bg-dark text-white border-secondary" id="editLimitDay" min="1">
                     </div>
                 </div>
-                <div class="mt-3">
-                    <label class="form-label">Priority</label>
-                    <select class="form-select bg-dark text-white border-secondary" id="editPriority">
-                        <option value="0">Low</option>
-                        <option value="1">Medium</option>
-                        <option value="2">High</option>
-                    </select>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select bg-dark text-white border-secondary" id="editPriority">
+                            <option value="0">Low</option>
+                            <option value="1">Medium</option>
+                            <option value="2">High</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Delay Between Actions (sec)</label>
+                        <input type="number" class="form-control bg-dark text-white border-secondary" id="editActionDelay" min="0" value="0">
+                        <small class="text-muted">Global across all devices</small>
+                    </div>
                 </div>
                 <div class="mt-3 d-none" id="editCommentGroup">
                     <label class="form-label">Comment List</label>
@@ -1051,6 +1065,9 @@ function openEdit(id) {
     document.getElementById('editLimitHour').value = j.limit_per_hour;
     document.getElementById('editLimitDay').value = j.limit_per_day;
     document.getElementById('editPriority').value = j.priority;
+    if (document.getElementById('editActionDelay')) {
+        document.getElementById('editActionDelay').value = j.action_delay_seconds || 0;
+    }
 
     const cg = document.getElementById('editCommentGroup');
     if (j.job_type === 'comment') {
@@ -1084,7 +1101,8 @@ async function saveJobEdit() {
         target_count: parseInt(document.getElementById('editTargetCount').value),
         limit_per_hour: parseInt(document.getElementById('editLimitHour').value),
         limit_per_day: parseInt(document.getElementById('editLimitDay').value),
-        priority: parseInt(document.getElementById('editPriority').value)
+        priority: parseInt(document.getElementById('editPriority').value),
+        action_delay_seconds: parseInt(document.getElementById('editActionDelay')?.value || 0)
     };
     const cg2 = document.getElementById('editCommentGroup');
     if (!cg2.classList.contains('d-none')) {
@@ -1126,6 +1144,7 @@ function resetWizard() {
     document.getElementById('cfgLimitHour').value = '50';
     document.getElementById('cfgLimitDay').value = '200';
     document.getElementById('cfgPriority').value = '1';
+    document.getElementById('cfgActionDelay').value = '0';
     // Reset report-specific fields
     document.getElementById('cfgReportReason').value = 'nudity';
     document.getElementById('cfgReportReasonGroup').classList.add('d-none');
@@ -1461,6 +1480,7 @@ function renderReview() {
         <div class="review-item"><span class="review-label">Limit/Hour</span><span class="review-value">${document.getElementById('cfgLimitHour').value}</span></div>
         <div class="review-item"><span class="review-label">Limit/Day</span><span class="review-value">${document.getElementById('cfgLimitDay').value}</span></div>
         <div class="review-item"><span class="review-label">Priority</span><span class="review-value">${PRIORITY_LABELS[document.getElementById('cfgPriority').value] || 'Medium'}</span></div>
+        ${parseInt(document.getElementById('cfgActionDelay').value) > 0 ? `<div class="review-item"><span class="review-label">Action Delay</span><span class="review-value">${document.getElementById('cfgActionDelay').value}s (${Math.round(document.getElementById('cfgActionDelay').value/60)} min)</span></div>` : ''}
         <div class="review-item"><span class="review-label">Accounts</span><span class="review-value">${selectedAccounts.size} accounts selected</span></div>
     `;
     document.getElementById('reviewSummary').innerHTML = html;
@@ -1479,6 +1499,7 @@ async function submitJob() {
         limit_per_hour: parseInt(document.getElementById('cfgLimitHour').value),
         limit_per_day: parseInt(document.getElementById('cfgLimitDay').value),
         priority: parseInt(document.getElementById('cfgPriority').value),
+        action_delay_seconds: parseInt(document.getElementById('cfgActionDelay').value) || 0,
         comment_text: chosenType === 'comment' ? document.getElementById('cfgCommentText').value : '',
         report_reason: chosenType === 'report' ? document.getElementById('cfgReportReason').value : 'spam',
         accounts: Array.from(selectedAccounts)

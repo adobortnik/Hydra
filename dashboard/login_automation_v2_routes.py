@@ -763,11 +763,38 @@ def _verify_one_device(device_serial, accounts):
 # BACKGROUND LOGIN WORKER
 # ─────────────────────────────────────────────
 
+def _stop_bot_engine_on_device(device_serial):
+    """
+    Check if bot engine (run_device.py) is running on this device.
+    If so, kill it before login starts. Returns the PID that was killed, or None.
+    """
+    try:
+        from bot_launcher_routes import _find_process_for_serial, _kill_pid, _invalidate_proc_cache
+        procs = _find_process_for_serial(device_serial, use_cache=False)
+        if procs:
+            for p in procs:
+                print(f'[login_v2] Stopping bot engine on {device_serial} (PID {p["pid"]}) before login...')
+                _kill_pid(p['pid'], force=True)
+            _invalidate_proc_cache()
+            import time as _time
+            _time.sleep(2)  # Give process time to die
+            return procs[0]['pid']
+    except Exception as e:
+        print(f'[login_v2] Warning: could not check/stop bot engine on {device_serial}: {e}')
+    return None
+
+
 def _run_device_logins(batch_id, device_serial, tasks):
     """
     Execute login tasks sequentially on a single device.
     Runs in a background thread.
+    Auto-stops bot engine on the device before starting logins.
     """
+    # Stop bot engine if running on this device
+    stopped_pid = _stop_bot_engine_on_device(device_serial)
+    if stopped_pid:
+        print(f'[login_v2] Bot engine was running on {device_serial} — stopped (PID {stopped_pid})')
+
     for task in tasks:
         # Check if stop was requested before starting next account
         if batch_id in _stop_requested:
