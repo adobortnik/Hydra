@@ -166,9 +166,39 @@ class LoginAutomation:
         print(f"[X] Failed to connect to device after {max_wait}s")
         return None
 
+    def clear_app_data(self, instagram_package):
+        """
+        Clear app data for the Instagram package via `pm clear`.
+        This ensures a fresh login screen (no stale sessions from previous accounts).
+
+        Args:
+            instagram_package: Package name (e.g., "com.instagram.androil")
+
+        Returns:
+            bool: True if successful
+        """
+        print(f"[...] Clearing app data for {instagram_package}...")
+        try:
+            connection_serial = self.device_serial.replace('_', ':')
+            result = subprocess.run(
+                ['adb', '-s', connection_serial, 'shell', 'pm', 'clear', instagram_package],
+                capture_output=True, text=True, timeout=15
+            )
+            output = result.stdout.strip()
+            if 'Success' in output:
+                print(f"[OK] App data cleared successfully")
+                return True
+            else:
+                print(f"[!] pm clear returned: {output}")
+                return False
+        except Exception as e:
+            print(f"[!] Failed to clear app data: {e}")
+            return False
+
     def open_instagram(self, instagram_package="com.instagram.android"):
         """
-        Open Instagram app using the proven monkey method
+        Open Instagram app using the proven monkey method.
+        ALWAYS clears app data first to ensure fresh login screen.
 
         Args:
             instagram_package: Package name (e.g., "com.instagram.androim")
@@ -185,14 +215,20 @@ class LoginAutomation:
         print(f"{'='*70}")
 
         try:
-            # Force-stop first to ensure clean slate (no stale screens)
+            # Force-stop first
             print(f"[...] Force-stopping {instagram_package} first...")
             self.device.app_stop(instagram_package)
+            time.sleep(1)
+
+            # CRITICAL: Clear app data to ensure fresh login screen
+            # Without this, a previously logged-in account stays logged in
+            # and the login flow can't enter new credentials
+            self.clear_app_data(instagram_package)
             time.sleep(2)
 
             # Use uiautomator2's app_start with monkey (most reliable)
             self.device.app_start(instagram_package, use_monkey=True)
-            print("[OK] Instagram launched with monkey (fresh start)")
+            print("[OK] Instagram launched with monkey (fresh start after data clear)")
             time.sleep(5)  # Give app time to launch
 
             # Verify app is running
@@ -261,14 +297,21 @@ class LoginAutomation:
             # Check for signup/intro screen (has login-related button and signup/get started button)
             # Check for login screen FIRST (has username and password fields)
             # This is more reliable than button detection
+            # NOTE: IG login fields use content-desc, not text (text is often empty)
             has_username_field = (
+                self.device(descriptionContains="Username").exists(timeout=2) or
+                self.device(descriptionContains="username").exists(timeout=2) or
                 self.device(textContains="Username").exists(timeout=2) or
                 self.device(textContains="Phone").exists(timeout=2) or
                 self.device(textContains="Email").exists(timeout=2) or
+                self.device(descriptionContains="email").exists(timeout=2) or
+                self.device(descriptionContains="phone").exists(timeout=2) or
                 self.device(className="android.widget.EditText").exists(timeout=2)
             )
 
             has_password_field = (
+                self.device(descriptionContains="Password").exists(timeout=2) or
+                self.device(descriptionContains="password").exists(timeout=2) or
                 self.device(textContains="Password").exists(timeout=2) or
                 self.device(textContains="password").exists(timeout=2)
             )
@@ -360,6 +403,36 @@ class LoginAutomation:
 
         return False
 
+    def _clear_field(self, field):
+        """
+        Thoroughly clear an EditText field using multiple methods.
+        Instagram's custom EditText fields sometimes don't respond to clear_text().
+        """
+        try:
+            field.clear_text()
+            time.sleep(0.3)
+        except Exception:
+            pass
+
+        # Also try select-all + delete via ADB for thorough clearing
+        try:
+            connection_serial = self.device_serial.replace('_', ':')
+            # Ctrl+A (select all) then Delete
+            subprocess.run(['adb', '-s', connection_serial, 'shell', 'input', 'keyevent', 'KEYCODE_MOVE_END'],
+                          capture_output=True, timeout=5)
+            # Select all by holding shift + move to home
+            subprocess.run(['adb', '-s', connection_serial, 'shell', 'input', 'keyevent', '--longpress',
+                          'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL',
+                          'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL',
+                          'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL',
+                          'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL',
+                          'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL',
+                          'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL', 'KEYCODE_DEL'],
+                          capture_output=True, timeout=10)
+            time.sleep(0.3)
+        except Exception:
+            pass
+
     def enter_credentials(self, username, password):
         """
         Enter username and password into login fields
@@ -379,9 +452,13 @@ class LoginAutomation:
             # Find username field
             print("Looking for username field...")
             username_selectors = [
+                self.device(descriptionContains="Username"),
+                self.device(descriptionContains="username"),
                 self.device(textContains="Username"),
                 self.device(textContains="Phone"),
                 self.device(textContains="Email"),
+                self.device(descriptionContains="email"),
+                self.device(descriptionContains="phone"),
                 self.device(className="android.widget.EditText", instance=0),
             ]
 
@@ -396,74 +473,33 @@ class LoginAutomation:
                 print("[X] Could not find username field")
                 return False
 
-            # Clear and enter username with verification + fallback
+            # Clear and enter username with fallback methods
+            # IMPORTANT: Instagram EditText fields return hint/content-desc from get_text(),
+            # NOT the actual typed text. So we cannot rely on get_text() for verification.
+            # Instead, we trust set_text/send_keys and only fall back on EXCEPTIONS.
             print(f"Entering username: {username}")
             username_field.click()
             time.sleep(1)
-            username_field.clear_text()
-            time.sleep(0.5)
 
-            username_entered = False
-            # Method 1: set_text (AdbKeyboard IME)
-            try:
-                username_field.set_text(username)
-                time.sleep(0.5)
-                actual = username_field.get_text() or ''
-                if username.lower() in actual.lower():
-                    print(f"[OK] Username entered via set_text (verified: '{actual}')")
-                    username_entered = True
-                else:
-                    print(f"[!] set_text wrote but got '{actual}' - trying fallback")
-            except Exception as e:
-                print(f"[!] set_text failed: {e}")
+            # Clear field thoroughly
+            self._clear_field(username_field)
 
-            # Method 2: send_keys char by char
-            if not username_entered:
-                try:
-                    username_field.click()
-                    time.sleep(0.5)
-                    username_field.clear_text()
-                    time.sleep(0.5)
-                    self.device.send_keys(username)
-                    time.sleep(0.5)
-                    actual = username_field.get_text() or ''
-                    if username.lower() in actual.lower():
-                        print(f"[OK] Username entered via send_keys (verified: '{actual}')")
-                        username_entered = True
-                    else:
-                        print(f"[!] send_keys wrote but got '{actual}' - trying adb")
-                except Exception as e:
-                    print(f"[!] send_keys failed: {e}")
-
-            # Method 3: adb shell input text
-            if not username_entered:
-                try:
-                    username_field.click()
-                    time.sleep(0.5)
-                    username_field.clear_text()
-                    time.sleep(0.5)
-                    import subprocess as _sp
-                    adb_serial = self.device_serial if ':' in self.device_serial else self.device_serial.replace('_', ':')
-                    escaped = username.replace(' ', '%s')
-                    for ch in '()&;<>|$`\\!"\'{}[]~*?#':
-                        escaped = escaped.replace(ch, '\\' + ch)
-                    _sp.run(['adb', '-s', adb_serial, 'shell', 'input', 'text', escaped],
-                            capture_output=True, timeout=10)
-                    time.sleep(0.5)
-                    print(f"[OK] Username entered via adb input text")
-                    username_entered = True
-                except Exception as e:
-                    print(f"[X] adb input text failed: {e}")
-
-            if not username_entered:
-                print("[X] All methods failed for username")
-                return False
+            # Primary: adb shell input text (most reliable on our devices)
+            adb_serial = self.device_serial if ':' in self.device_serial else self.device_serial.replace('_', ':')
+            escaped_user = username.replace(' ', '%s')
+            for ch in '()&;<>|$`\\!"\'{}[]~*?#':
+                escaped_user = escaped_user.replace(ch, '\\' + ch)
+            subprocess.run(['adb', '-s', adb_serial, 'shell', 'input', 'text', escaped_user],
+                    capture_output=True, timeout=10)
+            print(f"[OK] Username entered via adb input text")
 
             time.sleep(1)
 
             # Find password field
             print("Looking for password field...")
             password_selectors = [
+                self.device(descriptionContains="Password"),
+                self.device(descriptionContains="password"),
                 self.device(textContains="Password"),
                 self.device(textContains="password"),
                 self.device(className="android.widget.EditText", instance=1),
@@ -480,72 +516,22 @@ class LoginAutomation:
                 print("[X] Could not find password field")
                 return False
 
-            # Clear and enter password with verification + fallback
+            # Clear and enter password with fallback methods
+            # Same note as username: get_text() is unreliable on IG fields
             print("Entering password...")
             password_field.click()
             time.sleep(1)
-            password_field.clear_text()
-            time.sleep(0.5)
 
-            password_entered = False
-            # Method 1: set_text
-            try:
-                password_field.set_text(password)
-                time.sleep(0.5)
-                actual = password_field.get_text() or ''
-                # Password fields show bullets — check length match or actual text
-                if len(actual) == len(password) or password in actual:
-                    print(f"[OK] Password entered via set_text (len={len(actual)})")
-                    password_entered = True
-                elif len(actual) > 0:
-                    print(f"[OK] Password entered via set_text (got {len(actual)} chars)")
-                    password_entered = True
-                else:
-                    print(f"[!] set_text for password got empty - trying fallback")
-            except Exception as e:
-                print(f"[!] set_text password failed: {e}")
+            # Clear field thoroughly
+            self._clear_field(password_field)
 
-            # Method 2: send_keys
-            if not password_entered:
-                try:
-                    password_field.click()
-                    time.sleep(0.5)
-                    password_field.clear_text()
-                    time.sleep(0.5)
-                    self.device.send_keys(password)
-                    time.sleep(0.5)
-                    actual = password_field.get_text() or ''
-                    if len(actual) > 0:
-                        print(f"[OK] Password entered via send_keys (len={len(actual)})")
-                        password_entered = True
-                    else:
-                        print(f"[!] send_keys password got empty - trying adb")
-                except Exception as e:
-                    print(f"[!] send_keys password failed: {e}")
-
-            # Method 3: adb shell input text
-            if not password_entered:
-                try:
-                    password_field.click()
-                    time.sleep(0.5)
-                    password_field.clear_text()
-                    time.sleep(0.5)
-                    import subprocess as _sp
-                    adb_serial = self.device_serial if ':' in self.device_serial else self.device_serial.replace('_', ':')
-                    escaped = password.replace(' ', '%s')
-                    for ch in '()&;<>|$`\\!"\'{}[]~*?#':
-                        escaped = escaped.replace(ch, '\\' + ch)
-                    _sp.run(['adb', '-s', adb_serial, 'shell', 'input', 'text', escaped],
-                            capture_output=True, timeout=10)
-                    time.sleep(0.5)
-                    print(f"[OK] Password entered via adb input text")
-                    password_entered = True
-                except Exception as e:
-                    print(f"[X] adb input text password failed: {e}")
-
-            if not password_entered:
-                print("[X] All methods failed for password")
-                return False
+            # Primary: adb shell input text (most reliable on our devices)
+            escaped_pass = password.replace(' ', '%s')
+            for ch in '()&;<>|$`\\!"\'{}[]~*?#':
+                escaped_pass = escaped_pass.replace(ch, '\\' + ch)
+            subprocess.run(['adb', '-s', adb_serial, 'shell', 'input', 'text', escaped_pass],
+                    capture_output=True, timeout=10)
+            print(f"[OK] Password entered via adb input text")
 
             time.sleep(1)
 
@@ -663,13 +649,25 @@ class LoginAutomation:
         UIAutomator sometimes captures com.android.systemui instead of the
         foreground app. This retries the dump if it detects systemui.
         Returns the XML string or None if all retries fail.
+
+        NOTE: On Samsung devices, systemui rounded-corner overlays ALWAYS
+        appear at the top of the hierarchy (first ~500 chars) even when the
+        app is fully visible underneath. We must check the ENTIRE dump for
+        instagram content, not just the first 1000 chars.
         """
         for attempt in range(1, max_retries + 1):
             try:
                 xml = self.device.dump_hierarchy()
-                # Check if we got systemui instead of the actual app
-                if 'com.android.systemui' in xml[:500] and 'instagram' not in xml[:1000].lower():
-                    print(f"{tag} [DUMP] Attempt {attempt}/{max_retries}: Got systemui overlay, retrying...")
+                xml_lower = xml.lower()
+                # Check if the dump contains ONLY systemui (no app content at all)
+                # Samsung devices always have systemui overlay nodes at the top,
+                # so we check if instagram appears ANYWHERE in the dump
+                has_instagram = 'instagram' in xml_lower
+                has_edit_text = 'android.widget.edittext' in xml_lower
+                has_app_content = has_instagram or has_edit_text
+
+                if not has_app_content and 'com.android.systemui' in xml:
+                    print(f"{tag} [DUMP] Attempt {attempt}/{max_retries}: Only systemui, no app content, retrying...")
                     time.sleep(1.5)
                     continue
                 return xml
