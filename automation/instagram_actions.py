@@ -39,6 +39,13 @@ class InstagramActions:
         self.device_serial = device_serial
         self.adb_serial = device_serial.replace('_', ':')
 
+        # Enable AdbKeyboard IME for reliable text input (same as comment.py, dm.py, etc.)
+        try:
+            self.device.set_input_ime(True)
+            log.info("[%s] AdbKeyboard IME enabled", self.device_serial)
+        except Exception as ime_err:
+            log.warning("[%s] Failed to enable AdbKeyboard IME: %s", self.device_serial, ime_err)
+
     # ------------------------------------------------------------------
     #  App Lifecycle
     # ------------------------------------------------------------------
