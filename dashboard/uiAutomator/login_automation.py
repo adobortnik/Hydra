@@ -396,16 +396,69 @@ class LoginAutomation:
                 print("[X] Could not find username field")
                 return False
 
-            # Clear and enter username
+            # Clear and enter username with verification + fallback
             print(f"Entering username: {username}")
             username_field.click()
             time.sleep(1)
             username_field.clear_text()
             time.sleep(0.5)
 
-            # Use set_text (AdbKeyboard IME) for reliable input
-            username_field.set_text(username)
-            print("[OK] Username entered")
+            username_entered = False
+            # Method 1: set_text (AdbKeyboard IME)
+            try:
+                username_field.set_text(username)
+                time.sleep(0.5)
+                actual = username_field.get_text() or ''
+                if username.lower() in actual.lower():
+                    print(f"[OK] Username entered via set_text (verified: '{actual}')")
+                    username_entered = True
+                else:
+                    print(f"[!] set_text wrote but got '{actual}' - trying fallback")
+            except Exception as e:
+                print(f"[!] set_text failed: {e}")
+
+            # Method 2: send_keys char by char
+            if not username_entered:
+                try:
+                    username_field.click()
+                    time.sleep(0.5)
+                    username_field.clear_text()
+                    time.sleep(0.5)
+                    self.device.send_keys(username)
+                    time.sleep(0.5)
+                    actual = username_field.get_text() or ''
+                    if username.lower() in actual.lower():
+                        print(f"[OK] Username entered via send_keys (verified: '{actual}')")
+                        username_entered = True
+                    else:
+                        print(f"[!] send_keys wrote but got '{actual}' - trying adb")
+                except Exception as e:
+                    print(f"[!] send_keys failed: {e}")
+
+            # Method 3: adb shell input text
+            if not username_entered:
+                try:
+                    username_field.click()
+                    time.sleep(0.5)
+                    username_field.clear_text()
+                    time.sleep(0.5)
+                    import subprocess as _sp
+                    adb_serial = self.device_serial if ':' in self.device_serial else self.device_serial.replace('_', ':')
+                    escaped = username.replace(' ', '%s')
+                    for ch in '()&;<>|$`\\!"\'{}[]~*?#':
+                        escaped = escaped.replace(ch, '\\' + ch)
+                    _sp.run(['adb', '-s', adb_serial, 'shell', 'input', 'text', escaped],
+                            capture_output=True, timeout=10)
+                    time.sleep(0.5)
+                    print(f"[OK] Username entered via adb input text")
+                    username_entered = True
+                except Exception as e:
+                    print(f"[X] adb input text failed: {e}")
+
+            if not username_entered:
+                print("[X] All methods failed for username")
+                return False
+
             time.sleep(1)
 
             # Find password field
@@ -427,16 +480,73 @@ class LoginAutomation:
                 print("[X] Could not find password field")
                 return False
 
-            # Clear and enter password
+            # Clear and enter password with verification + fallback
             print("Entering password...")
             password_field.click()
             time.sleep(1)
             password_field.clear_text()
             time.sleep(0.5)
 
-            # Use set_text (AdbKeyboard IME) for reliable input
-            password_field.set_text(password)
-            print("[OK] Password entered")
+            password_entered = False
+            # Method 1: set_text
+            try:
+                password_field.set_text(password)
+                time.sleep(0.5)
+                actual = password_field.get_text() or ''
+                # Password fields show bullets — check length match or actual text
+                if len(actual) == len(password) or password in actual:
+                    print(f"[OK] Password entered via set_text (len={len(actual)})")
+                    password_entered = True
+                elif len(actual) > 0:
+                    print(f"[OK] Password entered via set_text (got {len(actual)} chars)")
+                    password_entered = True
+                else:
+                    print(f"[!] set_text for password got empty - trying fallback")
+            except Exception as e:
+                print(f"[!] set_text password failed: {e}")
+
+            # Method 2: send_keys
+            if not password_entered:
+                try:
+                    password_field.click()
+                    time.sleep(0.5)
+                    password_field.clear_text()
+                    time.sleep(0.5)
+                    self.device.send_keys(password)
+                    time.sleep(0.5)
+                    actual = password_field.get_text() or ''
+                    if len(actual) > 0:
+                        print(f"[OK] Password entered via send_keys (len={len(actual)})")
+                        password_entered = True
+                    else:
+                        print(f"[!] send_keys password got empty - trying adb")
+                except Exception as e:
+                    print(f"[!] send_keys password failed: {e}")
+
+            # Method 3: adb shell input text
+            if not password_entered:
+                try:
+                    password_field.click()
+                    time.sleep(0.5)
+                    password_field.clear_text()
+                    time.sleep(0.5)
+                    import subprocess as _sp
+                    adb_serial = self.device_serial if ':' in self.device_serial else self.device_serial.replace('_', ':')
+                    escaped = password.replace(' ', '%s')
+                    for ch in '()&;<>|$`\\!"\'{}[]~*?#':
+                        escaped = escaped.replace(ch, '\\' + ch)
+                    _sp.run(['adb', '-s', adb_serial, 'shell', 'input', 'text', escaped],
+                            capture_output=True, timeout=10)
+                    time.sleep(0.5)
+                    print(f"[OK] Password entered via adb input text")
+                    password_entered = True
+                except Exception as e:
+                    print(f"[X] adb input text password failed: {e}")
+
+            if not password_entered:
+                print("[X] All methods failed for password")
+                return False
+
             time.sleep(1)
 
             # Click login button
