@@ -409,11 +409,15 @@ class InstagramActions:
         Returns True on success.
         """
         try:
-            # Find username field
+            # Find username field (match v1 login_automation.py selectors)
             username_sels = [
+                self.device(descriptionContains="Username"),
+                self.device(descriptionContains="username"),
                 self.device(textContains="Username"),
                 self.device(textContains="Phone"),
                 self.device(textContains="Email"),
+                self.device(descriptionContains="email"),
+                self.device(descriptionContains="phone"),
                 self.device(className="android.widget.EditText", instance=0),
             ]
             username_field = None
@@ -432,8 +436,10 @@ class InstagramActions:
                 return False
             time.sleep(1)
 
-            # Find password field
+            # Find password field (match v1 login_automation.py selectors)
             password_sels = [
+                self.device(descriptionContains="Password"),
+                self.device(descriptionContains="password"),
                 self.device(textContains="Password"),
                 self.device(textContains="password"),
                 self.device(className="android.widget.EditText", instance=1),
