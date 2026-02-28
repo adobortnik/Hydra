@@ -3942,7 +3942,8 @@ async function loadDeviceList() {
         const resp = await fetch('/api/devices');
         const data = await resp.json();
         const devices = Array.isArray(data) ? data : (data.devices || []);
-        allDeviceSerials = devices.map(d => d.device_serial || d.deviceid).sort();
+        // Keep same order as device manager list (API order = DB order)
+        allDeviceSerials = devices.map(d => d.device_serial || d.deviceid);
         updateNavButtons();
     } catch (e) {
         console.warn('Could not load device list for nav', e);
