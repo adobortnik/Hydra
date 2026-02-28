@@ -14,6 +14,8 @@ import datetime
 from enum import Enum
 from typing import Optional, Dict, List, Tuple
 
+from automation.text_input import reliable_type_text as _reliable_type_text
+
 log = logging.getLogger(__name__)
 
 # Screen states
@@ -1322,15 +1324,37 @@ class IGController:
         except Exception:
             return False
 
-    def type_text(self, text: str) -> bool:
-        """Type text via ADB shell (more reliable than u2)."""
+    def type_text(self, text: str, field=None) -> bool:
+        """Type text using reliable fallback chain (set_text → send_keys → adb → base64).
+
+        If *field* is None, falls back to the currently focused EditText or
+        plain ADB input text (legacy behaviour).
+        """
         try:
-            subprocess.run(
-                ['adb', '-s', self.adb_serial, 'shell', 'input', 'text',
-                 text.replace(' ', '%s')],
-                capture_output=True, timeout=10
-            )
-            return True
+            if field is None:
+                # Try to find the currently focused EditText
+                focused = self.device(className="android.widget.EditText", focused=True)
+                if focused.exists(timeout=2):
+                    field = focused
+                else:
+                    # Last resort: use first EditText on screen
+                    ets = self.device(className="android.widget.EditText")
+                    if ets.exists(timeout=2):
+                        field = ets
+                    else:
+                        # No field found – fall back to raw ADB
+                        log.warning("[%s] type_text: no EditText found, using raw ADB",
+                                    self.device_serial)
+                        from automation.text_input import _escape_for_adb
+                        escaped = _escape_for_adb(text)
+                        subprocess.run(
+                            ['adb', '-s', self.adb_serial, 'shell', 'input', 'text', escaped],
+                            capture_output=True, timeout=10,
+                        )
+                        return True
+
+            return _reliable_type_text(self.device, self.adb_serial, field,
+                                       text, device_serial=self.device_serial)
         except Exception as e:
             log.error("[%s] Type text failed: %s", self.device_serial, e)
             return False

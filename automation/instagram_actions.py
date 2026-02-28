@@ -17,6 +17,8 @@ import subprocess
 import time
 import logging
 
+from automation.text_input import reliable_type_text
+
 log = logging.getLogger(__name__)
 
 
@@ -416,16 +418,11 @@ class InstagramActions:
                 log.error("[%s] Username field not found", self.device_serial)
                 return False
 
-            username_field.click()
-            time.sleep(1)
-            username_field.clear_text()
-            time.sleep(0.5)
-
-            # Use ADB input for reliability
-            subprocess.run(
-                ['adb', '-s', self.adb_serial, 'shell', 'input', 'text', username],
-                capture_output=True, timeout=10
-            )
+            # Use reliable fallback chain for text input
+            if not reliable_type_text(self.device, self.adb_serial, username_field,
+                                      username, device_serial=self.device_serial):
+                log.error("[%s] Failed to type username", self.device_serial)
+                return False
             time.sleep(1)
 
             # Find password field
@@ -443,15 +440,11 @@ class InstagramActions:
                 log.error("[%s] Password field not found", self.device_serial)
                 return False
 
-            password_field.click()
-            time.sleep(1)
-            password_field.clear_text()
-            time.sleep(0.5)
-
-            subprocess.run(
-                ['adb', '-s', self.adb_serial, 'shell', 'input', 'text', password],
-                capture_output=True, timeout=10
-            )
+            # Use reliable fallback chain for text input
+            if not reliable_type_text(self.device, self.adb_serial, password_field,
+                                      password, device_serial=self.device_serial):
+                log.error("[%s] Failed to type password", self.device_serial)
+                return False
             time.sleep(1)
 
             # Click login button
@@ -656,7 +649,9 @@ class InstagramActions:
             twofa_kw = [
                 "enter the 6-digit code", "enter the code", "confirmation code",
                 "security code", "two-factor", "2fa", "authentication code",
-                "verify", "we sent"
+                "verify", "we sent",
+                "enter confirmation code", "check your authentication app",
+                "enter the 6-digit", "we sent a code",
             ]
             for kw in twofa_kw:
                 if kw in xml_lower:
@@ -682,15 +677,11 @@ class InstagramActions:
             if not code_field.exists(timeout=3):
                 return False
 
-            code_field.click()
-            time.sleep(1)
-            code_field.clear_text()
-            time.sleep(0.5)
-
-            subprocess.run(
-                ['adb', '-s', self.adb_serial, 'shell', 'input', 'text', code],
-                capture_output=True, timeout=10
-            )
+            # Use reliable fallback chain for text input
+            if not reliable_type_text(self.device, self.adb_serial, code_field,
+                                      code, device_serial=self.device_serial):
+                log.error("[%s] Failed to type 2FA code", self.device_serial)
+                return False
             time.sleep(2)
 
             # Scroll down to reveal Continue button
