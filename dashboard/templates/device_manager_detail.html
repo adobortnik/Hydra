@@ -3750,7 +3750,7 @@ function setAccountStatus(serial, username, newStatus) {
     .then(data => {
         if (data.success) {
             showSpToast(`@${username} → ${newStatus}`, 'success');
-            loadAccounts();
+            refreshDetail();
         } else {
             showSpToast(data.error || 'Failed', 'error');
         }
