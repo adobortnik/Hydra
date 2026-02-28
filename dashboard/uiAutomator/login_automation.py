@@ -201,13 +201,14 @@ class LoginAutomation:
             print(f"[!] Failed New Identity reset: {e}")
             return False
 
-    def open_instagram(self, instagram_package="com.instagram.android"):
+    def open_instagram(self, instagram_package="com.instagram.android", is_replace=True):
         """
         Open Instagram app using the proven monkey method.
-        ALWAYS clears app data first to ensure fresh login screen.
+        Clears app data (New Identity) only when replacing an existing account.
 
         Args:
             instagram_package: Package name (e.g., "com.instagram.androim")
+            is_replace: If True, run New Identity reset before opening (default True)
 
         Returns:
             bool: True if successful
@@ -226,11 +227,13 @@ class LoginAutomation:
             self.device.app_stop(instagram_package)
             time.sleep(1)
 
-            # CRITICAL: Clear app data to ensure fresh login screen
-            # Without this, a previously logged-in account stays logged in
-            # and the login flow can't enter new credentials
-            self.clear_app_data(instagram_package)
-            time.sleep(2)
+            # New Identity reset — only needed when replacing an existing account.
+            # For brand-new clones (never logged in), skip to avoid unnecessary reset.
+            if is_replace:
+                self.clear_app_data(instagram_package)
+                time.sleep(2)
+            else:
+                print("[SKIP] New clone — no previous account, skipping New Identity")
 
             # Use uiautomator2's app_start with monkey (most reliable)
             self.device.app_start(instagram_package, use_monkey=True)
@@ -1388,7 +1391,7 @@ class LoginAutomation:
             print(f"[!] Error verifying login: {e}")
             return False
 
-    def login_account(self, username, password, instagram_package, two_fa_token=None):
+    def login_account(self, username, password, instagram_package, two_fa_token=None, is_replace=True):
         """
         Complete login flow for an Instagram account
 
@@ -1397,6 +1400,7 @@ class LoginAutomation:
             password: Instagram password
             instagram_package: Package name (e.g., "com.instagram.androim")
             two_fa_token: Optional 2fa.live token for 2FA
+            is_replace: If True, run New Identity before login (default True for safety)
 
         Returns:
             dict: {
@@ -1424,8 +1428,8 @@ class LoginAutomation:
         }
 
         try:
-            # Open Instagram
-            if not self.open_instagram(instagram_package):
+            # Open Instagram (New Identity only on replace, not fresh clones)
+            if not self.open_instagram(instagram_package, is_replace=is_replace):
                 result['error'] = "Failed to open Instagram"
                 return result
 
