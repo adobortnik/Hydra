@@ -427,23 +427,28 @@ def api_auto_fix():
         start_time = old_account.get('start_time', '0')
         end_time = old_account.get('end_time', '0')
 
-        # e) Clear IG clone app data via ADB
+        # e) New Identity via AppCloner broadcast (resets Android ID, GAID, fingerprint + clears data)
         adb_clear_ok = False
         adb_error = None
         try:
             adb_serial = device_serial.replace('_', ':')
             clear_result = subprocess.run(
-                ['adb', '-s', adb_serial, 'shell', 'pm', 'clear', instagram_package],
+                ['adb', '-s', adb_serial, 'shell', 'am', 'broadcast',
+                 '-p', 'com.applisto.appcloner',
+                 '-a', 'com.applisto.appcloner.api.action.NEW_IDENTITY',
+                 '--es', 'package_name', instagram_package,
+                 '--ez', 'clear_cache', 'true',
+                 '--ez', 'delete_app_data', 'true'],
                 capture_output=True, timeout=15, text=True
             )
-            adb_clear_ok = clear_result.returncode == 0
+            adb_clear_ok = clear_result.returncode == 0 and 'result=0' in (clear_result.stdout or '')
             if not adb_clear_ok:
                 adb_error = clear_result.stderr or clear_result.stdout
-                log.warning("ADB clear failed for %s on %s: %s",
+                log.warning("New Identity failed for %s on %s: %s",
                             instagram_package, adb_serial, adb_error)
         except Exception as e:
             adb_error = str(e)
-            log.warning("ADB clear exception for %s on %s: %s",
+            log.warning("New Identity exception for %s on %s: %s",
                         instagram_package, device_serial, e)
 
         # f) Create new account record (inherits device + package + schedule)
@@ -939,23 +944,28 @@ def api_replace_account():
         start_time = old_account.get('start_time', '0')
         end_time = old_account.get('end_time', '0')
 
-        # f) Clear the IG clone app data via ADB
+        # f) New Identity via AppCloner broadcast (resets Android ID, GAID, fingerprint + clears data)
         adb_clear_ok = False
         adb_error = None
         try:
             adb_serial = device_serial.replace('_', ':')
             clear_result = subprocess.run(
-                ['adb', '-s', adb_serial, 'shell', 'pm', 'clear', instagram_package],
+                ['adb', '-s', adb_serial, 'shell', 'am', 'broadcast',
+                 '-p', 'com.applisto.appcloner',
+                 '-a', 'com.applisto.appcloner.api.action.NEW_IDENTITY',
+                 '--es', 'package_name', instagram_package,
+                 '--ez', 'clear_cache', 'true',
+                 '--ez', 'delete_app_data', 'true'],
                 capture_output=True, timeout=15, text=True
             )
-            adb_clear_ok = clear_result.returncode == 0
+            adb_clear_ok = clear_result.returncode == 0 and 'result=0' in (clear_result.stdout or '')
             if not adb_clear_ok:
                 adb_error = clear_result.stderr or clear_result.stdout
-                log.warning("ADB clear failed for %s on %s: %s",
+                log.warning("New Identity failed for %s on %s: %s",
                             instagram_package, adb_serial, adb_error)
         except Exception as e:
             adb_error = str(e)
-            log.warning("ADB clear exception for %s on %s: %s",
+            log.warning("New Identity exception for %s on %s: %s",
                         instagram_package, device_serial, e)
 
         # g) Create new account in accounts table

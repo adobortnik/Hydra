@@ -168,8 +168,9 @@ class LoginAutomation:
 
     def clear_app_data(self, instagram_package):
         """
-        Clear app data for the Instagram package via `pm clear`.
-        This ensures a fresh login screen (no stale sessions from previous accounts).
+        Reset clone identity via AppCloner New Identity broadcast.
+        Generates new Android ID, GAID, device fingerprint AND clears all app data.
+        This ensures a completely fresh identity for the next login.
 
         Args:
             instagram_package: Package name (e.g., "com.instagram.androil")
@@ -177,22 +178,27 @@ class LoginAutomation:
         Returns:
             bool: True if successful
         """
-        print(f"[...] Clearing app data for {instagram_package}...")
+        print(f"[...] New Identity reset for {instagram_package}...")
         try:
             connection_serial = self.device_serial.replace('_', ':')
             result = subprocess.run(
-                ['adb', '-s', connection_serial, 'shell', 'pm', 'clear', instagram_package],
+                ['adb', '-s', connection_serial, 'shell', 'am', 'broadcast',
+                 '-p', 'com.applisto.appcloner',
+                 '-a', 'com.applisto.appcloner.api.action.NEW_IDENTITY',
+                 '--es', 'package_name', instagram_package,
+                 '--ez', 'clear_cache', 'true',
+                 '--ez', 'delete_app_data', 'true'],
                 capture_output=True, text=True, timeout=15
             )
             output = result.stdout.strip()
-            if 'Success' in output:
-                print(f"[OK] App data cleared successfully")
+            if 'result=0' in output:
+                print(f"[OK] New Identity completed successfully")
                 return True
             else:
-                print(f"[!] pm clear returned: {output}")
+                print(f"[!] New Identity returned: {output}")
                 return False
         except Exception as e:
-            print(f"[!] Failed to clear app data: {e}")
+            print(f"[!] Failed New Identity reset: {e}")
             return False
 
     def open_instagram(self, instagram_package="com.instagram.android"):
