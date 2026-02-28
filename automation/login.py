@@ -129,15 +129,9 @@ def login_account(device_connection, username, password, instagram_package,
             result['error'] = "Failed to enter credentials"
             return result
 
-        # Step 4: Check for 2FA (up to 3 attempts, 3s apart)
-        two_fa_detected = False
-        for _attempt in range(3):
-            time.sleep(3)
-            if ig.detect_two_factor_screen():
-                two_fa_detected = True
-                break
-            log.debug("[%s] 2FA check attempt %d/3 — not detected yet",
-                      device_connection.device_serial, _attempt + 1)
+        # Step 4: Check for 2FA
+        time.sleep(6)
+        two_fa_detected = ig.detect_two_factor_screen()
 
         if two_fa_detected:
             log.info("[%s] 2FA screen detected", device_connection.device_serial)

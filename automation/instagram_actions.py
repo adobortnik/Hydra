@@ -650,8 +650,6 @@ class InstagramActions:
                 "enter the 6-digit code", "enter the code", "confirmation code",
                 "security code", "two-factor", "2fa", "authentication code",
                 "verify", "we sent",
-                "enter confirmation code", "check your authentication app",
-                "enter the 6-digit", "we sent a code",
             ]
             for kw in twofa_kw:
                 if kw in xml_lower:
