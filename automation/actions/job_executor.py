@@ -656,11 +656,8 @@ class JobExecutor:
                 'instagram_package', 'com.instagram.androie'))
             # Strip query params for clean URL
             clean_url = self.target.split('?')[0]
-            # Force-stop IG first for clean state
-            subprocess.run([
-                'adb', '-s', adb_serial, 'shell', 'am', 'force-stop', pkg
-            ], capture_output=True, timeout=5)
-            random_sleep(1, 2, label="force_stop_wait")
+            # NOTE: no force-stop — cold start takes too long and deep link
+            # works fine when app is already running.
             # Try deep link with retry on empty state
             deeplink_loaded = False
             for dl_attempt in range(3):
@@ -675,10 +672,29 @@ class JobExecutor:
                 # Check if post actually loaded (not empty state)
                 d = self.device
                 empty_state = d(resourceIdMatches='.*empty_state_view_root').exists(timeout=1)
-                has_comment_btn = (
-                    d(resourceIdMatches='.*row_feed_button_comment').exists(timeout=1) or
-                    d(descriptionContains='Comment').exists(timeout=1)
-                )
+
+                def _find_comment_btn(timeout=1):
+                    return (
+                        d(resourceIdMatches='.*row_feed_button_comment').exists(timeout=timeout) or
+                        d(descriptionContains='Comment').exists(timeout=timeout)
+                    )
+
+                has_comment_btn = _find_comment_btn(1)
+
+                # If no comment button, try scrolling down (large images push buttons off-screen)
+                if not has_comment_btn and not empty_state:
+                    for scroll_try in range(3):
+                        info = d.info
+                        h = info.get('displayHeight', 1920)
+                        w = info.get('displayWidth', 1080)
+                        d.swipe(w // 2, int(h * 0.7), w // 2, int(h * 0.3), steps=20)
+                        random_sleep(1, 2, label="scroll_find_comment")
+                        if _find_comment_btn(1):
+                            has_comment_btn = True
+                            log.info("[%s] JOB #%d: Found comment button after scroll %d",
+                                     self.device_serial, self.job_id, scroll_try + 1)
+                            break
+
                 if has_comment_btn:
                     deeplink_loaded = True
                     break
@@ -691,10 +707,7 @@ class JobExecutor:
                 else:
                     # Post might be loading, wait more
                     random_sleep(3, 5, label="deeplink_extra_wait")
-                    has_comment_btn = (
-                        d(resourceIdMatches='.*row_feed_button_comment').exists(timeout=2) or
-                        d(descriptionContains='Comment').exists(timeout=2)
-                    )
+                    has_comment_btn = _find_comment_btn(2)
                     if has_comment_btn:
                         deeplink_loaded = True
                         break
