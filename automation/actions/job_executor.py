@@ -504,10 +504,12 @@ class JobExecutor:
     # ------------------------------------------------------------------
     def _execute_like(self, budget, done_today):
         """
-        Like posts from target account's profile.
-        Uses IGController: search_user → open_first_post → like_post → scroll_down.
+        Like posts from target account's profile or a specific post URL.
+        URL target: deep link → like single post.
+        Username target: search_user → open_first_post → like_post → scroll.
         """
         from automation.ig_controller import IGController
+        import subprocess
 
         result = {'actions_done': 0, 'errors': 0, 'skipped': 0}
         pkg = self.account.get('package', 'com.instagram.androie')
@@ -523,76 +525,183 @@ class JobExecutor:
             pass
 
         source = self.target.lstrip('@')
-        session_target = min(budget, random.randint(5, 15))
+        is_post_url = ('instagram.com/p/' in self.target or
+                       'instagram.com/reel/' in self.target)
 
-        log.info("[%s] JOB #%d (like): Liking posts from @%s "
+        # For URL targets: 1 like per account. For profiles: multiple likes.
+        if is_post_url:
+            session_target = min(budget, 1)
+        else:
+            session_target = min(budget, random.randint(5, 15))
+
+        log.info("[%s] JOB #%d (like): Liking %s "
                  "(%d/%d today, %d/%s total)",
-                 self.device_serial, self.job_id, source,
+                 self.device_serial, self.job_id,
+                 f"post {source}" if is_post_url else f"posts from @{source}",
                  done_today, self.daily_limit,
                  self.job.get('completed_count', 0),
                  str(self.target_count) if self.target_count > 0 else '∞')
 
-        # Navigate to target's profile
-        if not ctrl.search_user(source):
-            log.warning("[%s] JOB #%d: Could not find @%s",
-                        self.device_serial, self.job_id, source)
-            record_job_action(self.job_id, self.account_id, 'like',
-                              source, success=False,
-                              error_message="User not found")
-            result['errors'] += 1
-            return result
+        if is_post_url:
+            # --- Deep link flow (same as comment) ---
+            adb_serial = self.device_serial.replace('_', ':')
+            clean_url = self.target.split('?')[0]
+            # Force-stop IG for clean state
+            subprocess.run([
+                'adb', '-s', adb_serial, 'shell', 'am', 'force-stop', pkg
+            ], capture_output=True, timeout=5)
+            random_sleep(1, 2, label="force_stop_wait")
 
-        random_sleep(2, 4, label="on_target_profile")
-        ctrl.dismiss_popups()
-
-        # Open first post in grid
-        if not ctrl.open_first_post():
-            log.warning("[%s] JOB #%d: Could not open first post for @%s",
-                        self.device_serial, self.job_id, source)
-            ctrl.press_back()
-            result['errors'] += 1
-            return result
-
-        random_sleep(1, 3, label="post_opened")
-        ctrl.dismiss_popups()
-
-        # Like posts by scrolling through feed
-        for i in range(session_target + 5):  # extra to account for already-liked
-            if result['actions_done'] >= session_target:
-                break
-
-            try:
+            deeplink_loaded = False
+            d = self.device
+            for dl_attempt in range(3):
+                subprocess.run([
+                    'adb', '-s', adb_serial, 'shell', 'am', 'start',
+                    '-a', 'android.intent.action.VIEW',
+                    '-d', clean_url, pkg
+                ], capture_output=True, timeout=10)
+                random_sleep(5, 8, label="deeplink_post_load")
                 ctrl.dismiss_popups()
-                liked = ctrl.like_post()
-                if liked:
-                    result['actions_done'] += 1
-                    record_job_action(self.job_id, self.account_id,
-                                      'like', source, success=True)
-                    log_action(self.session_id, self.device_serial,
-                               self.username, 'like',
-                               target_username=source, success=True)
-                    log.info("[%s] JOB #%d (like): Liked post %d from @%s (%d/%d today)",
-                             self.device_serial, self.job_id,
-                             result['actions_done'], source,
-                             done_today + result['actions_done'],
-                             self.daily_limit)
-                    action_delay('like')
+
+                empty_state = d(resourceIdMatches='.*empty_state_view_root').exists(timeout=1)
+
+                def _find_like_btn(timeout=1):
+                    return (
+                        d(resourceIdMatches='.*row_feed_button_like').exists(timeout=timeout) or
+                        d(descriptionContains='Like').exists(timeout=timeout)
+                    )
+
+                has_like_btn = _find_like_btn(1)
+
+                # Scroll to find like button if hidden by large image
+                if not has_like_btn and not empty_state:
+                    for scroll_try in range(3):
+                        info = d.info
+                        h = info.get('displayHeight', 1920)
+                        w = info.get('displayWidth', 1080)
+                        d.swipe(w // 2, int(h * 0.7), w // 2, int(h * 0.3), steps=20)
+                        random_sleep(1, 2, label="scroll_find_like")
+                        if _find_like_btn(1):
+                            has_like_btn = True
+                            log.info("[%s] JOB #%d: Found like button after scroll %d",
+                                     self.device_serial, self.job_id, scroll_try + 1)
+                            break
+
+                if has_like_btn:
+                    deeplink_loaded = True
+                    break
+                if empty_state:
+                    log.warning("[%s] JOB #%d: Post empty state on attempt %d/3",
+                                self.device_serial, self.job_id, dl_attempt + 1)
+                    d.press('back')
+                    random_sleep(2, 3, label="deeplink_retry_wait")
                 else:
-                    result['skipped'] += 1
+                    random_sleep(3, 5, label="deeplink_extra_wait")
+                    has_like_btn = _find_like_btn(2)
+                    if has_like_btn:
+                        deeplink_loaded = True
+                        break
+                    log.warning("[%s] JOB #%d: No like button on attempt %d/3",
+                                self.device_serial, self.job_id, dl_attempt + 1)
+                    d.press('back')
+                    random_sleep(2, 3, label="deeplink_retry_wait")
 
-                # Scroll to next post
-                ctrl.scroll_down()
-                random_sleep(1, 3, label="between_posts")
+            log.info("[%s] JOB #%d: Opened post via deep link: %s (loaded=%s)",
+                     self.device_serial, self.job_id, clean_url, deeplink_loaded)
 
-            except Exception as e:
-                log.warning("[%s] JOB #%d: Error liking post: %s",
-                            self.device_serial, self.job_id, e)
+            if not deeplink_loaded:
+                log.error("[%s] JOB #%d: Post failed to load after 3 attempts",
+                          self.device_serial, self.job_id)
+                record_job_action(self.job_id, self.account_id, 'like',
+                                  source, success=False,
+                                  error_message="Post failed to load via deep link")
                 result['errors'] += 1
+                return result
 
-        # Go back to clean state
-        for _ in range(3):
-            ctrl.press_back()
-            time.sleep(0.5)
+            # Like the post
+            liked = ctrl.like_post()
+            if liked:
+                result['actions_done'] += 1
+                record_job_action(self.job_id, self.account_id,
+                                  'like', source, success=True)
+                log_action(self.session_id, self.device_serial,
+                           self.username, 'like',
+                           target_username=source, success=True)
+                log.info("[%s] JOB #%d (like): Liked post via deep link (%d/%d today)",
+                         self.device_serial, self.job_id,
+                         done_today + 1, self.daily_limit)
+            else:
+                # Might already be liked
+                result['skipped'] += 1
+                log.info("[%s] JOB #%d (like): Post already liked or like failed",
+                         self.device_serial, self.job_id)
+
+            # Go back
+            d.press('back')
+            random_sleep(1, 2, label="after_like_back")
+
+        else:
+            # --- Profile search flow (original) ---
+            if not ctrl.search_user(source):
+                log.warning("[%s] JOB #%d: Could not find @%s",
+                            self.device_serial, self.job_id, source)
+                record_job_action(self.job_id, self.account_id, 'like',
+                                  source, success=False,
+                                  error_message="User not found")
+                result['errors'] += 1
+                return result
+
+            random_sleep(2, 4, label="on_target_profile")
+            ctrl.dismiss_popups()
+
+            # Open first post in grid
+            if not ctrl.open_first_post():
+                log.warning("[%s] JOB #%d: Could not open first post for @%s",
+                            self.device_serial, self.job_id, source)
+                ctrl.press_back()
+                result['errors'] += 1
+                return result
+
+            random_sleep(1, 3, label="post_opened")
+            ctrl.dismiss_popups()
+
+            # Like posts by scrolling through feed
+            for i in range(session_target + 5):
+                if result['actions_done'] >= session_target:
+                    break
+
+                try:
+                    ctrl.dismiss_popups()
+                    liked = ctrl.like_post()
+                    if liked:
+                        result['actions_done'] += 1
+                        record_job_action(self.job_id, self.account_id,
+                                          'like', source, success=True)
+                        log_action(self.session_id, self.device_serial,
+                                   self.username, 'like',
+                                   target_username=source, success=True)
+                        log.info("[%s] JOB #%d (like): Liked post %d from @%s (%d/%d today)",
+                                 self.device_serial, self.job_id,
+                                 result['actions_done'], source,
+                                 done_today + result['actions_done'],
+                                 self.daily_limit)
+                        action_delay('like')
+                    else:
+                        result['skipped'] += 1
+
+                    # Scroll to next post
+                    ctrl.scroll_down()
+                    random_sleep(1, 3, label="between_posts")
+
+                except Exception as e:
+                    log.warning("[%s] JOB #%d: Error liking post: %s",
+                                self.device_serial, self.job_id, e)
+                    result['errors'] += 1
+
+            # Go back to clean state
+            for _ in range(3):
+                ctrl.press_back()
+                time.sleep(0.5)
 
         log.info("[%s] JOB #%d (like): Done. Liked %d, skipped %d, errors %d",
                  self.device_serial, self.job_id,
