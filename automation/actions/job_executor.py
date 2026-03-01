@@ -618,6 +618,13 @@ class JobExecutor:
                 result['errors'] += 1
                 return result
 
+            # Atomic claim before liking (prevents overshoot)
+            if not claim_job_slot(self.job_id):
+                log.info("[%s] JOB #%d: No slot available (target reached), stopping",
+                         self.device_serial, self.job_id)
+                d.press('back')
+                return result
+
             # Like the post
             liked = ctrl.like_post()
             if liked:
@@ -631,7 +638,8 @@ class JobExecutor:
                          self.device_serial, self.job_id,
                          done_today + 1, self.daily_limit)
             else:
-                # Might already be liked
+                # Might already be liked — release the slot
+                unclaim_job_slot(self.job_id)
                 result['skipped'] += 1
                 log.info("[%s] JOB #%d (like): Post already liked or like failed",
                          self.device_serial, self.job_id)
