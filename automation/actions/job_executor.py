@@ -631,7 +631,8 @@ class JobExecutor:
             comment_action.settings['comment_text'] = '[AI]'
 
         source = self.target.lstrip('@')
-        session_target = min(budget, random.randint(1, 3))
+        # Max 1 comment per account per job execution — spread across accounts
+        session_target = min(budget, 1)
 
         log.info("[%s] JOB #%d (comment): Commenting on @%s's posts "
                  "(%d/%d today, %d/%s total)",
