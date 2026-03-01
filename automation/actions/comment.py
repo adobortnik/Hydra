@@ -525,8 +525,17 @@ class CommentAction:
                     xml = self.ctrl.dump_xml("source_post_retry")
                     comment_btn = self._find_comment_button(xml)
 
+                # If still not found, try small scroll (large image hiding button)
                 if comment_btn is None:
-                    log.warning("[%s] Comment button not found on @%s's post",
+                    log.debug("[%s] Comment button not visible, scrolling down...",
+                              self.device_serial)
+                    self.device.swipe(540, 1400, 540, 900, duration=0.3)
+                    time.sleep(1.5)
+                    xml = self.ctrl.dump_xml("source_post_scroll_retry")
+                    comment_btn = self._find_comment_button(xml)
+
+                if comment_btn is None:
+                    log.warning("[%s] Comment button not found on @%s's post (even after scroll)",
                                 self.device_serial, source_username)
                     self.ctrl.press_back()
                     time.sleep(1)

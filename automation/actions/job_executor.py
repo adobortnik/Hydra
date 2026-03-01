@@ -800,8 +800,17 @@ class JobExecutor:
                 xml = comment_action.ctrl.dump_xml("job_comment_post")
                 comment_btn = comment_action._find_comment_button(xml)
 
+                # If comment button not visible, try small scroll down (large image)
                 if comment_btn is None:
-                    log.debug("[%s] JOB #%d: No comment button on current post",
+                    log.debug("[%s] JOB #%d: Comment button not visible, scrolling down...",
+                              self.device_serial, self.job_id)
+                    self.device.swipe(540, 1400, 540, 900, duration=0.3)
+                    time.sleep(1.5)
+                    xml = comment_action.ctrl.dump_xml("job_comment_post_retry")
+                    comment_btn = comment_action._find_comment_button(xml)
+
+                if comment_btn is None:
+                    log.debug("[%s] JOB #%d: No comment button on current post (even after scroll)",
                               self.device_serial, self.job_id)
                     result['skipped'] += 1
                     # Release the claimed slot — we didn't actually comment
