@@ -336,6 +336,13 @@
                                     <i class="fas fa-eye me-1 text-info"></i>Vision AI
                                 </label>
                             </div>
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="cfgUniqueComments">
+                                <label class="form-check-label" for="cfgUniqueComments">
+                                    <i class="fas fa-fingerprint me-1 text-warning"></i>Unique comments only
+                                    <small class="text-muted">(no duplicates — each comment used max once)</small>
+                                </label>
+                            </div>
                         </div>
                         <!-- Hidden: keep cfgAiMode/cfgAiStyle for backward compat -->
                         <input type="hidden" id="cfgAiMode" value="">
@@ -630,6 +637,12 @@
                             <input class="form-check-input" type="checkbox" id="editVisionAi">
                             <label class="form-check-label" for="editVisionAi">
                                 <i class="fas fa-eye me-1 text-info"></i>Vision AI
+                            </label>
+                        </div>
+                        <div class="form-check form-switch mt-1">
+                            <input class="form-check-input" type="checkbox" id="editUniqueComments">
+                            <label class="form-check-label" for="editUniqueComments">
+                                <i class="fas fa-fingerprint me-1 text-warning"></i>Unique comments only
                             </label>
                         </div>
                     </div>
@@ -1069,6 +1082,10 @@ function openEdit(id) {
         document.getElementById('editActionDelay').value = j.action_delay_seconds || 0;
     }
 
+    if (document.getElementById('editUniqueComments')) {
+        document.getElementById('editUniqueComments').checked = !!j.unique_comments;
+    }
+
     const cg = document.getElementById('editCommentGroup');
     if (j.job_type === 'comment') {
         cg.classList.remove('d-none');
@@ -1102,7 +1119,8 @@ async function saveJobEdit() {
         limit_per_hour: parseInt(document.getElementById('editLimitHour').value),
         limit_per_day: parseInt(document.getElementById('editLimitDay').value),
         priority: parseInt(document.getElementById('editPriority').value),
-        action_delay_seconds: parseInt(document.getElementById('editActionDelay')?.value || 0)
+        action_delay_seconds: parseInt(document.getElementById('editActionDelay')?.value || 0),
+        unique_comments: document.getElementById('editUniqueComments')?.checked ? 1 : 0
     };
     const cg2 = document.getElementById('editCommentGroup');
     if (!cg2.classList.contains('d-none')) {
@@ -1140,6 +1158,7 @@ function resetWizard() {
     const selAllCb = document.getElementById('selectAllCheckbox');
     if (selAllCb) { selAllCb.checked = false; selAllCb.indeterminate = false; }
     document.getElementById('cfgCommentText').value = '';
+    document.getElementById('cfgUniqueComments').checked = false;
     document.getElementById('cfgTargetCount').value = '50';
     document.getElementById('cfgLimitHour').value = '50';
     document.getElementById('cfgLimitDay').value = '200';
@@ -1501,6 +1520,7 @@ async function submitJob() {
         priority: parseInt(document.getElementById('cfgPriority').value),
         action_delay_seconds: parseInt(document.getElementById('cfgActionDelay').value) || 0,
         comment_text: chosenType === 'comment' ? document.getElementById('cfgCommentText').value : '',
+        unique_comments: chosenType === 'comment' ? document.getElementById('cfgUniqueComments').checked : false,
         report_reason: chosenType === 'report' ? document.getElementById('cfgReportReason').value : 'spam',
         accounts: Array.from(selectedAccounts)
     };

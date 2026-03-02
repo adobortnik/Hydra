@@ -275,6 +275,12 @@ MIGRATIONS = [
     {'name': 'add_action_delay_seconds_to_job_orders',
      'sql': "ALTER TABLE job_orders ADD COLUMN action_delay_seconds INTEGER DEFAULT 0",
      'check': "SELECT sql FROM sqlite_master WHERE name='job_orders' AND sql LIKE '%action_delay_seconds%'"},
+    {'name': 'add_unique_comments_to_job_orders',
+     'sql': "ALTER TABLE job_orders ADD COLUMN unique_comments INTEGER DEFAULT 0",
+     'check': "SELECT sql FROM sqlite_master WHERE name='job_orders' AND sql LIKE '%unique_comments%'"},
+    {'name': 'add_comment_used_to_job_history',
+     'sql': "ALTER TABLE job_history ADD COLUMN comment_used TEXT DEFAULT NULL",
+     'check': "SELECT sql FROM sqlite_master WHERE name='job_history' AND sql LIKE '%comment_used%'"},
 
     # accounts — columns that may be missing on older DBs
     {'name': 'add_followers_to_accounts',

@@ -153,7 +153,8 @@ def wait_for_global_delay(job_id, delay_seconds):
 
 
 def record_job_action(job_id, account_id, action_type, target=None,
-                      success=True, error_message=None, used_claim=False):
+                      success=True, error_message=None, used_claim=False,
+                      comment_used=None):
     """
     Insert a row into job_history and update counters.
     
@@ -164,10 +165,10 @@ def record_job_action(job_id, account_id, action_type, target=None,
         conn = get_db()
         conn.execute("""
             INSERT INTO job_history (job_id, account_id, action_type, target,
-                                     status, error_message)
-            VALUES (?, ?, ?, ?, ?, ?)
+                                     status, error_message, comment_used)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (job_id, account_id, action_type, target,
-              'success' if success else 'error', error_message))
+              'success' if success else 'error', error_message, comment_used))
 
         if success:
             # Bump assignment completed_count (per-account tracking)
@@ -253,6 +254,7 @@ class JobExecutor:
         self.comment_text = job.get('comment_text', '')
         self.priority = job.get('priority', 0)
         self.action_delay = job.get('action_delay_seconds', 0) or 0
+        self.unique_comments = bool(job.get('unique_comments', 0))
 
     def execute(self):
         """
@@ -739,13 +741,38 @@ class JobExecutor:
 
         # Override comment templates if job has specific text
         # Each line = separate comment option (random.choice picks one per post)
+        all_comment_lines = []
         if self.comment_text and self.comment_text != '[AI]':
             lines = [l.strip() for l in self.comment_text.split('\n') if l.strip()]
-            comment_action.comment_templates = lines if lines else [self.comment_text]
+            all_comment_lines = lines if lines else [self.comment_text]
+            comment_action.comment_templates = list(all_comment_lines)
             # Clear settings comment_text so _get_comment uses templates (random pick per line)
             comment_action.settings['comment_text'] = ''
         elif self.comment_text == '[AI]':
             comment_action.settings['comment_text'] = '[AI]'
+
+        # Unique comments: filter out already-used comments on this job
+        chosen_comment = None
+        if self.unique_comments and all_comment_lines:
+            import sqlite3 as _sq
+            _conn = _sq.connect(DB_PATH)
+            used = [r[0] for r in _conn.execute(
+                "SELECT comment_used FROM job_history WHERE job_id = ? AND status = 'success' AND comment_used IS NOT NULL",
+                (self.job_id,)
+            ).fetchall()]
+            _conn.close()
+            available = [c for c in all_comment_lines if c not in used]
+            if not available:
+                log.info("[%s] JOB #%d: All %d unique comments already used, skipping",
+                         self.device_serial, self.job_id, len(all_comment_lines))
+                result['skipped'] += 1
+                return result
+            chosen_comment = random.choice(available)
+            # Force this specific comment
+            comment_action.comment_templates = [chosen_comment]
+            log.info("[%s] JOB #%d: Unique comment selected: '%s' (%d/%d available)",
+                     self.device_serial, self.job_id, chosen_comment,
+                     len(available), len(all_comment_lines))
 
         source = self.target.lstrip('@')
         # Max 1 comment per account per job execution — spread across accounts
@@ -959,7 +986,8 @@ class JobExecutor:
                         result['actions_done'] += 1
                         record_job_action(self.job_id, self.account_id,
                                           'comment', source, success=True,
-                                          used_claim=claimed)
+                                          used_claim=claimed,
+                                          comment_used=chosen_comment)
                         log_action(self.session_id, self.device_serial,
                                    self.username, 'comment',
                                    target_username=source, success=True)

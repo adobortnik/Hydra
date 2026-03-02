@@ -215,8 +215,9 @@ def api_create_job():
                                     report_reason,
                                     comment_list_id, ai_mode, vision_ai,
                                     priority, action_delay_seconds,
+                                    unique_comments,
                                     status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
         """, (
             data['job_name'],
             data['job_type'],
@@ -231,6 +232,7 @@ def api_create_job():
             1 if data.get('vision_ai') else 0,
             int(data.get('priority', 0)),
             int(data.get('action_delay_seconds', 0)),
+            1 if data.get('unique_comments') else 0,
             now, now
         ))
         job_id = cursor.lastrowid
@@ -277,7 +279,8 @@ def api_update_job(job_id):
         allowed = {
             'job_name', 'target', 'target_count', 'limit_per_hour',
             'limit_per_day', 'comment_text', 'report_reason', 'status', 'priority',
-            'comment_list_id', 'ai_mode', 'vision_ai', 'action_delay_seconds'
+            'comment_list_id', 'ai_mode', 'vision_ai', 'action_delay_seconds',
+            'unique_comments'
         }
         fields = {k: v for k, v in data.items() if k in allowed}
         if not fields:
