@@ -166,24 +166,27 @@ def wait_for_global_delay(job_id, delay_seconds):
                     pass
 
             now = time.time()
-            elapsed = now - last_ts
+            # last_ts = when the last bot PLANS to comment
+            # We need to wait until last_ts + delay_seconds
+            next_slot = last_ts + delay_seconds if last_ts > 0 else now
+            wait_time = next_slot - now
 
-            if last_ts > 0 and elapsed < delay_seconds:
-                wait_time = delay_seconds - elapsed
-                log.info("JOB #%d: Global delay — last action %.0fs ago, waiting %.0fs more",
-                         job_id, elapsed, wait_time)
-                # Claim our future slot time, release lock, then sleep
+            if wait_time > 0:
+                log.info("JOB #%d: Global delay — next slot in %.0fs, waiting",
+                         job_id, wait_time)
+                # Claim our slot: we'll act at next_slot
+                # Next bot will see this and queue behind us at next_slot + delay
                 with open(ts_file, 'w') as f:
-                    f.write(str(now + wait_time))
+                    f.write(str(next_slot))
                 try:
                     os.remove(lock_file)
                 except OSError:
                     pass
                 time.sleep(wait_time)
             else:
-                # No wait needed — write current timestamp and release
+                # No wait needed — claim NOW as our slot
                 with open(ts_file, 'w') as f:
-                    f.write(str(time.time()))
+                    f.write(str(now))
                 try:
                     os.remove(lock_file)
                 except OSError:
