@@ -22,6 +22,7 @@ Supported job_types:
 import datetime
 import json
 import logging
+import os
 import random
 import time
 
@@ -111,40 +112,89 @@ def unclaim_job_slot(job_id):
 
 def wait_for_global_delay(job_id, delay_seconds):
     """
-    Check last action time for this job across ALL devices.
-    If less than delay_seconds have passed, sleep the remaining time.
+    Check last action time for this job across ALL devices using a shared
+    lockfile (avoids SQLite WAL visibility issues between processes).
     
     Returns True if we waited (or no wait needed), False on error.
     """
     if delay_seconds <= 0:
         return True
     try:
-        conn = get_db()
-        row = conn.execute("""
-            SELECT MAX(created_at) as last_action
-            FROM job_history
-            WHERE job_id = ? AND status IN ('success', 'reserved')
-        """, (job_id,)).fetchone()
-        
-        if not row or not row['last_action']:
-            return True  # No previous actions, no need to wait
-        
-        last_action_str = row['last_action']
-        # Parse the timestamp
-        try:
-            last_action = datetime.datetime.fromisoformat(last_action_str)
-        except (ValueError, TypeError):
+        import filelock
+        _has_filelock = True
+    except ImportError:
+        _has_filelock = False
+
+    lock_dir = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))), 'logs')
+    os.makedirs(lock_dir, exist_ok=True)
+    ts_file = os.path.join(lock_dir, f'job_{job_id}_last_action.txt')
+    lock_file = ts_file + '.lock'
+
+    try:
+        # Spin-lock using atomic file rename (cross-platform)
+        deadline = time.time() + 60
+        acquired = False
+        while time.time() < deadline:
+            try:
+                # Atomic: create lock file (fails if exists)
+                fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                acquired = True
+                break
+            except FileExistsError:
+                # Check if lock is stale (>60s old)
+                try:
+                    if time.time() - os.path.getmtime(lock_file) > 60:
+                        os.remove(lock_file)
+                except OSError:
+                    pass
+                time.sleep(0.2 + random.random() * 0.3)
+
+        if not acquired:
+            log.warning("JOB #%d: Could not acquire delay lock after 60s", job_id)
             return True
-        
-        now = datetime.datetime.utcnow()
-        elapsed = (now - last_action).total_seconds()
-        
-        if elapsed < delay_seconds:
-            wait_time = delay_seconds - elapsed
-            log.info("JOB #%d: Global delay — last action %.0fs ago, waiting %.0fs more",
-                     job_id, elapsed, wait_time)
-            time.sleep(wait_time)
-        
+
+        try:
+            # Read last action timestamp
+            last_ts = 0.0
+            if os.path.exists(ts_file):
+                try:
+                    with open(ts_file, 'r') as f:
+                        last_ts = float(f.read().strip())
+                except (ValueError, OSError):
+                    pass
+
+            now = time.time()
+            elapsed = now - last_ts
+
+            if last_ts > 0 and elapsed < delay_seconds:
+                wait_time = delay_seconds - elapsed
+                log.info("JOB #%d: Global delay — last action %.0fs ago, waiting %.0fs more",
+                         job_id, elapsed, wait_time)
+                # Claim our future slot time, release lock, then sleep
+                with open(ts_file, 'w') as f:
+                    f.write(str(now + wait_time))
+                try:
+                    os.remove(lock_file)
+                except OSError:
+                    pass
+                time.sleep(wait_time)
+            else:
+                # No wait needed — write current timestamp and release
+                with open(ts_file, 'w') as f:
+                    f.write(str(time.time()))
+                try:
+                    os.remove(lock_file)
+                except OSError:
+                    pass
+        except Exception:
+            try:
+                os.remove(lock_file)
+            except OSError:
+                pass
+            raise
+
         return True
     except Exception as e:
         log.error("JOB #%d: Error checking global delay: %s", job_id, e)
