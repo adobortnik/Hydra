@@ -754,13 +754,11 @@ class JobExecutor:
         # Unique comments: filter out already-used comments on this job
         chosen_comment = None
         if self.unique_comments and all_comment_lines:
-            import sqlite3 as _sq
-            _conn = _sq.connect(DB_PATH)
+            _conn = get_db()
             used = [r[0] for r in _conn.execute(
                 "SELECT comment_used FROM job_history WHERE job_id = ? AND status = 'success' AND comment_used IS NOT NULL",
                 (self.job_id,)
             ).fetchall()]
-            _conn.close()
             available = [c for c in all_comment_lines if c not in used]
             if not available:
                 log.info("[%s] JOB #%d: All %d unique comments already used, skipping",
