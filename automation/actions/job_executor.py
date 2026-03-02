@@ -754,21 +754,41 @@ class JobExecutor:
         # Unique comments: filter out already-used comments on this job
         chosen_comment = None
         if self.unique_comments and all_comment_lines:
+            # Atomic claim: reserve a unique comment via DB lock
             _conn = get_db()
-            used = [r[0] for r in _conn.execute(
-                "SELECT comment_used FROM job_history WHERE job_id = ? AND status = 'success' AND comment_used IS NOT NULL",
-                (self.job_id,)
-            ).fetchall()]
-            available = [c for c in all_comment_lines if c not in used]
-            if not available:
-                log.info("[%s] JOB #%d: All %d unique comments already used, skipping",
-                         self.device_serial, self.job_id, len(all_comment_lines))
-                result['skipped'] += 1
+            try:
+                _conn.execute("BEGIN IMMEDIATE")
+                used = [r[0] for r in _conn.execute(
+                    "SELECT comment_used FROM job_history WHERE job_id = ? AND comment_used IS NOT NULL",
+                    (self.job_id,)
+                ).fetchall()]
+                available = [c for c in all_comment_lines if c not in used]
+                if not available:
+                    _conn.execute("COMMIT")
+                    log.info("[%s] JOB #%d: All %d unique comments already used, skipping",
+                             self.device_serial, self.job_id, len(all_comment_lines))
+                    result['skipped'] += 1
+                    return result
+                chosen_comment = random.choice(available)
+                # Reserve it immediately with a placeholder row
+                _conn.execute("""
+                    INSERT INTO job_history (job_id, account_id, action_type, target,
+                                             status, comment_used)
+                    VALUES (?, ?, 'comment', ?, 'reserved', ?)
+                """, (self.job_id, self.account_id, self.target, chosen_comment))
+                _conn.execute("COMMIT")
+            except Exception as e:
+                try:
+                    _conn.execute("ROLLBACK")
+                except Exception:
+                    pass
+                log.warning("[%s] JOB #%d: Failed to reserve unique comment: %s",
+                            self.device_serial, self.job_id, e)
+                result['errors'] += 1
                 return result
-            chosen_comment = random.choice(available)
             # Force this specific comment
             comment_action.comment_templates = [chosen_comment]
-            log.info("[%s] JOB #%d: Unique comment selected: '%s' (%d/%d available)",
+            log.info("[%s] JOB #%d: Unique comment reserved: '%s' (%d/%d available)",
                      self.device_serial, self.job_id, chosen_comment,
                      len(available), len(all_comment_lines))
 
@@ -975,6 +995,15 @@ class JobExecutor:
                     # Release the claimed slot — we didn't actually comment
                     if claimed:
                         unclaim_job_slot(self.job_id)
+                    # Remove reserved comment if unique
+                    if chosen_comment:
+                        _uc = get_db()
+                        _uc.execute("""
+                            DELETE FROM job_history
+                            WHERE job_id = ? AND account_id = ? AND status = 'reserved'
+                              AND comment_used = ?
+                        """, (self.job_id, self.account_id, chosen_comment))
+                        _uc.commit()
                 else:
                     # _post_comment handles: click btn → find input → 
                     # set_text (reliable) → click Post → verify
@@ -982,10 +1011,20 @@ class JobExecutor:
                         comment_btn, post_author=source)
                     if success:
                         result['actions_done'] += 1
-                        record_job_action(self.job_id, self.account_id,
-                                          'comment', source, success=True,
-                                          used_claim=claimed,
-                                          comment_used=chosen_comment)
+                        # If unique_comments, update reserved→success; else insert new
+                        if chosen_comment:
+                            _uc = get_db()
+                            _uc.execute("""
+                                UPDATE job_history SET status = 'success'
+                                WHERE job_id = ? AND account_id = ? AND status = 'reserved'
+                                  AND comment_used = ?
+                            """, (self.job_id, self.account_id, chosen_comment))
+                            _uc.commit()
+                        else:
+                            record_job_action(self.job_id, self.account_id,
+                                              'comment', source, success=True,
+                                              used_claim=claimed,
+                                              comment_used=None)
                         log_action(self.session_id, self.device_serial,
                                    self.username, 'comment',
                                    target_username=source, success=True)
@@ -1000,6 +1039,15 @@ class JobExecutor:
                         # Release the claimed slot — comment failed
                         if claimed:
                             unclaim_job_slot(self.job_id)
+                        # Remove reserved comment if unique
+                        if chosen_comment:
+                            _uc = get_db()
+                            _uc.execute("""
+                                DELETE FROM job_history
+                                WHERE job_id = ? AND account_id = ? AND status = 'reserved'
+                                  AND comment_used = ?
+                            """, (self.job_id, self.account_id, chosen_comment))
+                            _uc.commit()
 
                 # Scroll to next post
                 comment_action.ctrl.scroll_feed("down", amount=0.5)
