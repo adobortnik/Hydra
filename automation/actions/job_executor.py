@@ -123,9 +123,8 @@ def wait_for_global_delay(job_id, delay_seconds):
         row = conn.execute("""
             SELECT MAX(created_at) as last_action
             FROM job_history
-            WHERE job_id = ? AND status = 'success'
+            WHERE job_id = ? AND status IN ('success', 'reserved')
         """, (job_id,)).fetchone()
-        conn.close()
         
         if not row or not row['last_action']:
             return True  # No previous actions, no need to wait
@@ -137,7 +136,7 @@ def wait_for_global_delay(job_id, delay_seconds):
         except (ValueError, TypeError):
             return True
         
-        now = datetime.datetime.now()
+        now = datetime.datetime.utcnow()
         elapsed = (now - last_action).total_seconds()
         
         if elapsed < delay_seconds:
