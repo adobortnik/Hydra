@@ -930,8 +930,37 @@ class CommentAction:
         # (send/post button only appears when text is present)
         time.sleep(0.5)
 
-        # Find and click Post button
-        posted = self._click_post_button()
+        # Guard against double-send: if IME auto-submitted (imeAction=send),
+        # the input field will be empty already — don't click Post again
+        already_sent = False
+        try:
+            xml_check = self.ctrl.dump_xml("pre_post_check")
+            if xml_check:
+                pattern = (
+                    r'<node[^>]*class="android\.widget\.EditText"[^>]*'
+                    r'text="([^"]*)"'
+                )
+                match = re.search(pattern, xml_check)
+                if match:
+                    field_text = match.group(1)
+                    if not field_text or field_text.strip() == '':
+                        log.info("[%s] Comment already auto-submitted by IME (input empty)",
+                                 self.device_serial)
+                        already_sent = True
+                else:
+                    # No EditText found — might have already navigated away
+                    if 'layout_comment_thread_edittext' not in xml_check:
+                        log.info("[%s] Comment input gone — likely auto-submitted",
+                                 self.device_serial)
+                        already_sent = True
+        except Exception:
+            pass
+
+        if already_sent:
+            posted = True
+        else:
+            # Find and click Post button
+            posted = self._click_post_button()
         if not posted:
             log.warning("[%s] Could not find Post button", self.device_serial)
             self.ctrl.dump_xml("comment_post_btn_not_found")
