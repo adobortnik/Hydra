@@ -579,8 +579,8 @@ class JobExecutor:
             pass
 
         source = self.target.lstrip('@')
-        is_post_url = ('instagram.com/p/' in self.target or
-                       'instagram.com/reel/' in self.target)
+        is_post_url = ('instagram.com' in self.target and
+                       ('/p/' in self.target or '/reel/' in self.target))
 
         # For URL targets: 1 like per account. For profiles: multiple likes.
         if is_post_url:
@@ -873,8 +873,9 @@ class JobExecutor:
                  str(self.target_count) if self.target_count > 0 else '∞')
 
         # Detect if target is a post URL or a username
-        is_post_url = ('instagram.com/p/' in self.target or
-                       'instagram.com/reel/' in self.target)
+        # Handles both instagram.com/p/XXX and instagram.com/user/p/XXX formats
+        is_post_url = ('instagram.com' in self.target and
+                       ('/p/' in self.target or '/reel/' in self.target))
 
         comment_action.ctrl.ensure_app()
         comment_action.ctrl.dismiss_popups()
