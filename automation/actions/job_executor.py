@@ -1084,6 +1084,19 @@ class JobExecutor:
                                 WHERE job_id = ? AND account_id = ? AND status = 'reserved'
                                   AND comment_used = ?
                             """, (self.job_id, self.account_id, chosen_comment))
+                            # Also update assignment + check job completion
+                            _uc.execute("""
+                                UPDATE job_assignments
+                                SET completed_count = completed_count + 1,
+                                    last_action_at = datetime('now')
+                                WHERE job_id = ? AND account_id = ?
+                            """, (self.job_id, self.account_id))
+                            _uc.execute("""
+                                UPDATE job_orders
+                                SET status = 'completed', finished_at = datetime('now')
+                                WHERE id = ? AND target_count > 0
+                                  AND completed_count >= target_count
+                            """, (self.job_id,))
                             _uc.commit()
                         else:
                             record_job_action(self.job_id, self.account_id,
