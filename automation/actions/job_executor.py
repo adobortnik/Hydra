@@ -844,6 +844,23 @@ class JobExecutor:
                      self.device_serial, self.job_id, chosen_comment,
                      len(available), len(all_comment_lines))
 
+        def _unreserve_comment():
+            """Remove the reserved comment row if unique_comments active."""
+            if chosen_comment:
+                try:
+                    _uc = get_db()
+                    _uc.execute("""
+                        DELETE FROM job_history
+                        WHERE job_id = ? AND account_id = ? AND status = 'reserved'
+                          AND comment_used = ?
+                    """, (self.job_id, self.account_id, chosen_comment))
+                    _uc.commit()
+                    log.debug("[%s] JOB #%d: Unreserved comment '%s'",
+                              self.device_serial, self.job_id, chosen_comment)
+                except Exception as ue:
+                    log.warning("[%s] JOB #%d: Failed to unreserve comment: %s",
+                                self.device_serial, self.job_id, ue)
+
         source = self.target.lstrip('@')
         # Max 1 comment per account per job execution — spread across accounts
         session_target = min(budget, 1)
@@ -942,6 +959,7 @@ class JobExecutor:
                 record_job_action(self.job_id, self.account_id, 'comment',
                                   source, success=False,
                                   error_message="Post failed to load via deep link")
+                _unreserve_comment()
                 result['errors'] += 1
                 return result
         else:
@@ -952,6 +970,7 @@ class JobExecutor:
                 record_job_action(self.job_id, self.account_id, 'comment',
                                   source, success=False,
                                   error_message="User not found")
+                _unreserve_comment()
                 result['errors'] += 1
                 return result
 
@@ -1002,6 +1021,7 @@ class JobExecutor:
                 log.warning("[%s] JOB #%d: No grid posts for @%s",
                             self.device_serial, self.job_id, source)
                 comment_action.ctrl.press_back()
+                _unreserve_comment()
                 result['errors'] += 1
                 return result
 
@@ -1114,6 +1134,10 @@ class JobExecutor:
         for _ in range(4):
             comment_action.ctrl.press_back()
             time.sleep(0.5)
+
+        # If unique comment was reserved but never posted, release it
+        if result['actions_done'] == 0:
+            _unreserve_comment()
 
         log.info("[%s] JOB #%d (comment): Done. Commented %d, skipped %d, "
                  "errors %d",
