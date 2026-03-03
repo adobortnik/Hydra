@@ -1068,15 +1068,7 @@ class JobExecutor:
                     # Release the claimed slot — we didn't actually comment
                     if claimed:
                         unclaim_job_slot(self.job_id)
-                    # Remove reserved comment if unique
-                    if chosen_comment:
-                        _uc = get_db()
-                        _uc.execute("""
-                            DELETE FROM job_history
-                            WHERE job_id = ? AND account_id = ? AND status = 'reserved'
-                              AND comment_used = ?
-                        """, (self.job_id, self.account_id, chosen_comment))
-                        _uc.commit()
+                    _unreserve_comment()
                 else:
                     # _post_comment handles: click btn → find input → 
                     # set_text (reliable) → click Post → verify
@@ -1112,15 +1104,7 @@ class JobExecutor:
                         # Release the claimed slot — comment failed
                         if claimed:
                             unclaim_job_slot(self.job_id)
-                        # Remove reserved comment if unique
-                        if chosen_comment:
-                            _uc = get_db()
-                            _uc.execute("""
-                                DELETE FROM job_history
-                                WHERE job_id = ? AND account_id = ? AND status = 'reserved'
-                                  AND comment_used = ?
-                            """, (self.job_id, self.account_id, chosen_comment))
-                            _uc.commit()
+                        _unreserve_comment()
 
                 # Scroll to next post
                 comment_action.ctrl.scroll_feed("down", amount=0.5)
@@ -1130,6 +1114,9 @@ class JobExecutor:
                 log.warning("[%s] JOB #%d: Error commenting: %s",
                             self.device_serial, self.job_id, e)
                 result['errors'] += 1
+                if claimed:
+                    unclaim_job_slot(self.job_id)
+                _unreserve_comment()
 
         # Go back to clean state
         for _ in range(4):
