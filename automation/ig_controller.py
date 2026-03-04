@@ -1785,22 +1785,43 @@ class IGController:
                         time.sleep(2)
 
                         # Verify the button text changed
+                        # Must re-fetch element — cached reference returns stale text
                         verified = False
                         try:
-                            # Re-fetch to get fresh state
-                            new_text = (best_btn.get_text() or "").strip()
-                            if new_text in ("Following", "Requested", "Message"):
-                                log.info("[%s] Followed @%s from list (verified: %s)",
-                                        self.device_serial, target_username, new_text)
-                                verified = True
-                            elif new_text in ("Follow", "Follow Back"):
-                                # Button didn't change — follow failed
-                                log.warning("[%s] Follow button still shows '%s' for @%s — click didn't work",
-                                           self.device_serial, new_text, target_username)
-                            else:
-                                log.info("[%s] Follow button text changed to '%s' for @%s — assuming success",
-                                        self.device_serial, new_text, target_username)
-                                verified = True
+                            # Re-find buttons near same Y position
+                            fresh_btns = self.device(resourceIdMatches=self._rid_match(
+                                'follow_list_row_large_follow_button'))
+                            if not fresh_btns.exists(timeout=2):
+                                fresh_btns = self.device(textMatches="^(Follow|Following|Requested)$")
+                            if fresh_btns.exists(timeout=1):
+                                for fi in range(min(fresh_btns.count, 20)):
+                                    try:
+                                        fb = fresh_btns[fi]
+                                        fbb = fb.info.get('bounds', {})
+                                        fcy = (fbb.get('top', 0) + fbb.get('bottom', 0)) // 2
+                                        if abs(fcy - user_cy) < 100:
+                                            new_text = (fb.get_text() or "").strip()
+                                            if new_text in ("Following", "Requested", "Message"):
+                                                log.info("[%s] Followed @%s from list (verified: %s)",
+                                                        self.device_serial, target_username, new_text)
+                                                verified = True
+                                            elif new_text in ("Follow", "Follow Back"):
+                                                log.warning("[%s] Follow button still shows '%s' for @%s — click didn't work",
+                                                           self.device_serial, new_text, target_username)
+                                            else:
+                                                log.info("[%s] Follow button text='%s' for @%s — assuming success",
+                                                        self.device_serial, new_text, target_username)
+                                                verified = True
+                                            break
+                                    except Exception:
+                                        continue
+                            if not verified:
+                                # Fallback: check via XML dump for "Requested" near this row
+                                xml = self.dump_xml("follow_verify")
+                                if xml and 'Requested' in xml:
+                                    log.info("[%s] Followed @%s from list (verified via XML: Requested found)",
+                                            self.device_serial, target_username)
+                                    verified = True
                         except Exception as e:
                             log.debug("[%s] Could not verify follow for @%s: %s",
                                      self.device_serial, target_username, e)
