@@ -1053,18 +1053,21 @@ class IGController:
             time.sleep(3)
             log.debug("[%s] Clicked 'Accounts' tab in search results", self.device_serial)
 
-            # Now look for the user in the accounts list
-            for attempt in range(3):
+            # Now look for the user in the accounts list (scroll up to 8 times)
+            seen_users = set()
+            for scroll_round in range(8):
+                # Scan visible rows
                 user_rows = self.device(resourceIdMatches=self._rid_match('row_search_user_username'))
                 if user_rows.exists(timeout=3):
-                    count = min(user_rows.count, 10)
+                    count = min(user_rows.count, 15)
                     for i in range(count):
                         try:
                             row_text = (user_rows[i].get_text() or "").strip()
+                            seen_users.add(row_text.lower())
                             if row_text.lower() == target_lower:
-                                log.info("[%s] Found '%s' in Accounts tab (row %d)",
-                                         self.device_serial, row_text, i)
-                                # Coordinate click on the row (same fix as inline)
+                                log.info("[%s] Found '%s' in Accounts tab (row %d, scroll %d)",
+                                         self.device_serial, row_text, i, scroll_round)
+                                # Coordinate click on the row
                                 try:
                                     bounds = user_rows[i].info.get('bounds', {})
                                     cy = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
@@ -1084,7 +1087,6 @@ class IGController:
                                 time.sleep(2.5)
                                 if self._verify_on_profile(target_lower):
                                     return True
-                                # Clicked but not on profile — try back and retry
                                 self.device.press('back')
                                 time.sleep(1)
                                 break
@@ -1094,7 +1096,8 @@ class IGController:
                 # Also try generic TextView match with coordinate click
                 tv = self.device(className="android.widget.TextView", text=username)
                 if tv.exists(timeout=2):
-                    log.info("[%s] Found '%s' via TextView in Accounts tab", self.device_serial, username)
+                    log.info("[%s] Found '%s' via TextView in Accounts tab (scroll %d)",
+                            self.device_serial, username, scroll_round)
                     try:
                         bounds = tv.info.get('bounds', {})
                         cy = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
@@ -1109,10 +1112,44 @@ class IGController:
                     if self._verify_on_profile(target_lower):
                         return True
 
-                if attempt < 2:
-                    time.sleep(2)
+                # Scroll down to load more results
+                if scroll_round < 7:
+                    self.device.swipe(540, 1400, 540, 600, duration=0.3)
+                    time.sleep(1.5)
 
-        log.warning("[%s] User '%s' not found in search (inline + Accounts tab)",
+        # --- Fallback 3: Deep link ---
+        log.info("[%s] Search failed for '%s', trying deep link fallback",
+                self.device_serial, username)
+        self.device.press('back')
+        time.sleep(1)
+        try:
+            deep_link = 'instagram://user?username=%s' % username
+            subprocess.run(
+                ['adb', '-s', self.adb_serial, 'shell', 'am', 'start',
+                 '-a', 'android.intent.action.VIEW', '-d', deep_link,
+                 self.package_name],
+                capture_output=True, timeout=10
+            )
+            time.sleep(4)
+            if self._verify_on_profile(target_lower):
+                log.info("[%s] Found '%s' via deep link", self.device_serial, username)
+                return True
+            # Also try https link
+            https_link = 'https://www.instagram.com/%s/' % username
+            subprocess.run(
+                ['adb', '-s', self.adb_serial, 'shell', 'am', 'start',
+                 '-a', 'android.intent.action.VIEW', '-d', https_link,
+                 self.package_name],
+                capture_output=True, timeout=10
+            )
+            time.sleep(4)
+            if self._verify_on_profile(target_lower):
+                log.info("[%s] Found '%s' via https deep link", self.device_serial, username)
+                return True
+        except Exception as e:
+            log.debug("[%s] Deep link fallback error: %s", self.device_serial, e)
+
+        log.warning("[%s] User '%s' not found in search (inline + Accounts tab + deep link)",
                    self.device_serial, username)
         self.screenshot("search_user_not_found")
         return False
