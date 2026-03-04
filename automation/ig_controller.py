@@ -1759,19 +1759,46 @@ class IGController:
 
                 if best_btn and best_dist < 100:
                     btn_text = (best_btn.get_text() or "").strip()
-                    if btn_text in ("Follow", "Follow Back", ""):
+
+                    # Skip empty-text buttons — they're not real Follow buttons
+                    if btn_text == "":
+                        log.debug("[%s] Skipping empty-text button near @%s (dist=%d)",
+                                 self.device_serial, target_username, best_dist)
+                        return None
+
+                    if btn_text in ("Follow", "Follow Back"):
+                        log.debug("[%s] Clicking '%s' button for @%s (dist=%d)",
+                                 self.device_serial, btn_text, target_username, best_dist)
                         best_btn.click()
                         time.sleep(2)
-                        # Verify
+
+                        # Verify the button text changed
+                        verified = False
                         try:
+                            # Re-fetch to get fresh state
                             new_text = (best_btn.get_text() or "").strip()
                             if new_text in ("Following", "Requested", "Message"):
-                                log.info("[%s] Followed @%s from list",
-                                        self.device_serial, target_username)
-                                return True
-                        except Exception:
-                            pass
-                        return True  # Assume success if click worked
+                                log.info("[%s] Followed @%s from list (verified: %s)",
+                                        self.device_serial, target_username, new_text)
+                                verified = True
+                            elif new_text in ("Follow", "Follow Back"):
+                                # Button didn't change — follow failed
+                                log.warning("[%s] Follow button still shows '%s' for @%s — click didn't work",
+                                           self.device_serial, new_text, target_username)
+                            else:
+                                log.info("[%s] Follow button text changed to '%s' for @%s — assuming success",
+                                        self.device_serial, new_text, target_username)
+                                verified = True
+                        except Exception as e:
+                            log.debug("[%s] Could not verify follow for @%s: %s",
+                                     self.device_serial, target_username, e)
+
+                        if verified:
+                            return True
+                        else:
+                            # Follow click didn't work — return None (error) not True
+                            return None
+
                     elif btn_text in ("Following", "Requested", "Message"):
                         log.debug("[%s] Already following @%s", self.device_serial, target_username)
                         return False
@@ -1805,14 +1832,22 @@ class IGController:
                 if text in ("Follow", "Follow Back"):
                     btn.click()
                     time.sleep(2)
-                    # Verify
+                    # Verify button changed
                     verify_btn = self.device(resourceIdMatches=self._rid_match(
                         'profile_header_follow_button'))
                     if verify_btn.exists(timeout=2):
                         new_text = (verify_btn.get_text() or "").strip()
                         if new_text in ("Following", "Requested"):
-                            log.info("[%s] Followed user from profile", self.device_serial)
+                            log.info("[%s] Followed user from profile (verified: %s)",
+                                    self.device_serial, new_text)
                             return True
+                        elif new_text in ("Follow", "Follow Back"):
+                            log.warning("[%s] Profile Follow button still shows '%s' — click didn't work",
+                                       self.device_serial, new_text)
+                            return None
+                    # Button disappeared — could mean success (profile UI changed)
+                    log.info("[%s] Follow button gone after click — assuming success",
+                            self.device_serial)
                     return True
                 elif text in ("Following", "Requested"):
                     log.debug("[%s] Already following this user", self.device_serial)
