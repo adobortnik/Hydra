@@ -1769,7 +1769,19 @@ class IGController:
                     if btn_text in ("Follow", "Follow Back"):
                         log.debug("[%s] Clicking '%s' button for @%s (dist=%d)",
                                  self.device_serial, btn_text, target_username, best_dist)
-                        best_btn.click()
+                        # Coordinate click on the button (element.click() unreliable on clones)
+                        try:
+                            bb = best_btn.info.get('bounds', {})
+                            btn_cx = (bb.get('left', 0) + bb.get('right', 0)) // 2
+                            btn_cy = (bb.get('top', 0) + bb.get('bottom', 0)) // 2
+                            if btn_cx > 0 and btn_cy > 0:
+                                self.device.click(btn_cx, btn_cy)
+                                log.debug("[%s] Coord click on Follow button at (%d,%d)",
+                                         self.device_serial, btn_cx, btn_cy)
+                            else:
+                                best_btn.click()
+                        except Exception:
+                            best_btn.click()
                         time.sleep(2)
 
                         # Verify the button text changed
