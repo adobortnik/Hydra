@@ -1011,8 +1011,27 @@ class IGController:
             if attempt < 3:
                 log.debug("[%s] Inline attempt %d failed for '%s', retrying...",
                          self.device_serial, attempt + 1, username)
-                # Small scroll in case user is just off-screen in dropdown
-                self.device.swipe(540, 600, 540, 400, duration=0.1)
+                # After failed click+back, dropdown may be gone.
+                # Re-tap search bar and re-type to get dropdown back
+                search_bar = self.find_element(
+                    resource_id='action_bar_search_edit_text', timeout=2)
+                if search_bar is None:
+                    search_bar = self.find_element(
+                        class_name='android.widget.EditText', timeout=2)
+                if search_bar:
+                    search_bar.click()
+                    time.sleep(0.5)
+                    search_bar.clear_text()
+                    time.sleep(0.3)
+                    subprocess.run(
+                        ['adb', '-s', self.adb_serial, 'shell', 'input', 'text', username],
+                        capture_output=True, timeout=10
+                    )
+                    log.debug("[%s] Re-typed '%s' to refresh inline results",
+                             self.device_serial, username)
+                else:
+                    # Can't find search bar — try scroll as fallback
+                    self.device.swipe(540, 600, 540, 400, duration=0.1)
                 time.sleep(0.5)
 
         # --- Fallback: Submit search + Accounts tab ---
@@ -1045,26 +1064,47 @@ class IGController:
                             if row_text.lower() == target_lower:
                                 log.info("[%s] Found '%s' in Accounts tab (row %d)",
                                          self.device_serial, row_text, i)
-                                fresh = self.device(
-                                    resourceIdMatches=self._rid_match('row_search_user_username'),
-                                    text=row_text)
-                                if fresh.exists(timeout=1):
-                                    fresh.click()
+                                # Coordinate click on the row (same fix as inline)
+                                try:
+                                    bounds = user_rows[i].info.get('bounds', {})
+                                    cy = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
+                                except Exception:
+                                    cy = 0
+                                if cy > 0:
+                                    screen_w = self.device.info.get('displayWidth', 1080)
+                                    self.device.click(screen_w // 3, cy)
                                 else:
-                                    user_rows[i].click()
+                                    fresh = self.device(
+                                        resourceIdMatches=self._rid_match('row_search_user_username'),
+                                        text=row_text)
+                                    if fresh.exists(timeout=1):
+                                        fresh.click()
+                                    else:
+                                        user_rows[i].click()
                                 time.sleep(2.5)
                                 if self._verify_on_profile(target_lower):
                                     return True
-                                # Clicked but not on profile — might need retry
+                                # Clicked but not on profile — try back and retry
+                                self.device.press('back')
+                                time.sleep(1)
                                 break
                         except Exception:
                             continue
 
-                # Also try generic TextView match
+                # Also try generic TextView match with coordinate click
                 tv = self.device(className="android.widget.TextView", text=username)
                 if tv.exists(timeout=2):
                     log.info("[%s] Found '%s' via TextView in Accounts tab", self.device_serial, username)
-                    tv.click()
+                    try:
+                        bounds = tv.info.get('bounds', {})
+                        cy = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
+                    except Exception:
+                        cy = 0
+                    if cy > 0:
+                        screen_w = self.device.info.get('displayWidth', 1080)
+                        self.device.click(screen_w // 3, cy)
+                    else:
+                        tv.click()
                     time.sleep(2.5)
                     if self._verify_on_profile(target_lower):
                         return True
@@ -1092,21 +1132,28 @@ class IGController:
                     if row_text.lower() == target_lower:
                         log.info("[%s] Inline match: '%s' (row %d), clicking",
                                 self.device_serial, row_text, i)
-                        # Re-fetch to ensure element is still there and click it
-                        fresh = self.device(resourceIdMatches=self._rid_match('row_search_user_username'), text=row_text)
-                        if fresh.exists(timeout=1):
-                            fresh.click()
+                        # Get bounds of username element
+                        try:
+                            bounds = user_rows[i].info.get('bounds', {})
+                            cy = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
+                        except Exception:
+                            cy = 0
+
+                        # Strategy 1: coordinate click on the row (most reliable)
+                        # IG search rows are full-width clickable — click center of row
+                        if cy > 0:
+                            screen_w = self.device.info.get('displayWidth', 1080)
+                            self.device.click(screen_w // 3, cy)
+                            log.debug("[%s] Clicked search row at coord (%d,%d)",
+                                     self.device_serial, screen_w // 3, cy)
                         else:
-                            # Element moved - try clicking parent container at same row
-                            try:
-                                info = user_rows[i].info
-                                bounds = info.get('bounds', {})
-                                cy = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
-                                if cy > 0:
-                                    self.device.click(540, cy)  # Center of screen at row y
-                                else:
-                                    user_rows[i].click()
-                            except:
+                            # Fallback: click the element itself
+                            fresh = self.device(
+                                resourceIdMatches=self._rid_match('row_search_user_username'),
+                                text=row_text)
+                            if fresh.exists(timeout=1):
+                                fresh.click()
+                            else:
                                 user_rows[i].click()
                         time.sleep(2.5)
                         if self._verify_on_profile(target_lower):
@@ -1133,19 +1180,49 @@ class IGController:
                             continue
                         bounds = info.get('bounds', {})
                         cy = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
+                        cx = (bounds.get('left', 0) + bounds.get('right', 0)) // 2
                         log.info("[%s] Inline match via TextView: '%s' at y=%d",
                                 self.device_serial, text, cy)
-                        # Click the element directly (more reliable than coordinates)
-                        # Re-fetch element to ensure it's still there
-                        fresh_el = self.device(className='android.widget.TextView', text=text)
-                        if fresh_el.exists(timeout=1):
-                            fresh_el.click()
-                            log.debug("[%s] Clicked inline result directly", self.device_serial)
-                        elif cy > 0:
-                            self.device.click(200, cy)
-                            log.debug("[%s] Clicked inline result by coord (200,%d)", self.device_serial, cy)
-                        else:
-                            all_tvs[i].click()
+
+                        # Strategy 1: click parent container (clickable row)
+                        clicked_parent = False
+                        try:
+                            parent = all_tvs[i].info.get('parentIndex')
+                            # Walk up to find clickable ancestor
+                            el = all_tvs[i]
+                            for _ in range(3):
+                                try:
+                                    p = el.parent()
+                                    if p and p.info.get('clickable'):
+                                        p.click()
+                                        clicked_parent = True
+                                        log.debug("[%s] Clicked parent container of inline result",
+                                                 self.device_serial)
+                                        break
+                                    el = p
+                                except Exception:
+                                    break
+                        except Exception:
+                            pass
+
+                        if not clicked_parent:
+                            # Strategy 2: coordinate-based click on the row
+                            # Click at x=center_of_row (not text center) for wider hit area
+                            if cy > 0:
+                                screen_w = self.device.info.get('displayWidth', 1080)
+                                row_x = screen_w // 3  # ~1/3 from left, hits avatar+text area
+                                self.device.click(row_x, cy)
+                                log.debug("[%s] Clicked inline result by row coord (%d,%d)",
+                                         self.device_serial, row_x, cy)
+                            else:
+                                fresh_el = self.device(className='android.widget.TextView', text=text)
+                                if fresh_el.exists(timeout=1):
+                                    fresh_el.click()
+                                else:
+                                    all_tvs[i].click()
+                                log.debug("[%s] Clicked inline result element directly",
+                                         self.device_serial)
+
                         time.sleep(2.5)
                         if self._verify_on_profile(target_lower):
                             return True
