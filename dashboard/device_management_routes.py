@@ -157,11 +157,20 @@ def api_update_device(device_id):
 
 @device_management_bp.route('/api/devices/<int:device_id>', methods=['DELETE'])
 def api_delete_device(device_id):
-    """Delete a device (only if no accounts assigned)."""
+    """
+    Delete a device.
+
+    By default refuses if any accounts are assigned.
+    Query param `?force=true` cascade-deletes accounts + settings + sources
+    along with the device. Use for decommissioning.
+    """
     try:
-        success, msg = delete_device(device_id)
+        force_param = (request.args.get('force') or '').lower()
+        force = force_param in ('1', 'true', 'yes')
+        success, msg = delete_device(device_id, force=force)
         if success:
-            return jsonify({'status': 'success', 'message': msg})
+            return jsonify({'status': 'success', 'message': msg,
+                            'forced': force})
         return jsonify({'status': 'error', 'message': msg}), 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500

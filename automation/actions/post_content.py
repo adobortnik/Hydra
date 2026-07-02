@@ -106,9 +106,16 @@ class PostContentAction:
             log.info("[%s] CONTENT: Pushed media to %s",
                      self.device_serial, self._remote_media_path)
 
-            # NOW open IG and start the flow
+            # NOW open IG and start the flow.
+            # ensure_app() can FAIL — IG clones sometimes refuse to launch on
+            # first try. Bail out early instead of running the rest of the flow
+            # on a launcher screen where every selector silently fails.
             self._stop_other_ig_clones()
-            self.ctrl.ensure_app()
+            if not self.ctrl.ensure_app():
+                raise RuntimeError(
+                    f"Failed to launch IG clone {self.package} — aborting before "
+                    f"the rest of the flow runs on the wrong app. Check that the "
+                    f"package is installed and that app_start works.")
             self.ctrl.dismiss_popups()
             self.ctrl.navigate_to(Screen.HOME_FEED)
             time.sleep(2)
@@ -489,6 +496,8 @@ class PostContentAction:
             random_sleep(1, 2, label="after_music")
 
         # Step 6: Tap "Next" to go to caption screen
+        # Proactive: clear any forced sub-screen (e.g. cover picker on new accts)
+        self._recover_unexpected_reel_screen()
         if not self._tap_next():
             log.debug("[%s] CONTENT: No Next on reel editor — may already be on caption",
                       self.device_serial)
@@ -503,7 +512,9 @@ class PostContentAction:
             random_sleep(1, 2, label="after_caption_dismiss_keyboard")
 
         # Step 8: Tap "Next" on caption screen (goes to final confirmation)
-        # Some IG versions go directly to Share, others show "Next" first
+        # Some IG versions go directly to Share, others show "Next" first.
+        # Recover first so we're really on caption, not a sub-screen.
+        self._recover_unexpected_reel_screen()
         next_on_caption = self._tap_next()
         if next_on_caption:
             random_sleep(1.5, 3, label="reel_final_confirmation")
@@ -512,8 +523,11 @@ class PostContentAction:
         # If modal found, its Share button IS the final share — skip _tap_share
         modal_shared = self._dismiss_about_reels_modal()
 
-        # Step 10: Tap "Share" (only if modal didn't already share)
+        # Step 10: Tap "Share" (only if modal didn't already share). Last
+        # recovery before share — for new creators IG sometimes opens
+        # "Sharing preferences" right before share, blocking the button.
         if not modal_shared:
+            self._recover_unexpected_reel_screen()
             if not self._tap_share():
                 log.warning("[%s] CONTENT: Could not tap Share for reel",
                             self.device_serial)
@@ -1065,12 +1079,214 @@ class PostContentAction:
 
         return False
 
+    def _recover_unexpected_reel_screen(self, max_back=3):
+        """
+        Detect & escape unexpected sub-screens during reel creation.
+
+        IG opens sub-screens that block our expected flow:
+          - "Sharing preferences" (forced onboarding for new accounts —
+            shows "How others can interact with your reel" + "Tag products"
+            + "Upload at highest quality" toggles)
+          - "Tag products" picker
+          - "Search audio" / music picker (when not requested by us)
+          - "Cover" picker
+          - "Add link" sub-screen
+          - "Save draft?" / "Discard reel?" dialogs
+
+        For all of them the universal escape = press BACK (or for dialogs:
+        find the "Don't save" / "Keep editing" / "Cancel" choice). Returns
+        True if we recovered (no longer on a sub-screen), False if stuck
+        after `max_back` attempts.
+
+        Safe to call any time — if we're already on an expected screen
+        (caption / preview / gallery) it returns True immediately without
+        pressing anything.
+        """
+        # Known sub-screen patterns. Each entry: (xml-needle, label, escape-action)
+        #   escape-action:
+        #     'back'              → system back is enough
+        #     'tap:<button text>' → find element textContains=<button text>, click
+        SUBSCREEN_MARKERS = [
+            # Sharing prefs / advanced settings — first-time creator onboarding
+            ("Sharing preferences",                    "sharing_prefs",   "back"),
+            ("How others can interact with your reel", "sharing_prefs",   "back"),
+            ("Templates allow anyone on Instagram",    "sharing_prefs",   "back"),
+            ("Upload at highest quality",              "sharing_prefs",   "back"),
+            # Tag products picker
+            ("Add products",                           "tag_products",    "back"),
+            # Music / audio picker when we didn't ask for it
+            ("Search audio",                           "music_picker",    "back"),
+            ("Browse music",                           "music_picker",    "back"),
+            # Cover frame picker
+            ("Cover frame",                            "cover_picker",    "back"),
+            ("Choose cover",                           "cover_picker",    "back"),
+            # Interactive sticker pickers
+            ("Add a poll",                             "interactive_picker", "back"),
+            # IG promo / feature-announcement screens (don't go BACK — they
+            # take you OUT of the creation flow; tap the dismiss button)
+            ("Create a sticker",                       "sticker_promo",   "tap:Not now"),
+            ("Turn part of any photo into a sticker",  "sticker_promo",   "tap:Not now"),
+            ("Add music to your reel",                 "music_promo",     "tap:Not now"),
+            ("Welcome to reels",                       "reels_intro",     "tap:Not now"),
+            ("Try templates",                          "templates_promo", "tap:Not now"),
+            ("Boost your reach",                       "boost_promo",     "tap:Not now"),
+            ("Try collabs",                            "collab_promo",    "tap:Not now"),
+            # Info-only "Introducing X / Create longer X" announcement
+            # screens — single OK button, no Save/Discard. Safe to tap OK
+            # here because the marker dispatch is per-needle (NOT the generic
+            # fallback). Tracked in audits 2026-05-29 14:48 / 16:47 / 20:47
+            # and 2026-05-30 16:47 — repeated >5× without merge.
+            ("Introducing Remix",                      "remix_promo",     "tap:OK"),
+            ("Remix lets anyone create a reel",        "remix_promo",     "tap:OK"),
+            ("Create longer reels",                    "longer_reels_promo", "tap:OK"),
+            ("Now you can create reels up to 3 minutes long", "longer_reels_promo", "tap:OK"),
+            # Acknowledgement / first-time notice screens (Continue = proceed)
+            ("others can download your reel",          "download_notice", "tap:Continue"),
+            ("Others can download",                    "download_notice", "tap:Continue"),
+            ("Anyone can download",                    "download_notice", "tap:Continue"),
+            ("anyone can use your audio",              "audio_notice",    "tap:Continue"),
+            ("Your reel will appear on",               "reel_audience",   "tap:Continue"),
+            ("Who can see your reel",                  "reel_audience",   "tap:Continue"),
+            ("Heads up",                               "heads_up_notice", "tap:Continue"),
+            # Discard / Save Draft / Generic-confirmation dialogs — these are
+            # DANGEROUS. Tapping the wrong button discards our in-progress
+            # reel. Always pick the "keep working" option.
+            ("Save draft?",                            "draft_dialog",    "tap:Keep editing"),
+            ("Discard reel?",                          "discard_dialog",  "tap:Keep editing"),
+            ("Discard post?",                          "discard_dialog",  "tap:Keep editing"),
+            ("Discard changes",                        "discard_dialog",  "tap:Keep editing"),
+            ("Are you sure you want to discard",       "discard_dialog",  "tap:Keep editing"),
+            ("Are you sure you want to leave",         "leave_dialog",    "tap:Stay"),
+            # Confirmation tooltips that appear during creation flow
+            ("Album switcher, Recents",                "album_tooltip",   "tap:Got it"),
+        ]
+        # Generic dismiss buttons (last resort for unknown screens).
+        # CRITICAL: do NOT include 'OK', 'Close', 'Dismiss', 'Confirm' here —
+        # on a "Discard reel?" / "Save draft?" dialog they CONFIRM the
+        # destructive action and lose the in-progress post. Incident
+        # 2026-05-29: tapping 'OK' on an unknown screen bounced JETT 1
+        # back to the gallery (reel discarded).
+        GENERIC_DISMISS_TEXTS = ['Not now', 'No thanks', 'Maybe later',
+                                 'Skip', 'Got it']
+
+        for attempt in range(max_back):
+            try:
+                xml = self.ctrl.dump_xml(f"subscreen_check_{attempt}")
+            except Exception as e:
+                log.debug("[%s] CONTENT: subscreen recovery dump failed: %s",
+                          self.device_serial, e)
+                return True   # can't check — assume OK
+
+            # 1) Explicit marker match
+            hit = None
+            for needle, label, escape in SUBSCREEN_MARKERS:
+                if needle in xml:
+                    hit = (needle, label, escape)
+                    break
+
+            if hit:
+                needle, label, escape = hit
+                log.info("[%s] CONTENT: detected sub-screen [%s] (matched %r) — %s",
+                         self.device_serial, label, needle, escape)
+                if escape == 'back':
+                    self.device.press('back')
+                elif escape.startswith('tap:'):
+                    btn_text = escape.split(':', 1)[1]
+                    btn = self.device(textContains=btn_text)
+                    if btn.exists(timeout=2):
+                        btn.click()
+                    else:
+                        log.debug("[%s] CONTENT: button %r not found — "
+                                  "falling back to system back",
+                                  self.device_serial, btn_text)
+                        self.device.press('back')
+                time.sleep(1.5)
+                continue   # re-check after escape
+
+            # 2) Unknown screen — if it has any SAFE generic dismiss button
+            # AND doesn't have Next/Share (our flow markers), it's some IG
+            # promo we don't know yet. Tap the first safe dismiss we find.
+            #
+            # IMPORTANT: also check for the presence of destructive-confirmation
+            # keywords. If the screen mentions "discard" / "delete" / "leave"
+            # we must NOT tap anything generic — even "Not now" might mean
+            # "Not now go back" on some IG builds. Bail out instead.
+            has_next  = ('text="Next"' in xml or 'text="NEXT"' in xml or
+                         'next_button' in xml)
+            has_share = ('text="Share"' in xml or 'text="SHARE"' in xml or
+                         'text="Post"' in xml or 'text="POST"' in xml or
+                         'share_button' in xml)
+
+            xml_lower = xml.lower()
+            is_destructive = ('discard' in xml_lower or 'are you sure' in xml_lower
+                              or 'delete' in xml_lower or 'leave?' in xml_lower)
+
+            if not has_next and not has_share and not is_destructive:
+                # Capture visible texts so we can grow the marker list quickly
+                # next time we see this screen.
+                visible_texts = re.findall(r'text="([^"]+)"', xml)
+                visible_texts = [t for t in visible_texts if t.strip()
+                                 and not t.isdigit() and ':' not in t][:10]
+                log.info("[%s] CONTENT: unknown screen, texts=%r",
+                         self.device_serial, visible_texts)
+
+                tapped = False
+                for dismiss_text in GENERIC_DISMISS_TEXTS:
+                    if f'text="{dismiss_text}"' in xml:
+                        log.info("[%s] CONTENT: tapping safe generic dismiss '%s'",
+                                 self.device_serial, dismiss_text)
+                        btn = self.device(text=dismiss_text)
+                        if btn.exists(timeout=2):
+                            btn.click()
+                            time.sleep(1.5)
+                            tapped = True
+                            break
+                if not tapped:
+                    # No SAFE dismiss button — give up rather than guess
+                    log.warning("[%s] CONTENT: no safe dismiss on unknown screen "
+                                "— giving up rather than risk destructive tap "
+                                "(visible texts: %r)",
+                                self.device_serial, visible_texts)
+                    return False
+                continue   # re-check after safe dismiss
+            elif is_destructive:
+                # We're on a discard/delete confirmation dialog and no
+                # explicit marker matched — try "Keep editing" / "Cancel"
+                # as universal "back out of destructive" buttons.
+                for keep_text in ('Keep editing', 'Cancel', 'No'):
+                    btn = self.device(text=keep_text)
+                    if btn.exists(timeout=2):
+                        log.info("[%s] CONTENT: destructive dialog detected — "
+                                 "tapping '%s'",
+                                 self.device_serial, keep_text)
+                        btn.click()
+                        time.sleep(1.5)
+                        break
+                else:
+                    log.warning("[%s] CONTENT: destructive dialog with no "
+                                "Keep-editing/Cancel/No — bailing",
+                                self.device_serial)
+                    return False
+                continue
+
+            # 3) Has Next or Share — we're on a known good screen, done
+            if attempt > 0:
+                log.info("[%s] CONTENT: sub-screen recovery OK after %d back press(es)",
+                         self.device_serial, attempt)
+            return True
+
+        log.warning("[%s] CONTENT: sub-screen recovery exhausted (%d attempts) — "
+                    "still stuck", self.device_serial, max_back)
+        return False
+
     def _tap_next(self):
         """
         Tap the "Next" button (appears in gallery selection and filter screens).
         Note: On filter/edit screen, button may show "Next →" — use textContains.
 
-        Returns True if tapped.
+        Returns True if tapped. If we don't find Next, we first try to
+        recover from any unexpected sub-screen (e.g. forced "Sharing
+        preferences" onboarding) and retry once.
         """
         # Method 1: Text-based (textContains to catch "Next", "Next →", etc.)
         for text in ["Next", "NEXT"]:
@@ -1119,6 +1335,32 @@ class PostContentAction:
             right_arrow.click()
             time.sleep(2)
             return True
+
+        # Last-ditch: maybe we're on an unexpected sub-screen blocking the
+        # Next button. Recover (press back / dismiss dialog) and retry the
+        # selectors ONCE more — without recursing.
+        log.debug("[%s] CONTENT: Next button not found — attempting "
+                  "sub-screen recovery", self.device_serial)
+        if self._recover_unexpected_reel_screen():
+            for text in ["Next", "NEXT"]:
+                el = self.device(textContains=text)
+                if el.exists(timeout=3):
+                    el.click()
+                    time.sleep(2)
+                    log.info("[%s] CONTENT: Tapped Next after sub-screen "
+                             "recovery (text='%s')",
+                             self.device_serial, text)
+                    return True
+            for rid in ['next_button', 'next_button_textview',
+                        'action_bar_button_action']:
+                el = self.device(resourceIdMatches=f".*{rid}.*")
+                if el.exists(timeout=2):
+                    el.click()
+                    time.sleep(2)
+                    log.info("[%s] CONTENT: Tapped Next after sub-screen "
+                             "recovery (rid='%s')",
+                             self.device_serial, rid)
+                    return True
 
         log.debug("[%s] CONTENT: Next button not found", self.device_serial)
         return False

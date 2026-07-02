@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+{% block title %}Hydra — Account Factory{% endblock %}
+{% block content %}
+<style>
+#af { --acc:#7c6cf0; --surf:#16181f; --surf2:#1b1e27; --bd:#272b37; --dim:#8b90a2; --grn:#2ecc9b; --red:#e8637a; --amb:#e0a23c; color:#e9eaf1; }
+#af .card { background:var(--surf); border:1px solid var(--bd); border-radius:12px; }
+#af .form-control, #af .form-select { background:var(--surf2)!important; border:1px solid var(--bd)!important; color:#e9eaf1!important; border-radius:9px; }
+#af .form-control:focus, #af .form-select:focus { border-color:var(--acc)!important; box-shadow:0 0 0 3px rgba(124,108,240,.13)!important; }
+#af .btn-run { background:var(--acc); border:1px solid var(--acc); color:#fff; font-weight:600; border-radius:9px; }
+#af .btn-run:hover { filter:brightness(1.1); }
+#af .btn-ghost { background:var(--surf2); border:1px solid var(--bd); color:#e9eaf1; border-radius:9px; }
+#af .btn-stop { background:var(--surf2); border:1px solid var(--red); color:var(--red); border-radius:9px; }
+#af .lbl { color:var(--dim); font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
+#af .step-no { width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;margin-right:8px }
+#af table { font-size:.84rem; color:#e9eaf1; }
+#af table th { color:var(--dim); font-weight:600; border-color:var(--bd)!important; }
+#af table td { border-color:var(--bd)!important; vertical-align:middle; }
+#af .rec { padding:8px 10px;border:1px solid var(--bd);border-radius:9px;margin-bottom:6px;cursor:pointer;display:flex;gap:10px;align-items:center }
+#af .rec.sel { border-color:var(--acc); background:rgba(124,108,240,.10) }
+#af .pill { padding:2px 9px;border-radius:8px;font-size:.72rem;font-weight:600 }
+#af .p-queued{ background:rgba(139,144,162,.18);color:var(--dim) } #af .p-running{ background:rgba(124,108,240,.18);color:var(--acc) }
+#af .p-created,#af .p-ok{ background:rgba(46,204,155,.16);color:var(--grn) } #af .p-failed,#af .p-fail{ background:rgba(232,99,122,.16);color:var(--red) }
+#af .phone { background:#000;border:1px solid var(--bd);border-radius:12px;overflow:hidden;min-height:300px;display:flex;align-items:center;justify-content:center }
+#af .phone img { max-width:100%;max-height:60vh;display:block }
+/* segmented Auto/Manual toggle */
+#af .bx-seg { display:inline-flex;background:var(--surf2);border:1px solid var(--bd);border-radius:9px;padding:2px }
+#af .bx-seg-btn { background:transparent;border:0;color:var(--dim);font-size:.78rem;font-weight:600;padding:3px 12px;border-radius:7px;cursor:pointer }
+#af .bx-seg-btn.active { background:var(--acc);color:#fff }
+/* clickable slot grid */
+#af .bx-dev { margin-bottom:8px }
+#af .bx-dev-name { color:var(--dim);font-size:.78rem;margin-bottom:3px }
+#af .bx-slots { display:flex;flex-wrap:wrap;gap:5px }
+#af .bx-slot { min-width:30px;text-align:center;padding:3px 7px;border-radius:7px;border:1px solid var(--bd);font-size:.74rem;font-weight:600;user-select:none }
+#af .bx-empty { border-color:var(--grn);color:var(--grn);cursor:pointer;background:rgba(46,204,155,.06) }
+#af .bx-dead { border-color:var(--amb);color:var(--amb);cursor:pointer;background:rgba(224,162,60,.06) }
+#af .bx-used { border-color:var(--bd);color:var(--dim);opacity:.5;cursor:not-allowed }
+#af .bx-slot.sel { background:var(--acc);border-color:var(--acc);color:#fff }
+#af .bx-selcount { background:var(--surf2);border:1px solid var(--acc);border-radius:9px;color:var(--acc);font-weight:600;padding:7px 10px;text-align:center;font-size:.84rem }
+#af .bx-legend { font-size:.7rem;color:var(--dim);margin-top:6px }
+#af .bx-legend i { font-style:normal;padding:1px 6px;border-radius:5px;border:1px solid }
+</style>
+
+<div id="af" class="container-fluid py-4">
+  <div class="mb-3">
+    <h1 style="font-weight:700;margin:0"><i class="fas fa-industry me-2" style="color:var(--acc)"></i>Account Factory</h1>
+    <div style="color:var(--dim);font-size:.85rem">Generate identities, pick a pipeline of recipes, create accounts at scale. Atomic steps are built in the <a href="/ai-executor" style="color:var(--acc)">AI Executor lab</a>.</div>
+  </div>
+
+  <!-- ── Batch create (slot-based: NEW_IDENTITY → recipe → accounts) ── -->
+  <div class="card p-3 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span style="font-weight:600"><i class="fas fa-bolt me-2" style="color:var(--acc)"></i>Batch create <span id="bxModeHint" class="lbl" style="text-transform:none">— auto-allocates free clone slots</span></span>
+      <div class="d-flex align-items-center gap-2">
+        <div class="bx-seg">
+          <button type="button" id="bxModeAuto" class="bx-seg-btn active" onclick="afSetMode('auto')">Auto</button>
+          <button type="button" id="bxModeManual" class="bx-seg-btn" onclick="afSetMode('manual')">Manual</button>
+        </div>
+        <span id="bxCap" class="pill" style="text-transform:none">capacity…</span>
+      </div>
+    </div>
+    <div class="row g-2 align-items-end">
+      <div class="col"><label class="lbl mb-1 d-block">Mother / naming base</label><input id="bxMother" class="form-control" placeholder="jackharrer"></div>
+      <div class="col"><label class="lbl mb-1 d-block">Tag</label><input id="bxTag" class="form-control" placeholder="jack"></div>
+      <div id="bxCountWrap" style="width:90px"><label class="lbl mb-1 d-block">Count</label><input id="bxCount" type="number" class="form-control" value="5"></div>
+      <div id="bxSelWrap" style="width:130px;display:none"><label class="lbl mb-1 d-block">Selected</label><div id="bxSelCount" class="bx-selcount">0 slots</div></div>
+      <div style="width:190px"><label class="lbl mb-1 d-block">Recipe</label><select id="bxRecipe" class="form-select"></select></div>
+      <div><button id="bxRun" class="btn-run px-3 py-2"><i class="fas fa-bolt me-1"></i>Create batch</button></div>
+      <div><button id="bxStop" class="btn-stop px-3 py-2" disabled><i class="fas fa-stop me-1"></i>Stop</button></div>
+    </div>
+    <div id="bxNote" style="color:var(--dim);font-size:.8rem;margin-top:6px">Each account: NEW_IDENTITY (fresh fingerprint) → signup recipe → saved into accounts with the tag. Captcha = manual (flagged ⚠️).</div>
+    <div class="row g-3 mt-1">
+      <div class="col-md-5">
+        <div class="lbl mb-1 d-flex justify-content-between align-items-center">
+          <span id="bxGridLabel">Free slots per device</span>
+          <a id="bxSelClear" href="javascript:void(0)" onclick="afClearSel()" style="display:none;color:var(--acc);text-transform:none">clear selection</a>
+        </div>
+        <div id="bxCapList" style="max-height:230px;overflow:auto;font-size:.82rem"><span class="lbl">loading…</span></div>
+        <div id="bxLegend" class="bx-legend" style="display:none"><i style="border-color:var(--grn);color:var(--grn)">empty</i> <i style="border-color:var(--amb);color:var(--amb)">banned (re-usable)</i> <i style="border-color:var(--bd);color:var(--dim)">in use</i></div>
+      </div>
+      <div class="col-md-7">
+        <div class="lbl mb-1">Batch progress</div>
+        <div id="bxProg" style="max-height:190px;overflow:auto;font-size:.82rem"><span class="lbl">no batch running</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- LEFT: wizard -->
+    <div class="col-lg-5">
+      <div class="card p-3 mb-3">
+        <div class="mb-2"><span class="step-no">1</span><b>Mother &amp; identities</b></div>
+        <label class="lbl mb-1">Device</label>
+        <select id="afDevice" class="form-select mb-2"></select>
+        <div class="d-flex gap-2 mb-2">
+          <div class="flex-grow-1"><label class="lbl mb-1 d-block">Mother / naming base</label><input id="afBase" class="form-control" placeholder="jackharrer"></div>
+          <div><label class="lbl mb-1 d-block">Slaves</label><input id="afCount" type="number" class="form-control" value="5" style="width:80px"></div>
+        </div>
+        <div class="d-flex gap-2 mb-2">
+          <div><label class="lbl mb-1 d-block">Gender</label><select id="afGender" class="form-select" style="width:110px"><option value="">mix</option><option value="m">male</option><option value="f">female</option></select></div>
+          <div><label class="lbl mb-1 d-block">AI model</label><select id="afModel" class="form-select" style="width:155px"><option value="deepseek-v4-flash">Flash (fast)</option><option value="deepseek-v4-pro">Pro (deep)</option></select></div>
+        </div>
+        <button id="afGen" class="btn-ghost px-3 py-2"><i class="fas fa-dice me-1"></i>Generate identities</button>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <div class="mb-2"><span class="step-no">2</span><b>Pipeline</b> <span class="lbl" style="text-transform:none">— pick recipes to chain (in order)</span></div>
+        <div id="afRecipes"><div class="lbl">loading recipes…</div></div>
+      </div>
+
+      <div class="card p-3">
+        <div class="mb-2"><span class="step-no">3</span><b>Run</b></div>
+        <div class="d-flex gap-2 align-items-center">
+          <button id="afRun" class="btn-run px-3 py-2"><i class="fas fa-play me-1"></i>Create accounts</button>
+          <button id="afStop" class="btn-stop px-3 py-2" disabled><i class="fas fa-stop me-1"></i>Stop</button>
+          <span id="afBadge" class="pill ms-2" style="display:none"></span>
+        </div>
+        <div id="afNote" style="color:var(--dim);font-size:.8rem;margin-top:8px">Generate identities + select at least one recipe.</div>
+      </div>
+
+      <div class="card p-3 mt-3">
+        <div class="mb-2"><i class="fas fa-sms me-2" style="color:#ea4335"></i><b>Phone verification</b> <span class="lbl" style="text-transform:none">— TextVerified (rents numbers when Gmail/IG asks)</span></div>
+        <div id="afPhoneStatus" class="mb-2" style="font-size:.84rem;color:var(--dim)">checking…</div>
+        <label class="lbl mb-1">Account email (TextVerified username)</label>
+        <div class="d-flex gap-2">
+          <input id="afPhoneUser" class="form-control" placeholder="your@email.com">
+          <button id="afPhoneSave" class="btn-ghost px-3">Save</button>
+        </div>
+      </div>
+
+      <div class="card p-3 mt-3">
+        <div class="mb-2"><i class="fas fa-at me-2" style="color:#34a853"></i><b>Catch-all email pool</b> <span class="lbl" style="text-transform:none">— slaves verify IG via IMAP (no Gmail, no phone)</span></div>
+        <div id="afEmailStatus" class="mb-2" style="font-size:.84rem;color:var(--dim)">checking…</div>
+        <div class="row g-2">
+          <div class="col-7"><label class="lbl mb-1">Catch-all domain</label><input id="afEmailDomain" class="form-control" placeholder="ourdomain.com"></div>
+          <div class="col-5"><label class="lbl mb-1">IMAP port</label><input id="afEmailPort" class="form-control" placeholder="993"></div>
+          <div class="col-12"><label class="lbl mb-1">IMAP host</label><input id="afEmailHost" class="form-control" placeholder="imap.migadu.com"></div>
+          <div class="col-12"><label class="lbl mb-1">IMAP user (mailbox)</label><input id="afEmailUser" class="form-control" placeholder="catchall@ourdomain.com"></div>
+          <div class="col-12"><label class="lbl mb-1">IMAP password (app password)</label><input id="afEmailPass" type="password" class="form-control" placeholder="•••••• (leave blank to keep)"></div>
+        </div>
+        <div class="d-flex gap-2 mt-2">
+          <button id="afEmailSave" class="btn-ghost px-3">Save &amp; test</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: identities preview + live -->
+    <div class="col-lg-7">
+      <div class="card mb-3">
+        <div class="p-2 px-3" style="border-bottom:1px solid var(--bd);font-weight:600">Identities <span id="afIdCount" class="lbl" style="text-transform:none"></span></div>
+        <div class="p-2" style="max-height:300px;overflow:auto">
+          <table class="table table-sm mb-0" id="afIdTable"><thead><tr><th>#</th><th>Username</th><th>Name</th><th>Password</th><th>Birthday</th><th>Status</th></tr></thead><tbody><tr><td colspan="6" class="lbl">No identities yet.</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="card p-2">
+        <div class="phone"><img id="afShot" alt="live"><span id="afNoShot" style="color:var(--dim)">live screen appears here during a run</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <!-- Created accounts -->
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="p-2 px-3 d-flex justify-content-between" style="border-bottom:1px solid var(--bd);font-weight:600"><span><i class="fab fa-instagram me-2" style="color:var(--acc)"></i>Created accounts</span><button id="afReload" class="btn-ghost px-2 py-1" style="font-size:.75rem">↻ refresh</button></div>
+        <div class="p-2" style="max-height:340px;overflow:auto">
+          <table class="table table-sm mb-0" id="afAccTable"><thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Password</th><th>Status</th><th>When</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+    <!-- Gmail pool -->
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="p-2 px-3 d-flex justify-content-between align-items-center" style="border-bottom:1px solid var(--bd);font-weight:600">
+          <span><i class="fas fa-envelope me-2" style="color:#ea4335"></i>Gmail pool</span>
+          <span><a href="/api/account-factory/gmails.csv" class="btn-ghost px-2 py-1" style="font-size:.75rem;text-decoration:none">⬇ CSV</a> <button id="afGmReload" class="btn-ghost px-2 py-1" style="font-size:.75rem">↻</button></span>
+        </div>
+        <div class="p-2" style="max-height:340px;overflow:auto">
+          <table class="table table-sm mb-0" id="afGmTable"><thead><tr><th>Email</th><th>Password</th><th>Name</th><th>Device / IP</th><th>Status</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let afIds=[], afSel=[], afJob=null, afPoll=null;
+function afApi(p){ return '/api/account-factory'+p; }
+function afEsc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+
+async function afLoadDevices(){
+  const r=await fetch(afApi('/devices')); const d=await r.json();
+  document.getElementById('afDevice').innerHTML=(d.devices||[]).map(x=>`<option value="${x.device_serial}">${x.device_name||x.device_serial} (${x.accounts} acc)</option>`).join('');
+}
+async function afLoadRecipes(){
+  const r=await fetch(afApi('/recipes')); const d=await r.json(); const recs=d.recipes||[];
+  const c=document.getElementById('afRecipes');
+  if(!recs.length){ c.innerHTML='<div class="lbl" style="text-transform:none">No recipes yet. Record them in the <a href="/ai-executor" style="color:var(--acc)">AI Executor lab</a> (e.g. gmail-create, ig-signup), then they appear here.</div>'; return; }
+  c.innerHTML=recs.map(r=>`<div class="rec" data-id="${r.id}" onclick="afToggleRec(${r.id})">
+      <input type="checkbox" class="form-check-input" ${afSel.includes(r.id)?'checked':''} onclick="event.stopPropagation();afToggleRec(${r.id})">
+      <span><b>${afEsc(r.name)}</b> <span class="lbl" style="text-transform:none">· ${r.screens} screens · ${r.success_count}/${r.run_count} ok</span></span>
+    </div>`).join('');
+  afPaintSel();
+}
+function afToggleRec(id){ const i=afSel.indexOf(id); if(i>=0) afSel.splice(i,1); else afSel.push(id); afLoadRecipes(); }
+function afPaintSel(){ document.querySelectorAll('#afRecipes .rec').forEach(el=>{ el.classList.toggle('sel', afSel.includes(parseInt(el.dataset.id))); }); }
+
+async function afGenerate(){
+  const body={naming_base:document.getElementById('afBase').value.trim(), count:parseInt(document.getElementById('afCount').value)||1, gender:document.getElementById('afGender').value||null};
+  const r=await fetch(afApi('/identities'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json(); if(d.error){ alert(d.error); return; }
+  afIds=d.identities||[]; afRenderIds();
+}
+function afRenderIds(){
+  document.getElementById('afIdCount').textContent=afIds.length?`(${afIds.length})`:'';
+  const tb=document.querySelector('#afIdTable tbody');
+  if(!afIds.length){ tb.innerHTML='<tr><td colspan="6" class="lbl">No identities yet.</td></tr>'; return; }
+  tb.innerHTML=afIds.map((i,n)=>`<tr data-u="${afEsc(i.username)}"><td>${n+1}</td><td><b>${afEsc(i.username)}</b></td><td>${afEsc(i.full_name)}</td><td style="font-family:monospace">${afEsc(i.password)}</td><td>${afEsc(i.birth_day+' '+i.birth_month_name+' '+i.birth_year)}</td><td class="afst"><span class="pill p-queued">ready</span></td></tr>`).join('');
+}
+
+async function afRun(){
+  if(!afIds.length){ alert('Generate identities first'); return; }
+  if(!afSel.length){ alert('Select at least one recipe for the pipeline'); return; }
+  const body={device_serial:document.getElementById('afDevice').value, recipe_ids:afSel, identities:afIds,
+              model:document.getElementById('afModel').value, max_steps:60};
+  document.getElementById('afRun').disabled=true;
+  const r=await fetch(afApi('/run'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json(); if(d.error){ alert(d.error); document.getElementById('afRun').disabled=false; return; }
+  afJob=d.job_id; document.getElementById('afStop').disabled=false;
+  afBadge('running','p-running');
+  afPoll=setInterval(afTick,1600);
+}
+function afBadge(t,c){ const b=document.getElementById('afBadge'); b.textContent=t; b.className='pill ms-2 '+c; b.style.display='inline-block'; }
+async function afTick(){
+  if(!afJob) return;
+  const r=await fetch(afApi('/status/'+afJob)); const d=await r.json();
+  if(d.shot){ const img=document.getElementById('afShot'); img.src='data:image/png;base64,'+d.shot; img.style.display='block'; document.getElementById('afNoShot').style.display='none'; }
+  // update per-identity status rows
+  (d.accounts||[]).forEach(a=>{
+    const row=document.querySelector(`#afIdTable tbody tr[data-u="${CSS.escape(a.username)}"]`);
+    if(row){ const cell=row.querySelector('.afst'); const last=(a.steps&&a.steps.length)?a.steps[a.steps.length-1]:null;
+      cell.innerHTML=`<span class="pill p-${a.status}">${a.status}</span>`+(last?` <span class="lbl" style="text-transform:none">${afEsc(last.recipe)}:${afEsc(last.status)}</span>`:''); }
+  });
+  if(!d.running){
+    clearInterval(afPoll); afPoll=null;
+    document.getElementById('afRun').disabled=false; document.getElementById('afStop').disabled=true;
+    const made=(d.accounts||[]).filter(a=>a.status==='created').length;
+    afBadge(`done — ${made}/${(d.accounts||[]).length} created`, made? 'p-created':'p-failed');
+    if(d.error) document.getElementById('afNote').textContent='Error: '+d.error;
+    afLoadAccounts(); afLoadGmails();
+  }
+}
+async function afStopRun(){ if(afJob) await fetch(afApi('/stop/'+afJob),{method:'POST'}); }
+
+async function afLoadAccounts(){
+  const r=await fetch(afApi('/accounts')); const d=await r.json();
+  const tb=document.querySelector('#afAccTable tbody');
+  const a=d.accounts||[];
+  if(!a.length){ tb.innerHTML='<tr><td colspan="6" class="lbl">No accounts created yet.</td></tr>'; return; }
+  tb.innerHTML=a.map(x=>`<tr><td><b>${afEsc(x.username)}</b></td><td>${afEsc(x.full_name)}</td><td>${afEsc(x.email)}</td><td style="font-family:monospace">${afEsc(x.password)}</td><td><span class="pill p-${x.status}">${afEsc(x.status)}</span></td><td class="lbl" style="text-transform:none">${x.created_at?new Date(x.created_at*1000).toLocaleString():''}</td></tr>`).join('');
+}
+async function afLoadGmails(){
+  const r=await fetch(afApi('/gmails')); const d=await r.json();
+  const tb=document.querySelector('#afGmTable tbody'); const g=d.gmails||[];
+  if(!g.length){ tb.innerHTML='<tr><td colspan="5" class="lbl">No Gmails yet.</td></tr>'; return; }
+  tb.innerHTML=g.map(x=>`<tr><td>${afEsc(x.email)}</td><td style="font-family:monospace">${afEsc(x.password)}</td><td>${afEsc(x.full_name||'')}</td><td class="lbl" style="text-transform:none">${afEsc(x.ip||x.device_serial||'')}</td><td><span class="pill p-${x.status==='active'?'created':x.status}">${afEsc(x.status)}</span></td></tr>`).join('');
+}
+
+async function afLoadPhone(){
+  const el=document.getElementById('afPhoneStatus');
+  try{ const r=await fetch(afApi('/phone/status')); const d=await r.json();
+    if(!d.has_key){ el.innerHTML='<span style="color:var(--amb)">⚠ no API key in settings</span>'; return; }
+    if(!d.configured){ el.innerHTML='<span style="color:var(--amb)">⚠ key OK — enter your account email to enable</span>'; if(d.username) document.getElementById('afPhoneUser').value=d.username; return; }
+    document.getElementById('afPhoneUser').value=d.username||'';
+    if(d.error){ el.innerHTML=`<span style="color:var(--red)">✕ ${afEsc(d.error)}</span>`; }
+    else { el.innerHTML=`<span style="color:var(--grn)">✓ connected</span> · balance: <b>${afEsc(d.balance)}</b>`; }
+  }catch(e){ el.textContent='status check failed'; }
+}
+async function afSavePhone(){
+  const u=document.getElementById('afPhoneUser').value.trim();
+  await fetch(afApi('/phone/config'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u})});
+  afLoadPhone();
+}
+
+async function afLoadEmail(){
+  const el=document.getElementById('afEmailStatus');
+  try{ const r=await fetch(afApi('/email/status')); const d=await r.json();
+    if(d.domain) document.getElementById('afEmailDomain').value=d.domain;
+    if(d.imap_host) document.getElementById('afEmailHost').value=d.imap_host;
+    if(d.imap_user) document.getElementById('afEmailUser').value=d.imap_user;
+    if(!d.configured){ el.innerHTML='<span style="color:var(--amb)">⚠ not configured — enter catch-all domain + IMAP creds</span>'; return; }
+    if(d.reachable){ el.innerHTML=`<span style="color:var(--grn)">✓ IMAP connected</span> · catch-all <b>@${afEsc(d.domain)}</b>`; }
+    else { el.innerHTML=`<span style="color:var(--red)">✕ ${afEsc(d.error||'IMAP unreachable')}</span>`; }
+  }catch(e){ el.textContent='status check failed'; }
+}
+async function afSaveEmail(){
+  const el=document.getElementById('afEmailStatus'); el.textContent='saving…';
+  const body={
+    domain:document.getElementById('afEmailDomain').value.trim(),
+    imap_host:document.getElementById('afEmailHost').value.trim(),
+    imap_user:document.getElementById('afEmailUser').value.trim(),
+    imap_port:document.getElementById('afEmailPort').value.trim()||993,
+  };
+  const pw=document.getElementById('afEmailPass').value;
+  if(pw) body.imap_pass=pw;
+  await fetch(afApi('/email/config'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  document.getElementById('afEmailPass').value='';
+  afLoadEmail();
+}
+
+// ── Batch create (slot-based) ──
+let bxJob=null, bxTimer=null, bxMode='auto', bxDevices=[], bxSel=[];
+function bxSelKey(s){ return s.device_serial+'|'+s.package; }
+async function afLoadCapacity(){
+  try{
+    const r=await fetch(afApi('/capacity')); const d=await r.json(); const t=d.totals||{};
+    document.getElementById('bxCap').textContent=`${t.free||0} free / ${t.slots||0} slots`;
+    bxDevices=d.devices||[];
+    // drop any selected slots that are no longer free
+    const freeKeys=new Set();
+    bxDevices.forEach(x=>(x.slots||[]).forEach(s=>{ if(s.state==='empty'||s.state==='dead') freeKeys.add(x.device_serial+'|'+s.package); }));
+    bxSel=bxSel.filter(s=>freeKeys.has(bxSelKey(s)));
+    afRenderCapacity();
+  }catch(e){ document.getElementById('bxCap').textContent='capacity error'; }
+}
+function afRenderCapacity(){
+  const list=document.getElementById('bxCapList');
+  if(bxMode==='auto'){
+    const free=bxDevices.filter(x=>x.free>0);
+    list.innerHTML=free.length?free.map(x=>`<div>${afEsc(x.device_name||x.device_serial)} — <b style="color:var(--grn)">${x.free} free</b> <span class="lbl">/ ${x.total}${x.adb_ok?'':' (offline?)'}</span></div>`).join(''):'<span class="lbl">no free slots</span>';
+    return;
+  }
+  // manual: clickable slot grid
+  const withSlots=bxDevices.filter(x=>(x.slots||[]).length);
+  if(!withSlots.length){ list.innerHTML='<span class="lbl">no clones detected</span>'; return; }
+  list.innerHTML=withSlots.map(x=>{
+    const chips=(x.slots||[]).map(s=>{
+      const free=(s.state==='empty'||s.state==='dead');
+      const cls=s.state==='used'?'bx-used':(s.state==='dead'?'bx-dead':'bx-empty');
+      const sel=bxSel.some(z=>z.device_serial===x.device_serial && z.package===s.package);
+      const tip=s.username?(s.state==='dead'?('banned: @'+s.username):('@'+s.username)):'empty slot';
+      return `<span class="bx-slot ${cls}${sel?' sel':''}" title="${afEsc(tip)} · ${afEsc(s.package)}"`
+        + (free?` data-dev="${afEsc(x.device_serial)}" data-pkg="${afEsc(s.package)}" onclick="afToggleSlot(this)"`:'')
+        + `>#${s.clone}</span>`;
+    }).join('');
+    return `<div class="bx-dev"><div class="bx-dev-name">${afEsc(x.device_name||x.device_serial)} <span class="lbl">· ${x.free} free / ${x.total}${x.adb_ok?'':' (offline?)'}</span></div><div class="bx-slots">${chips}</div></div>`;
+  }).join('');
+}
+function afToggleSlot(el){
+  const s={device_serial:el.dataset.dev, package:el.dataset.pkg};
+  const i=bxSel.findIndex(z=>z.device_serial===s.device_serial && z.package===s.package);
+  if(i>=0){ bxSel.splice(i,1); el.classList.remove('sel'); }
+  else { bxSel.push(s); el.classList.add('sel'); }
+  afUpdateSelCount();
+}
+function afUpdateSelCount(){
+  const el=document.getElementById('bxSelCount'); if(el) el.textContent=bxSel.length+(bxSel.length===1?' slot':' slots');
+  const clr=document.getElementById('bxSelClear'); if(clr) clr.style.display=bxSel.length?'inline':'none';
+}
+function afClearSel(){ bxSel=[]; afUpdateSelCount(); afRenderCapacity(); }
+function afSetMode(m){
+  bxMode=m;
+  document.getElementById('bxModeAuto').classList.toggle('active', m==='auto');
+  document.getElementById('bxModeManual').classList.toggle('active', m==='manual');
+  document.getElementById('bxCountWrap').style.display = m==='auto'?'':'none';
+  document.getElementById('bxSelWrap').style.display = m==='manual'?'':'none';
+  document.getElementById('bxLegend').style.display = m==='manual'?'':'none';
+  document.getElementById('bxGridLabel').textContent = m==='manual'?'Pick slots to fill':'Free slots per device';
+  document.getElementById('bxModeHint').textContent = m==='manual'?'— click the clone slots you want to fill':'— auto-allocates free clone slots';
+  afUpdateSelCount();
+  afRenderCapacity();
+}
+function afFillBxRecipes(){
+  fetch(afApi('/recipes')).then(r=>r.json()).then(d=>{
+    const s=document.getElementById('bxRecipe'); const recs=d.recipes||[];
+    s.innerHTML=recs.map(r=>`<option value="${r.id}">${afEsc(r.name)} (#${r.id})</option>`).join('');
+    const ig=recs.find(r=>/ig.?signup/i.test(r.name)); if(ig) s.value=ig.id;
+  });
+}
+async function afStartBatch(){
+  const mb=document.getElementById('bxMother').value.trim();
+  const body={ mother:mb, naming_base:mb, tag:document.getElementById('bxTag').value.trim(),
+    recipe_id:parseInt(document.getElementById('bxRecipe').value)||0,
+    model:(document.getElementById('afModel')||{}).value||'deepseek-v4-flash' };
+  if(bxMode==='manual'){
+    if(!bxSel.length){ alert('Pick at least one slot in the grid below'); return; }
+    body.slots=bxSel.slice(); body.count=bxSel.length;
+  } else {
+    body.count=parseInt(document.getElementById('bxCount').value)||0;
+  }
+  if(!body.naming_base||!body.count||!body.recipe_id){ alert('Mother, count/slots and recipe are required'); return; }
+  const r=await fetch(afApi('/batch'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(d.error){ alert(d.error); return; }
+  bxJob=d.job_id;
+  if(bxMode==='manual'){ afClearSel(); }
+  document.getElementById('bxNote').textContent=`Allocated ${d.allocated}/${d.requested} slots. Running…`;
+  document.getElementById('bxRun').disabled=true; document.getElementById('bxStop').disabled=false;
+  if(bxTimer) clearInterval(bxTimer); bxTimer=setInterval(afBatchTick,3000); afBatchTick();
+}
+async function afBatchTick(){
+  if(!bxJob) return;
+  try{
+    const r=await fetch(afApi('/batch/status/'+bxJob)); const d=await r.json();
+    if(d.shot){ const img=document.getElementById('afShot'); if(img){img.src='data:image/png;base64,'+d.shot; img.style.display='block'; const ns=document.getElementById('afNoShot'); if(ns) ns.style.display='none';} }
+    const ico={done:'✅',fail:'❌',needs_attention:'⚠️',running:'⏳',queued:'•','new identity':'⏳'};
+    document.getElementById('bxProg').innerHTML=(d.accounts||[]).map(a=>
+      `<div>${ico[a.status]||'•'} <b>${afEsc(a.username)}</b> <span class="lbl">${afEsc((a.device_serial||'').split('_')[0])} · ${afEsc(a.step||a.status)}</span>${a.error?' <span style="color:var(--red)">'+afEsc(String(a.error).slice(0,40))+'</span>':''}</div>`
+    ).join('')||'<span class="lbl">starting…</span>';
+    if(!d.running){ clearInterval(bxTimer); bxTimer=null;
+      document.getElementById('bxRun').disabled=false; document.getElementById('bxStop').disabled=true;
+      document.getElementById('bxNote').textContent='Batch finished.';
+      afLoadCapacity(); afLoadAccounts();
+    }
+  }catch(e){}
+}
+async function afStopBatch(){ if(bxJob){ await fetch(afApi('/batch/stop/'+bxJob),{method:'POST'}); document.getElementById('bxNote').textContent='Stop requested…'; } }
+
+document.addEventListener('DOMContentLoaded',function(){
+  afLoadDevices(); afLoadRecipes(); afLoadAccounts(); afLoadGmails(); afLoadPhone(); afLoadEmail();
+  afLoadCapacity(); afFillBxRecipes();
+  document.getElementById('bxRun').addEventListener('click', afStartBatch);
+  document.getElementById('bxStop').addEventListener('click', afStopBatch);
+  document.getElementById('afPhoneSave').addEventListener('click', afSavePhone);
+  document.getElementById('afEmailSave').addEventListener('click', afSaveEmail);
+  document.getElementById('afGen').addEventListener('click', afGenerate);
+  document.getElementById('afRun').addEventListener('click', afRun);
+  document.getElementById('afStop').addEventListener('click', afStopRun);
+  document.getElementById('afReload').addEventListener('click', afLoadAccounts);
+  document.getElementById('afGmReload').addEventListener('click', afLoadGmails);
+});
+</script>
+{% endblock %}

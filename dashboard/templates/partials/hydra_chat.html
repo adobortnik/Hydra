@@ -1,0 +1,894 @@
+{# Floating Hydra Assistant chat widget (loaded on every page via base.html) #}
+<style>
+#hydraChatFab {
+    position: fixed; right: 24px; bottom: 24px; z-index: 9000;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: linear-gradient(135deg, #38d9a9 0%, #2bb88c 100%);
+    color: #000; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    cursor: pointer; border: 0; font-size: 1.4rem;
+    transition: transform 0.15s ease;
+}
+#hydraChatFab:hover { transform: scale(1.08); }
+#hydraChatFab.has-unread::after {
+    content: ''; position: absolute; top: 8px; right: 10px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #ff6b7a; border: 2px solid #15181c;
+}
+
+#hydraChatPanel {
+    position: fixed; right: 20px; bottom: 92px; z-index: 9001;
+    width: 420px; max-height: 70vh; min-height: 480px;
+    background: linear-gradient(180deg, #15181c 0%, #0f1114 100%);
+    border: 1px solid #2c3138; border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    color: #e9ecef;
+    display: none; flex-direction: column; overflow: hidden;
+    transition: width 0.18s ease, height 0.18s ease,
+                top 0.18s ease, left 0.18s ease, right 0.18s ease, bottom 0.18s ease,
+                border-radius 0.18s ease, max-height 0.18s ease;
+}
+#hydraChatPanel.open { display: flex; }
+#hydraChatPanel.fullscreen {
+    right: 16px; left: 16px; top: 16px; bottom: 16px;
+    width: auto; max-height: none; min-height: 0; height: auto;
+    border-radius: 16px;
+}
+#hydraChatPanel.fullscreen .hc-body { font-size: 0.95rem; }
+#hydraChatPanel.fullscreen .hc-msg .bubble { max-width: 800px; }
+
+.hc-header {
+    padding: 12px 16px;
+    background: linear-gradient(90deg, rgba(56,217,169,0.15) 0%, rgba(0,0,0,0) 100%);
+    border-bottom: 1px solid #232830;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.hc-header .title { font-size: 0.95rem; font-weight: 600; }
+.hc-header .title .badge-ai {
+    font-size: 0.65rem; background: #38d9a9; color: #000;
+    padding: 1px 6px; border-radius: 4px; margin-left: 6px;
+    text-transform: uppercase; font-weight: 700;
+}
+.hc-header .actions { display: flex; gap: 4px; }
+.hc-header .actions button {
+    background: transparent; border: 0; color: #adb5bd; cursor: pointer;
+    padding: 4px 8px; border-radius: 4px;
+}
+.hc-header .actions button:hover { background: #232830; color: #fff; }
+
+.hc-body {
+    flex: 1; overflow-y: auto; padding: 12px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    font-size: 0.88rem;
+}
+.hc-msg { display: flex; gap: 8px; }
+.hc-msg.user { justify-content: flex-end; }
+.hc-msg .bubble {
+    max-width: 85%; padding: 8px 12px; border-radius: 12px;
+    line-height: 1.4; white-space: pre-wrap; word-wrap: break-word;
+}
+.hc-msg.user .bubble {
+    background: #1d4a3a; color: #c8e6db;
+    border-bottom-right-radius: 4px;
+}
+.hc-msg.assistant .bubble {
+    background: #1a2024; color: #e9ecef;
+    border-bottom-left-radius: 4px;
+    border: 1px solid #232830;
+}
+.hc-msg.assistant .bubble code {
+    background: #0f1216; padding: 1px 5px; border-radius: 3px;
+    color: #74c0fc; font-size: 0.82em;
+    font-family: 'Consolas','Courier New',monospace;
+}
+/* Markdown rendering inside assistant bubbles */
+.hc-msg.assistant .bubble p { margin: 0 0 8px 0; }
+.hc-msg.assistant .bubble p:last-child { margin-bottom: 0; }
+.hc-msg.assistant .bubble h1,
+.hc-msg.assistant .bubble h2,
+.hc-msg.assistant .bubble h3,
+.hc-msg.assistant .bubble h4 {
+    color: #38d9a9; margin: 10px 0 6px 0; line-height: 1.2;
+}
+.hc-msg.assistant .bubble h1 { font-size: 1.1rem; }
+.hc-msg.assistant .bubble h2 { font-size: 1.0rem; }
+.hc-msg.assistant .bubble h3 { font-size: 0.95rem; }
+.hc-msg.assistant .bubble ul,
+.hc-msg.assistant .bubble ol {
+    margin: 4px 0 8px 0; padding-left: 20px;
+}
+.hc-msg.assistant .bubble li { margin-bottom: 2px; }
+.hc-msg.assistant .bubble pre {
+    background: #0f1216; border: 1px solid #232830;
+    padding: 10px 12px; border-radius: 6px;
+    overflow-x: auto; margin: 6px 0;
+    font-family: 'Consolas','Courier New',monospace;
+    font-size: 0.78rem; line-height: 1.45;
+}
+.hc-msg.assistant .bubble pre code {
+    background: transparent; padding: 0; color: #e9ecef;
+    font-size: inherit;
+}
+.hc-msg.assistant .bubble blockquote {
+    border-left: 3px solid #38d9a9;
+    padding: 4px 10px; margin: 6px 0;
+    background: rgba(56,217,169,0.06); color: #c8e6db;
+}
+.hc-msg.assistant .bubble a {
+    color: #74c0fc; text-decoration: underline;
+}
+.hc-msg.assistant .bubble strong { color: #fff; font-weight: 700; }
+.hc-msg.assistant .bubble em { color: #ffd43b; font-style: normal; }
+.hc-msg.assistant .bubble hr {
+    border: 0; border-top: 1px solid #232830; margin: 10px 0;
+}
+/* Tables */
+.hc-msg.assistant .bubble table {
+    width: 100%; border-collapse: collapse; margin: 8px 0;
+    font-size: 0.82rem; background: #14181c;
+    border: 1px solid #2c3138; border-radius: 6px; overflow: hidden;
+    display: block; overflow-x: auto;
+}
+.hc-msg.assistant .bubble thead {
+    background: linear-gradient(90deg, rgba(56,217,169,0.15) 0%, rgba(0,0,0,0) 100%);
+}
+.hc-msg.assistant .bubble th {
+    text-align: left; padding: 6px 10px; color: #38d9a9;
+    font-weight: 700; text-transform: uppercase;
+    font-size: 0.72rem; letter-spacing: 0.04em;
+    border-bottom: 1px solid #2c3138; white-space: nowrap;
+}
+.hc-msg.assistant .bubble td {
+    padding: 5px 10px; border-bottom: 1px solid #1f2429;
+    color: #d6dadf; vertical-align: top;
+}
+.hc-msg.assistant .bubble tr:nth-child(even) td { background: #14181c; }
+.hc-msg.assistant .bubble tr:nth-child(odd) td { background: #181c20; }
+.hc-msg.assistant .bubble tr:last-child td { border-bottom: 0; }
+.hc-msg.assistant .bubble tr:hover td { background: #1c2228; }
+.hc-tool {
+    background: #14181c; border: 1px solid #2c3138;
+    border-left: 3px solid #74c0fc;
+    border-radius: 6px; padding: 6px 10px;
+    font-size: 0.78rem; font-family: 'Consolas', 'Courier New', monospace;
+    color: #adb5bd; margin-left: 8px; max-width: 90%;
+}
+.hc-tool .tool-name { color: #74c0fc; font-weight: 600; }
+.hc-tool .tool-result { color: #38d9a9; font-style: italic; margin-top: 2px; }
+.hc-tool details { margin-top: 4px; }
+.hc-tool summary { cursor: pointer; user-select: none; color: #6c757d; }
+.hc-tool pre { margin: 4px 0 0 0; font-size: 0.72rem;
+               max-height: 200px; overflow-y: auto;
+               background: #0f1216; padding: 6px; border-radius: 4px; }
+
+.hc-empty {
+    color: #6c757d; text-align: center; padding: 30px 12px;
+    font-size: 0.85rem;
+}
+.hc-empty .suggestions {
+    display: flex; flex-direction: column; gap: 6px; margin-top: 14px;
+}
+.hc-empty .suggestions button {
+    background: #1a2024; border: 1px solid #2c3138; color: #c8e6db;
+    padding: 6px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 0.78rem; text-align: left;
+}
+.hc-empty .suggestions button:hover { border-color: #38d9a9; background: #1d2418; }
+
+/* Recent chats list (shown above quick suggestions on empty state) */
+.hc-recent {
+    margin-top: 20px; text-align: left;
+}
+.hc-recent .head {
+    display: flex; justify-content: space-between; align-items: center;
+    color: #6c757d; font-size: 0.72rem; text-transform: uppercase;
+    letter-spacing: 0.06em; font-weight: 600; padding: 0 2px 6px 2px;
+}
+.hc-recent .new-btn {
+    background: transparent; border: 1px solid #38d9a9; color: #38d9a9;
+    padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem;
+    font-weight: 600;
+}
+.hc-recent .new-btn:hover { background: rgba(56,217,169,0.1); }
+.hc-recent .session {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 8px; padding: 8px 10px; margin-bottom: 4px;
+    background: #14181c; border: 1px solid #232830; border-radius: 8px;
+    cursor: pointer; transition: border-color 0.12s ease, background 0.12s ease;
+}
+.hc-recent .session:hover { border-color: #38d9a9; background: #181f1c; }
+.hc-recent .session.pinned { border-left: 3px solid #ffd43b; }
+.hc-recent .session .meta { flex: 1; min-width: 0; }
+.hc-recent .session .title {
+    color: #e9ecef; font-size: 0.85rem; font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hc-recent .session .sub {
+    color: #6c757d; font-size: 0.7rem; margin-top: 1px;
+}
+.hc-recent .session .actions {
+    display: flex; gap: 2px;
+    opacity: 0; transition: opacity 0.15s;
+}
+.hc-recent .session:hover .actions { opacity: 1; }
+.hc-recent .session .actions button {
+    background: transparent; border: 0; color: #6c757d;
+    padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 0.78rem;
+}
+.hc-recent .session .actions button:hover { color: #fff; background: #232830; }
+.hc-recent .session .actions .pin:hover { color: #ffd43b; }
+.hc-recent .session .actions .del:hover { color: #ff6b7a; }
+.hc-recent .empty-line {
+    color: #6c757d; font-size: 0.78rem; padding: 12px 0;
+    text-align: center; font-style: italic;
+}
+
+/* Header session title (when a chat is loaded) */
+.hc-session-title {
+    font-size: 0.78rem; color: #adb5bd; margin-left: 6px;
+    max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; display: inline-block; vertical-align: middle;
+}
+
+.hc-footer {
+    border-top: 1px solid #232830; padding: 10px 12px;
+    display: flex; gap: 8px; align-items: flex-end;
+}
+.hc-footer textarea {
+    flex: 1; resize: none; min-height: 38px; max-height: 120px;
+    background: #0f1216; border: 1px solid #2c3138; color: #e9ecef;
+    border-radius: 8px; padding: 8px 10px; font-size: 0.88rem;
+    font-family: inherit;
+}
+.hc-footer textarea:focus { outline: none; border-color: #38d9a9; }
+.hc-footer button.send {
+    background: #38d9a9; color: #000; border: 0;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    font-weight: 600; font-size: 0.85rem;
+}
+.hc-footer button.send:disabled { opacity: 0.5; cursor: not-allowed; }
+.hc-footer button.stop {
+    background: #c92a2a; color: #fff;
+}
+.hc-footer button.stop:hover { background: #e63946; }
+
+/* Slash-command autocomplete dropdown */
+.hc-slash {
+    position: absolute;
+    background: #14181c; border: 1px solid #2c3138;
+    border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    padding: 4px; min-width: 240px; max-height: 240px; overflow-y: auto;
+    z-index: 9100;
+}
+.hc-slash .item {
+    padding: 6px 10px; border-radius: 6px; cursor: pointer;
+    display: flex; gap: 10px; align-items: baseline;
+    font-size: 0.82rem;
+}
+.hc-slash .item:hover, .hc-slash .item.active {
+    background: rgba(56,217,169,0.15); color: #38d9a9;
+}
+.hc-slash .item .cmd {
+    color: #74c0fc; font-family: 'Consolas',monospace; font-weight: 600;
+    min-width: 80px;
+}
+.hc-slash .item .desc { color: #adb5bd; font-size: 0.75rem; }
+
+.hc-disabled {
+    text-align: center; padding: 30px 16px; color: #6c757d; font-size: 0.85rem;
+}
+.hc-disabled a { color: #38d9a9; }
+
+@media (max-width: 600px) {
+    #hydraChatPanel {
+        right: 8px; left: 8px; width: auto; bottom: 80px; max-height: 80vh;
+    }
+}
+</style>
+
+<button id="hydraChatFab" title="Hydra Assistant">
+    <i class="fas fa-robot"></i>
+</button>
+
+<div id="hydraChatPanel" role="dialog" aria-label="Hydra Assistant">
+    <div class="hc-header">
+        <div class="title">
+            <i class="fas fa-robot text-success"></i> Hydra Assistant
+            <span class="badge-ai" id="hcModelBadge">AI</span>
+            <span class="hc-session-title" id="hcSessionTitle"></span>
+        </div>
+        <div class="actions">
+            <button title="Clear conversation" id="hcClearBtn">
+                <i class="fas fa-broom"></i>
+            </button>
+            <button title="Toggle fullscreen" id="hcFullscreenBtn">
+                <i class="fas fa-expand" id="hcFullscreenIcon"></i>
+            </button>
+            <button title="Close" id="hcCloseBtn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div class="hc-body" id="hcBody">
+        <div class="hc-empty" id="hcEmpty">
+            <i class="fas fa-comments fa-2x mb-2 text-success" style="opacity:0.5;"></i>
+            <div>Ask anything — diagnose, schedule, or tune your farm.</div>
+            <div style="margin-top:8px; font-size:0.72rem; color:#6c757d;">
+                Type <code style="color:#74c0fc;">/help</code> for commands. <strong>Shift+Enter</strong> for newline.
+            </div>
+
+            <!-- Recent chats list -->
+            <div class="hc-recent" id="hcRecent">
+                <div class="head">
+                    <span>Recent chats</span>
+                    <button class="new-btn" id="hcNewChatBtn" title="Start a new chat">
+                        <i class="fas fa-plus me-1"></i>New
+                    </button>
+                </div>
+                <div id="hcRecentList">
+                    <div class="empty-line">No saved chats yet.</div>
+                </div>
+            </div>
+
+            <div class="suggestions">
+                <button data-q="Show the top 10 highest-risk accounts (score ≥ 60) with main factors per account, as a markdown table.">
+                    🎯 Top 10 highest-risk accounts
+                </button>
+                <button data-q="Bucket login failures from the last 24 hours by reason and present as a markdown table. Highlight which failure types are fixable vs dead ends.">
+                    🔍 Login failure summary (last 24h)
+                </button>
+                <button data-q="List all bot engines currently running with device names, as a table.">
+                    📱 Which devices are live right now
+                </button>
+                <button data-q="Discover which account tags I have set up and how many active slaves each tag has. Show as a table.">
+                    🏷️ Show tags + slave counts
+                </button>
+                <button data-q="I want to run a clipping campaign. Walk me through the steps and ask the questions you need answered before scheduling.">
+                    🎬 Plan a clipping campaign
+                </button>
+                <button data-q="What knobs can I tune to reduce my account ban rate? List tunable settings + recommended safer defaults.">
+                    🛡️ How to reduce ban rate
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="hc-footer" style="position:relative;">
+        <div class="hc-slash" id="hcSlashMenu" style="display:none; bottom:60px; left:12px;"></div>
+        <textarea id="hcInput" placeholder="Ask Hydra…  (try /help)" rows="1"></textarea>
+        <button class="send" id="hcSendBtn">Send</button>
+        <button class="send stop" id="hcStopBtn" style="display:none;" title="Stop generating">
+            <i class="fas fa-stop"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Markdown rendering deps (loaded once, idempotent) -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+
+<script>
+(function() {
+    // Configure marked: GFM (tables, strikethrough), no automatic line breaks
+    if (window.marked) {
+        marked.setOptions({ gfm: true, breaks: false, headerIds: false, mangle: false });
+    }
+    function renderMarkdown(text) {
+        if (!window.marked || !window.DOMPurify) {
+            // Fallback: escape + preserve newlines
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML.replace(/\n/g, '<br>');
+        }
+        try {
+            const html = marked.parse(text || '');
+            return DOMPurify.sanitize(html, {
+                ALLOWED_TAGS: ['p','br','strong','em','code','pre','ul','ol','li',
+                               'h1','h2','h3','h4','h5','h6','blockquote','a','hr',
+                               'table','thead','tbody','tr','th','td','del','span','img'],
+                ALLOWED_ATTR: ['href','title','target','rel','class','align','colspan','rowspan','src','alt']
+            });
+        } catch (e) {
+            const d = document.createElement('div'); d.textContent = text;
+            return d.innerHTML.replace(/\n/g, '<br>');
+        }
+    }
+
+    const fab = document.getElementById('hydraChatFab');
+    const panel = document.getElementById('hydraChatPanel');
+    const closeBtn = document.getElementById('hcCloseBtn');
+    const clearBtn = document.getElementById('hcClearBtn');
+    const fullscreenBtn = document.getElementById('hcFullscreenBtn');
+    const fullscreenIcon = document.getElementById('hcFullscreenIcon');
+    const body = document.getElementById('hcBody');
+    const emptyState = document.getElementById('hcEmpty');
+    const input = document.getElementById('hcInput');
+    const sendBtn = document.getElementById('hcSendBtn');
+    const stopBtn = document.getElementById('hcStopBtn');
+    const slashMenu = document.getElementById('hcSlashMenu');
+    const modelBadge = document.getElementById('hcModelBadge');
+    const recentList = document.getElementById('hcRecentList');
+    const newChatBtn = document.getElementById('hcNewChatBtn');
+    const sessionTitleEl = document.getElementById('hcSessionTitle');
+
+    let currentAbortController = null;  // for stop button
+    let currentSessionId = null;        // null until first save
+
+    let history = [];      // OpenAI-format messages we send to backend
+    let configCache = null;
+
+    // Check if AI is configured + enabled on page load
+    fetch('/api/chat/settings').then(r => r.json()).then(cfg => {
+        configCache = cfg;
+        modelBadge.textContent = cfg.model ? cfg.model.split('-').slice(0,2).join('-') : 'AI';
+        if (cfg.enabled === false) {
+            fab.style.display = 'none';
+        } else if (!cfg.has_api_key && cfg.provider !== 'ollama') {
+            // Show fab but disable + hint to setup
+            fab.classList.add('has-unread');
+        }
+    }).catch(() => {
+        // If endpoint missing or auth fails, hide fab quietly
+        fab.style.display = 'none';
+    });
+
+    fab.addEventListener('click', () => {
+        panel.classList.toggle('open');
+        fab.classList.remove('has-unread');
+        if (panel.classList.contains('open')) {
+            setTimeout(() => input.focus(), 100);
+            // Refresh recent chats list every time panel opens
+            if (!history.length) refreshRecentChats();
+        }
+    });
+    closeBtn.addEventListener('click', () => panel.classList.remove('open'));
+    clearBtn.addEventListener('click', startNewChat);
+    newChatBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startNewChat();
+        input.focus();
+    });
+
+    // Fullscreen toggle
+    function setFullscreen(on) {
+        panel.classList.toggle('fullscreen', !!on);
+        fullscreenIcon.className = on ? 'fas fa-compress' : 'fas fa-expand';
+        fullscreenBtn.title = on ? 'Exit fullscreen' : 'Toggle fullscreen';
+    }
+    fullscreenBtn.addEventListener('click', () => {
+        setFullscreen(!panel.classList.contains('fullscreen'));
+        body.scrollTop = body.scrollHeight;
+    });
+    // ESC exits fullscreen (or closes panel if not in fullscreen)
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || !panel.classList.contains('open')) return;
+        if (panel.classList.contains('fullscreen')) {
+            setFullscreen(false);
+        } else if (document.activeElement !== input) {
+            panel.classList.remove('open');
+        }
+    });
+
+    // Suggestion buttons → autofill + send
+    document.querySelectorAll('#hcEmpty .suggestions button[data-q]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            input.value = btn.dataset.q;
+            sendMessage();
+        });
+    });
+
+    // ─── Slash commands ───
+    const SLASH_COMMANDS = [
+        { cmd: '/clear',      desc: 'Clear conversation history',
+          run: () => { clearBtn.click(); } },
+        { cmd: '/fullscreen', desc: 'Toggle fullscreen mode',
+          run: () => { fullscreenBtn.click(); } },
+        { cmd: '/close',      desc: 'Close the chat panel',
+          run: () => { closeBtn.click(); } },
+        { cmd: '/devices',    desc: 'Quick: list running devices',
+          fill: 'List all bot engines currently running and their devices.' },
+        { cmd: '/risk',       desc: 'Quick: top high-risk accounts',
+          fill: 'Show the top 10 highest-risk accounts (score ≥ 60) with the main risk factors per account, as a markdown table.' },
+        { cmd: '/failures',   desc: 'Quick: recent login failures',
+          fill: 'Bucket the login failures from the last 24 hours by reason and present as a markdown table. Highlight which failure types are fixable vs dead ends.' },
+        { cmd: '/help',       desc: 'List all commands + capabilities',
+          fill: 'List all available slash commands and a one-line summary of every Hydra tool you can use.' },
+        { cmd: '/stop',       desc: 'Stop the current response',
+          run: () => { stopBtn.click(); } },
+    ];
+
+    function showSlashMenu(filter) {
+        const matches = SLASH_COMMANDS.filter(c => c.cmd.startsWith(filter));
+        if (!matches.length) { slashMenu.style.display = 'none'; return; }
+        slashMenu.innerHTML = matches.map((c, i) =>
+            `<div class="item ${i===0?'active':''}" data-cmd="${c.cmd}">
+                <span class="cmd">${c.cmd}</span>
+                <span class="desc">${c.desc}</span>
+            </div>`).join('');
+        slashMenu.style.display = 'block';
+        slashMenu.querySelectorAll('.item').forEach(el => {
+            el.addEventListener('click', () => executeSlash(el.dataset.cmd));
+        });
+    }
+    function hideSlashMenu() { slashMenu.style.display = 'none'; }
+
+    function executeSlash(cmd) {
+        const def = SLASH_COMMANDS.find(c => c.cmd === cmd);
+        hideSlashMenu();
+        input.value = '';
+        if (!def) return;
+        if (def.run) { def.run(); return; }
+        if (def.fill) {
+            input.value = def.fill;
+            sendMessage();
+        }
+    }
+
+    // Enter sends, Shift+Enter newline. Tab/Enter selects slash item if menu open.
+    input.addEventListener('keydown', e => {
+        if (slashMenu.style.display === 'block') {
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                const active = slashMenu.querySelector('.item.active');
+                if (active) {
+                    e.preventDefault();
+                    executeSlash(active.dataset.cmd);
+                    return;
+                }
+            }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const items = Array.from(slashMenu.querySelectorAll('.item'));
+                const cur = items.findIndex(el => el.classList.contains('active'));
+                let next = e.key === 'ArrowDown' ? cur+1 : cur-1;
+                if (next < 0) next = items.length - 1;
+                if (next >= items.length) next = 0;
+                items.forEach((el, i) => el.classList.toggle('active', i === next));
+                return;
+            }
+            if (e.key === 'Escape') { hideSlashMenu(); return; }
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    input.addEventListener('input', () => {
+        // Auto-grow textarea
+        input.style.height = 'auto';
+        input.style.height = Math.min(120, input.scrollHeight) + 'px';
+        // Slash-menu trigger
+        const v = input.value;
+        if (v.startsWith('/') && !v.includes(' ') && v.length <= 20) {
+            showSlashMenu(v);
+        } else {
+            hideSlashMenu();
+        }
+    });
+    sendBtn.addEventListener('click', sendMessage);
+    stopBtn.addEventListener('click', () => {
+        if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+        }
+    });
+
+    function escHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function timeAgo(iso) {
+        if (!iso) return '';
+        try {
+            // SQLite/Python utcnow().isoformat() has no Z — treat as UTC.
+            const t = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+            const s = Math.floor((Date.now() - t.getTime()) / 1000);
+            if (s < 60)     return s + 's ago';
+            if (s < 3600)   return Math.floor(s/60) + 'm ago';
+            if (s < 86400)  return Math.floor(s/3600) + 'h ago';
+            if (s < 604800) return Math.floor(s/86400) + 'd ago';
+            return t.toLocaleDateString();
+        } catch { return ''; }
+    }
+
+    // ─── Session list (recent chats) ───
+    async function refreshRecentChats() {
+        try {
+            const r = await fetch('/api/chat/sessions?limit=30');
+            const d = await r.json();
+            const sess = d.sessions || [];
+            if (!sess.length) {
+                recentList.innerHTML = '<div class="empty-line">No saved chats yet.</div>';
+                return;
+            }
+            recentList.innerHTML = sess.map(s => `
+                <div class="session ${s.pinned ? 'pinned' : ''}" data-id="${s.id}">
+                    <div class="meta">
+                        <div class="title">${escHtml(s.title || 'Untitled')}</div>
+                        <div class="sub">${s.message_count || 0} msgs · ${timeAgo(s.updated_at)} · ${escHtml(s.model || '?')}</div>
+                    </div>
+                    <div class="actions">
+                        <button class="pin" data-pin="${s.id}" data-pinned="${s.pinned ? 1 : 0}"
+                                title="${s.pinned ? 'Unpin' : 'Pin to top'}">
+                            <i class="fas fa-thumbtack"></i>
+                        </button>
+                        <button class="del" data-del="${s.id}" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            recentList.querySelectorAll('.session').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    if (e.target.closest('.actions')) return;
+                    loadSession(parseInt(el.dataset.id, 10));
+                });
+            });
+            recentList.querySelectorAll('[data-del]').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!confirm('Delete this chat?')) return;
+                    const id = parseInt(btn.dataset.del, 10);
+                    await fetch('/api/chat/sessions/' + id, {method: 'DELETE'});
+                    if (currentSessionId === id) startNewChat();
+                    refreshRecentChats();
+                });
+            });
+            recentList.querySelectorAll('[data-pin]').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const id = parseInt(btn.dataset.pin, 10);
+                    const wasPinned = btn.dataset.pinned === '1';
+                    await fetch('/api/chat/sessions/' + id, {
+                        method: 'PATCH',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({pinned: !wasPinned})
+                    });
+                    refreshRecentChats();
+                });
+            });
+        } catch (e) {
+            recentList.innerHTML = '<div class="empty-line">Failed to load.</div>';
+        }
+    }
+
+    async function loadSession(id) {
+        try {
+            const r = await fetch('/api/chat/sessions/' + id);
+            const d = await r.json();
+            if (d.error) { alert(d.error); return; }
+            // Reset UI
+            history = [];
+            body.innerHTML = '';
+            currentSessionId = d.session.id;
+            sessionTitleEl.textContent = ' · ' + (d.session.title || '');
+            // Replay messages
+            for (const m of (d.messages || [])) {
+                history.push({role: m.role, content: m.content});
+                if (m.role === 'user') {
+                    appendUserMsg(m.content);
+                } else if (m.role === 'assistant') {
+                    const bub = appendAssistantBubble();
+                    bub.innerHTML = renderMarkdown(m.content || '');
+                }
+            }
+            body.scrollTop = body.scrollHeight;
+        } catch (e) {
+            alert('Failed to load session: ' + e.message);
+        }
+    }
+
+    function startNewChat() {
+        history = [];
+        currentSessionId = null;
+        sessionTitleEl.textContent = '';
+        body.innerHTML = '';
+        body.appendChild(emptyState);
+        emptyState.style.display = '';
+        refreshRecentChats();
+    }
+
+    async function saveCurrentChat(opts = {}) {
+        if (!history.length) return;
+        const payload = JSON.stringify({
+            session_id: currentSessionId || undefined,
+            messages: history,
+        });
+        // Beacon-mode for unload: navigator.sendBeacon survives page navigation.
+        if (opts.beacon && navigator.sendBeacon) {
+            try {
+                const blob = new Blob([payload], {type: 'application/json'});
+                navigator.sendBeacon('/api/chat/sessions/save', blob);
+            } catch (e) {
+                console.warn('beacon save failed:', e);
+            }
+            return;
+        }
+        try {
+            const r = await fetch('/api/chat/sessions/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: payload,
+                keepalive: true,  // hint to browser: keep this alive past navigation
+            });
+            const d = await r.json();
+            if (d.session_id) {
+                currentSessionId = d.session_id;
+                sessionTitleEl.textContent = ' · ' + (d.title || '');
+            } else if (d.error) {
+                console.warn('save error:', d.error);
+            }
+        } catch (e) {
+            console.warn('saveCurrentChat failed:', e);
+        }
+    }
+
+    // Save current chat when user navigates away / closes tab
+    window.addEventListener('beforeunload', () => saveCurrentChat({beacon: true}));
+    window.addEventListener('pagehide', () => saveCurrentChat({beacon: true}));
+    // Also save on tab-hide (mobile / when user switches tabs)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            saveCurrentChat({beacon: true});
+        }
+    });
+
+    function appendUserMsg(text) {
+        emptyState.style.display = 'none';
+        const m = document.createElement('div');
+        m.className = 'hc-msg user';
+        m.innerHTML = `<div class="bubble">${escHtml(text)}</div>`;
+        body.appendChild(m);
+        body.scrollTop = body.scrollHeight;
+    }
+
+    function appendAssistantBubble() {
+        const m = document.createElement('div');
+        m.className = 'hc-msg assistant';
+        m.innerHTML = `<div class="bubble"></div>`;
+        body.appendChild(m);
+        body.scrollTop = body.scrollHeight;
+        return m.querySelector('.bubble');
+    }
+
+    function appendToolCall(name, args) {
+        const el = document.createElement('div');
+        el.className = 'hc-tool';
+        const argStr = JSON.stringify(args, null, 0);
+        el.innerHTML =
+            `🔧 <span class="tool-name">${escHtml(name)}</span>` +
+            `(<code>${escHtml(argStr.slice(0,120))}</code>)` +
+            `<div class="tool-result" data-result>… running …</div>`;
+        body.appendChild(el);
+        body.scrollTop = body.scrollHeight;
+        return el;
+    }
+
+    function attachToolResult(toolEl, result) {
+        const r = toolEl.querySelector('.tool-result');
+        // Smart summary
+        let summary = '';
+        if (result && result.error) {
+            summary = '❌ ' + result.error;
+        } else if (result) {
+            const keys = Object.keys(result);
+            // Count-like keys
+            const countKey = keys.find(k => k === 'count' || k === 'total' || k === 'running_count');
+            if (countKey != null && typeof result[countKey] === 'number') {
+                summary = `✓ ${result[countKey]} items`;
+            } else if (Array.isArray(result.high_risk)) {
+                summary = `✓ ${result.high_risk.length} high-risk accounts`;
+            } else if (Array.isArray(result.devices)) {
+                summary = `✓ ${result.devices.length} devices`;
+            } else if (Array.isArray(result.accounts)) {
+                summary = `✓ ${result.accounts.length} accounts`;
+            } else if (Array.isArray(result.lines)) {
+                summary = `✓ ${result.lines.length} log lines`;
+            } else {
+                summary = '✓ done';
+            }
+        }
+        r.textContent = summary;
+        // Collapsible full result
+        const details = document.createElement('details');
+        details.innerHTML = `<summary>raw result</summary><pre>${escHtml(JSON.stringify(result, null, 2))}</pre>`;
+        toolEl.appendChild(details);
+    }
+
+    async function sendMessage() {
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        input.style.height = 'auto';
+        hideSlashMenu();
+        appendUserMsg(text);
+        history.push({role: 'user', content: text});
+
+        // Save the user message immediately — protects the session if the
+        // user navigates away while the assistant is still streaming.
+        saveCurrentChat();
+
+        sendBtn.style.display = 'none';
+        stopBtn.style.display = '';
+        let bubble = null;
+        let bubbleText = '';
+        const pendingTools = {};  // id → element
+        currentAbortController = new AbortController();
+
+        try {
+            const resp = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({messages: history}),
+                signal: currentAbortController.signal
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({error: 'HTTP ' + resp.status}));
+                bubble = appendAssistantBubble();
+                bubble.innerHTML = `<span style="color:#ff6b7a;">❌ ${escHtml(err.error || 'failed')}</span>`;
+                return;
+            }
+            const reader = resp.body.getReader();
+            const dec = new TextDecoder();
+            let buf = '';
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                buf += dec.decode(value, {stream: true});
+                let idx;
+                while ((idx = buf.indexOf('\n\n')) !== -1) {
+                    const chunk = buf.slice(0, idx).trim();
+                    buf = buf.slice(idx + 2);
+                    if (!chunk.startsWith('data:')) continue;
+                    const data = chunk.slice(5).trim();
+                    if (data === '[DONE]') continue;
+                    let evt;
+                    try { evt = JSON.parse(data); } catch { continue; }
+                    if (evt.type === 'text') {
+                        if (!bubble) bubble = appendAssistantBubble();
+                        bubbleText += evt.delta;
+                        // Render markdown on each chunk — marked is fast enough.
+                        // Tables, code blocks, lists all render live as text streams.
+                        bubble.innerHTML = renderMarkdown(bubbleText);
+                        body.scrollTop = body.scrollHeight;
+                    } else if (evt.type === 'tool_call') {
+                        // Close current bubble (text may resume after tool result)
+                        bubble = null;
+                        bubbleText = '';
+                        pendingTools[evt.id] = appendToolCall(evt.name, evt.args);
+                    } else if (evt.type === 'tool_result') {
+                        const el = pendingTools[evt.id];
+                        if (el) attachToolResult(el, evt.result);
+                    } else if (evt.type === 'error') {
+                        if (!bubble) bubble = appendAssistantBubble();
+                        bubble.innerHTML += `<br><span style="color:#ff6b7a;">❌ ${escHtml(evt.error)}</span>`;
+                    }
+                }
+            }
+            // Save assistant turn to history (best effort — we keep just the final text)
+            if (bubbleText) {
+                history.push({role: 'assistant', content: bubbleText});
+            }
+            // Persist to backend
+            saveCurrentChat();
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                // User clicked Stop — show a subtle note instead of error
+                if (bubble && !bubbleText) {
+                    bubble.innerHTML = '<em style="color:#6c757d;">(stopped)</em>';
+                } else if (bubble) {
+                    bubble.innerHTML += '<br><em style="color:#6c757d;">(stopped)</em>';
+                }
+            } else {
+                bubble = bubble || appendAssistantBubble();
+                bubble.innerHTML = `<span style="color:#ff6b7a;">❌ ${escHtml(e.message || 'network error')}</span>`;
+            }
+        } finally {
+            sendBtn.style.display = '';
+            stopBtn.style.display = 'none';
+            currentAbortController = null;
+            input.focus();
+        }
+    }
+})();
+</script>

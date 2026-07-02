@@ -101,14 +101,14 @@ class BatchProfileManager:
                     print(f"  Detected avatar/profile photo modal in screen hierarchy")
                     # Try to dismiss it aggressively
                     for dismiss_text in ["Not now", "Skip", "Cancel", "Maybe Later", "Later"]:
-                        if self.device(text=dismiss_text).exists(timeout=0.3):
+                        if self.device(text=dismiss_text).wait(timeout=0.3):
                             print(f"  Clicking '{dismiss_text}' on avatar modal...")
                             self.device(text=dismiss_text).click()
                             dismissed_count += 1
                             modal_found = True
                             human_sleep(0.8, 1.2, log=False)
                             break
-                        elif self.device(textContains=dismiss_text).exists(timeout=0.3):
+                        elif self.device(textContains=dismiss_text).wait(timeout=0.3):
                             print(f"  Clicking button containing '{dismiss_text}'...")
                             self.device(textContains=dismiss_text).click()
                             dismissed_count += 1
@@ -126,7 +126,7 @@ class BatchProfileManager:
                 for button_text in dismiss_buttons:
                     try:
                         button = self.device(text=button_text)
-                        if button.exists(timeout=0.3):
+                        if button.wait(timeout=0.3):
                             print(f"  Found modal with '{button_text}' button, dismissing...")
                             button.click()
                             dismissed_count += 1
@@ -141,7 +141,7 @@ class BatchProfileManager:
                 for button_text in ["Not now", "Skip", "Cancel", "Later"]:
                     try:
                         button = self.device(textContains=button_text)
-                        if button.exists(timeout=0.3):
+                        if button.wait(timeout=0.3):
                             print(f"  Found modal with button containing '{button_text}', dismissing...")
                             button.click()
                             dismissed_count += 1
@@ -156,7 +156,7 @@ class BatchProfileManager:
                 for button_text in dismiss_buttons:
                     try:
                         button = self.device(description=button_text)
-                        if button.exists(timeout=0.3):
+                        if button.wait(timeout=0.3):
                             print(f"  Found modal with '{button_text}' icon, dismissing...")
                             button.click()
                             dismissed_count += 1
@@ -172,7 +172,7 @@ class BatchProfileManager:
                 try:
                     for text in ["Not now", "Skip", "Cancel"]:
                         elements = self.device(textMatches=f"(?i).*{text}.*", clickable=True)
-                        if elements.exists(timeout=0.3):
+                        if elements.wait(timeout=0.3):
                             print(f"  Found clickable element matching '{text}' (regex), clicking...")
                             elements.click()
                             dismissed_count += 1
@@ -216,7 +216,7 @@ class BatchProfileManager:
         for keyword in permission_keywords:
             try:
                 # Check for text containing keyword
-                if self.device(textContains=keyword).exists(timeout=0.5):
+                if self.device(textContains=keyword).wait(timeout=0.5):
                     # Look for "Allow" button
                     allow_buttons = [
                         self.device(text="Allow"),
@@ -225,7 +225,7 @@ class BatchProfileManager:
                     ]
 
                     for button in allow_buttons:
-                        if button.exists(timeout=0.5):
+                        if button.wait(timeout=0.5):
                             print(f"  Permission dialog detected, clicking 'Allow'...")
                             button.click()
                             human_sleep(1.0, 1.5, log=False)
@@ -343,8 +343,8 @@ class BatchProfileManager:
     def _is_on_profile_tab(self):
         """Check if we're on the profile tab"""
         indicators = [
-            self.device(text="Edit profile").exists(timeout=1),
-            self.device(description="Profile").exists(timeout=1),
+            self.device(text="Edit profile").wait(timeout=1),
+            self.device(description="Profile").wait(timeout=1),
         ]
         return any(indicators)
 
@@ -358,7 +358,7 @@ class BatchProfileManager:
         ]
 
         for indicator_text, selector_type in indicators:
-            if self.device(text=indicator_text).exists(timeout=1):
+            if self.device(text=indicator_text).wait(timeout=1):
                 return True
         return False
 

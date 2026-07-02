@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% block title %}Hydra — AI Executor{% endblock %}
+{% block content %}
+<style>
+#aix { --acc:#7c6cf0; --surf:#16181f; --surf2:#1b1e27; --bd:#272b37; --dim:#8b90a2; --grn:#2ecc9b; --red:#e8637a; --amb:#e0a23c; color:#e9eaf1; }
+#aix .card { background:var(--surf); border:1px solid var(--bd); border-radius:12px; }
+#aix .form-control, #aix .form-select { background:var(--surf2)!important; border:1px solid var(--bd)!important; color:#e9eaf1!important; border-radius:9px; }
+#aix .form-control:focus, #aix .form-select:focus { border-color:var(--acc)!important; box-shadow:0 0 0 3px rgba(124,108,240,.13)!important; }
+#aix .btn-run { background:var(--acc); border:1px solid var(--acc); color:#fff; font-weight:600; border-radius:9px; }
+#aix .btn-run:hover { filter:brightness(1.1); }
+#aix .btn-stop { background:var(--surf2); border:1px solid var(--red); color:var(--red); border-radius:9px; }
+#aix .phone { background:#000; border:1px solid var(--bd); border-radius:14px; overflow:hidden; display:flex; align-items:center; justify-content:center; min-height:520px; }
+#aix .phone img { max-width:100%; max-height:74vh; display:block; }
+#aix .steps { max-height:74vh; overflow-y:auto; font-size:.84rem; }
+#aix .step { padding:8px 10px; border-bottom:1px solid var(--bd); display:flex; gap:8px; align-items:flex-start; }
+#aix .step .n { color:var(--dim); min-width:24px; text-align:right; }
+#aix .step .a { font-weight:700; color:var(--acc); min-width:62px; }
+#aix .step .r { color:#cfd2dc; }
+#aix .step.changed .a { color:var(--grn); }
+#aix .step.nochange .a { color:var(--amb); }
+#aix .badge-st { padding:3px 10px; border-radius:8px; font-size:.74rem; font-weight:600; }
+#aix .b-run { background:rgba(124,108,240,.15); color:var(--acc); }
+#aix .b-ok { background:rgba(46,204,155,.15); color:var(--grn); }
+#aix .b-fail { background:rgba(232,99,122,.15); color:var(--red); }
+#aix .lbl { color:var(--dim); font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
+#aix #aixLiveBtn.live-on { background:var(--red); color:#fff; border-color:var(--red); }
+#aix #aixLiveBtn.live-on i { animation:aixblink 1s steps(2,start) infinite; }
+@keyframes aixblink { 50% { opacity:.25; } }
+</style>
+
+<div id="aix" class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 style="font-weight:700;margin:0"><i class="fas fa-robot me-2" style="color:var(--acc)"></i>AI Executor <span class="lbl">Phase 0 · live</span></h1>
+      <div style="color:var(--dim);font-size:.85rem">Hybrid tree-first + vision AI automation. Stops the device engine, runs your goal, restarts it.</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- Controls + live phone -->
+    <div class="col-lg-5">
+      <div class="card p-3 mb-3">
+        <label class="lbl mb-1">Device</label>
+        <select id="aixDevice" class="form-select mb-2"></select>
+        <label class="lbl mb-1">Account / clone <span style="text-transform:none">(blank = let AI navigate from home)</span></label>
+        <select id="aixPkg" class="form-select mb-2"><option value="">— let AI navigate (from home screen) —</option></select>
+        <label class="lbl mb-1">Goal (natural language)</label>
+        <textarea id="aixGoal" class="form-control mb-2" rows="3" placeholder="e.g. Open Instagram, dismiss any popup, stop on the home feed. Do not like/follow/post."></textarea>
+        <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+          <div><label class="lbl mb-1 d-block">Max steps</label><input id="aixMax" type="number" class="form-control" value="25" style="width:80px"></div>
+          <div><label class="lbl mb-1 d-block">AI model</label>
+            <select id="aixModel" class="form-select" style="width:165px">
+              <option value="deepseek-v4-flash">Flash (fast — default)</option>
+              <option value="deepseek-v4-pro">Pro (slower, deep reasoning)</option>
+            </select></div>
+          <label class="form-check m-0 mt-3" style="cursor:pointer"><input class="form-check-input" type="checkbox" id="aixStopEng" checked> <span style="color:var(--dim)">stop engine first</span></label>
+        </div>
+        <div class="d-flex gap-2">
+          <button id="aixRun" class="btn-run px-3 py-2"><i class="fas fa-play me-1"></i>Run</button>
+          <button id="aixStop" class="btn-stop px-3 py-2" disabled><i class="fas fa-stop me-1"></i>Stop</button>
+          <span id="aixBadge" class="badge-st ms-2 align-self-center" style="display:none"></span>
+        </div>
+      </div>
+      <div class="card p-2">
+        <div class="d-flex justify-content-end mb-1">
+          <button id="aixLiveBtn" class="btn-stop px-2 py-1" style="font-size:.78rem" title="~5 fps MJPEG stream — shows motion, costs device load while on">
+            <i class="fas fa-circle me-1" style="font-size:.6rem"></i>Live <span style="color:var(--dim)">(5fps)</span>
+          </button>
+        </div>
+        <div class="phone"><img id="aixShot" alt="device screen"><span id="aixNoShot" style="color:var(--dim)">live screen appears here</span></div>
+      </div>
+    </div>
+
+    <!-- Step log -->
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="p-2 px-3 d-flex justify-content-between align-items-center" style="border-bottom:1px solid var(--bd);font-weight:600">
+          <span>Step log <span id="aixResult" style="color:var(--dim);font-weight:400"></span></span>
+          <button id="aixSaveRecipe" class="btn-run px-2 py-1" style="display:none;font-size:.78rem"><i class="fas fa-save me-1"></i>Save as recipe</button>
+        </div>
+        <div id="aixSteps" class="steps"><div class="step"><span class="r" style="color:var(--dim)">No run yet. Pick a device + goal and press Run.</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recipes & Schedules -->
+  <div class="row g-3 mt-1">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="p-2 px-3" style="border-bottom:1px solid var(--bd);font-weight:600"><i class="fas fa-bookmark me-2" style="color:var(--acc)"></i>Recipes <span class="lbl" style="text-transform:none">learned tasks — replay is cheap (AI fills gaps)</span></div>
+        <div id="aixRecipes" class="steps" style="max-height:320px"><div class="step"><span class="r" style="color:var(--dim)">No recipes yet. Run a task, then "Save as recipe".</span></div></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="p-2 px-3" style="border-bottom:1px solid var(--bd);font-weight:600"><i class="fas fa-clock me-2" style="color:var(--acc)"></i>Schedules <span class="lbl" style="text-transform:none">cron-like recurring runs</span></div>
+        <div id="aixSchedules" class="steps" style="max-height:320px"><div class="step"><span class="r" style="color:var(--dim)">No schedules. Schedule a recipe from the left.</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule modal -->
+<div id="aixSchedWrap" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+  <div id="aix" style="background:var(--surf);border:1px solid var(--bd);border-radius:12px;padding:18px;width:420px;max-width:92vw">
+    <div style="font-weight:700;font-size:1.05rem;margin-bottom:10px">Schedule <span id="aixSchedRecName" style="color:var(--acc)"></span></div>
+    <label class="lbl mb-1">Device</label>
+    <select id="aixSchedDevice" class="form-select mb-2"></select>
+    <label class="lbl mb-1">Account / clone <span style="text-transform:none">(blank = recipe's app / from goal)</span></label>
+    <select id="aixSchedPkg" class="form-select mb-2"><option value="">— use recipe default —</option></select>
+    <label class="lbl mb-1">When</label>
+    <select id="aixSchedMode" class="form-select mb-2">
+      <option value="interval">Every N minutes</option>
+      <option value="daily">Once daily at time</option>
+      <option value="once">Once at…</option>
+    </select>
+    <div id="aixSchedInterval"><label class="lbl mb-1">Interval (minutes)</label><input id="aixSchedMins" type="number" class="form-control mb-2" value="60"></div>
+    <div id="aixSchedDaily" style="display:none"><label class="lbl mb-1">Time (HH:MM, local)</label><input id="aixSchedTime" type="time" class="form-control mb-2" value="09:00"></div>
+    <div id="aixSchedOnce" style="display:none"><label class="lbl mb-1">Run at</label><input id="aixSchedAt" type="datetime-local" class="form-control mb-2"></div>
+    <label class="lbl mb-1">Jitter ± minutes <span style="text-transform:none">(randomize timing — anti-detection)</span></label>
+    <input id="aixSchedJitter" type="number" class="form-control mb-3" value="5">
+    <div class="d-flex gap-2 justify-content-end">
+      <button id="aixSchedCancel" class="btn-stop px-3 py-2">Cancel</button>
+      <button id="aixSchedSave" class="btn-run px-3 py-2">Create schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- Recipe view modal -->
+<div id="aixRecWrap" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+  <div id="aix" style="background:var(--surf);border:1px solid var(--bd);border-radius:12px;padding:18px;width:680px;max-width:94vw;max-height:86vh;display:flex;flex-direction:column">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div style="font-weight:700;font-size:1.05rem"><i class="fas fa-bookmark me-2" style="color:var(--acc)"></i><span id="aixRecName"></span></div>
+      <button id="aixRecClose" class="btn-stop px-2 py-1" style="font-size:.8rem">✕</button>
+    </div>
+    <div id="aixRecMeta" class="lbl mb-2" style="text-transform:none"></div>
+    <div id="aixRecSteps" class="steps" style="max-height:62vh;overflow:auto;border:1px solid var(--bd);border-radius:9px"></div>
+  </div>
+</div>
+
+<script>
+let aixRunId=null, aixPoll=null, aixLive=false, aixSchedRecipe=null;
+async function aixViewRecipe(id){
+  try{ const r=await fetch(aixApi('/recipes/'+id)); const d=await r.json();
+    if(d.error){ alert(d.error); return; }
+    document.getElementById('aixRecName').textContent=d.name;
+    document.getElementById('aixRecMeta').innerHTML=`${d.steps.length} steps · ${d.screens} unique screens · ${d.success_count}/${d.run_count} ok<br><span style="color:#6b7280">Goal: ${aixEsc((d.goal||'').slice(0,160))}</span>`;
+    const c=document.getElementById('aixRecSteps');
+    c.innerHTML=(d.steps||[]).map((s,n)=>{
+      const a=s.action||{}; const t=a.type||'?';
+      const tgt=a.target?(a.target.label||a.target.rid||a.target.cls||''):'';
+      const extra=[tgt?('['+aixEsc(tgt.slice(0,28))+']'):'', a.text!=null?('"'+aixEsc(String(a.text).slice(0,24))+'"'):'', a.direction||'', a.key||''].filter(Boolean).join(' ');
+      const src=s.llm?'<span title="decided by AI while recording" style="color:var(--acc)">🧠</span>':'<span title="batch/replayed" style="color:var(--grn)">↺</span>';
+      const sig=(s.sig||'').slice(0,6);
+      return `<div class="step"><span class="n">${n+1}</span><span class="a">${src} ${aixEsc(t)}</span><span class="r">${extra?('<b>'+extra+'</b>'):''} <span class="lbl" style="text-transform:none;color:#5a5f70">screen ${sig}</span></span></div>`;
+    }).join('') || '<div class="step"><span class="r lbl">No steps.</span></div>';
+    document.getElementById('aixRecWrap').style.display='flex';
+  }catch(e){ alert('load failed: '+e); }
+}
+function aixApi(p){ return '/api/ai-executor'+p; }
+
+function aixToggleLive(){
+  const img=document.getElementById('aixShot'), btn=document.getElementById('aixLiveBtn');
+  const s=document.getElementById('aixDevice').value;
+  aixLive=!aixLive;
+  if(aixLive && s){
+    img.src=aixApi('/stream/'+encodeURIComponent(s)); img.style.display='block';
+    document.getElementById('aixNoShot').style.display='none'; btn.classList.add('live-on');
+  } else {
+    aixLive=false; btn.classList.remove('live-on'); img.src=''; aixPreview();
+  }
+}
+
+async function aixLoadDevices(){
+  const r=await fetch(aixApi('/devices')); const d=await r.json();
+  const sel=document.getElementById('aixDevice');
+  sel.innerHTML=(d.devices||[]).map(x=>`<option value="${x.device_serial}">${x.device_name||x.device_serial} (${x.accounts} acc)</option>`).join('');
+  aixPreview(); aixLoadAccounts();
+}
+async function aixLoadAccounts(){
+  const s=document.getElementById('aixDevice').value; const sel=document.getElementById('aixPkg');
+  sel.innerHTML='<option value="">— let AI navigate (from home screen) —</option>';
+  if(!s) return;
+  try{ const r=await fetch(aixApi('/accounts/'+encodeURIComponent(s))); const d=await r.json();
+    (d.accounts||[]).forEach((a,i)=>{ const o=document.createElement('option'); o.value=a.instagram_package;
+      o.textContent=`#${i+1}  ${a.username} (${a.instagram_package.replace('com.instagram.','')})${a.status!=='active'?' ['+a.status+']':''}`;
+      sel.appendChild(o); });
+  }catch(e){}
+}
+async function aixPreview(){
+  if(aixLive) return;
+  const s=document.getElementById('aixDevice').value; if(!s) return;
+  try{ const r=await fetch(aixApi('/live-shot/'+encodeURIComponent(s))); const d=await r.json();
+    if(d.ok){ const img=document.getElementById('aixShot'); img.src='data:image/png;base64,'+d.png_b64; img.style.display='block'; document.getElementById('aixNoShot').style.display='none'; }
+  }catch(e){}
+}
+function aixBadge(txt,cls){ const b=document.getElementById('aixBadge'); b.textContent=txt; b.className='badge-st ms-2 align-self-center '+cls; b.style.display='inline-block'; }
+function aixRenderSteps(steps){
+  const c=document.getElementById('aixSteps');
+  c.innerHTML=(steps||[]).map(s=>{
+    const cls=s.changed?'changed':(s.action==='tap'||s.action==='type'?'nochange':'');
+    const extra=[s.index!=null?('#'+s.index):'', (s.text||'')].filter(Boolean).join(' ');
+    const src=s.src==='replay'?'<span title="replayed from recipe (free)" style="color:var(--grn)">↺</span> ':(s.src==='ai'?'<span title="decided by AI (cost)" style="color:var(--acc)">🧠</span> ':'');
+    return `<div class="step ${cls}"><span class="n">${s.step}</span><span class="a">${src}${s.action}</span><span class="r">${extra?('<b>'+aixEsc(extra)+'</b> · '):''}${aixEsc(s.reason||'')}${s.note?(' <i style="color:#6b7280">('+aixEsc(s.note)+')</i>'):''}</span></div>`;
+  }).join('');
+  c.scrollTop=c.scrollHeight;
+}
+function aixEsc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+
+async function aixStart(){
+  const serial=document.getElementById('aixDevice').value;
+  const goal=document.getElementById('aixGoal').value.trim();
+  if(!goal){ alert('Enter a goal'); return; }
+  const body={serial, goal, package:document.getElementById('aixPkg').value.trim()||null,
+              max_steps:parseInt(document.getElementById('aixMax').value)||25,
+              model:document.getElementById('aixModel').value,
+              stop_engine:document.getElementById('aixStopEng').checked};
+  document.getElementById('aixRun').disabled=true;
+  const r=await fetch(aixApi('/run'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(d.error){ alert(d.error); document.getElementById('aixRun').disabled=false; return; }
+  aixRunId=d.run_id;
+  document.getElementById('aixStop').disabled=false;
+  aixBadge('running','b-run');
+  document.getElementById('aixResult').textContent='';
+  aixPoll=setInterval(aixTick, 1500);
+}
+async function aixTick(){
+  if(!aixRunId) return;
+  const r=await fetch(aixApi('/status/'+aixRunId)); const d=await r.json();
+  if(d.shot && !aixLive){ const img=document.getElementById('aixShot'); img.src='data:image/png;base64,'+d.shot; img.style.display='block'; document.getElementById('aixNoShot').style.display='none'; }
+  aixRenderSteps(d.steps);
+  if(!d.running){
+    clearInterval(aixPoll); aixPoll=null;
+    document.getElementById('aixRun').disabled=false; document.getElementById('aixStop').disabled=true;
+    const ok=d.result&&d.result.success;
+    aixBadge(ok?'✅ done':'⚠ '+((d.result&&d.result.reason)||'ended'), ok?'b-ok':'b-fail');
+    let extra='';
+    if(d.result){ const rc=d.result.replay_count||0, lc=d.result.llm_count||0;
+      if(rc||lc) extra=' · ↺'+rc+' replay / 🧠'+lc+' AI'; }
+    document.getElementById('aixResult').textContent=d.result?(' — '+(d.result.reason||'')+' ('+(d.result.steps||0)+' steps'+extra+')'+(d.engine_restarted?', engine restarted':'')):'';
+    // offer to save the learned steps as a recipe (only for fresh AI runs)
+    const saveBtn=document.getElementById('aixSaveRecipe');
+    saveBtn.style.display=(d.savable && !d.recipe_id)?'inline-block':'none';
+    aixLoadRecipes(); aixLoadSchedules();
+  }
+}
+
+// ── Recipes ──
+async function aixLoadRecipes(){
+  try{ const r=await fetch(aixApi('/recipes')); const d=await r.json();
+    const c=document.getElementById('aixRecipes'); const recs=d.recipes||[];
+    if(!recs.length){ c.innerHTML='<div class="step"><span class="r" style="color:var(--dim)">No recipes yet. Run a task, then "Save as recipe".</span></div>'; return; }
+    c.innerHTML=recs.map(r=>`<div class="step" style="justify-content:space-between">
+      <span class="r"><b style="cursor:pointer;color:var(--acc)" onclick="aixViewRecipe(${r.id})" title="View steps">${aixEsc(r.name)}</b> <span style="color:var(--dim)">· ${r.screens} screens · ${r.success_count}/${r.run_count} ok</span><br><span style="color:#6b7280;font-size:.78rem">${aixEsc((r.goal||'').slice(0,90))}</span></span>
+      <span style="white-space:nowrap">
+        <button class="btn-stop px-2 py-1" style="font-size:.72rem;border-color:var(--acc);color:var(--acc)" onclick="aixViewRecipe(${r.id})" title="View steps">👁</button>
+        <button class="btn-run px-2 py-1" style="font-size:.72rem" onclick="aixRunRecipe(${r.id})" title="Replay on selected device">▶</button>
+        <button class="btn-stop px-2 py-1" style="font-size:.72rem;border-color:var(--acc);color:var(--acc)" onclick="aixOpenSchedule(${r.id},'${aixEsc(r.name)}')" title="Schedule">⏰</button>
+        <button class="btn-stop px-2 py-1" style="font-size:.72rem" onclick="aixDeleteRecipe(${r.id})" title="Delete">🗑</button>
+      </span></div>`).join('');
+  }catch(e){}
+}
+async function aixSaveRecipe(){
+  if(!aixRunId) return;
+  const name=prompt('Recipe name:'); if(!name) return;
+  const r=await fetch(aixApi('/recipes'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({run_id:aixRunId,name})});
+  const d=await r.json();
+  if(d.error){ alert(d.error); return; }
+  document.getElementById('aixSaveRecipe').style.display='none';
+  aixLoadRecipes();
+}
+async function aixRunRecipe(id){
+  const serial=document.getElementById('aixDevice').value;
+  if(!serial){ alert('Pick a device first'); return; }
+  const pkg=document.getElementById('aixPkg').value.trim()||null;
+  const r=await fetch(aixApi('/recipes/'+id+'/run'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serial,package:pkg,model:document.getElementById('aixModel').value,stop_engine:document.getElementById('aixStopEng').checked})});
+  const d=await r.json();
+  if(d.error){ alert(d.error); return; }
+  aixRunId=d.run_id; document.getElementById('aixStop').disabled=false; document.getElementById('aixRun').disabled=true;
+  aixBadge('replaying','b-run'); document.getElementById('aixResult').textContent='';
+  aixPoll=setInterval(aixTick,1500);
+}
+async function aixDeleteRecipe(id){
+  if(!confirm('Delete this recipe (and its schedules)?')) return;
+  await fetch(aixApi('/recipes/'+id),{method:'DELETE'}); aixLoadRecipes(); aixLoadSchedules();
+}
+
+// ── Schedules ──
+async function aixLoadSchedules(){
+  try{ const r=await fetch(aixApi('/schedules')); const d=await r.json();
+    const c=document.getElementById('aixSchedules'); const ss=d.schedules||[];
+    if(!ss.length){ c.innerHTML='<div class="step"><span class="r" style="color:var(--dim)">No schedules.</span></div>'; return; }
+    c.innerHTML=ss.map(s=>{
+      const when=s.mode==='interval'?('every '+s.interval_minutes+'m'):(s.mode==='daily'?('daily '+s.daily_time):'once');
+      const nxt=s.next_run_at?new Date(s.next_run_at*1000).toLocaleString():'—';
+      return `<div class="step" style="justify-content:space-between">
+        <span class="r"><b>${aixEsc(s.recipe_name||('recipe '+s.recipe_id))}</b> <span style="color:var(--dim)">· ${when} · ${aixEsc(s.device_serial)}</span><br><span style="color:#6b7280;font-size:.78rem">next: ${nxt}${s.last_status?(' · last: '+aixEsc(s.last_status)):''}</span></span>
+        <span style="white-space:nowrap">
+          <button class="btn-stop px-2 py-1" style="font-size:.72rem;${s.enabled?'border-color:var(--grn);color:var(--grn)':''}" onclick="aixToggleSched(${s.id})" title="Enable/disable">${s.enabled?'⏸':'▶'}</button>
+          <button class="btn-stop px-2 py-1" style="font-size:.72rem" onclick="aixDeleteSched(${s.id})" title="Delete">🗑</button>
+        </span></div>`;
+    }).join('');
+  }catch(e){}
+}
+function aixOpenSchedule(id,name){
+  aixSchedRecipe=id;
+  document.getElementById('aixSchedRecName').textContent=name;
+  // mirror device + clone dropdowns
+  const dev=document.getElementById('aixSchedDevice'); dev.innerHTML=document.getElementById('aixDevice').innerHTML; dev.value=document.getElementById('aixDevice').value;
+  aixSchedLoadPkgs();
+  document.getElementById('aixSchedWrap').style.display='flex';
+}
+async function aixSchedLoadPkgs(){
+  const s=document.getElementById('aixSchedDevice').value; const sel=document.getElementById('aixSchedPkg');
+  sel.innerHTML='<option value="">— use recipe default —</option>'; if(!s) return;
+  try{ const r=await fetch(aixApi('/accounts/'+encodeURIComponent(s))); const d=await r.json();
+    (d.accounts||[]).forEach((a,i)=>{ const o=document.createElement('option'); o.value=a.instagram_package; o.textContent=`#${i+1} ${a.username}`; sel.appendChild(o); });
+  }catch(e){}
+}
+function aixSchedModeUI(){
+  const m=document.getElementById('aixSchedMode').value;
+  document.getElementById('aixSchedInterval').style.display=m==='interval'?'block':'none';
+  document.getElementById('aixSchedDaily').style.display=m==='daily'?'block':'none';
+  document.getElementById('aixSchedOnce').style.display=m==='once'?'block':'none';
+}
+async function aixSchedSave(){
+  const m=document.getElementById('aixSchedMode').value;
+  const body={recipe_id:aixSchedRecipe, device_serial:document.getElementById('aixSchedDevice').value,
+    package:document.getElementById('aixSchedPkg').value||null, mode:m,
+    jitter_minutes:parseInt(document.getElementById('aixSchedJitter').value)||0};
+  if(m==='interval') body.interval_minutes=parseInt(document.getElementById('aixSchedMins').value)||60;
+  if(m==='daily') body.daily_time=document.getElementById('aixSchedTime').value;
+  if(m==='once'){ const v=document.getElementById('aixSchedAt').value; if(v) body.run_at=Math.floor(new Date(v).getTime()/1000); }
+  const r=await fetch(aixApi('/schedules'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(d.error){ alert(d.error); return; }
+  document.getElementById('aixSchedWrap').style.display='none'; aixLoadSchedules();
+}
+async function aixToggleSched(id){ await fetch(aixApi('/schedules/'+id+'/toggle'),{method:'POST'}); aixLoadSchedules(); }
+async function aixDeleteSched(id){ if(!confirm('Delete schedule?'))return; await fetch(aixApi('/schedules/'+id),{method:'DELETE'}); aixLoadSchedules(); }
+async function aixStopRun(){ if(aixRunId){ await fetch(aixApi('/stop/'+aixRunId),{method:'POST'}); } }
+
+document.addEventListener('DOMContentLoaded',function(){
+  aixLoadDevices();
+  document.getElementById('aixDevice').addEventListener('change', function(){
+    aixLoadAccounts();
+    if(aixLive){ const s=this.value; document.getElementById('aixShot').src= s?aixApi('/stream/'+encodeURIComponent(s)):''; }
+    else { aixPreview(); }
+  });
+  document.getElementById('aixLiveBtn').addEventListener('click', aixToggleLive);
+  document.getElementById('aixRun').addEventListener('click', aixStart);
+  document.getElementById('aixStop').addEventListener('click', aixStopRun);
+  document.getElementById('aixSaveRecipe').addEventListener('click', aixSaveRecipe);
+  document.getElementById('aixRecClose').addEventListener('click', function(){ document.getElementById('aixRecWrap').style.display='none'; });
+  document.getElementById('aixRecWrap').addEventListener('click', function(e){ if(e.target===this) this.style.display='none'; });
+  document.getElementById('aixSchedMode').addEventListener('change', aixSchedModeUI);
+  document.getElementById('aixSchedDevice').addEventListener('change', aixSchedLoadPkgs);
+  document.getElementById('aixSchedCancel').addEventListener('click', function(){ document.getElementById('aixSchedWrap').style.display='none'; });
+  document.getElementById('aixSchedSave').addEventListener('click', aixSchedSave);
+  aixLoadRecipes(); aixLoadSchedules();
+});
+</script>
+{% endblock %}

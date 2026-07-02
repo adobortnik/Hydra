@@ -259,14 +259,18 @@ def update_sources_files(account_data, source_type=None):
 
         db_source_type = _DB_SOURCE_TYPE_MAP.get(source_type, source_type)
 
-        if not account_ids or not usernames:
+        if not account_ids:
             return {
                 'success': False,
-                'message': 'No accounts selected or no usernames provided',
+                'message': 'No accounts selected',
                 'updated_count': 0
             }
 
-        username_list = [u.strip() for u in usernames.split('\n') if u.strip()]
+        # NOTE: empty `usernames` is VALID — it means "clear all sources of this
+        # type for the account". The DELETE-then-INSERT below handles an empty
+        # list correctly (deletes old, inserts nothing). Previously this was
+        # blocked, so you couldn't remove the last/all sources.
+        username_list = [u.strip() for u in (usernames or '').split('\n') if u.strip()]
 
         conn = sqlite3.connect(PHONE_FARM_DB)
         cursor = conn.cursor()

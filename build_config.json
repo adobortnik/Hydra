@@ -1,0 +1,44 @@
+{
+  "_comment": "Named BUILD PROFILES — each client gets its own feature set. deploy_release.py builds the 'active_profile' (override with --profile <name>). A feature=false is burnt into dist/dashboard/feature_flags.py: blueprint not registered + nav/UI hidden via ff(); if the feature is ALSO listed in deploy_release FEATURE_FILES its source files are physically removed from the dist (used for internal IP). The source dashboard/feature_flags.py stays all-ON for dev.",
+
+  "active_profile": "henry",
+
+  "profiles": {
+    "henry": {
+      "_label": "Henry's build (first client)",
+      "features": {
+        "ai_executor": false,
+        "account_factory": false,
+        "assistant_chat": false,
+        "mother_dashboard": false,
+        "cloudphone": false,
+        "mcp_server": true,
+        "content_schedule": true,
+        "profile_automation": true,
+        "login_automation_v2": true
+      }
+    },
+
+    "full": {
+      "_label": "Internal / full build (everything on)",
+      "features": {
+        "ai_executor": true,
+        "account_factory": true,
+        "assistant_chat": true,
+        "mother_dashboard": true,
+        "cloudphone": true,
+        "mcp_server": true,
+        "content_schedule": true,
+        "profile_automation": true,
+        "login_automation_v2": true
+      }
+    }
+  },
+
+  "_notes": [
+    "ai_executor / account_factory / assistant_chat — internal AI IP. Physically removed from dist (FEATURE_FILES) AND flag-disabled.",
+    "mother_dashboard — flag-disabled only (route not registered + hidden from home page); source files stay (not secret IP).",
+    "Add a new client = add a profile here, set active_profile (or build with --profile <name>).",
+    "automation/ai_executor/ is shared by ai_executor + account_factory — dropped only when BOTH are off."
+  ]
+}

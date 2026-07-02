@@ -639,6 +639,11 @@ def get_profile_info(device, device_serial):
             if m and m.group(1) and any(c.isdigit() for c in m.group(1)):
                 info['posts'] = parse_number(m.group(1))
                 break
+        else:
+            # Fallback: content-desc like "27posts" (modern IG clones put count here, leaving text="" empty)
+            m = re.search(r'content-desc="([\d,.]+[KkMmBb]?)posts?"', xml)
+            if m:
+                info['posts'] = parse_number(m.group(1))
 
         # Fallback: old regex approach if nothing found above
         if info['followers'] == 0 and info['following'] == 0:

@@ -155,6 +155,30 @@ class BotEngine:
 
             username = self.account.get('username', '?')
 
+            # ── Early skip for non-runnable account statuses ──
+            # Opening IG on a challenged/suspended/2fa-required account each
+            # cycle re-triggers IG's pattern detector and amplifies the
+            # verification escalation. Just SKIP entirely.
+            NON_RUNNABLE_STATUSES = {
+                'verification_required',  # IG challenge — needs human
+                '2fa_required',           # 2FA prompt — needs human
+                'suspended',              # IG suspended — dead
+                'banned',                 # IG banned — dead
+                'login_failed',           # login worker gave up — let
+                                          # login-automation-v2 retry, not bot
+                'logged_out',             # similar — login-automation-v2 handles
+                'replaced',               # account swapped out
+                'disabled',               # operator manually paused
+            }
+            acc_status = (self.account.get('status') or '').strip().lower()
+            if acc_status in NON_RUNNABLE_STATUSES:
+                log.info("[%s] %s: status=%s — skipping cycle (non-runnable). "
+                         "Resolve via login-automation-v2 or manual review.",
+                         self.device_serial, username, acc_status)
+                result['success'] = True  # Not an error, just a no-op
+                result['skipped_reason'] = acc_status
+                return result
+
             # Check time window
             if not self._is_within_time_window():
                 msg = "Outside time window (%s-%s), skipping" % (
@@ -174,9 +198,21 @@ class BotEngine:
 
             # Check proxy status (SuperProxy VPN must be running)
             skip_proxy = os.environ.get('HYDRA_SKIP_PROXY', '').lower() in ('1', 'true', 'yes')
+            # Also check global_settings.json toggle
+            if not skip_proxy:
+                try:
+                    _gs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                            'dashboard', 'global_settings.json')
+                    if os.path.exists(_gs_path):
+                        import json as _json
+                        with open(_gs_path, 'r') as _f:
+                            _gs = _json.load(_f)
+                        skip_proxy = bool(_gs.get('skip_proxy_check', False))
+                except Exception:
+                    pass
             proxy_ok = True if skip_proxy else self._check_proxy_status()
             if skip_proxy:
-                log.info("[%s] Proxy check SKIPPED (HYDRA_SKIP_PROXY=1)", self.device_serial)
+                log.info("[%s] Proxy check SKIPPED (setting or env)", self.device_serial)
             if not proxy_ok:
                 # Try to reconnect Surfshark VPN automatically
                 log.warning("[%s] %s: Proxy not active — attempting Surfshark reconnect...",
@@ -223,6 +259,7 @@ class BotEngine:
                 try:
                     log.info("[%s] Running action: %s",
                              self.device_serial, action_name)
+                    self._lock_portrait()   # re-assert portrait before each action
                     action_result = action_func()
                     result['actions_completed'].append({
                         'action': action_name,
@@ -392,25 +429,29 @@ class BotEngine:
             self._device = self._device_conn.device
             log.info("[%s] Using existing device connection", self.device_serial)
 
-            # Lock rotation to portrait — u2 sometimes flips apps to landscape
-            try:
-                self._device.shell("settings put system accelerometer_rotation 0")
-                self._device.shell("settings put system user_rotation 0")
-                # Window manager level lock (more persistent than u2 freeze)
-                self._device.shell("wm set-user-rotation lock")
-                self._device.shell("wm set-user-rotation lock 0")
-                # Also disable auto-rotate via content provider
-                self._device.shell("content update --uri content://settings/system --bind value:i:0 --where \"name='accelerometer_rotation'\"")
-                self._device.freeze_rotation()
-                self._device.set_orientation('natural')
-                log.debug("[%s] Rotation locked to portrait", self.device_serial)
-            except Exception as rot_err:
-                log.warning("[%s] Could not lock rotation: %s", self.device_serial, rot_err)
+            # Lock rotation to portrait (re-asserted before every action too —
+            # see _lock_portrait; once-at-connect does NOT hold).
+            self._lock_portrait()
 
             return True
         except Exception as e:
             log.error("[%s] Device connection error: %s", self.device_serial, e)
             return False
+
+    def _lock_portrait(self):
+        """Force + HOLD portrait. IG (reels/video/webview/camera) re-enables
+        auto-rotate or forces landscape mid-session, so this is RE-ASSERTED before
+        every action — locking once at connect does not hold. adb-only: u2
+        freeze_rotation()/set_orientation() proved unreliable (don't stick, and
+        set_orientation itself can trigger a rotation)."""
+        try:
+            d = self._device
+            d.shell("settings put system accelerometer_rotation 0")  # kill auto-rotate
+            d.shell("settings put system user_rotation 0")            # force portrait
+            d.shell("wm set-user-rotation lock 0")                    # WM lock (older)
+            d.shell("cmd window set-user-rotation lock 0")           # WM lock (newer)
+        except Exception as e:
+            log.debug("[%s] portrait re-lock failed: %s", self.device_serial, e)
 
     def _check_proxy_status(self):
         """
@@ -636,9 +677,20 @@ class BotEngine:
                 log.info("[%s] Account is logged in", self.device_serial)
                 # Dismiss any post-login modals
                 ig.dismiss_post_login_modals(max_attempts=3)
-                # Ensure account status is active in DB
-                self._update_account_status('active')
-                return True
+                # A blocking modal can pop AFTER the initial detect ran on the
+                # bare home feed — notably the "Choose a way to recover"
+                # account-lockout modal, which overlays the logged-in UI. The
+                # initial detect_screen_state saw home/profile nav and returned
+                # 'logged_in' before the modal appeared. Re-detect once now so
+                # we catch it and flag the account instead of marking active.
+                state = ig.detect_screen_state()
+                if state == 'logged_in':
+                    # Ensure account status is active in DB
+                    self._update_account_status('active')
+                    return True
+                log.warning("[%s] Post-dismiss re-detect changed state to '%s' "
+                            "— routing to health flagging", self.device_serial, state)
+                # fall through to STATE_TO_STATUS handling below
 
             # ── Map screen state → account status & health event ──
             # These states mean the account is unusable — flag and skip.
@@ -1010,16 +1062,29 @@ class BotEngine:
     def _warmup_actions(self):
         """
         Return the limited action set for warmup mode.
-        Warmup only does: watch reels + light explore scrolling.
-        NO follows, DMs, comments, story shares, etc.
+        Warmup does: watch reels + light scroll/view + browse profiles.
+        NO follows, DMs, comments, story shares.
+
+        Browse profiles is critical for niche signalling — when warmup
+        accounts visit OF creator profiles, IG learns their content
+        preference. Without this, the bot just consumes feed content
+        without ever signalling intent to IG's algorithm.
         """
         actions = []
 
         # Reels watching (primary warmup activity)
         actions.append(('warmup_reels', self._action_reels))
 
-        # Light engagement (scroll explore, view home feed)
+        # Light engagement (scroll explore, view home feed) — gated by
+        # individual enable_* toggles inside the action itself.
         actions.append(('warmup_engage', self._action_engage))
+
+        # Browse profiles — visits source usernames, gives IG a niche signal.
+        # Only adds the action if browse_profiles is enabled AND the account
+        # has at least one browse_profiles_sources row (otherwise the action
+        # would just exit immediately).
+        if self.settings.get('enable_browse_profiles', False):
+            actions.append(('warmup_browse_profiles', self._action_browse_profiles))
 
         return actions
 
@@ -1043,6 +1108,19 @@ class BotEngine:
 
         # Always check profile first for follower tracking
         actions.append(('check_profile', self._action_check_profile))
+
+        # Scrape Account Status once per day (Settings → Account Status)
+        # — cheap navigation, good early-warning signal for IG restrictions
+        try:
+            last = self.account.get('account_status_checked_at')
+            stale = True
+            if last:
+                last_dt = datetime.datetime.strptime(last[:19], '%Y-%m-%d %H:%M:%S')
+                stale = (datetime.datetime.now() - last_dt).total_seconds() > 86400  # >24h
+            if stale:
+                actions.append(('account_status', self._action_scrape_account_status))
+        except Exception:
+            pass
 
         # Switch to Business Profile (one-time action, if enabled)
         if (self.settings.get('auto_switch_business', False)
@@ -1115,9 +1193,21 @@ class BotEngine:
         if self.settings.get('enable_watch_reels', False):
             actions.append(('reels', self._action_reels))
 
-        # Share to story
-        if (self.settings.get('enable_share_post_to_story', False) or
-                self.settings.get('enable_shared_post', False)):
+        # Share to story.
+        #
+        # SINGLE source of truth: the master "Share Post to Story" toggle
+        # (key: enable_share_post_to_story). The legacy duplicate key
+        # `enable_shared_post` — hidden inside the "Advanced Settings"
+        # collapsible in the account-detail UI — is IGNORED. That removes
+        # the dual-source-of-truth bug from incident 2026-06-01 where the
+        # operator disabled the visible master toggle on @real_emiliorey
+        # but the bot kept self-sharing because the legacy key was still
+        # silently True under Advanced.
+        #
+        # Pre-deployment audit (2026-06-01): 0 accounts had ONLY the legacy
+        # toggle on (i.e. nobody silently stops doing this action after the
+        # change — every account that was sharing has the master ON too).
+        if self.settings.get('enable_share_post_to_story', False):
             actions.append(('share_to_story', self._action_share_to_story))
 
         # Save post (bookmark)
@@ -1152,6 +1242,16 @@ class BotEngine:
         """Run profile check for follower tracking."""
         from automation.actions.check_profile import CheckProfileAction
         action = CheckProfileAction(
+            self._device, self.device_serial,
+            self.account, self.session_id,
+            pkg=self.account.get('package', 'com.instagram.android'),
+        )
+        return action.execute()
+
+    def _action_scrape_account_status(self):
+        """Capture IG Account Status (Settings → Account Status). Cheap, useful health signal."""
+        from automation.actions.scrape_account_status import ScrapeAccountStatusAction
+        action = ScrapeAccountStatusAction(
             self._device, self.device_serial,
             self.account, self.session_id,
             pkg=self.account.get('package', 'com.instagram.android'),

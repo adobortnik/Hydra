@@ -211,15 +211,79 @@ def update_device_status(device_serial, status, last_seen=None):
         conn.close()
 
 
-def delete_device(device_id):
-    """Delete a device only if it has no accounts assigned."""
+def delete_device(device_id, force=False):
+    """
+    Delete a device.
+
+    If `force=False` (default): refuses if any accounts are still
+    assigned. Caller must clean accounts first.
+
+    If `force=True`: cascade-deletes everything tied to the device —
+    accounts, their settings_json rows, and the device itself.
+    Use for decommissioning old devices when the accounts are dead.
+    """
     conn = get_conn()
     try:
-        count = conn.execute("SELECT COUNT(*) FROM accounts WHERE device_id = ?", (device_id,)).fetchone()[0]
-        if count > 0:
-            return False, f"Cannot delete: {count} accounts still assigned to this device"
+        # Resolve device_serial for cascade
+        dev_row = conn.execute(
+            "SELECT device_serial FROM devices WHERE id = ?", (device_id,)
+        ).fetchone()
+        if not dev_row:
+            return False, f"Device id={device_id} not found"
+        device_serial = dev_row["device_serial"] if hasattr(dev_row, 'keys') else dev_row[0]
+
+        # Count attached accounts
+        count = conn.execute(
+            "SELECT COUNT(*) FROM accounts WHERE device_id = ? OR device_serial = ?",
+            (device_id, device_serial)
+        ).fetchone()[0]
+
+        if count > 0 and not force:
+            return False, (f"Cannot delete: {count} accounts still assigned. "
+                           f"Pass force=true to cascade-delete the accounts "
+                           f"and the device together.")
+
+        cascade_summary = {"accounts_deleted": 0, "settings_deleted": 0,
+                           "sources_deleted": 0}
+
+        if force and count > 0:
+            # Get account_ids first (need them for settings + sources cleanup)
+            acc_rows = conn.execute(
+                "SELECT id FROM accounts WHERE device_id = ? OR device_serial = ?",
+                (device_id, device_serial)
+            ).fetchall()
+            acc_ids = [r[0] if not hasattr(r, 'keys') else r["id"]
+                       for r in acc_rows]
+
+            if acc_ids:
+                ph = ",".join("?" * len(acc_ids))
+                # account_settings rows
+                r = conn.execute(
+                    f"DELETE FROM account_settings WHERE account_id IN ({ph})",
+                    acc_ids)
+                cascade_summary["settings_deleted"] = r.rowcount or 0
+                # account_sources rows
+                try:
+                    r = conn.execute(
+                        f"DELETE FROM account_sources WHERE account_id IN ({ph})",
+                        acc_ids)
+                    cascade_summary["sources_deleted"] = r.rowcount or 0
+                except Exception:
+                    pass  # table may not exist in older DBs
+                # Accounts themselves
+                r = conn.execute(
+                    f"DELETE FROM accounts WHERE id IN ({ph})", acc_ids)
+                cascade_summary["accounts_deleted"] = r.rowcount or 0
+
+        # Finally delete the device row
         conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))
         conn.commit()
+
+        if force and count > 0:
+            return True, (f"Device deleted (cascade): "
+                          f"{cascade_summary['accounts_deleted']} accounts, "
+                          f"{cascade_summary['settings_deleted']} settings, "
+                          f"{cascade_summary['sources_deleted']} sources")
         return True, "Device deleted"
     finally:
         conn.close()

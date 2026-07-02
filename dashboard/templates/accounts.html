@@ -1,188 +1,234 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
-{% block title %}Hydra - Instagram Accounts{% endblock %}
+{% block title %}Hydra — Accounts{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <h1 class="h3 mb-0 text-white">Instagram Accounts</h1>
-                        <p class="text-white-50 mb-0">Manage your Instagram accounts</p>
-                    </div>
-                    <div>
-                        <button id="refreshData" class="btn btn-primary btn-action" data-bs-toggle="tooltip" title="Refresh Data">
-                            <i class="fas fa-sync-alt me-2"></i>Refresh
-                        </button>
-                    </div>
-                </div>
-            </div>
+<style>
+/* ─── Accounts page — modern, single-accent (Hydra purple) ─── */
+#accountsPage {
+    --ap-accent: #7c6cf0;
+    --ap-accent-soft: rgba(124,108,240,0.13);
+    --ap-surface: #16181f;
+    --ap-surface-2: #1b1e27;
+    --ap-border: #272b37;
+    --ap-text: #e9eaf1;
+    --ap-dim: #8b90a2;
+    --ap-green: #2ecc9b;
+    --ap-amber: #e0a23c;
+    --ap-red: #e8637a;
+}
+#accountsPage { color: var(--ap-text); }
+#accountsPage .ap-h1 { font-weight: 700; letter-spacing: -0.02em; font-size: 1.5rem; margin: 0; }
+#accountsPage .ap-sub { color: var(--ap-dim); font-size: 0.85rem; }
+
+/* Stat cards */
+.ap-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 18px 0; }
+.ap-stat {
+    background: var(--ap-surface); border: 1px solid var(--ap-border);
+    border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: all 0.12s ease;
+    position: relative; overflow: hidden;
+}
+.ap-stat:hover { border-color: var(--ap-accent); transform: translateY(-1px); }
+.ap-stat.active { border-color: var(--ap-accent); background: var(--ap-accent-soft); }
+.ap-stat .num { font-size: 1.7rem; font-weight: 800; line-height: 1; }
+.ap-stat .lbl { color: var(--ap-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 6px; }
+.ap-stat .ico { position: absolute; right: 12px; top: 12px; font-size: 1.1rem; opacity: 0.25; }
+@media (max-width: 900px){ .ap-stats { grid-template-columns: repeat(2,1fr); } }
+
+/* Filter bar */
+.ap-filters {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    background: var(--ap-surface); border: 1px solid var(--ap-border);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+}
+.ap-filters .form-control, .ap-filters .form-select {
+    background: var(--ap-surface-2) !important; border: 1px solid var(--ap-border) !important;
+    color: var(--ap-text) !important; border-radius: 9px; font-size: 0.85rem;
+}
+.ap-filters .form-control:focus, .ap-filters .form-select:focus {
+    border-color: var(--ap-accent) !important; box-shadow: 0 0 0 3px var(--ap-accent-soft) !important;
+}
+.ap-search { flex: 1 1 240px; min-width: 200px; }
+
+/* Table */
+.ap-table-wrap { background: var(--ap-surface); border: 1px solid var(--ap-border); border-radius: 14px; overflow: hidden; }
+table.ap-table { width: 100%; margin: 0; color: var(--ap-text); font-size: 0.86rem; border-collapse: collapse; }
+table.ap-table thead th {
+    background: var(--ap-surface-2); color: var(--ap-dim);
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+    padding: 11px 14px; border-bottom: 1px solid var(--ap-border); white-space: nowrap; cursor: pointer; user-select: none;
+}
+table.ap-table thead th:hover { color: var(--ap-text); }
+table.ap-table thead th .si { opacity: 0.35; font-size: 0.65rem; margin-left: 3px; }
+table.ap-table thead th.asc .si, table.ap-table thead th.desc .si { opacity: 1; color: var(--ap-accent); }
+table.ap-table tbody td { padding: 10px 14px; border-bottom: 1px solid var(--ap-border); vertical-align: middle; }
+table.ap-table tbody tr { transition: background 0.1s ease; }
+table.ap-table tbody tr:hover { background: var(--ap-surface-2); }
+table.ap-table tbody tr:last-child td { border-bottom: 0; }
+.ap-row { border-left: 3px solid transparent; }
+.ap-row.s-active { border-left-color: var(--ap-green); }
+.ap-row.s-verification_required { border-left-color: var(--ap-amber); }
+.ap-row.s-2fa_required { border-left-color: var(--ap-amber); }
+.ap-row.s-login_failed, .ap-row.s-suspended, .ap-row.s-banned { border-left-color: var(--ap-red); }
+.ap-row.s-logged_out { border-left-color: var(--ap-dim); }
+
+.ap-uname { font-weight: 600; color: #fff; }
+.ap-dev { color: var(--ap-dim); font-size: 0.74rem; }
+.ap-crown { color: #ffc94d; margin-left: 5px; }
+.ap-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; }
+.b-active { background: rgba(46,204,155,0.15); color: var(--ap-green); }
+.b-verification_required { background: rgba(224,162,60,0.15); color: var(--ap-amber); }
+.b-2fa_required { background: rgba(224,162,60,0.15); color: var(--ap-amber); }
+.b-login_failed, .b-suspended, .b-banned { background: rgba(232,99,122,0.15); color: var(--ap-red); }
+.b-logged_out, .b-unknown { background: rgba(139,144,162,0.15); color: var(--ap-dim); }
+.ap-chip { display:inline-block; padding:1px 7px; border-radius:5px; font-size:0.68rem; background:var(--ap-surface-2); border:1px solid var(--ap-border); color:var(--ap-dim); }
+.ap-tag { background: var(--ap-accent-soft); color: #b9aef7; border:1px solid rgba(124,108,240,0.3); }
+.ap-warm { background: rgba(224,162,60,0.13); color: var(--ap-amber); border:1px solid rgba(224,162,60,0.3); }
+.ap-delta-up { color: var(--ap-green); font-size:0.72rem; }
+.ap-delta-down { color: var(--ap-red); font-size:0.72rem; }
+.ap-delta-zero { color: var(--ap-dim); font-size:0.72rem; }
+.ap-act-icons i { margin-right:4px; opacity:0.8; font-size:0.72rem; }
+.ap-btn { background: var(--ap-accent); border:1px solid var(--ap-accent); color:#fff; border-radius:8px; padding:4px 11px; font-size:0.78rem; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
+.ap-btn:hover { filter: brightness(1.1); color:#fff; }
+.ap-btn-ghost { background: var(--ap-surface-2); border:1px solid var(--ap-border); color: var(--ap-dim); border-radius:8px; padding:4px 9px; font-size:0.78rem; cursor:pointer; }
+.ap-btn-ghost:hover { color: var(--ap-text); border-color: var(--ap-accent); }
+.ap-muted { color: var(--ap-dim); }
+
+/* selection + bulk-assign */
+.ap-check { width: 36px; text-align: center; }
+.ap-check input { cursor: pointer; width: 15px; height: 15px; accent-color: var(--ap-accent); }
+.ap-bulkbar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: var(--ap-accent-soft); border: 1px solid rgba(124,108,240,0.35);
+    border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
+}
+.ap-bulkbar .ig-text, .ap-bulkbar .input-group-text {
+    background: var(--ap-surface-2) !important; border: 1px solid var(--ap-border) !important;
+    color: var(--ap-dim) !important; font-size: 0.8rem;
+}
+.ap-bulkbar .form-control {
+    background: var(--ap-surface-2) !important; border: 1px solid var(--ap-border) !important;
+    color: var(--ap-text) !important; font-size: 0.85rem;
+}
+.ap-bulkbar .form-control:focus { border-color: var(--ap-accent) !important; box-shadow: 0 0 0 3px var(--ap-accent-soft) !important; }
+/* clickable tag cell */
+.ap-tag-edit { cursor: pointer; border-bottom: 1px dashed transparent; }
+td:hover > .ap-tag-edit { border-bottom-color: var(--ap-border); }
+.ap-tag-edit:hover { color: var(--ap-text) !important; }
+.ap-tag-add { color: var(--ap-dim); font-size: 0.72rem; cursor: pointer; opacity: 0.6; }
+.ap-tag-add:hover { color: var(--ap-accent); opacity: 1; }
+.ap-tag-input { background: var(--ap-surface-2) !important; border: 1px solid var(--ap-accent) !important; color: var(--ap-text) !important; border-radius: 6px; font-size: 0.78rem; padding: 2px 7px; }
+</style>
+
+<div id="accountsPage" class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h1 class="ap-h1"><i class="fas fa-users me-2" style="color:var(--ap-accent)"></i>Accounts</h1>
+            <div class="ap-sub">All Instagram accounts across the farm — <span id="apShowing">0</span> shown</div>
         </div>
+        <button class="ap-btn-ghost" onclick="apLoad()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
     </div>
-    
-    <!-- Filters Row -->
-    <div class="row mb-4">
-        <div class="col-md-6 mb-3 mb-md-0">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title text-white mb-3"><i class="fas fa-search me-2"></i>Search Accounts</h5>
-                    <div class="input-group">
-                        <span class="input-group-text bg-dark border-secondary">
-                            <i class="fas fa-search text-white-50"></i>
-                        </span>
-                        <input type="text" id="accountSearch" class="form-control bg-dark text-white border-secondary" placeholder="Search by username...">
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title text-white mb-3"><i class="fas fa-filter me-2"></i>Filter by Device</h5>
-                    <select id="deviceFilter" class="form-select bg-dark text-white border-secondary">
-                        <option value="" selected>All Devices</option>
-                        <!-- Device options will be populated by JavaScript -->
-                    </select>
-                </div>
-            </div>
-        </div>
+
+    <!-- Stat cards (clickable quick filters) -->
+    <div class="ap-stats">
+        <div class="ap-stat" data-qf="all"><div class="num" id="stTotal">0</div><div class="lbl">Total</div><i class="fas fa-layer-group ico"></i></div>
+        <div class="ap-stat" data-qf="active"><div class="num" style="color:var(--ap-green)" id="stActive">0</div><div class="lbl">Active</div><i class="fas fa-circle-check ico"></i></div>
+        <div class="ap-stat" data-qf="issues"><div class="num" style="color:var(--ap-amber)" id="stIssues">0</div><div class="lbl">Needs attention</div><i class="fas fa-triangle-exclamation ico"></i></div>
+        <div class="ap-stat" data-qf="mothers"><div class="num" style="color:#ffc94d" id="stMothers">0</div><div class="lbl">Mothers</div><i class="fas fa-crown ico"></i></div>
+        <div class="ap-stat" data-qf="warmup"><div class="num" style="color:var(--ap-accent)" id="stWarmup">0</div><div class="lbl">Warmup</div><i class="fas fa-fire ico"></i></div>
     </div>
-    
-    <!-- Accounts Table -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-dark">
-                    <h5 class="card-title text-white mb-0"><i class="fas fa-user-circle me-2"></i>Instagram Accounts</h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table id="accountsTable" class="table table-dark table-hover align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th onclick="sortTable(0)" class="cursor-pointer">
-                                        Username <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th onclick="sortTable(1)" class="cursor-pointer">
-                                        Device <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th onclick="sortTable(2)" class="cursor-pointer">
-                                        Runtime <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th onclick="sortTable(3)" class="cursor-pointer">
-                                        Followers <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th onclick="sortTable(4)" class="cursor-pointer">
-                                        Following <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th onclick="sortTable(5)" class="cursor-pointer">
-                                        Follow <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th onclick="sortTable(6)" class="cursor-pointer">
-                                        Unfollow <i class="fas fa-sort ms-1"></i>
-                                    </th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="accountsTableBody">
-                                <tr>
-                                    <td colspan="8" class="text-center">
-                                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                                        <span class="text-white">Loading accounts data...</span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+
+    <!-- Filters -->
+    <div class="ap-filters">
+        <div class="ap-search input-group">
+            <span class="input-group-text" style="background:var(--ap-surface-2);border:1px solid var(--ap-border);border-right:0;color:var(--ap-dim)"><i class="fas fa-search"></i></span>
+            <input type="text" id="apSearch" class="form-control" placeholder="Search username, device, tag…">
+        </div>
+        <select id="apDevice" class="form-select" style="width:auto"><option value="">All devices</option></select>
+        <select id="apStatus" class="form-select" style="width:auto"><option value="">All statuses</option></select>
+        <select id="apTag" class="form-select" style="width:auto"><option value="">All tags</option></select>
+        <select id="apType" class="form-select" style="width:auto">
+            <option value="">All types</option>
+            <option value="mother">Mothers only</option>
+            <option value="slave">Slaves only</option>
+            <option value="warmup">Warmup only</option>
+        </select>
+        <button class="ap-btn-ghost" id="apClear" onclick="apClearFilters()"><i class="fas fa-xmark me-1"></i>Clear</button>
+    </div>
+
+    <!-- Bulk-assign bar (appears when rows are selected) -->
+    <div id="apBulkBar" class="ap-bulkbar" style="display:none">
+        <span><b id="apSelCount">0</b> selected</span>
+        <div class="input-group input-group-sm" style="width:auto">
+            <span class="input-group-text"><i class="fas fa-tag me-1"></i>Assign to mother / tag</span>
+            <input id="apBulkTag" class="form-control" list="apTagOptions" placeholder="e.g. jagger" style="width:170px"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();apBulkAssign();}">
+            <button class="ap-btn" onclick="apBulkAssign()"><i class="fas fa-check"></i>Apply</button>
+        </div>
+        <button class="ap-btn-ghost" onclick="apClearSel()"><i class="fas fa-xmark me-1"></i>Clear selection</button>
+    </div>
+    <datalist id="apTagOptions"></datalist>
+
+    <!-- Table -->
+    <div class="ap-table-wrap">
+        <div class="table-responsive">
+            <table class="ap-table">
+                <thead>
+                    <tr>
+                        <th class="ap-check"><input type="checkbox" id="apCheckAll" onclick="apToggleAll(this.checked)" title="Select all shown"></th>
+                        <th data-sort="username">Account <span class="si">↕</span></th>
+                        <th data-sort="status">Status <span class="si">↕</span></th>
+                        <th data-sort="followers" class="text-end">Followers <span class="si">↕</span></th>
+                        <th data-sort="following" class="text-end">Following <span class="si">↕</span></th>
+                        <th data-sort="tag">Tag <span class="si">↕</span></th>
+                        <th data-sort="window">Window <span class="si">↕</span></th>
+                        <th data-sort="last_action_at">Last action <span class="si">↕</span></th>
+                        <th data-sort="last_post_at">Last post <span class="si">↕</span></th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="apBody">
+                    <tr><td colspan="10" class="text-center py-5 ap-muted">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading accounts…</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
-<!-- Account Details Modal -->
-<div class="modal fade" id="accountDetailsModal" tabindex="-1" aria-labelledby="accountDetailsTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content bg-dark text-white">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="accountDetailsTitle">Account Details</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="accountDetailsBody">
-                <!-- Account details will be populated by JavaScript -->
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-2"></i>Close
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Shared Account Detail panel component (offcanvas + JS).
+     Same component device-manager + mother-detail use — one source of truth. -->
+{% include "_account_panel.html" %}
 
-<!-- Remove Account Modal -->
-<div class="modal fade" id="removeAccountModal" tabindex="-1" aria-labelledby="removeAccountTitle" aria-hidden="true">
+<!-- Buy Followers Modal (JAP) -->
+<div class="modal fade" id="buyFollowersModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark text-white">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="removeAccountTitle">Remove Account</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p id="removeAccountConfirmText">Are you sure you want to remove this account?</p>
-                <form id="removeAccountForm">
-                    <input type="hidden" id="removeDeviceId">
-                    <input type="hidden" id="removeAccountName">
-                </form>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-2"></i>Cancel
-                </button>
-                <button type="button" class="btn btn-danger" id="confirmRemoveBtn" onclick="removeAccount()">
-                    <i class="fas fa-trash me-2"></i>Remove Account
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Buy Followers Modal -->
-<div class="modal fade" id="buyFollowersModal" tabindex="-1" role="dialog" aria-labelledby="buyFollowersModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="buyFollowersModalLabel">Buy Followers</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title"><i class="fas fa-user-plus me-2 text-success"></i>Buy Followers</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div id="buyFollowersError" class="alert alert-danger" style="display: none;"></div>
-                <div id="buyFollowersSuccess" class="alert alert-success" style="display: none;"></div>
-                
+                <div id="buyFollowersError" class="alert alert-danger" style="display:none;"></div>
+                <div id="buyFollowersSuccess" class="alert alert-success" style="display:none;"></div>
                 <form id="buyFollowersForm">
                     <input type="hidden" id="followerAccountId" name="accountId">
                     <input type="hidden" id="followerUsername" name="username">
-                    
-                    <div class="form-group mb-3">
+                    <div class="mb-3">
+                        <label class="form-label">Instagram Profile</label>
+                        <p id="buyFollowersAccountName" class="text-info mb-0">—</p>
+                    </div>
+                    <div class="mb-3">
                         <label for="followerService" class="form-label">Service</label>
-                        <select class="form-control bg-dark text-light border-secondary" id="followerService" name="service_id" required>
+                        <select class="form-select bg-dark text-light border-secondary" id="followerService" name="service_id" required>
                             <option value="">Loading services...</option>
                         </select>
-                        <small class="form-text text-muted">Select the follower service you want to use.</small>
                     </div>
-                    
-                    <div class="form-group mb-3">
+                    <div class="mb-3">
                         <label for="followerQuantity" class="form-label">Quantity</label>
                         <input type="number" class="form-control bg-dark text-light border-secondary" id="followerQuantity" name="quantity" min="1" required>
-                        <small id="quantityHelp" class="form-text text-muted">Enter the number of followers you want to purchase.</small>
-                    </div>
-                    
-                    <div class="form-group mb-3">
-                        <label class="form-label">Instagram Profile</label>
-                        <p id="buyFollowersAccountName" class="form-control-static text-info"></p>
+                        <small id="quantityHelp" class="form-text text-muted">Enter the number of followers.</small>
                     </div>
                 </form>
             </div>
@@ -194,318 +240,339 @@
     </div>
 </div>
 
-<!-- Toast Container -->
 <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
-<!-- Dashboard JavaScript -->
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-
-<!-- Buy Followers JavaScript -->
 <script>
-    let followerServices = [];
-    
-    // Fetch follower services when the page loads
-    document.addEventListener('DOMContentLoaded', function() {
-        fetchFollowerServices();
+// ════════════════════════════ ACCOUNTS PAGE ════════════════════════════
+let _apAccounts = [];
+let _apSort = { key: 'username', dir: 'asc' };
+let _apQuickFilter = 'all';
+let _apSel = new Set();   // selected account ids (for bulk tag-assign)
+
+function apEsc(s){ const d=document.createElement('div'); d.textContent = s==null?'':String(s); return d.innerHTML; }
+function apNum(n){ return (n==null?0:Number(n)).toLocaleString(); }
+
+// Relative time — DB timestamps are LOCAL time (no 'Z').
+function apAgo(ts){
+    if(!ts) return null;
+    const t = new Date(String(ts).replace(' ','T').replace('Z',''));
+    if(isNaN(t)) return null;
+    const s = Math.floor((Date.now()-t.getTime())/1000);
+    if(s<0) return 'now';
+    if(s<3600) return Math.max(1,Math.floor(s/60))+'m';
+    if(s<86400) return Math.floor(s/3600)+'h';
+    const d=Math.floor(s/86400);
+    if(d<30) return d+'d';
+    if(d<365) return Math.floor(d/30)+'mo';
+    return Math.floor(d/365)+'y';
+}
+function apAgoCell(ts, goodH, warnH){
+    const lbl = apAgo(ts);
+    if(!lbl) return '<span class="ap-muted">—</span>';
+    const h = (Date.now()-new Date(String(ts).replace(' ','T').replace('Z','')).getTime())/3600000;
+    const cls = h<=goodH?'text-success':(h<=warnH?'':'ap-muted');
+    const style = h<=goodH?'color:var(--ap-green)':(h<=warnH?'color:var(--ap-amber)':'');
+    return `<span style="${style}" title="${apEsc(ts)}">${lbl} ago</span>`;
+}
+function apStatusBadge(st){
+    const s=(st||'unknown'); const label=s.replace(/_/g,' ');
+    return `<span class="ap-badge b-${s}">${apEsc(label)}</span>`;
+}
+function apWindow(a){
+    if(!a.start_time && !a.end_time) return '<span class="ap-muted">—</span>';
+    const s=a.start_time, e=a.end_time;
+    if(String(s)==='0'&&String(e)==='0') return '<span class="ap-muted">off</span>';
+    return `<span class="ap-chip">${apEsc(s)}–${apEsc(e)}h</span>`;
+}
+function apDelta(d){
+    if(d==null) return '';
+    if(d>0) return `<span class="ap-delta-up">▲${d}</span>`;
+    if(d<0) return `<span class="ap-delta-down">▼${Math.abs(d)}</span>`;
+    return `<span class="ap-delta-zero">·</span>`;
+}
+const AP_ACT_ICON = { follow:'fa-user-plus', like:'fa-heart', comment:'fa-comment',
+    story:'fa-circle-notch', dm:'fa-paper-plane', reels:'fa-film', share:'fa-share' };
+function apActions(arr){
+    if(!arr||!arr.length) return '<span class="ap-muted" style="font-size:0.72rem">passive</span>';
+    return '<span class="ap-act-icons">'+arr.map(a=>`<i class="fas ${AP_ACT_ICON[a]||'fa-bolt'}" title="${a}"></i>`).join('')+'</span>';
+}
+
+// opts.silent = background auto-refresh: fetch + re-render WITHOUT the
+// loading-spinner flash (the table no longer "disappears" every 30s).
+function apLoad(opts){
+    opts = opts || {};
+    const body=document.getElementById('apBody');
+    if(!opts.silent){
+        body.innerHTML='<tr><td colspan="10" class="text-center py-5 ap-muted"><div class="spinner-border spinner-border-sm me-2"></div>Loading…</td></tr>';
+    }
+    fetch('/api/accounts/overview').then(r=>r.json()).then(data=>{
+        if(!data.success){ if(!opts.silent) body.innerHTML='<tr><td colspan="10" class="text-center py-4 text-danger">'+apEsc(data.error||'Failed')+'</td></tr>'; return; }
+        _apAccounts = data.accounts||[];
+        apRenderStats(data.summary||{});
+        apPopulateFilters();
+        apRender();
+    }).catch(e=>{ if(!opts.silent) body.innerHTML='<tr><td colspan="10" class="text-center py-4 text-danger">Error: '+apEsc(e.message)+'</td></tr>'; });
+}
+
+// Background refresh that SKIPS while the user is mid-interaction (inline tag
+// edit or an open modal) so it never yanks the table out from under them.
+function apAutoRefresh(){
+    if(document.querySelector('#apBody .ap-tag-input')) return;   // editing a tag
+    const m=document.getElementById('buyFollowersModal');
+    if(m && m.classList.contains('show')) return;                 // modal open
+    apLoad({silent:true});
+}
+
+function apRenderStats(s){
+    document.getElementById('stTotal').textContent = s.total||0;
+    document.getElementById('stActive').textContent = s.active||0;
+    document.getElementById('stIssues').textContent = s.issues||0;
+    document.getElementById('stMothers').textContent = s.mothers||0;
+    document.getElementById('stWarmup').textContent = s.warmup||0;
+}
+
+function apPopulateFilters(){
+    const devs=new Set(), tags=new Set(), stats=new Set();
+    _apAccounts.forEach(a=>{ if(a.device_name) devs.add(a.device_name); if(a.tag) tags.add(a.tag); if(a.status) stats.add(a.status); });
+    const fill=(id,items,cur)=>{ const el=document.getElementById(id); const v=el.value;
+        el.innerHTML='<option value="">'+el.options[0].text+'</option>'+[...items].sort().map(x=>`<option value="${apEsc(x)}">${apEsc(x)}</option>`).join('');
+        el.value=v; };
+    fill('apDevice',devs); fill('apStatus',stats); fill('apTag',tags);
+    // datalist for quick/bulk tag assign = existing tags + mother handles
+    const opts=new Set(tags);
+    _apAccounts.forEach(a=>{ if(a.is_mother && a.username) opts.add(a.username); });
+    const dl=document.getElementById('apTagOptions');
+    if(dl) dl.innerHTML=[...opts].sort().map(x=>`<option value="${apEsc(x)}">`).join('');
+}
+
+function apFiltered(){
+    const q=(document.getElementById('apSearch').value||'').toLowerCase().trim();
+    const dev=document.getElementById('apDevice').value;
+    const st=document.getElementById('apStatus').value;
+    const tag=document.getElementById('apTag').value;
+    const type=document.getElementById('apType').value;
+    let list=_apAccounts.filter(a=>{
+        if(q && !((a.username||'').toLowerCase().includes(q) || (a.device_name||'').toLowerCase().includes(q) || (a.tag||'').toLowerCase().includes(q))) return false;
+        if(dev && a.device_name!==dev) return false;
+        if(st && a.status!==st) return false;
+        if(tag && a.tag!==tag) return false;
+        if(type==='mother' && !a.is_mother) return false;
+        if(type==='slave' && a.is_mother) return false;
+        if(type==='warmup' && !a.warmup) return false;
+        // quick-filter from stat cards
+        if(_apQuickFilter==='active' && a.status!=='active') return false;
+        if(_apQuickFilter==='mothers' && !a.is_mother) return false;
+        if(_apQuickFilter==='warmup' && !a.warmup) return false;
+        if(_apQuickFilter==='issues' && !(a.status_issues>0 || a.health_events>0 || ['verification_required','2fa_required','login_failed','suspended','banned'].includes(a.status))) return false;
+        return true;
     });
-    
-    function fetchFollowerServices() {
-        fetch('/api/jap/services')
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    console.error('Error fetching services:', data.error);
-                    return;
-                }
-                
-                followerServices = data;
-                populateServicesDropdown();
-            })
-            .catch(error => {
-                console.error('Error fetching services:', error);
-            });
-    }
-    
-    function populateServicesDropdown() {
-        const dropdown = document.getElementById('followerService');
-        dropdown.innerHTML = '';
-        
-        if (!followerServices || followerServices.length === 0 || followerServices.error) {
-            dropdown.innerHTML = '<option value="">No services available or API key not configured</option>';
-            return;
-        }
-        
-        // Log all services for debugging
-        console.log('All services:', followerServices);
-        
-        // More flexible filtering for Instagram Followers
-        const instagramFollowerServices = followerServices.filter(service => {
-            const name = (service.name || '').toLowerCase();
-            const category = (service.category || '').toLowerCase();
-            const type = (service.type || '').toLowerCase();
-            
-            // Check for Instagram followers in various combinations
-            const isInstagramFollowers = 
-                // Check name contains both instagram and follower/followers
-                (name.includes('instagram') && (name.includes('follower') || name.includes('followers'))) ||
-                // Check if category is instagram and name or type contains follower
-                (category.includes('instagram') && (name.includes('follower') || name.includes('followers') || type.includes('follower'))) ||
-                // Check if name contains instagram and type is follower
-                (name.includes('instagram') && type.includes('follower')) ||
-                // Check if service is explicitly for Instagram
-                (name.includes('ig ') || name.includes('ig_') || name.startsWith('ig ')) && (name.includes('follower') || name.includes('followers'));
-                
-            return isInstagramFollowers;
-        });
-        
-        // If no Instagram services found, show all follower services as fallback
-        if (instagramFollowerServices.length === 0) {
-            console.log('No Instagram follower services found, showing all follower services');
-            
-            const allFollowerServices = followerServices.filter(service => {
-                const name = (service.name || '').toLowerCase();
-                const type = (service.type || '').toLowerCase();
-                
-                return name.includes('follower') || name.includes('followers') || type.includes('follower');
-            });
-            
-            if (allFollowerServices.length === 0) {
-                dropdown.innerHTML = '<option value="">No follower services available</option>';
-                return;
-            }
-            
-            dropdown.innerHTML = '<option value="">No Instagram Follower services found. Showing all follower services:</option>';
-            
-            allFollowerServices.forEach(service => {
-                const option = document.createElement('option');
-                option.value = service.service;
-                option.textContent = `${service.name} - $${service.rate} per 1000 (Min: ${service.min}, Max: ${service.max})`;
-                option.dataset.min = service.min;
-                option.dataset.max = service.max;
-                option.dataset.rate = service.rate;
-                
-                // Preselect service ID 8839
-                if (service.service == 8839) {
-                    option.selected = true;
-                }
-                
-                dropdown.appendChild(option);
-            });
-        } else {
-            // Sort Instagram follower services by rate (price)
-            instagramFollowerServices.sort((a, b) => parseFloat(a.rate) - parseFloat(b.rate));
-            
-            instagramFollowerServices.forEach(service => {
-                const option = document.createElement('option');
-                option.value = service.service;
-                option.textContent = `${service.name} - $${service.rate} per 1000 (Min: ${service.min}, Max: ${service.max})`;
-                option.dataset.min = service.min;
-                option.dataset.max = service.max;
-                option.dataset.rate = service.rate;
-                
-                // Preselect service ID 8839
-                if (service.service == 8839) {
-                    option.selected = true;
-                }
-                
-                dropdown.appendChild(option);
-            });
-        }
-        
-        // Update quantity help text based on selected service
-        updateQuantityHelp();
-    }
-    
-    function updateQuantityHelp() {
-        const serviceSelect = document.getElementById('followerService');
-        const quantityHelp = document.getElementById('quantityHelp');
-        const quantityInput = document.getElementById('followerQuantity');
-        
-        if (serviceSelect.selectedIndex > -1) {
-            const selectedOption = serviceSelect.options[serviceSelect.selectedIndex];
-            const min = selectedOption.dataset.min;
-            const max = selectedOption.dataset.max;
-            const rate = selectedOption.dataset.rate;
-            
-            if (min && max) {
-                quantityHelp.textContent = `Enter a value between ${min} and ${max}. Cost: $${rate} per 1000 followers.`;
-                quantityInput.min = min;
-                quantityInput.max = max;
-                
-                // Set a default value
-                if (!quantityInput.value || quantityInput.value < min) {
-                    quantityInput.value = min;
-                }
-            }
-        }
-    }
-    
-    // Add event listener for service selection change
-    document.addEventListener('DOMContentLoaded', function() {
-        const serviceSelect = document.getElementById('followerService');
-        if (serviceSelect) {
-            serviceSelect.addEventListener('change', updateQuantityHelp);
-        }
+    // sort
+    const k=_apSort.key, dir=_apSort.dir==='asc'?1:-1;
+    list.sort((a,b)=>{
+        let va,vb;
+        if(k==='window'){ va=parseInt(a.start_time)||0; vb=parseInt(b.start_time)||0; }
+        else if(k==='last_action_at'||k==='last_post_at'){ va=a[k]?new Date(String(a[k]).replace(' ','T')).getTime():0; vb=b[k]?new Date(String(b[k]).replace(' ','T')).getTime():0; }
+        else { va=a[k]; vb=b[k]; }
+        if(typeof va==='string') va=va.toLowerCase(); if(typeof vb==='string') vb=vb.toLowerCase();
+        if(va==null) va=0; if(vb==null) vb=0;
+        if(va<vb) return -1*dir; if(va>vb) return 1*dir; return 0;
     });
-    
-    // Function to submit the buy followers form
-    function submitBuyFollowers() {
-        console.log('Buy Followers button clicked');
-        
-        const form = document.getElementById('buyFollowersForm');
-        const formData = new FormData(form);
-        
-        // Set the username from the modal title
-        const username = document.getElementById('buyFollowersAccountName').textContent.trim();
-        formData.set('username', username);
-        
-        // Debug form data
-        console.log('Form data:');
-        for (let pair of formData.entries()) {
-            console.log(pair[0] + ': ' + pair[1]); 
-        }
-        
-        // Validate form
-        const serviceId = formData.get('service_id');
-        const quantity = formData.get('quantity');
-        
-        console.log('Validation:', { serviceId, quantity, username });
-        
-        if (!serviceId) {
-            showBuyFollowersError('Please select a service');
-            return;
-        }
-        
-        if (!quantity || quantity <= 0) {
-            showBuyFollowersError('Please enter a valid quantity');
-            return;
-        }
-        
-        // Show loading state
-        const submitButton = document.querySelector('#buyFollowersModal .modal-footer .btn-primary');
-        const originalButtonText = submitButton.textContent;
-        submitButton.textContent = 'Processing...';
-        submitButton.disabled = true;
-        
-        console.log('Submitting order to API...');
-        
-        // Submit order
-        fetch('/api/jap/order-followers', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            console.log('API response status:', response.status);
-            return response.json();
-        })
-        .then(data => {
-            console.log('API response data:', data);
-            if (data.error) {
-                showBuyFollowersError(data.error);
-            } else if (data.order) {
-                showBuyFollowersSuccess(`Order placed successfully! Order ID: ${data.order}`);
-                setTimeout(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('buyFollowersModal')).hide();
-                }, 3000);
-            } else {
-                showBuyFollowersError('Unknown error occurred');
-            }
-        })
-        .catch(error => {
-            console.error('Error placing order:', error);
-            showBuyFollowersError('Error placing order. Please try again later.');
-        })
-        .finally(() => {
-            // Reset button state
-            submitButton.textContent = originalButtonText;
-            submitButton.disabled = false;
+    return list;
+}
+
+function apRender(){
+    const list=apFiltered();
+    document.getElementById('apShowing').textContent=list.length;
+    const body=document.getElementById('apBody');
+    if(!list.length){ body.innerHTML='<tr><td colspan="10" class="text-center py-4 ap-muted">No accounts match the filters.</td></tr>'; apUpdateBulkBar(); return; }
+    body.innerHTML=list.map(a=>{
+        const crown = a.is_mother ? '<i class="fas fa-crown ap-crown" title="Mother account"></i>' : '';
+        const warm = a.warmup ? ' <span class="ap-chip ap-warm">warmup</span>' : '';
+        const issues = (a.status_issues>0||a.health_events>0)
+            ? ` <span class="ap-chip" style="background:rgba(232,99,122,0.13);color:var(--ap-red);border-color:rgba(232,99,122,0.3)" title="IG status warnings: ${a.status_issues}, health events: ${a.health_events}"><i class="fas fa-triangle-exclamation"></i> ${a.status_issues+a.health_events}</span>` : '';
+        const tag = a.tag
+            ? `<span class="ap-chip ap-tag ap-tag-edit" title="Click to change tag / mother">${apEsc(a.tag)}</span>`
+            : `<span class="ap-tag-add ap-tag-edit" title="Click to assign a tag / mother"><i class="fas fa-plus me-1"></i>tag</span>`;
+        const checked = _apSel.has(a.id) ? 'checked' : '';
+        return `<tr class="ap-row s-${a.status}">
+            <td class="ap-check"><input type="checkbox" data-id="${a.id}" ${checked} onclick="apToggleSel(${a.id}, this.checked)"></td>
+            <td>
+                <div class="ap-uname">${apEsc(a.username)}${crown}</div>
+                <div class="ap-dev"><i class="fas fa-mobile-screen me-1"></i>${apEsc(a.device_name)}</div>
+            </td>
+            <td>${apStatusBadge(a.status)}${issues}${warm}</td>
+            <td class="text-end">${apNum(a.followers)} ${apDelta(a.followers_delta)}</td>
+            <td class="text-end">${apNum(a.following)}</td>
+            <td onclick="apEditTag(${a.id}, this)">${tag}</td>
+            <td>${apWindow(a)}</td>
+            <td>${apAgoCell(a.last_action_at, 2, 24)}${a.today_actions?` <span class="ap-muted" style="font-size:0.7rem">(${a.today_actions})</span>`:''}</td>
+            <td>${apAgoCell(a.last_post_at, 48, 168)}</td>
+            <td style="white-space:nowrap">
+                <button class="ap-btn" onclick="apOpenDetail('${apEsc(a.device_serial)}','${apEsc(a.username)}')" title="Open account detail"><i class="fas fa-id-card"></i>Open</button>
+                <button class="ap-btn-ghost" title="Buy followers" onclick="apBuyFollowers('${apEsc(a.username)}', ${a.id})"><i class="fas fa-user-plus"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+    apUpdateBulkBar();
+}
+
+// ── Selection + bulk / quick tag assign ──
+function apToggleSel(id, on){ if(on) _apSel.add(id); else _apSel.delete(id); apUpdateBulkBar(); }
+function apToggleAll(on){
+    const ids=apFiltered().map(a=>a.id);
+    if(on) ids.forEach(i=>_apSel.add(i)); else ids.forEach(i=>_apSel.delete(i));
+    document.querySelectorAll('#apBody input[type=checkbox][data-id]').forEach(cb=>{ cb.checked=on; });
+    apUpdateBulkBar();
+}
+function apClearSel(){ _apSel.clear(); document.querySelectorAll('#apBody input[type=checkbox][data-id]').forEach(cb=>cb.checked=false); apUpdateBulkBar(); }
+function apUpdateBulkBar(){
+    const bar=document.getElementById('apBulkBar');
+    document.getElementById('apSelCount').textContent=_apSel.size;
+    bar.style.display=_apSel.size?'flex':'none';
+    // master checkbox state vs currently-shown rows
+    const shown=apFiltered().map(a=>a.id);
+    const selShown=shown.filter(i=>_apSel.has(i)).length;
+    const all=document.getElementById('apCheckAll');
+    if(all){ all.checked = shown.length>0 && selShown===shown.length; all.indeterminate = selShown>0 && selShown<shown.length; }
+}
+function apBulkAssign(){
+    const tag=(document.getElementById('apBulkTag').value||'').trim();
+    const ids=[..._apSel];
+    if(!ids.length) return;
+    if(!tag && !confirm('Clear the tag on '+ids.length+' account(s)?')) return;
+    apSetTag(ids, tag);
+}
+function apEditTag(id, td){
+    if(td.querySelector('input')) return;  // already editing
+    const a=_apAccounts.find(x=>x.id===id)||{}; const cur=a.tag||'';
+    td.innerHTML=`<input class="ap-tag-input" list="apTagOptions" value="${apEsc(cur)}" placeholder="tag / mother">`;
+    const inp=td.querySelector('input'); inp.focus(); inp.select();
+    let done=false;
+    const save=()=>{ if(done) return; done=true; const v=inp.value.trim(); if(v!==cur) apSetTag([id], v); else apRender(); };
+    inp.addEventListener('keydown', e=>{
+        if(e.key==='Enter'){ e.preventDefault(); save(); }
+        else if(e.key==='Escape'){ done=true; apRender(); }
+    });
+    inp.addEventListener('blur', save);
+}
+function apSetTag(ids, tag){
+    fetch('/api/accounts/set-tag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids,tag:tag})})
+      .then(r=>r.json()).then(d=>{
+        if(!d.success){ apToast(d.error||'Failed to set tag','error'); apRender(); return; }
+        ids.forEach(id=>{ const a=_apAccounts.find(x=>x.id===id); if(a) a.tag=tag; });
+        _apSel.clear();
+        apPopulateFilters(); apRender();
+        apToast(`Tagged ${d.updated} account${d.updated===1?'':'s'} → ${tag||'(cleared)'}`,'success');
+      }).catch(e=>{ apToast('Error: '+e.message,'error'); apRender(); });
+}
+function apToast(msg, type){
+    const c=document.getElementById('toastContainer'); if(!c) return;
+    const col=type==='error'?'#e8637a':(type==='success'?'#2ecc9b':'#7c6cf0');
+    const el=document.createElement('div');
+    el.style.cssText=`background:#1b1e27;border:1px solid ${col};color:#e9eaf1;padding:10px 14px;border-radius:10px;margin-top:8px;font-size:0.85rem;box-shadow:0 4px 14px rgba(0,0,0,.4)`;
+    el.innerHTML=`<i class="fas fa-${type==='error'?'circle-exclamation':'circle-check'} me-2" style="color:${col}"></i>${apEsc(msg)}`;
+    c.appendChild(el);
+    setTimeout(()=>{ el.style.transition='opacity .3s'; el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, 3500);
+}
+
+// Open the SHARED account-detail panel (offcanvas) directly — same component
+// the device-manager uses (from _account_panel.html + account_panel.js).
+// No iframe, no duplication: openAccountSettings(serial, username) is provided
+// by the shared account_panel.js.
+function apOpenDetail(serial, username){
+    if (typeof openAccountSettings === 'function') {
+        openAccountSettings(serial, username);
+    } else {
+        // Fallback if the shared component failed to load
+        window.location = `/device-manager/${encodeURIComponent(serial)}?account=${encodeURIComponent(username)}`;
+    }
+}
+
+function apClearFilters(){
+    ['apSearch','apDevice','apStatus','apTag','apType'].forEach(id=>{ const el=document.getElementById(id); if(el.tagName==='INPUT') el.value=''; else el.selectedIndex=0; });
+    _apQuickFilter='all';
+    document.querySelectorAll('.ap-stat').forEach(c=>c.classList.remove('active'));
+    apRender();
+}
+
+// Wiring
+document.addEventListener('DOMContentLoaded', function(){
+    apLoad();
+    setInterval(apAutoRefresh, 30000);  // silent refresh every 30s (no spinner flash)
+    ['apSearch','apDevice','apStatus','apTag','apType'].forEach(id=>{
+        document.getElementById(id).addEventListener('input', apRender);
+        document.getElementById(id).addEventListener('change', apRender);
+    });
+    document.querySelectorAll('table.ap-table thead th[data-sort]').forEach(th=>{
+        th.addEventListener('click', ()=>{
+            const k=th.dataset.sort;
+            if(_apSort.key===k) _apSort.dir = _apSort.dir==='asc'?'desc':'asc';
+            else { _apSort.key=k; _apSort.dir='asc'; }
+            document.querySelectorAll('table.ap-table thead th').forEach(h=>h.classList.remove('asc','desc'));
+            th.classList.add(_apSort.dir);
+            apRender();
         });
-    }
-    
-    function showBuyFollowersError(message) {
-        const errorDiv = document.getElementById('buyFollowersError');
-        errorDiv.textContent = message;
-        errorDiv.style.display = 'block';
-        document.getElementById('buyFollowersSuccess').style.display = 'none';
-    }
-    
-    function showBuyFollowersSuccess(message) {
-        const successDiv = document.getElementById('buyFollowersSuccess');
-        successDiv.textContent = message;
-        successDiv.style.display = 'block';
-        document.getElementById('buyFollowersError').style.display = 'none';
-    }
-</script>
+    });
+    document.querySelectorAll('.ap-stat').forEach(card=>{
+        card.addEventListener('click', ()=>{
+            const qf=card.dataset.qf;
+            if(_apQuickFilter===qf){ _apQuickFilter='all'; card.classList.remove('active'); }
+            else {
+                _apQuickFilter=qf;
+                document.querySelectorAll('.ap-stat').forEach(c=>c.classList.remove('active'));
+                if(qf!=='all') card.classList.add('active');
+            }
+            apRender();
+        });
+    });
+});
 
-<!-- Account Health Badges Overlay -->
-<style>
-    .health-badge-inline {
-        display: inline-block;
-        padding: 2px 7px;
-        border-radius: 5px;
-        font-size: .72rem;
-        font-weight: 600;
-        margin-left: 6px;
-        vertical-align: middle;
-    }
-    .hb-active             { background: #28a74522; color: #28a745; }
-    .hb-logged_out         { background: #6c757d33; color: #adb5bd; }
-    .hb-suspended          { background: #dc354533; color: #dc3545; }
-    .hb-verification_required { background: #ffc10733; color: #ffc107; }
-    .hb-2fa_required       { background: #fd7e1433; color: #fd7e14; }
-    .hb-action_blocked     { background: #dc354522; color: #e06070; }
-    .hb-replaced           { background: #6c757d22; color: #6c757d; }
-</style>
-<script>
-// Overlay health badges on account rows after they render.
-// Polls every 10s + runs on initial load after a short delay.
-(function() {
-    const STATUS_ICONS = {
-        active: '🟢', logged_out: '⚫', suspended: '🔴',
-        verification_required: '🟡', '2fa_required': '🟠',
-        action_blocked: '🔴', replaced: '⚪',
-    };
-
-    function applyHealthBadges() {
-        fetch('/api/account-status-badges')
-            .then(r => r.json())
-            .then(badges => {
-                // Build lookup: username → status
-                const lookup = {};
-                badges.forEach(b => { lookup[b.username] = b.status; });
-
-                // Find all account rows in the table
-                const rows = document.querySelectorAll('#accountsTableBody tr');
-                rows.forEach(row => {
-                    const strong = row.querySelector('td:first-child strong');
-                    if (!strong) return;
-                    const username = strong.textContent.trim();
-                    const status = lookup[username];
-                    if (!status || status === 'active') {
-                        // Remove any old badge
-                        const old = strong.parentElement.querySelector('.health-badge-inline');
-                        if (old) old.remove();
-                        return;
-                    }
-
-                    // Add or update badge
-                    let badge = strong.parentElement.querySelector('.health-badge-inline');
-                    if (!badge) {
-                        badge = document.createElement('span');
-                        badge.className = 'health-badge-inline';
-                        strong.parentElement.appendChild(badge);
-                    }
-                    const icon = STATUS_ICONS[status] || '❓';
-                    badge.className = 'health-badge-inline hb-' + status;
-                    badge.textContent = icon + ' ' + status.replace(/_/g, ' ');
-                });
-            })
-            .catch(() => {});
-    }
-
-    // Run after dashboard.js has loaded accounts (1s delay), then every 15s
-    setTimeout(applyHealthBadges, 1500);
-    setInterval(applyHealthBadges, 15000);
-})();
+// ════════════════════════════ BUY FOLLOWERS (JAP) ════════════════════════════
+let followerServices = [];
+function apBuyFollowers(username, accountId){
+    document.getElementById('buyFollowersAccountName').textContent = '@'+username;
+    document.getElementById('followerUsername').value = username;
+    document.getElementById('followerAccountId').value = accountId;
+    document.getElementById('buyFollowersError').style.display='none';
+    document.getElementById('buyFollowersSuccess').style.display='none';
+    if(!followerServices.length) fetchFollowerServices();
+    new bootstrap.Modal(document.getElementById('buyFollowersModal')).show();
+}
+function fetchFollowerServices(){
+    fetch('/api/jap/services').then(r=>r.json()).then(data=>{
+        if(data && !data.error){ followerServices=data; populateServicesDropdown(); }
+        else { document.getElementById('followerService').innerHTML='<option value="">No services / API key not configured</option>'; }
+    }).catch(()=>{ document.getElementById('followerService').innerHTML='<option value="">Failed to load services</option>'; });
+}
+function populateServicesDropdown(){
+    const dd=document.getElementById('followerService'); dd.innerHTML='';
+    if(!followerServices||!followerServices.length){ dd.innerHTML='<option value="">No services available</option>'; return; }
+    const fs=followerServices.filter(s=>{ const n=(s.name||'').toLowerCase(); const t=(s.type||'').toLowerCase(); return n.includes('follower')||t.includes('follower'); });
+    const use = fs.length?fs:followerServices;
+    use.sort((a,b)=>parseFloat(a.rate)-parseFloat(b.rate));
+    use.forEach(s=>{ const o=document.createElement('option'); o.value=s.service; o.textContent=`${s.name} — $${s.rate}/1k (min ${s.min}, max ${s.max})`; o.dataset.min=s.min; o.dataset.max=s.max; o.dataset.rate=s.rate; if(s.service==8839) o.selected=true; dd.appendChild(o); });
+    updateQuantityHelp();
+}
+function updateQuantityHelp(){
+    const sel=document.getElementById('followerService'); const help=document.getElementById('quantityHelp'); const qty=document.getElementById('followerQuantity');
+    if(sel.selectedIndex>-1){ const o=sel.options[sel.selectedIndex]; const mn=o.dataset.min,mx=o.dataset.max,rt=o.dataset.rate;
+        if(mn&&mx){ help.textContent=`Between ${mn} and ${mx}. Cost: $${rt}/1000.`; qty.min=mn; qty.max=mx; if(!qty.value||qty.value<mn) qty.value=mn; } }
+}
+function submitBuyFollowers(){
+    const form=document.getElementById('buyFollowersForm'); const fd=new FormData(form);
+    fd.set('username', document.getElementById('followerUsername').value);
+    const sid=fd.get('service_id'), qty=fd.get('quantity');
+    if(!sid){ apBF_err('Please select a service'); return; }
+    if(!qty||qty<=0){ apBF_err('Please enter a valid quantity'); return; }
+    const btn=document.querySelector('#buyFollowersModal .modal-footer .btn-primary'); const t=btn.textContent; btn.textContent='Processing...'; btn.disabled=true;
+    fetch('/api/jap/order-followers',{method:'POST',body:fd}).then(r=>r.json()).then(data=>{
+        if(data.error) apBF_err(data.error);
+        else if(data.order){ apBF_ok('Order placed! ID: '+data.order); setTimeout(()=>bootstrap.Modal.getInstance(document.getElementById('buyFollowersModal')).hide(),2500); }
+        else apBF_err('Unknown error');
+    }).catch(()=>apBF_err('Error placing order')).finally(()=>{ btn.textContent=t; btn.disabled=false; });
+}
+function apBF_err(m){ const e=document.getElementById('buyFollowersError'); e.textContent=m; e.style.display='block'; document.getElementById('buyFollowersSuccess').style.display='none'; }
+function apBF_ok(m){ const e=document.getElementById('buyFollowersSuccess'); e.textContent=m; e.style.display='block'; document.getElementById('buyFollowersError').style.display='none'; }
+document.addEventListener('DOMContentLoaded', function(){ const s=document.getElementById('followerService'); if(s) s.addEventListener('change', updateQuantityHelp); });
 </script>
 {% endblock %}

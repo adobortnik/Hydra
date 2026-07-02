@@ -395,7 +395,7 @@ def navigate_to_profile(device):
 
         profile_clicked = False
         for selector in profile_selectors:
-            if selector.exists(timeout=5):
+            if selector.wait(timeout=5):
                 selector.click()
                 print("Clicked on profile tab")
                 profile_clicked = True
@@ -431,7 +431,7 @@ def navigate_to_edit_profile(device):
 
         edit_clicked = False
         for selector in edit_profile_selectors:
-            if selector.exists(timeout=5):
+            if selector.wait(timeout=5):
                 selector.click()
                 print("Clicked 'Edit profile' button")
                 edit_clicked = True
@@ -440,7 +440,7 @@ def navigate_to_edit_profile(device):
         if not edit_clicked:
             print("Edit profile button not found, searching more broadly...")
             # Try to find any button with "Edit" in it
-            if device(textContains="Edit").exists(timeout=3):
+            if device(textContains="Edit").wait(timeout=3):
                 device(textContains="Edit").click()
                 edit_clicked = True
 
@@ -477,7 +477,7 @@ def change_profile_picture(device):
 
         picture_clicked = False
         for selector in picture_selectors:
-            if selector.exists(timeout=5):
+            if selector.wait(timeout=5):
                 selector.click()
                 print(f"Clicked: {selector.info.get('text', 'profile picture element')}")
                 picture_clicked = True
@@ -493,19 +493,19 @@ def change_profile_picture(device):
         time.sleep(2)
 
         # Look for photo selection options
-        if device(text="New profile picture").exists(timeout=3):
+        if device(text="New profile picture").wait(timeout=3):
             device(text="New profile picture").click()
             print("Selected 'New profile picture'")
-        elif device(text="Select from gallery").exists(timeout=3):
+        elif device(text="Select from gallery").wait(timeout=3):
             device(text="Select from gallery").click()
             print("Selected 'Select from gallery'")
-        elif device(text="Select from Gallery").exists(timeout=3):
+        elif device(text="Select from Gallery").wait(timeout=3):
             device(text="Select from Gallery").click()
             print("Selected 'Select from Gallery'")
-        elif device(text="Choose from Library").exists(timeout=3):
+        elif device(text="Choose from Library").wait(timeout=3):
             device(text="Choose from Library").click()
             print("Selected 'Choose from Library'")
-        elif device(textContains="Gallery").exists(timeout=3):
+        elif device(textContains="Gallery").wait(timeout=3):
             device(textContains="Gallery").click()
             print("Selected gallery option")
         else:
@@ -532,7 +532,7 @@ def edit_username(device, new_username=None):
         # Strategy: Use dump hierarchy and find the username field by looking at the structure
         try:
             # Get the screen bounds for the "Username" label
-            if device(text="Username").exists(timeout=3):
+            if device(text="Username").wait(timeout=3):
                 username_label_bounds = device(text="Username").info['bounds']
                 print(f"Found 'Username' label at bounds: {username_label_bounds}")
 
@@ -559,7 +559,7 @@ def edit_username(device, new_username=None):
             ]
 
             for selector in username_selectors:
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     selector.click()
                     print("Clicked Username field using fallback - navigating to username edit screen")
                     username_found = True
@@ -581,7 +581,7 @@ def edit_username(device, new_username=None):
 
         edit_text_found = False
         for selector in edit_text_selectors:
-            if selector.exists(timeout=5):
+            if selector.wait(timeout=5):
                 selector.click()
                 print("Found username EditText field")
                 edit_text_found = True
@@ -597,7 +597,7 @@ def edit_username(device, new_username=None):
                     # First, get the EditText element to work with
                     edit_field = None
                     for selector in edit_text_selectors:
-                        if selector.exists(timeout=2):
+                        if selector.wait(timeout=2):
                             edit_field = selector
                             break
 
@@ -607,7 +607,7 @@ def edit_username(device, new_username=None):
                         time.sleep(0.5)
 
                         # Try to find and click "Select all" if it appears
-                        if device(text="Select all").exists(timeout=1):
+                        if device(text="Select all").wait(timeout=1):
                             device(text="Select all").click()
                             time.sleep(0.3)
 
@@ -650,7 +650,7 @@ def edit_bio(device, new_bio=None):
 
         try:
             # Method 1: Find "Bio" label and click below it
-            if device(text="Bio").exists(timeout=3):
+            if device(text="Bio").wait(timeout=3):
                 bio_label_bounds = device(text="Bio").info['bounds']
                 print(f"Found 'Bio' label at bounds: {bio_label_bounds}")
 
@@ -680,7 +680,7 @@ def edit_bio(device, new_bio=None):
                 ]
 
                 for selector in bio_text_selectors:
-                    if selector.exists(timeout=2):
+                    if selector.wait(timeout=2):
                         selector.click()
                         print("Clicked bio text/row to navigate to edit screen")
                         bio_navigation_found = True
@@ -706,7 +706,7 @@ def edit_bio(device, new_bio=None):
 
         edit_field = None
         for selector in edit_text_selectors:
-            if selector.exists(timeout=5):
+            if selector.wait(timeout=5):
                 edit_field = selector
                 edit_field.click()
                 print("Found bio EditText field")
@@ -727,7 +727,7 @@ def edit_bio(device, new_bio=None):
                 time.sleep(0.5)
 
                 # Try to find and click "Select all" if it appears
-                if device(text="Select all").exists(timeout=1):
+                if device(text="Select all").wait(timeout=1):
                     device(text="Select all").click()
                     time.sleep(0.3)
 
@@ -796,7 +796,7 @@ def save_profile_changes(device):
         ]
 
         for selector in save_selectors:
-            if selector.exists(timeout=5):
+            if selector.wait(timeout=5):
                 selector.click()
                 print("Profile changes saved")
                 time.sleep(2)

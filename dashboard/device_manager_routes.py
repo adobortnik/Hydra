@@ -302,10 +302,15 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
         today = _today()
         yesterday = _yesterday()
 
-    # Get base account info + followers/following from follower_snapshots (latest per account)
-    # snap_latest = most recent snapshot ever (fallback when no today snapshot)
-    # snap_today = today's latest snapshot (for delta calculation)
-    # snap_yesterday = yesterday's latest snapshot (for delta calculation)
+    # Day AFTER target_date — upper bound so snap_today only sees snapshots
+    # captured on or before the selected day (not future ones).
+    next_day = (datetime.strptime(today, '%Y-%m-%d')
+                + timedelta(days=1)).strftime('%Y-%m-%d')
+
+    # Get base account info + followers/following from follower_snapshots.
+    # snap_latest = most recent snapshot ever (fallback when nothing on/before date)
+    # snap_today  = latest snapshot AS OF end of target_date (value "on that day")
+    # snap_yesterday = latest snapshot AS OF end of (target_date - 1) (for delta)
     rows = conn.execute("""
         SELECT a.id, a.device_serial, a.username, a.status,
                a.start_time, a.end_time, a.instagram_package,
@@ -327,21 +332,21 @@ def _get_accounts_with_stats(conn, device_serial, target_date=None):
             SELECT account_id, followers, following,
                    ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY captured_at DESC) as rn
             FROM follower_snapshots
-            WHERE captured_at >= ?
+            WHERE captured_at < ?
         ) snap_today ON snap_today.account_id = a.id AND snap_today.rn = 1
         LEFT JOIN (
             SELECT account_id, followers, following,
                    ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY captured_at DESC) as rn
             FROM follower_snapshots
-            WHERE captured_at >= ? AND captured_at < ?
+            WHERE captured_at < ?
         ) snap_yesterday ON snap_yesterday.account_id = a.id AND snap_yesterday.rn = 1
         WHERE a.device_serial = ?
           AND COALESCE(a.status, '') != 'replaced'
         ORDER BY CAST(COALESCE(a.start_time, '0') AS INTEGER), a.username
-    """, (today, yesterday, today, device_serial)).fetchall()
+    """, (next_day, today, device_serial)).fetchall()
 
     # Get action counts for the target date from action_history
-    next_day = (datetime.strptime(today, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+    # (next_day already computed above)
     action_counts = conn.execute("""
         SELECT username, action_type, COUNT(*) as cnt
         FROM action_history
@@ -1688,3 +1693,107 @@ def api_bulk_set_profile_link():
         return jsonify({'success': True, 'tasks_created': tasks_created})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@device_manager_bp.route('/api/accounts/<int:account_id>/rename', methods=['POST'])
+def api_rename_account(account_id):
+    """
+    Rename an account's username in ALL Hydra DBs (metadata-only — does NOT
+    touch Instagram itself). Use when the operator renamed the IG handle
+    manually on-device and needs the dashboard to catch up.
+
+    Updates phone_farm.db:
+        accounts, action_history, account_sessions, follower_snapshots
+    And best-effort updates profile_automation.db:
+        profile_updates, profile_history
+
+    Body: { "new_username": "..." }
+    """
+    import os
+    import sqlite3 as _sql
+    data = request.get_json() or {}
+    new_username = (data.get('new_username') or '').strip()
+    if not new_username:
+        return jsonify({'success': False, 'error': 'new_username required'}), 400
+    if not all(c.isalnum() or c in '._' for c in new_username):
+        return jsonify({'success': False,
+                        'error': 'new_username may only contain a-z 0-9 . _'}), 400
+    if len(new_username) > 30:
+        return jsonify({'success': False,
+                        'error': 'username too long (Instagram limit is 30)'}), 400
+
+    conn = _get_conn()
+    try:
+        row = conn.execute(
+            "SELECT id, username, device_serial FROM accounts WHERE id = ?",
+            (account_id,)
+        ).fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': 'account not found'}), 404
+        old_username = row['username']
+        device_serial = row['device_serial']
+        if old_username == new_username:
+            return jsonify({'success': True, 'changed': False,
+                            'message': 'already set to that name'})
+
+        # Refuse if target name already exists somewhere
+        clash = conn.execute(
+            "SELECT id, device_serial FROM accounts WHERE username = ? AND id != ?",
+            (new_username, account_id)
+        ).fetchone()
+        if clash:
+            return jsonify({'success': False,
+                            'error': f'username "{new_username}" is already used by '
+                                     f'account #{clash["id"]} on {clash["device_serial"]}'}), 409
+
+        now = datetime.utcnow().isoformat()
+        updated = {}
+
+        # phone_farm.db — all the username text columns
+        for tbl in ('accounts', 'action_history', 'account_sessions',
+                    'follower_snapshots'):
+            try:
+                if tbl == 'accounts':
+                    r = conn.execute(
+                        "UPDATE accounts SET username = ?, updated_at = ? "
+                        "WHERE id = ?", (new_username, now, account_id))
+                else:
+                    r = conn.execute(
+                        f"UPDATE {tbl} SET username = ? "
+                        f"WHERE username = ? AND device_serial = ?",
+                        (new_username, old_username, device_serial))
+                updated[tbl] = r.rowcount
+            except Exception as e:
+                updated[tbl] = f'error: {e}'
+        conn.commit()
+
+        # profile_automation.db (best effort — separate DB)
+        pa_path = os.path.join(os.path.dirname(__file__), 'uiAutomator',
+                               'profile_automation.db')
+        pa_updated = {}
+        if os.path.exists(pa_path):
+            try:
+                pa = _sql.connect(pa_path)
+                for tbl, col in (('profile_updates', 'username'),
+                                 ('profile_history', 'username'),
+                                 ('device_accounts', 'current_username')):
+                    try:
+                        r = pa.execute(
+                            f"UPDATE {tbl} SET {col} = ? "
+                            f"WHERE {col} = ? AND device_serial = ?",
+                            (new_username, old_username, device_serial))
+                        pa_updated[tbl] = r.rowcount
+                    except Exception as e:
+                        pa_updated[tbl] = f'error: {e}'
+                pa.commit()
+                pa.close()
+            except Exception as e:
+                pa_updated['_open_error'] = str(e)
+
+        return jsonify({
+            'success': True, 'changed': True,
+            'old_username': old_username, 'new_username': new_username,
+            'phone_farm_db': updated, 'profile_automation_db': pa_updated,
+        })
+    finally:
+        conn.close()

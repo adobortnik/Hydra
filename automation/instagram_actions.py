@@ -207,6 +207,15 @@ class InstagramActions:
                 "complete the captcha",
                 "prove you're not a robot",
                 "automated behavior",
+                # "Choose a way to recover" account-lockout screen (seen on
+                # CRAIG 2 / 192.168.132.102, 2026-06-01). IG locked the account
+                # and the only recovery path is a code to a contact method
+                # (email/phone) we usually don't own on farm accounts → no
+                # automated way through. Flag verification_required so the bot
+                # SKIPS it instead of looping on _attempt_login() forever.
+                # Full phrases to avoid false positives.
+                "we locked your account to protect you",
+                "choose a way to recover",
             ]
             for kw in verification_kw:
                 if kw in xml_lower:
@@ -611,6 +620,28 @@ class InstagramActions:
                 pass
             return False
 
+    def is_account_lockout_screen(self, xml_lower=None):
+        """True if the 'Choose a way to recover' / 'We locked your account'
+        account-lockout modal is on screen.
+
+        This modal overlays the normal logged-in UI (home/profile nav stays
+        visible underneath) and has a "Continue" button that, if clicked,
+        ADVANCES IG's account-recovery flow — it sends a verification code to
+        a contact method (email/phone) we usually don't control on farm
+        accounts, and per the modal text "will replace all existing login and
+        contact info on your account". So it must NEVER be clicked. The caller
+        should flag the account verification_required and skip it.
+
+        Seen on CRAIG 2 / 192.168.132.102 (2026-06-01).
+        """
+        try:
+            if xml_lower is None:
+                xml_lower = self.device.dump_hierarchy().lower()
+            return ("we locked your account to protect you" in xml_lower or
+                    "choose a way to recover" in xml_lower)
+        except Exception:
+            return False
+
     def dismiss_post_login_modals(self, max_attempts=8):
         """
         Dismiss any post-login modals — contacts, notifications, save login,
@@ -623,6 +654,17 @@ class InstagramActions:
             dismissed_count = 0
             for attempt in range(max_attempts):
                 time.sleep(1)
+
+                # DANGER GUARD: the account-lockout "Choose a way to recover"
+                # modal must NEVER be dismissed/clicked — its Continue button
+                # advances IG account recovery (see is_account_lockout_screen).
+                # Bail out so the caller's post-dismiss re-detect flags the
+                # account verification_required instead of clicking through it.
+                if self.is_account_lockout_screen():
+                    log.warning("[%s] Account-lockout 'recover' modal present "
+                                "— aborting dismiss, NOT clicking Continue",
+                                self.device_serial)
+                    break
 
                 # Ads choice modal ("Make a choice about your ads" + "Get started")
                 xml_check_ads = self.device.dump_hierarchy().lower()

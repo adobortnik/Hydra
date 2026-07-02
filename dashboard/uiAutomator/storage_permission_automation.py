@@ -162,7 +162,7 @@ class StoragePermissionAutomation:
             ]
 
             for i, selector in enumerate(add_button_selectors, 1):
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print(f"✓ Found add button (selector #{i})")
                     selector.click()
                     print("✓ Clicked add button")
@@ -215,7 +215,7 @@ class StoragePermissionAutomation:
             ]
 
             for i, selector in enumerate(allow_selectors, 1):
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print(f"✓ Found 'Allow' button (selector #{i})")
                     selector.click()
                     print("✓ Clicked 'Allow' for photos/media access")
@@ -236,7 +236,7 @@ class StoragePermissionAutomation:
             ]
 
             for i, selector in enumerate(while_using_selectors, 1):
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print(f"✓ Found 'While using the app' button (selector #{i})")
                     selector.click()
                     print("✓ Clicked 'While using the app' for camera access")
@@ -246,7 +246,7 @@ class StoragePermissionAutomation:
                 # If "While using the app" not found, try "Allow" again
                 print("⚠ 'While using the app' not found, trying 'Allow'...")
                 for selector in allow_selectors:
-                    if selector.exists(timeout=2):
+                    if selector.wait(timeout=2):
                         print("✓ Found 'Allow' button")
                         selector.click()
                         print("✓ Clicked 'Allow'")

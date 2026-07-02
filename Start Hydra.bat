@@ -16,7 +16,13 @@ echo.
 start "" cmd /c "timeout /t 6 /nobreak >nul & start http://localhost:5055"
 
 :: Run the watchdog (auto-restarts on crash)
-python -u run_dashboard.py
+:: Prefer Python 3.13 explicitly; fall back to plain `python` if py launcher not present.
+where py >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    py -3.13 -u run_dashboard.py
+) else (
+    python -u run_dashboard.py
+)
 
 :: If we get here, something went wrong
 echo.

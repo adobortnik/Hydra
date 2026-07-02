@@ -509,6 +509,150 @@ class IGController:
     # -----------------------------------------------------------------------
     # Popup Dismissal
     # -----------------------------------------------------------------------
+    def _dismiss_ads_choice_modal(self) -> bool:
+        """
+        Click through Meta's EU "process your data for ads" consent flow.
+
+        This modal is account-bound (shown once per account until completed) and
+        blocks everything until done. Flow captured live 2026-06 on the
+        com.facebook.privacy.consent.bloks ... InstagramConsentFlowHostActivity:
+          1. "Get started"
+          2. SELECT the radio "Use free of charge with ads"  ->  "Continue"
+             (Continue stays DISABLED until that option is selected — the old
+              handler never selected it and got stuck here, then falsely
+              reported success because its verify-string no longer matched)
+          3. "Agree"  (agree to Meta processing your data)
+          4. "OK"     (manage your ad experience -> keep personalized)
+          -> back to the feed.
+
+        Loop-based so it survives screen reordering / A-B variants and entering
+        the flow partway through. Coordinate taps (clone apps drop element
+        clicks). Returns True once we leave the consent activity, False if a
+        screen has no known button (caller retries next cycle).
+        """
+        CONSENT_ACT = 'InstagramConsentFlowHostActivity'
+
+        def _tap(sel):
+            try:
+                if sel.exists:
+                    b = sel.info['bounds']
+                    self.device.click((b['left'] + b['right']) // 2,
+                                      (b['top'] + b['bottom']) // 2)
+                    return True
+            except Exception:
+                pass
+            return False
+
+        try:
+            for step in range(12):
+                try:
+                    act = (self.device.app_current() or {}).get('activity', '') or ''
+                except Exception:
+                    act = ''
+                xl = (self.dump_xml(f"consent_{step}") or '').lower()
+                in_consent = (CONSENT_ACT in act
+                              or 'process your data for ads' in xl
+                              or 'free of charge with ads' in xl
+                              or 'manage your ad experience' in xl)
+                if not in_consent:
+                    log.info("[%s] Consent flow cleared after %d step(s)",
+                             self.device_serial, step)
+                    return True
+
+                acted = False
+                if _tap(self.device(text="Get started")):
+                    log.info("[%s] consent: Get started", self.device_serial)
+                    acted = True
+                elif self.device(text="Use free of charge with ads").exists:
+                    # MUST select the option before Continue enables
+                    _tap(self.device(text="Use free of charge with ads"))
+                    time.sleep(1.2)
+                    _tap(self.device(text="Continue"))
+                    log.info("[%s] consent: free-with-ads + Continue",
+                             self.device_serial)
+                    acted = True
+                elif _tap(self.device(text="Agree")):
+                    log.info("[%s] consent: Agree", self.device_serial)
+                    acted = True
+                elif _tap(self.device(text="OK")):
+                    log.info("[%s] consent: OK", self.device_serial)
+                    acted = True
+                elif _tap(self.device(textContains="Continue with personalized")):
+                    log.info("[%s] consent: Continue personalized",
+                             self.device_serial)
+                    acted = True
+                else:
+                    # older / variant builds — generic confirmations
+                    for t in ("Continue", "Confirm", "Done", "Agree and continue"):
+                        if _tap(self.device(text=t)):
+                            log.info("[%s] consent: generic %r",
+                                     self.device_serial, t)
+                            acted = True
+                            break
+
+                if not acted:
+                    log.warning("[%s] consent: no known button on this screen",
+                                self.device_serial)
+                    return False
+                time.sleep(3)
+
+            log.warning("[%s] consent flow not cleared after 12 steps",
+                        self.device_serial)
+            return False
+        except Exception as e:
+            log.error("[%s] consent flow dismissal crashed: %s",
+                      self.device_serial, e)
+            return False
+
+    def _dismiss_cookies_modal(self) -> bool:
+        """IG's EU cookies consent (a WEBVIEW): "Allow the use of cookies from
+        Instagram in this browser?" with buttons "Allow all cookies" /
+        "Decline optional cookies". We tap **Decline optional cookies** (privacy-
+        preserving AND it unblocks the bot). Webview buttons drop element clicks,
+        so we coordinate-tap the element bounds; raw-XML bounds as a last resort."""
+        def _tap_sel(sel):
+            try:
+                if sel.exists(timeout=1):
+                    b = sel.info['bounds']
+                    self.device.click((b['left'] + b['right']) // 2,
+                                      (b['top'] + b['bottom']) // 2)
+                    return True
+            except Exception:
+                pass
+            return False
+
+        # 1) selector-based (text, then content-desc) — coordinate tap
+        for sel in (self.device(text="Decline optional cookies"),
+                    self.device(textContains="Decline optional"),
+                    self.device(descriptionContains="Decline optional"),
+                    self.device(descriptionContains="Decline optional cookies")):
+            if _tap_sel(sel):
+                log.info("[%s] Cookies modal: declined optional (selector)",
+                         self.device_serial)
+                time.sleep(2)
+                return True
+
+        # 2) raw-XML fallback: any node whose text/content-desc contains
+        # "Decline optional" → tap its bounds centre (bounds is the last attr).
+        try:
+            xml = self.dump_xml("cookies_modal") or ''
+            m = re.search(
+                r'<node[^>]*(?:text|content-desc)="[^"]*[Dd]ecline optional[^"]*"'
+                r'[^>]*bounds="(\[\d+,\d+\]\[\d+,\d+\])"', xml)
+            if m:
+                cx, cy = self._bounds_center(m.group(1))
+                self.device.click(cx, cy)
+                log.info("[%s] Cookies modal: declined optional (xml bounds)",
+                         self.device_serial)
+                time.sleep(2)
+                return True
+        except Exception as e:
+            log.debug("[%s] cookies xml fallback failed: %s", self.device_serial, e)
+
+        log.warning("[%s] Cookies modal detected but 'Decline optional' not "
+                    "found/tappable", self.device_serial)
+        return False
+
     def dismiss_popups(self, max_attempts: int = 5) -> int:
         """
         Dismiss any modals/popups/notifications.
@@ -520,6 +664,36 @@ class IGController:
             xml = self.dump_xml(f"dismiss_popup_{attempt}")
             if not xml:
                 break
+
+            # --- Ads choice (GDPR) multi-step modal — handle FIRST since it
+            # blocks every other interaction until completed. ---
+            xml_lower = xml.lower()
+            if ('make a choice about your ads' in xml_lower or
+                'choice about your ads' in xml_lower or
+                'choose if you see ads' in xml_lower or
+                'process your data for ads' in xml_lower or   # current EU flow intro
+                'free of charge with ads' in xml_lower or     # subscribe/free screen
+                'manage your ad experience' in xml_lower):    # final screen
+                if self._dismiss_ads_choice_modal():
+                    dismissed += 1
+                    time.sleep(1.5)
+                    continue
+                # If dismissal failed, fall through to regular popup logic
+                # — maybe simple "Not Now" is enough on this build.
+
+            # --- Cookies consent modal (EU webview) — handle BEFORE the generic
+            # button list so we tap "Decline optional cookies", never "Allow all". ---
+            if 'cookies' in xml_lower and (
+                    'decline optional' in xml_lower
+                    or 'allow all cookies' in xml_lower
+                    or 'use of cookies' in xml_lower
+                    or 'cookies on this' in xml_lower
+                    or 'cookies from instagram' in xml_lower):
+                if self._dismiss_cookies_modal():
+                    dismissed += 1
+                    time.sleep(1.5)
+                    continue
+                # else fall through (generic logic is unlikely to help here)
 
             # --- Instagram Location Services screen ---
             # IG shows "To use Location Services, allow Instagram to access"
@@ -764,27 +938,60 @@ class IGController:
         except Exception:
             return False
 
-    def launch_app(self) -> bool:
-        """Force-stop then launch our IG clone package for a clean start."""
-        try:
-            # Force-stop first to clear any bad state (white screen, frozen, etc.)
-            import subprocess
-            adb_serial = self.device_serial.replace('_', ':')
-            subprocess.run(
-                ['adb', '-s', adb_serial, 'shell', 'am', 'force-stop', self.package],
-                capture_output=True, timeout=5
-            )
-            time.sleep(1)
+    def launch_app(self, max_attempts: int = 3) -> bool:
+        """Force-stop then launch our IG clone package for a clean start.
 
-            self.device.app_start(self.package)
-            time.sleep(5)
-            return self.is_correct_app()
-        except Exception as e:
-            log.error("[%s] Failed to launch %s: %s", self.device_serial, self.package, e)
-            return False
+        Uses monkey-based app_start (GramAddict-proven reliable for IG clones —
+        plain `am start` can silently fail to bring the activity to foreground
+        on some Samsung builds). Retries up to `max_attempts` and verifies the
+        clone is actually in foreground (up to 10s per attempt) before
+        declaring success.
+        """
+        import subprocess
+        adb_serial = self.device_serial.replace('_', ':')
+        for attempt in range(1, max_attempts + 1):
+            try:
+                # Force-stop first to clear any bad state (white screen, frozen)
+                subprocess.run(
+                    ['adb', '-s', adb_serial, 'shell', 'am', 'force-stop', self.package],
+                    capture_output=True, timeout=5
+                )
+                time.sleep(1.5)
+
+                # use_monkey=True invokes 'monkey -p <pkg> -c android.intent.category.LAUNCHER 1'
+                # which is much more reliable than 'am start' for cloned IG packages
+                # that often have non-standard LAUNCHER activity registration.
+                try:
+                    self.device.app_start(self.package, use_monkey=True)
+                except TypeError:
+                    # older u2 without use_monkey kwarg → fall back
+                    self.device.app_start(self.package)
+
+                # Poll foreground up to 10s — IG clones cold-start slowly
+                for _ in range(20):
+                    if self.is_correct_app():
+                        log.info("[%s] Launched %s (attempt %d)",
+                                 self.device_serial, self.package, attempt)
+                        time.sleep(1)  # let initial screen settle
+                        return True
+                    time.sleep(0.5)
+
+                log.warning("[%s] Launch attempt %d: %s not in foreground "
+                            "after 10s — retrying",
+                            self.device_serial, attempt, self.package)
+            except Exception as e:
+                log.error("[%s] Launch attempt %d for %s crashed: %s",
+                          self.device_serial, attempt, self.package, e)
+        log.error("[%s] All %d launch attempts failed for %s",
+                  self.device_serial, max_attempts, self.package)
+        return False
 
     def ensure_app(self) -> bool:
-        """Ensure IG is running and in foreground."""
+        """Ensure IG is running and in foreground.
+        Returns True only if our package IS the foreground app at the end.
+        Callers MUST check the return value — proceeding when False leaves
+        us interacting with the launcher / wrong screen and every navigation
+        will fail downstream."""
         if self.is_correct_app():
             return True
         return self.launch_app()
@@ -1094,7 +1301,11 @@ class IGController:
                             continue
 
                 # Also try generic TextView match with coordinate click
+                # Try exact match first, then case-insensitive via textMatches
                 tv = self.device(className="android.widget.TextView", text=username)
+                if not tv.exists(timeout=1):
+                    tv = self.device(className="android.widget.TextView",
+                                     textMatches="(?i)^%s$" % username)
                 if tv.exists(timeout=2):
                     log.info("[%s] Found '%s' via TextView in Accounts tab (scroll %d)",
                             self.device_serial, username, scroll_round)
@@ -1112,9 +1323,14 @@ class IGController:
                     if self._verify_on_profile(target_lower):
                         return True
 
-                # Scroll down to load more results
+                # Scroll down to load more results (smaller scroll to not overshoot)
                 if scroll_round < 7:
-                    self.device.swipe(540, 1400, 540, 600, duration=0.3)
+                    screen_h = self.device.info.get('displayHeight', 1920)
+                    mid_x = self.device.info.get('displayWidth', 1080) // 2
+                    # Scroll ~40% of screen (not too aggressive)
+                    y_from = int(screen_h * 0.70)
+                    y_to = int(screen_h * 0.35)
+                    self.device.swipe(mid_x, y_from, mid_x, y_to, duration=0.3)
                     time.sleep(1.5)
 
         # --- Fallback 3: Deep link ---
@@ -1127,11 +1343,15 @@ class IGController:
             subprocess.run(
                 ['adb', '-s', self.adb_serial, 'shell', 'am', 'start',
                  '-a', 'android.intent.action.VIEW', '-d', deep_link,
-                 self.package_name],
+                 self.package],
                 capture_output=True, timeout=10
             )
-            time.sleep(4)
+            # Wait longer for profile to load via deep link
+            time.sleep(6)
             if self._verify_on_profile(target_lower):
+                # Wait for Follow button to appear (profile still loading)
+                self.device(resourceIdMatches=self._rid_match(
+                    'profile_header_follow_button')).wait(timeout=8)
                 log.info("[%s] Found '%s' via deep link", self.device_serial, username)
                 return True
             # Also try https link
@@ -1139,11 +1359,13 @@ class IGController:
             subprocess.run(
                 ['adb', '-s', self.adb_serial, 'shell', 'am', 'start',
                  '-a', 'android.intent.action.VIEW', '-d', https_link,
-                 self.package_name],
+                 self.package],
                 capture_output=True, timeout=10
             )
-            time.sleep(4)
+            time.sleep(6)
             if self._verify_on_profile(target_lower):
+                self.device(resourceIdMatches=self._rid_match(
+                    'profile_header_follow_button')).wait(timeout=8)
                 log.info("[%s] Found '%s' via https deep link", self.device_serial, username)
                 return True
         except Exception as e:
@@ -1494,52 +1716,85 @@ class IGController:
     # -----------------------------------------------------------------------
     def like_post(self) -> bool:
         """
-        Find and click the like button on the currently visible post.
+        Find and click the like button on the currently visible post or reel.
+        Supports both feed posts (row_feed_button_like) and reels (various IDs).
         Verifies the liked state changed.
         Returns True if successfully liked, False if already liked or not found.
         """
         xml = self.dump_xml("like_post")
 
-        # Find like button by resource ID
-        like_btns = self._find_all_in_xml(xml, resource_id='row_feed_button_like')
-        for btn in like_btns:
-            desc = btn.get('content_desc', '').lower()
+        # Detect if we're in reels viewer
+        is_reel = ('reel_viewer_root' in xml or 'reel_viewer_texture_view' in xml
+                    or 'clips_viewer' in xml)
+
+        # --- Try all known like button resource IDs ---
+        like_rids = ['row_feed_button_like', 'like_button', 'clips_like_button',
+                      'BottomSheet_like_button', 'reel_like_button']
+
+        for rid in like_rids:
+            like_btns = self._find_all_in_xml(xml, resource_id=rid)
+            for btn in like_btns:
+                desc = btn.get('content_desc', '').lower()
+                bounds = btn.get('bounds', '')
+
+                # Skip if already liked
+                if desc == 'liked' or 'unlike' in desc:
+                    log.debug("[%s] Post/reel already liked (via %s)", self.device_serial, rid)
+                    return False
+
+                if ('like' in desc or desc == '') and bounds:
+                    cx, cy = self._bounds_center(bounds)
+                    if cx > 0 and cy > 0:
+                        self.device.click(cx, cy)
+                        time.sleep(1.5)
+
+                        # Verify liked state
+                        xml2 = self.dump_xml("like_verify")
+                        for rid2 in like_rids:
+                            btns2 = self._find_all_in_xml(xml2, resource_id=rid2)
+                            for b2 in btns2:
+                                if b2.get('content_desc', '').lower() in ('liked', 'unlike'):
+                                    log.info("[%s] Successfully liked post/reel (via %s)",
+                                             self.device_serial, rid)
+                                    return True
+
+                        # For reels, sometimes state check is unreliable — trust the click
+                        if is_reel:
+                            log.info("[%s] Reel like clicked (via %s), trusting click",
+                                     self.device_serial, rid)
+                            return True
+
+                        log.warning("[%s] Like click didn't change state (via %s)",
+                                    self.device_serial, rid)
+                        return False
+
+        # --- Fallback: content_desc search for Like anywhere ---
+        like_descs = self._find_all_in_xml(xml, desc_pattern='Like')
+        for btn in like_descs:
             bounds = btn.get('bounds', '')
-
-            # Skip if already liked
-            if desc == 'liked' or 'unlike' in desc:
-                log.debug("[%s] Post already liked", self.device_serial)
-                return False
-
-            if desc == 'like' and bounds:
+            if bounds and btn.get('clickable', '').lower() == 'true':
                 cx, cy = self._bounds_center(bounds)
                 if cx > 0 and cy > 0:
                     self.device.click(cx, cy)
                     time.sleep(1.5)
+                    log.info("[%s] Liked via content_desc='Like' fallback", self.device_serial)
+                    return True
 
-                    # Verify liked state
-                    xml2 = self.dump_xml("like_verify")
-                    btns2 = self._find_all_in_xml(xml2, resource_id='row_feed_button_like')
-                    for b2 in btns2:
-                        if b2.get('content_desc', '').lower() == 'liked':
-                            log.info("[%s] Successfully liked post", self.device_serial)
-                            return True
-
-                    log.warning("[%s] Like click didn't change state", self.device_serial)
-                    return False
-
-        # Fallback: double-tap on the media
-        for rid in ['media_group', 'row_feed_photo_imageview']:
+        # --- Fallback: double-tap on the media ---
+        media_rids = ['media_group', 'row_feed_photo_imageview',
+                       'reel_viewer_texture_view', 'clips_viewer']
+        for rid in media_rids:
             media = self._find_in_xml(xml, resource_id=rid)
             if media and media.get('bounds'):
                 cx, cy = self._bounds_center(media['bounds'])
                 if cx > 0 and cy > 0:
                     self.device.double_click(cx, cy, 0.15)
                     time.sleep(1.5)
-                    log.info("[%s] Double-tapped to like post", self.device_serial)
+                    log.info("[%s] Double-tapped to like post/reel (via %s)",
+                             self.device_serial, rid)
                     return True
 
-        log.debug("[%s] No likeable post visible", self.device_serial)
+        log.debug("[%s] No likeable post/reel visible", self.device_serial)
         return False
 
     def is_post_liked(self) -> Optional[bool]:

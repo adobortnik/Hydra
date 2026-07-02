@@ -48,6 +48,10 @@ FARM_DIR = os.path.dirname(os.path.abspath(__file__))
 if FARM_DIR not in sys.path:
     sys.path.insert(0, FARM_DIR)
 
+# Wake-signal files: dashboard "Post NOW" endpoint drops one here to ask
+# this runner to skip the next sleep. Same dir used by the dashboard side.
+WAKE_DIR = os.path.join(FARM_DIR, 'runtime', 'wake')
+
 DB_PATH = os.path.join(FARM_DIR, "db", "phone_farm.db")
 LOG_DIR = os.path.join(FARM_DIR, "logs")
 
@@ -287,6 +291,26 @@ class DeviceRunner:
 
         self.log = logging.getLogger("run_device")
 
+        # Path to this device's wake-signal file (dashboard "Post NOW" drops
+        # one here; _sleep() consumes it to short-circuit the cooldown).
+        safe_serial = self.device_serial.replace(':', '_')
+        self._wake_file = os.path.join(WAKE_DIR, safe_serial + '.touch')
+
+    def _consume_wake(self):
+        """Returns True (and removes the wake file) if a wake signal exists
+        for this device. False otherwise. Used by _sleep to skip cooldown."""
+        try:
+            if os.path.exists(self._wake_file):
+                try:
+                    os.remove(self._wake_file)
+                except Exception:
+                    pass
+                self.log.info(f"{DIM}Wake signal received — skipping sleep{RESET}")
+                return True
+        except Exception:
+            pass
+        return False
+
     def stop(self):
         """Signal graceful stop."""
         self._running = False
@@ -424,10 +448,18 @@ class DeviceRunner:
                 self._sleep(cooldown)
 
     def _sleep(self, seconds):
-        """Sleep that respects _running flag (checks every second)."""
+        """Sleep that respects _running flag AND wake signals.
+        Checks both every second. A wake signal dropped at any point
+        (including BEFORE this sleep started — e.g. arrived while a cycle
+        was running) short-circuits the sleep immediately."""
+        # Consume any pre-existing wake (arrived during the previous cycle)
+        if self._consume_wake():
+            return
         for _ in range(int(seconds)):
             if not self._running:
-                break
+                return
+            if self._consume_wake():
+                return
             time.sleep(1)
 
     def print_summary(self):

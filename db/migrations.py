@@ -13,9 +13,27 @@ When adding a new table:
 
 import sqlite3
 import os
+import sys
 import logging
 
 log = logging.getLogger(__name__)
+
+
+def _full_schema():
+    """The COMPLETE table schema from init_db.py — the single source of truth for
+    table definitions. Imported (works even when obfuscated in client builds) so
+    ensure_schema creates EVERY table on update, not just the subset below. Returns
+    the SCHEMA string, or None if init_db can't be imported (falls back to
+    SCHEMA_TABLES)."""
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import init_db
+        return getattr(init_db, 'SCHEMA', None)
+    except Exception as e:
+        log.warning("Could not load full schema from init_db: %s", e)
+        return None
 
 DB_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'phone_farm.db'
@@ -40,31 +58,58 @@ CREATE TABLE IF NOT EXISTS devices (
 
 CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER,
+    device_serial TEXT,
     username TEXT NOT NULL,
     password TEXT,
     email TEXT,
-    phone TEXT,
-    device_serial TEXT,
     instagram_package TEXT DEFAULT 'com.instagram.android',
+    two_fa_token TEXT,
     status TEXT DEFAULT 'active',
-    proxy TEXT,
+    follow_enabled TEXT DEFAULT 'False',
+    unfollow_enabled TEXT DEFAULT 'False',
+    mute_enabled TEXT DEFAULT 'False',
+    like_enabled TEXT DEFAULT 'False',
+    comment_enabled TEXT DEFAULT 'False',
+    story_enabled TEXT DEFAULT 'False',
+    switchmode TEXT DEFAULT 'False',
+    start_time TEXT DEFAULT '0',
+    end_time TEXT DEFAULT '0',
+    follow_action TEXT DEFAULT '0',
+    unfollow_action TEXT DEFAULT '0',
+    random_action TEXT DEFAULT '30,60',
+    random_delay TEXT DEFAULT '30,60',
+    follow_delay TEXT DEFAULT '30',
+    unfollow_delay TEXT DEFAULT '30',
+    like_delay TEXT DEFAULT '0',
+    follow_limit_perday TEXT DEFAULT '0',
+    unfollow_limit_perday TEXT DEFAULT '0',
+    like_limit_perday TEXT DEFAULT '0',
+    unfollow_delay_day TEXT DEFAULT '3',
+    warmup INTEGER DEFAULT 0,
+    warmup_until TEXT DEFAULT NULL,
+    tag TEXT,
     followers INTEGER DEFAULT 0,
     following INTEGER DEFAULT 0,
     posts INTEGER DEFAULT 0,
     is_business_profile INTEGER DEFAULT 0,
     business_category TEXT,
-    start_time TEXT DEFAULT '0',
-    end_time TEXT DEFAULT '0',
-    follow_enabled INTEGER DEFAULT 0,
-    unfollow_enabled INTEGER DEFAULT 0,
-    like_enabled INTEGER DEFAULT 0,
-    comment_enabled INTEGER DEFAULT 0,
-    story_enabled INTEGER DEFAULT 0,
-    dm_enabled INTEGER DEFAULT 0,
-    share_enabled INTEGER DEFAULT 0,
-    reels_enabled INTEGER DEFAULT 0,
+    business_switched_at TEXT,
+    is_private INTEGER DEFAULT 0,
+    private_switched_at TEXT,
+    display_name TEXT,
+    display_name_set_at TEXT,
+    profile_link TEXT,
+    profile_link_title TEXT,
+    profile_link_set_at TEXT,
+    proxy TEXT,
+    dm_enabled TEXT DEFAULT 'False',
+    share_enabled TEXT DEFAULT 'False',
+    reels_enabled TEXT DEFAULT 'False',
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (device_id) REFERENCES devices(id),
+    UNIQUE(device_serial, username)
 );
 
 CREATE TABLE IF NOT EXISTS account_settings (
@@ -337,10 +382,43 @@ MIGRATIONS = [
     {'name': 'add_tag_to_accounts',
      'sql': "ALTER TABLE accounts ADD COLUMN tag TEXT",
      'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%tag %'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN device_id INTEGER",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%device_id%'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN two_fa_token TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%two_fa_token%'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN display_name TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%display_name %'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN display_name_set_at TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%display_name_set_at%'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN profile_link TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%profile_link %'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN profile_link_title TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%profile_link_title%'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN profile_link_set_at TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%profile_link_set_at%'"},
+    {'sql': "ALTER TABLE accounts ADD COLUMN business_switched_at TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%business_switched_at%'"},
     {'sql': "ALTER TABLE accounts ADD COLUMN is_private INTEGER DEFAULT 0",
      'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%is_private%'"},
     {'sql': "ALTER TABLE accounts ADD COLUMN private_switched_at TEXT",
      'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%private_switched_at%'"},
+
+    # Mother account flag (added 2026-05-01) — used by mothers dashboard
+    {'name': 'add_is_mother_to_accounts',
+     'sql': "ALTER TABLE accounts ADD COLUMN is_mother INTEGER DEFAULT 0",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%is_mother%'"},
+    {'name': 'idx_accounts_is_mother',
+     'sql': "CREATE INDEX IF NOT EXISTS idx_accounts_is_mother ON accounts(is_mother) WHERE is_mother=1",
+     'check': "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_accounts_is_mother'"},
+
+    # Account Status snapshot (Settings → Account Status sekcia v IG)
+    # JSON: {removed_content, recommendable, monetization, features_usable, captured_at}
+    {'name': 'add_account_status_json_to_accounts',
+     'sql': "ALTER TABLE accounts ADD COLUMN account_status_json TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%account_status_json%'"},
+    {'name': 'add_account_status_checked_at_to_accounts',
+     'sql': "ALTER TABLE accounts ADD COLUMN account_status_checked_at TEXT",
+     'check': "SELECT sql FROM sqlite_master WHERE name='accounts' AND sql LIKE '%account_status_checked_at%'"},
 
     # follower_snapshots — columns added after initial table creation
     {'name': 'add_device_serial_to_follower_snapshots',
@@ -360,11 +438,18 @@ def ensure_schema(db_path=None):
     path = db_path or DB_PATH
     conn = sqlite3.connect(path)
 
-    # Create all tables
+    # Create all tables — prefer the COMPLETE schema from init_db.py (single source
+    # of truth, ~41 tables); fall back to the legacy subset below if unavailable.
+    full = _full_schema()
+    if full:
+        conn.executescript(full)
+        conn.commit()
     conn.executescript(SCHEMA_TABLES)
 
     # Run migrations
     for m in MIGRATIONS:
+        # Use migration name if provided, else derive from SQL for logs
+        m_name = m.get('name') or (m.get('sql', '')[:60] + '...')
         try:
             # Check if migration already applied
             if m.get('check'):
@@ -374,11 +459,11 @@ def ensure_schema(db_path=None):
 
             conn.execute(m['sql'])
             conn.commit()
-            log.info("Migration applied: %s", m['name'])
+            log.info("Migration applied: %s", m_name)
         except Exception as e:
             # Likely already applied (duplicate column, etc.)
             if 'duplicate' not in str(e).lower() and 'already exists' not in str(e).lower():
-                log.warning("Migration '%s' skipped: %s", m['name'], e)
+                log.warning("Migration '%s' skipped: %s", m_name, e)
 
     conn.commit()
     conn.close()

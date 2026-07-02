@@ -2,614 +2,7 @@
 {% block title %}Device {{ device_serial }} - Hydra{% endblock %}
 
 {% block extra_css %}
-<style>
-    .back-btn {
-        color: #9ca3af;
-        text-decoration: none;
-        font-size: 0.9rem;
-        transition: color 0.2s;
-    }
-    .back-btn:hover { color: #fff; }
-
-    .health-badge {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-right: 6px;
-        vertical-align: middle;
-    }
-    .health-active { background: #28a745; box-shadow: 0 0 4px #28a745; }
-    .health-suspended { background: #dc3545; box-shadow: 0 0 4px #dc3545; }
-    .health-logged_out { background: #343a40; box-shadow: 0 0 4px #555; }
-    .health-verification { background: #ffc107; box-shadow: 0 0 4px #ffc107; }
-    .health-pending_login { background: #17a2b8; box-shadow: 0 0 4px #17a2b8; }
-    .health-disabled { background: #6c757d; box-shadow: 0 0 4px #6c757d; }
-    .health-banned { background: #dc3545; box-shadow: 0 0 4px #dc3545; }
-
-    .delta-up { color: #28a745; font-size: 0.75rem; font-weight: 600; }
-    .delta-down { color: #dc3545; font-size: 0.75rem; font-weight: 600; }
-    .delta-zero { color: #6c757d; font-size: 0.75rem; }
-
-    .acct-table th {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #9ca3af;
-        border-bottom: 2px solid #2d3238;
-        padding: 10px 8px;
-        white-space: nowrap;
-    }
-    .acct-table td {
-        padding: 8px;
-        vertical-align: middle;
-        border-bottom: 1px solid #2d3238;
-        font-size: 0.85rem;
-    }
-    .acct-table tr:hover { background: #1e2228; }
-
-    .stat-num {
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-    }
-    .stat-zero { color: #555; }
-
-    .username-cell { font-weight: 600; }
-
-    .btn-settings {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 5px 12px;
-        font-size: 0.75rem;
-        border-radius: 6px;
-        background: linear-gradient(135deg, #6366f1, #4f46e5);
-        color: #fff;
-        border: none;
-        cursor: pointer;
-        text-decoration: none !important;
-        transition: all 0.2s;
-        font-weight: 600;
-    }
-    .btn-settings:hover { background: linear-gradient(135deg, #818cf8, #6366f1); color: #fff; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(99,102,241,0.3); }
-
-    .device-header {
-        background: linear-gradient(145deg, #1a1d21, #22262b);
-        border-radius: 10px;
-        padding: 20px 28px;
-        border: 1px solid #2d3238;
-    }
-    .device-serial-header {
-        font-family: 'JetBrains Mono', 'Courier New', monospace;
-        color: #71717a;
-        font-size: 0.85rem;
-    }
-
-    /* ── Date Navigation ── */
-    .date-nav {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        padding: 12px 20px;
-        background: linear-gradient(145deg, #1a1d21, #22262b);
-        border: 1px solid #2d3238;
-        border-radius: 10px;
-        margin-bottom: 16px;
-    }
-    .date-nav-btn {
-        width: 36px;
-        height: 36px;
-        border-radius: 8px;
-        border: 1px solid #2d3238;
-        background: #1e2228;
-        color: #9ca3af;
-        font-size: 0.9rem;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-    }
-    .date-nav-btn:hover:not(:disabled) {
-        background: #2d3238;
-        color: #fff;
-        border-color: #6366f1;
-    }
-    .date-nav-btn:disabled {
-        opacity: 0.3;
-        cursor: not-allowed;
-    }
-    .date-nav-display {
-        font-size: 1.05rem;
-        font-weight: 600;
-        color: #f8f9fa;
-        min-width: 200px;
-        text-align: center;
-        user-select: none;
-    }
-    .date-nav-display .historical-tag {
-        font-size: 0.7rem;
-        color: #ffc107;
-        font-weight: 500;
-        margin-left: 6px;
-        opacity: 0.85;
-    }
-    .date-nav-today-btn {
-        padding: 6px 16px;
-        border-radius: 6px;
-        border: 1px solid #2d3238;
-        background: #1e2228;
-        color: #9ca3af;
-        font-size: 0.78rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .date-nav-today-btn:hover:not(:disabled) {
-        background: #6366f1;
-        color: #fff;
-        border-color: #6366f1;
-    }
-    .date-nav-today-btn:disabled {
-        opacity: 0.3;
-        cursor: not-allowed;
-    }
-    .date-nav-picker {
-        background: #1e2228;
-        border: 1px solid #2d3238;
-        border-radius: 6px;
-        color: #9ca3af;
-        padding: 5px 10px;
-        font-size: 0.8rem;
-        cursor: pointer;
-        transition: border-color 0.2s;
-    }
-    .date-nav-picker:focus {
-        border-color: #6366f1;
-        outline: none;
-        color: #f8f9fa;
-    }
-    .date-nav-picker::-webkit-calendar-picker-indicator {
-        filter: invert(0.7);
-        cursor: pointer;
-    }
-
-    .summary-cards .card {
-        background: linear-gradient(145deg, #1a1d21, #22262b);
-        border: 1px solid #2d3238;
-        border-radius: 10px;
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .summary-cards .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-    .summary-cards .card-body { padding: 14px 16px; text-align: center; }
-    .summary-cards .card-value { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .summary-cards .card-label { font-size: 0.68rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
-
-    /* Prevent Bootstrap scrollbar compensation shift */
-    body[style*="padding-right"] {
-        padding-right: 0 !important;
-    }
-    .navbar[style*="padding-right"] {
-        padding-right: 0 !important;
-    }
-
-    /* ── Settings Offcanvas Panel ── */
-    #settingsPanel {
-        width: 75vw !important;
-        max-width: 1100px;
-        background: #14171a;
-        border-left: 1px solid #2d3238;
-        right: 0 !important;
-        z-index: 1060;
-    }
-    @media (max-width: 768px) { #settingsPanel { width: 98vw !important; } }
-
-    #settingsPanel .offcanvas-header {
-        background: linear-gradient(145deg, #1a1d21, #22262b);
-        border-bottom: 1px solid #2d3238;
-        padding: 16px 24px;
-    }
-    #settingsPanel .offcanvas-body { padding: 0; }
-
-    /* Settings tabs */
-    .sp-tabs {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 2px;
-        padding: 12px 20px;
-        background: #1a1d21;
-        border-bottom: 1px solid #2d3238;
-    }
-    .sp-tab-btn {
-        padding: 6px 14px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        border: 1px solid #2d3238;
-        border-radius: 6px;
-        background: transparent;
-        color: #9ca3af;
-        cursor: pointer;
-        transition: all 0.15s;
-    }
-    .sp-tab-btn:hover { color: #fff; border-color: #6366f1; }
-    .sp-tab-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
-
-    /* Tab status dots */
-    .sp-tab-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #555;
-        margin-right: 6px;
-        vertical-align: middle;
-        transition: background 0.3s;
-    }
-    .sp-tab-dot.active {
-        background: #22c55e;
-        box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
-    }
-
-    /* Settings content */
-    .sp-content { padding: 20px 24px; overflow-y: auto; max-height: calc(100vh - 170px); }
-    .sp-pane { display: none; }
-    .sp-pane.active { display: block; }
-
-    .sp-section {
-        background: #1e2228;
-        border: 1px solid #2d3238;
-        border-radius: 8px;
-        padding: 16px 20px;
-        margin-bottom: 16px;
-    }
-    .sp-section h6 {
-        color: #9ca3af;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 14px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #2d3238;
-    }
-
-    /* Master toggle */
-    .sp-master-toggle {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 18px;
-        background: linear-gradient(135deg, #1a1d21, #2c3034);
-        border: 1px solid #2d3238;
-        border-radius: 8px;
-        margin-bottom: 16px;
-    }
-    .sp-master-toggle label { font-weight: 600; color: #f8f9fa; font-size: 0.95rem; margin: 0; }
-    .sp-master-toggle .form-check-input { width: 3rem; height: 1.5rem; }
-    .sp-master-toggle .form-check-input:checked { background-color: #28a745; border-color: #28a745; }
-
-    /* Form controls inside panel */
-    .sp-section .form-control,
-    .sp-section .form-select {
-        background: #343a40;
-        border-color: #495057;
-        color: #f8f9fa;
-        font-size: 0.85rem;
-    }
-    .sp-section .form-control:focus,
-    .sp-section .form-select:focus {
-        background: #343a40;
-        color: #f8f9fa;
-        border-color: #6366f1;
-        box-shadow: 0 0 0 0.2rem rgba(99,102,241,0.25);
-    }
-    .sp-section .form-label {
-        color: #d1d5db;
-        font-size: 0.8rem;
-        font-weight: 500;
-        margin-bottom: 4px;
-    }
-    .sp-section .form-text { color: #6c757d; font-size: 0.73rem; }
-
-    /* Range row (min/max side by side) */
-    .sp-range-row { display: flex; gap: 12px; align-items: flex-end; }
-    .sp-range-row > div { flex: 1; }
-
-    /* Sources textarea */
-    .sp-sources-textarea {
-        min-height: 80px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.8rem;
-        resize: vertical;
-    }
-
-    /* Save bar */
-    .sp-save-bar {
-        position: sticky;
-        bottom: 0;
-        background: linear-gradient(0deg, #14171a 80%, transparent);
-        padding: 16px 24px;
-        display: flex;
-        gap: 12px;
-        justify-content: flex-end;
-        align-items: center;
-    }
-    .sp-save-bar .btn-save {
-        padding: 8px 28px;
-        font-weight: 600;
-        font-size: 0.85rem;
-        border-radius: 8px;
-        background: linear-gradient(135deg, #28a745, #20c997);
-        color: #fff;
-        border: none;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .sp-save-bar .btn-save:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(40,167,69,0.3); }
-    .sp-save-bar .save-status { font-size: 0.8rem; color: #6c757d; }
-
-    /* Toggle rows */
-    .sp-toggle-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-        border-bottom: 1px solid #2a2e34;
-    }
-    .sp-toggle-row:last-child { border-bottom: none; }
-    .sp-toggle-row label { color: #d1d5db; font-size: 0.85rem; margin: 0; }
-    .sp-toggle-row .form-check-input:checked { background-color: #28a745; border-color: #28a745; }
-
-    /* ── Bulk Copy Modal ── */
-    .bc-modal { z-index: 1070 !important; }
-    .bc-modal + .modal-backdrop { z-index: 1065 !important; }
-    .bc-modal .modal-content {
-        background: #14171a;
-        border: 1px solid #2d3238;
-        border-radius: 12px;
-    }
-    .bc-modal .modal-header {
-        background: linear-gradient(145deg, #1a1d21, #22262b);
-        border-bottom: 1px solid #2d3238;
-        padding: 16px 24px;
-        border-radius: 12px 12px 0 0;
-    }
-    .bc-modal .modal-body { padding: 0; }
-    .bc-modal .modal-footer {
-        background: linear-gradient(145deg, #1a1d21, #22262b);
-        border-top: 1px solid #2d3238;
-        padding: 12px 24px;
-    }
-
-    /* Toolbar */
-    .bc-toolbar {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        padding: 12px 20px;
-        background: #1a1d21;
-        border-bottom: 1px solid #2d3238;
-        flex-wrap: wrap;
-    }
-    .bc-search {
-        flex: 1;
-        min-width: 160px;
-        background: #22262b;
-        border: 1px solid #2d3238;
-        border-radius: 6px;
-        color: #e5e7eb;
-        padding: 6px 12px;
-        font-size: 0.8rem;
-    }
-    .bc-search:focus { outline: none; border-color: #6366f1; }
-    .bc-search::placeholder { color: #6c757d; }
-
-    /* Tag chips */
-    .bc-tags {
-        display: flex;
-        gap: 4px;
-        flex-wrap: wrap;
-        padding: 8px 20px;
-        background: #1a1d21;
-        border-bottom: 1px solid #2d3238;
-    }
-    .bc-tag-chip {
-        padding: 3px 10px;
-        border-radius: 12px;
-        font-size: 0.72rem;
-        font-weight: 600;
-        border: 1px solid #2d3238;
-        background: transparent;
-        color: #9ca3af;
-        cursor: pointer;
-        transition: all 0.15s;
-        user-select: none;
-    }
-    .bc-tag-chip:hover { border-color: #6366f1; color: #c4b5fd; }
-    .bc-tag-chip.active {
-        background: #6366f1;
-        color: #fff;
-        border-color: #6366f1;
-    }
-    .bc-tag-chip.bc-tag-all {
-        border-color: #374151;
-        color: #d1d5db;
-    }
-    .bc-tag-chip.bc-tag-all.active {
-        background: #374151;
-        color: #fff;
-        border-color: #374151;
-    }
-
-    /* Device groups */
-    .bc-tree {
-        max-height: 55vh;
-        overflow-y: auto;
-        padding: 12px 20px;
-    }
-    .bc-device {
-        margin-bottom: 8px;
-        border: 1px solid #2d3238;
-        border-radius: 8px;
-        overflow: hidden;
-        transition: border-color 0.2s;
-    }
-    .bc-device:hover { border-color: #374151; }
-    .bc-device-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
-        background: #1e2228;
-        cursor: pointer;
-        user-select: none;
-    }
-    .bc-device-header:hover { background: #252a31; }
-    .bc-device-header .bc-chevron {
-        color: #6c757d;
-        font-size: 0.65rem;
-        transition: transform 0.2s;
-        width: 12px;
-        text-align: center;
-    }
-    .bc-device-header .bc-chevron.open { transform: rotate(90deg); }
-    .bc-device-header label {
-        font-size: 0.82rem;
-        font-weight: 600;
-        color: #e5e7eb;
-        margin: 0;
-        flex: 1;
-        cursor: pointer;
-    }
-    .bc-device-header .bc-dev-count {
-        font-size: 0.7rem;
-        color: #6c757d;
-        font-weight: 500;
-    }
-    .bc-device-body {
-        display: none;
-        padding: 4px 12px 8px 36px;
-        background: #14171a;
-    }
-    .bc-device-body.open { display: block; }
-    .bc-acct-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 3px 0;
-    }
-    .bc-acct-row label {
-        font-size: 0.8rem;
-        color: #d1d5db;
-        margin: 0;
-        cursor: pointer;
-        flex: 1;
-    }
-    .bc-acct-row .bc-acct-tag {
-        font-size: 0.65rem;
-        padding: 1px 6px;
-        border-radius: 8px;
-        background: rgba(99,102,241,0.15);
-        color: #a78bfa;
-        font-weight: 500;
-    }
-    .bc-acct-row .bc-acct-status {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-    .bc-acct-row .bc-acct-status.active { background: #28a745; }
-    .bc-acct-row .bc-acct-status.suspended { background: #dc3545; }
-    .bc-acct-row .bc-acct-status.logged_out { background: #343a40; }
-    .bc-acct-row .bc-acct-status.pending_login { background: #17a2b8; }
-    .bc-acct-row .bc-acct-status.disabled { background: #6c757d; }
-
-    .bc-acct-row.bc-hidden { display: none; }
-    .bc-device.bc-hidden { display: none; }
-
-    /* Summary bar */
-    .bc-summary {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .bc-count-badge {
-        background: #6366f1;
-        color: #fff;
-        padding: 2px 10px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        min-width: 28px;
-        text-align: center;
-    }
-
-    /* Toast */
-    .sp-toast {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        z-index: 10000;
-        transform: translateY(100px);
-        opacity: 0;
-        transition: all 0.3s ease;
-        pointer-events: none;
-    }
-    .sp-toast.show { transform: translateY(0); opacity: 1; }
-    .sp-toast.success { background: #28a745; color: #fff; }
-    .sp-toast.error { background: #dc3545; color: #fff; }
-
-    /* Loading overlay */
-    .sp-loading {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 60px;
-        color: #9ca3af;
-    }
-
-    /* Collapsible Advanced sections */
-    .sp-advanced-toggle {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        background: #1a1d2180;
-        border: 1px dashed #2d3238;
-        border-radius: 8px;
-        color: #6c757d;
-        font-size: 0.78rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        user-select: none;
-        margin-top: 8px;
-    }
-    .sp-advanced-toggle:hover {
-        color: #9ca3af;
-        border-color: #6366f1;
-        background: #1e222880;
-    }
-    .sp-advanced-toggle .chevron {
-        transition: transform 0.2s;
-        font-size: 0.7rem;
-    }
-    .sp-advanced-toggle.open .chevron {
-        transform: rotate(90deg);
-    }
-    .sp-advanced-body {
-        display: none;
-        margin-top: 12px;
-    }
-    .sp-advanced-body.open {
-        display: block;
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/account_panel.css') }}?v=1">
 {% endblock %}
 
 {% block content %}
@@ -712,7 +105,15 @@
 <div class="card bg-dark border-secondary">
     <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-users me-2"></i>Accounts</h5>
-        <span class="text-muted small" id="lastRefreshDetail"></span>
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-sm" style="background:#8b5cf6;color:#fff;"
+                    id="bulkReplaceBtn" onclick="openBulkReplaceModal()" disabled
+                    title="Replace all broken accounts on this device">
+                <i class="fas fa-rotate me-1"></i>
+                Replace broken (<span id="bulkReplaceBrokenN">…</span>)
+            </button>
+            <span class="text-muted small" id="lastRefreshDetail"></span>
+        </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -747,1215 +148,7 @@
     </div>
 </div>
 <!-- ═══════════════ Settings Offcanvas Panel ═══════════════ -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="settingsPanel" data-bs-scroll="true" data-bs-backdrop="true">
-    <div class="offcanvas-header">
-        <div>
-            <h5 class="offcanvas-title mb-0" style="color:#f8f9fa">
-                <i class="fas fa-sliders-h me-2 text-info"></i>
-                <span id="spUsername">Account Settings</span>
-            </h5>
-            <small class="text-muted" id="spDevice"></small>
-        </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body">
-        <!-- Tab buttons -->
-        <div class="sp-tabs" id="spTabs">
-            <button class="sp-tab-btn active" data-tab="overview"><i class="fas fa-user me-1"></i>Overview</button>
-            <button class="sp-tab-btn" data-tab="follow"><span class="sp-tab-dot" id="dot-follow"></span><i class="fas fa-user-plus me-1"></i>Follow</button>
-            <button class="sp-tab-btn" data-tab="unfollow"><span class="sp-tab-dot" id="dot-unfollow"></span><i class="fas fa-user-minus me-1"></i>Unfollow</button>
-            <button class="sp-tab-btn" data-tab="like"><span class="sp-tab-dot" id="dot-like"></span><i class="fas fa-heart me-1"></i>Like</button>
-            <button class="sp-tab-btn" data-tab="reels"><span class="sp-tab-dot" id="dot-reels"></span><i class="fas fa-film me-1"></i>Reels</button>
-            <button class="sp-tab-btn" data-tab="share"><span class="sp-tab-dot" id="dot-share"></span><i class="fas fa-share me-1"></i>Share</button>
-            <button class="sp-tab-btn" data-tab="story"><span class="sp-tab-dot" id="dot-story"></span><i class="fas fa-eye me-1"></i>Story</button>
-            <button class="sp-tab-btn" data-tab="comment"><span class="sp-tab-dot" id="dot-comment"></span><i class="fas fa-comment me-1"></i>Comment</button>
-            <button class="sp-tab-btn" data-tab="dm"><span class="sp-tab-dot" id="dot-dm"></span><i class="fas fa-envelope me-1"></i>DM</button>
-            <button class="sp-tab-btn" data-tab="hbe"><span class="sp-tab-dot" id="dot-hbe"></span><i class="fas fa-robot me-1"></i>HBE</button>
-            <button class="sp-tab-btn" data-tab="insights"><i class="fas fa-chart-bar me-1"></i>📊 Insights</button>
-        </div>
-
-        <!-- Loading -->
-        <div class="sp-loading" id="spLoading">
-            <i class="fas fa-spinner fa-spin me-2"></i> Loading settings...
-        </div>
-
-        <!-- Tab panes container -->
-        <div class="sp-content" id="spContent" style="display:none">
-
-            <!-- ─── Overview Tab ─── -->
-            <div class="sp-pane active" data-pane="overview">
-                <div class="sp-section">
-                    <h6><i class="fas fa-id-card me-1"></i> Account Info</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Username</label>
-                            <input type="text" class="form-control" id="sp_username" readonly>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Password</label>
-                            <div class="input-group">
-                                <input type="password" class="form-control" id="sp_password" readonly>
-                                <button class="btn btn-outline-secondary btn-sm" type="button"
-                                    onclick="togglePasswordVis()"><i class="fas fa-eye"></i></button>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Status</label>
-                            <input type="text" class="form-control" id="sp_status" readonly>
-                        </div>
-                        <div class="col-md-5">
-                            <label class="form-label">App ID</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="sp_instagram_package"
-                                    placeholder="com.instagram.android">
-                                <button class="btn btn-outline-info btn-sm" type="button"
-                                    onclick="detectAppId()" title="Detect foreground app on device">
-                                    <i class="fas fa-crosshairs me-1"></i>Detect
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Followers</label>
-                            <input type="text" class="form-control" id="sp_followers" readonly>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label"><i class="fas fa-tag me-1"></i>Tag</label>
-                            <input type="text" class="form-control sp-acct-setting" id="sp_tag" data-acct-key="tag"
-                                placeholder="e.g. niche-fitness, client-A">
-                            <div class="form-text">Accounts with the same tag won't follow the same users (dedup)</div>
-                        </div>
-                    </div>
-                </div>
-                <!-- ─── Growth Tracking Card ─── -->
-                <div class="sp-section" id="growthSection">
-                    <h6><i class="fas fa-chart-line me-1"></i> 📈 Growth</h6>
-                    <div class="row g-3 mb-3">
-                        <div class="col-4">
-                            <div style="background:#1a1d21;border-radius:8px;padding:12px;text-align:center;border:1px solid #2d3238;">
-                                <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Followers</div>
-                                <div id="growth_followers" style="font-size:1.3rem;font-weight:700;color:#fff;margin:4px 0;">—</div>
-                                <div id="growth_followers_delta" style="font-size:0.75rem;color:#6c757d;">—</div>
-                            </div>
-                        </div>
-                        <div class="col-4">
-                            <div style="background:#1a1d21;border-radius:8px;padding:12px;text-align:center;border:1px solid #2d3238;">
-                                <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Following</div>
-                                <div id="growth_following" style="font-size:1.3rem;font-weight:700;color:#fff;margin:4px 0;">—</div>
-                            </div>
-                        </div>
-                        <div class="col-4">
-                            <div style="background:#1a1d21;border-radius:8px;padding:12px;text-align:center;border:1px solid #2d3238;">
-                                <div style="font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Posts</div>
-                                <div id="growth_posts" style="font-size:1.3rem;font-weight:700;color:#fff;margin:4px 0;">—</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="height:180px;position:relative;">
-                        <canvas id="growthChart"></canvas>
-                    </div>
-                    <div id="growthNoData" style="display:none;text-align:center;color:#6c757d;padding:20px;font-size:0.85rem;">
-                        <i class="fas fa-chart-area me-1"></i> No growth data yet — snapshots are captured each session
-                    </div>
-                </div>
-
-                <!-- ─── Business Profile Card ─── -->
-                <div class="sp-section" id="businessProfileSection">
-                    <h6><i class="fas fa-briefcase me-1"></i> 📊 Business Profile</h6>
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <label class="form-label mb-0" style="color:#d1d5db;">Business Profile Active</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_is_business_profile" data-key="is_business_profile">
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Category</label>
-                            <input type="text" class="form-control sp-setting" id="sp_business_category" data-key="business_category"
-                                placeholder="Digital creator">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Switched At</label>
-                            <input type="text" class="form-control" id="sp_business_switched_at" readonly
-                                value="" style="background:#2d3238;color:#9ca3af;border-color:#495057;">
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center gap-2 mt-3 flex-wrap">
-                        <button class="btn btn-sm btn-outline-primary" id="btn-switch-business" onclick="switchToBusiness()">
-                            🔄 Switch to Business Profile
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" id="btn-switch-private" onclick="switchToPrivate()">
-                            🔒 Switch to Private
-                        </button>
-                        <button class="btn btn-sm btn-outline-warning" onclick="openBulkPrivateModal()" title="Bulk Switch to Private" style="padding:4px 10px;font-size:0.75rem;">
-                            🔒📋 Bulk
-                        </button>
-                        <small class="text-muted" id="switchBusinessStatus"></small>
-                        <small class="text-muted" id="switchPrivateStatus"></small>
-                    </div>
-                </div>
-
-                <!-- ─── Profile Link ─── -->
-                <div class="sp-section" id="profileLinkSection">
-                    <h6><i class="fas fa-link me-1"></i> 🔗 Profile Link</h6>
-                    <div class="row g-2 align-items-end">
-                        <div class="col">
-                            <label class="form-label">External URL</label>
-                            <input type="url" class="form-control" id="sp_profile_link"
-                                placeholder="https://example.com">
-                        </div>
-                        <div class="col-auto">
-                            <button class="btn btn-sm btn-outline-info" onclick="setProfileLink()" id="btn-set-link">
-                                <i class="fas fa-paper-plane me-1"></i>Set on Device
-                            </button>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
-                        <button class="btn btn-sm btn-outline-warning" onclick="openBulkLinkModal()" title="Set link on multiple accounts">
-                            🔗📋 Bulk Set Link
-                        </button>
-                        <small class="text-muted" id="setLinkStatus"></small>
-                    </div>
-                </div>
-
-                <div class="sp-section">
-                    <h6><i class="fas fa-clock me-1"></i> Active Hours</h6>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Start Hour</label>
-                            <input type="number" class="form-control sp-acct-setting" id="sp_start_time" data-acct-key="start_time" min="0" max="23" placeholder="0">
-                        </div>
-                        <div>
-                            <label class="form-label">End Hour</label>
-                            <input type="number" class="form-control sp-acct-setting" id="sp_end_time" data-acct-key="end_time" min="0" max="23" placeholder="23">
-                        </div>
-                    </div>
-                    <div class="form-text mt-2">Bot will only run between these hours (0-23). Leave empty = run all day.</div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-toggle-on me-1"></i> Master Toggles</h6>
-                    <div class="sp-toggle-row">
-                        <label>Follow</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_follow" data-key="enable_follow">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Unfollow</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_unfollow" data-key="enable_unfollow">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Like</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_likepost" data-key="enable_likepost">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Comment</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_comment" data-key="enable_comment">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>Story Viewer</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_story_viewer" data-key="enable_story_viewer">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row">
-                        <label>DM</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_directmessage" data-key="enable_directmessage">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Timer tab removed - Active Hours merged into Overview -->
-
-            <!-- ─── Follow Tab ─── -->
-            <div class="sp-pane" data-pane="follow">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-user-plus me-2"></i>Follow Enabled</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_follow_enabled_master" data-key="enable_follow">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cog me-1"></i> Follow Settings</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Follow Method</label>
-                            <select class="form-select sp-setting" id="sp_follow_method" data-key="follow_method">
-                                <option value="follow-followers">Follow Followers</option>
-                                <option value="follow-likers">Follow Likers</option>
-                                <option value="follow-specific">Follow Specific</option>
-                                <option value="follow-keyword">Follow by Keyword</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_default_action_limit_perday" data-key="default_action_limit_perday" min="0" placeholder="60">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-list me-1"></i> Follow Sources</h6>
-                    <textarea class="form-control sp-sources-textarea" id="sp_follow_sources" rows="5"
-                        placeholder="One source per line (e.g. @username)"></textarea>
-                    <div class="form-text mt-1">One username per line. These are the accounts whose followers will be followed.</div>
-                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('sources', 'sp_follow_sources')">
-                        <i class="fas fa-save me-1"></i> Save Sources
-                    </button>
-                </div>
-                <!-- Collapsible Advanced -->
-                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
-                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
-                </div>
-                <div class="sp-advanced-body">
-                    <div class="sp-section">
-                        <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range &amp; Delay</h6>
-                        <div class="sp-range-row mb-3">
-                            <div>
-                                <label class="form-label">Min Follow per Session</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_follow_action" data-key="min_follow_action" min="1" placeholder="10">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Follow per Session</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_follow_action" data-key="max_follow_action" min="1" placeholder="20">
-                            </div>
-                        </div>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Min Delay Between Follows (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_follow_delay" data-key="min_follow_delay" min="0" placeholder="30">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Delay Between Follows (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_follow_delay" data-key="max_follow_delay" min="0" placeholder="90">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="sp-section">
-                        <h6><i class="fas fa-clock me-1"></i> Follow Timer</h6>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Follow Timer Min Hour</label>
-                                <input type="number" class="form-control sp-setting" id="sp_follow_timer_min_hour" data-key="follow_timer_min_hour" min="0" max="23" placeholder="0">
-                            </div>
-                            <div>
-                                <label class="form-label">Follow Timer Max Hour</label>
-                                <input type="number" class="form-control sp-setting" id="sp_follow_timer_max_hour" data-key="follow_timer_max_hour" min="0" max="23" placeholder="23">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="sp-section">
-                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
-                        <div class="sp-toggle-row">
-                            <label>Mute After Follow</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_mute_after_follow" data-key="mute_after_follow">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Don't Follow Private Accounts</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_follow_private" data-key="dont_follow_private_accounts_using_followfollowers">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Follow Only If Story Exists</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_follow_only_story" data-key="enable_follow_only_if_story_exist">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Followings Limit Enabled</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_followings_limit" data-key="enable_followings_limit">
-                            </div>
-                        </div>
-                        <div class="mt-2">
-                            <label class="form-label">Followings Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_followings_limit" data-key="followings_limit" min="0" placeholder="7500">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── Unfollow Tab ─── -->
-            <div class="sp-pane" data-pane="unfollow">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-user-minus me-2"></i>Unfollow Enabled</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_unfollow_enabled_master" data-key="enable_unfollow">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cog me-1"></i> Unfollow Settings</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Unfollow Method</label>
-                            <select class="form-select sp-setting" id="sp_unfollow_method" data-key="unfollow_method">
-                                <option value="unfollow-non-followers">Unfollow Non-Followers</option>
-                                <option value="unfollow-all">Unfollow All</option>
-                                <option value="unfollow-specific">Unfollow Specific</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_unfollow_limit_perday" data-key="unfollow_limit_perday" min="0" placeholder="40">
-                        </div>
-                    </div>
-                    <div class="mt-3">
-                        <label class="form-label">Unfollow Delay Days</label>
-                        <input type="number" class="form-control sp-setting" id="sp_unfollow_delay_day" data-key="unfollow_delay_day" min="0" placeholder="3">
-                        <div class="form-text">Wait N days before unfollowing someone you followed</div>
-                    </div>
-                </div>
-                <!-- Collapsible Advanced -->
-                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
-                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
-                </div>
-                <div class="sp-advanced-body">
-                    <div class="sp-section">
-                        <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range &amp; Delay</h6>
-                        <div class="sp-range-row mb-3">
-                            <div>
-                                <label class="form-label">Min Unfollow per Session</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_unfollow_action" data-key="min_unfollow_action" min="1" placeholder="5">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Unfollow per Session</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_unfollow_action" data-key="max_unfollow_action" min="1" placeholder="15">
-                            </div>
-                        </div>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Min Delay (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_unfollow_delay" data-key="min_unfollow_delay" min="0" placeholder="30">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Delay (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_unfollow_delay" data-key="max_unfollow_delay" min="0" placeholder="90">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="sp-section">
-                        <h6><i class="fas fa-clock me-1"></i> Unfollow Timer</h6>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Timer Min Hour</label>
-                                <input type="number" class="form-control sp-setting" id="sp_unfollow_timer_min_hour" data-key="unfollow_timer_min_hour" min="0" max="23" placeholder="0">
-                            </div>
-                            <div>
-                                <label class="form-label">Timer Max Hour</label>
-                                <input type="number" class="form-control sp-setting" id="sp_unfollow_timer_max_hour" data-key="unfollow_timer_max_hour" min="0" max="23" placeholder="23">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="sp-section">
-                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
-                        <div class="sp-toggle-row">
-                            <label>Don't Unfollow Followers</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_unfollow_followers" data-key="dont_unfollow_followers">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Prioritize Unfollow Action</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_prioritize_unfollow" data-key="enable_prioritize_unfollow_action">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── Like Tab ─── -->
-            <div class="sp-pane" data-pane="like">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-heart me-2"></i>Like Enabled</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_like_enabled_master" data-key="enable_likepost">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cog me-1"></i> Like Settings</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Like Method</label>
-                            <select class="form-select sp-setting" id="sp_likepost_method" data-key="likepost_method">
-                                <option value="like-from-sources">Like from Sources</option>
-                                <option value="like-from-keywords">Like from Keywords</option>
-                                <option value="like-specific">Like Specific</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_like_limit_perday" data-key="like_limit_perday" min="0" placeholder="100">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-list me-1"></i> Like Sources</h6>
-                    <textarea class="form-control sp-sources-textarea" id="sp_like_sources" rows="4"
-                        placeholder="One source per line"></textarea>
-                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('like_sources', 'sp_like_sources')">
-                        <i class="fas fa-save me-1"></i> Save Sources
-                    </button>
-                </div>
-                <!-- Collapsible Advanced -->
-                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
-                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
-                </div>
-                <div class="sp-advanced-body">
-                    <div class="sp-section">
-                        <h6><i class="fas fa-tachometer-alt me-1"></i> Action Range</h6>
-                        <div class="sp-range-row mb-3">
-                            <div>
-                                <label class="form-label">Min Like Actions per Session</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_likepost_action" data-key="min_likepost_action" min="1" placeholder="3">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Like Actions per Session</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_likepost_action" data-key="max_likepost_action" min="1" placeholder="5">
-                            </div>
-                        </div>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Min Posts to Like</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_post_to_like" data-key="min_post_to_like" min="1" placeholder="1">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Posts to Like</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_post_to_like" data-key="max_post_to_like" min="1" placeholder="3">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── Reels Tab ─── -->
-            <div class="sp-pane" data-pane="reels">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-film me-2"></i>Watch Reels Enabled</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_watch_reels" data-key="enable_watch_reels">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-hashtag me-1"></i> Reels per Session</h6>
-                    <div class="sp-range-row">
-                        <div>
-                            <label class="form-label">Min Reels</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_reels_to_watch" data-key="min_reels_to_watch" min="1" placeholder="15">
-                        </div>
-                        <div>
-                            <label class="form-label">Max Reels</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_reels_to_watch" data-key="max_reels_to_watch" min="1" placeholder="20">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-list me-1"></i> Reel Sources</h6>
-                    <textarea class="form-control sp-sources-textarea" id="sp_reels_sources" rows="4"
-                        placeholder="One source per line"></textarea>
-                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('watch_reels_sources', 'sp_reels_sources')">
-                        <i class="fas fa-save me-1"></i> Save Sources
-                    </button>
-                </div>
-                <!-- Collapsible Advanced -->
-                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
-                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
-                </div>
-                <div class="sp-advanced-body">
-                    <div class="sp-section">
-                        <h6><i class="fas fa-cog me-1"></i> Limits &amp; Duration</h6>
-                        <div class="mb-3">
-                            <label class="form-label">Daily Reel Watch Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_watch_reel_limit_perday" data-key="watch_reel_limit_perday" min="0" placeholder="100">
-                        </div>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Min Watch Duration (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_sec_reel_watch" data-key="min_sec_reel_watch" min="1" placeholder="5">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Watch Duration (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_sec_reel_watch" data-key="max_sec_reel_watch" min="1" placeholder="30">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="sp-section">
-                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
-                        <div class="sp-toggle-row">
-                            <label>Save Reels After Watching</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_save_reels" data-key="enable_save_reels_after_watching">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Like Reel</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_like_reel" data-key="enable_like_reel">
-                            </div>
-                        </div>
-                        <div class="mt-2">
-                            <label class="form-label">Like Reel Percent</label>
-                            <input type="number" class="form-control sp-setting" id="sp_like_reel_percent" data-key="like_reel_percent" min="0" max="100" placeholder="30">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── Share Tab ─── -->
-            <div class="sp-pane" data-pane="share">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-share me-2"></i>Share Post to Story</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_share_post_to_story" data-key="enable_share_post_to_story">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cog me-1"></i> Share Settings</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_shared_post_limit_perday" data-key="shared_post_limit_perday" min="0" placeholder="5">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Limit Per Source Per Day</label>
-                            <input type="number" class="form-control sp-setting" id="sp_shared_post_limit_persource_perday" data-key="shared_post_limit_persource_perday" min="0" placeholder="2">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-list me-1"></i> Share Sources</h6>
-                    <textarea class="form-control sp-sources-textarea" id="sp_share_sources" rows="4"
-                        placeholder="One source per line"></textarea>
-                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('share_sources', 'sp_share_sources')">
-                        <i class="fas fa-save me-1"></i> Save Sources
-                    </button>
-                </div>
-                <!-- Collapsible Advanced -->
-                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
-                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
-                </div>
-                <div class="sp-advanced-body">
-                    <div class="sp-section">
-                        <h6><i class="fas fa-cogs me-1"></i> Share Options</h6>
-                        <div class="sp-toggle-row">
-                            <label>Enable Shared Post</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_shared_post" data-key="enable_shared_post">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Enable Repost</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_repost_post" data-key="enable_repost_post">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Add Link to Story</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_add_link" data-key="enable_add_link_to_story">
-                            </div>
-                        </div>
-                        <div class="sp-conditional" data-depends="sp_enable_add_link" style="display:none; padding-left: 1rem; margin-top: 0.5rem;">
-                            <label class="form-label">Link URL</label>
-                            <input type="text" class="form-control sp-setting" id="sp_custom_link_text" data-key="custom_link_text" placeholder="https://example.com">
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Add Mention to Story</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_mention" data-key="enable_mention_to_story">
-                            </div>
-                        </div>
-                        <div class="sp-conditional" data-depends="sp_enable_mention" style="display:none; padding-left: 1rem; margin-top: 0.5rem;">
-                            <label class="form-label">Mention Username</label>
-                            <input type="text" class="form-control sp-setting" id="sp_sharepost_mention" data-key="sharepost_mention" placeholder="@username">
-                        </div>
-                        <div class="row g-3 mt-2">
-                            <div class="col-md-6">
-                                <label class="form-label">Post Type to Share</label>
-                                <select class="form-select sp-setting" id="sp_post_type_to_share" data-key="post_type_to_share">
-                                    <option value="">-- Select --</option>
-                                    <option value="posts">Posts</option>
-                                    <option value="reels">Reels</option>
-                                    <option value="all">All (Posts + Reels)</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Min Reel Watch (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_sec_share_reel_watch" data-key="min_sec_share_reel_watch" min="1" placeholder="5">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Max Reel Watch (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_sec_share_reel_watch" data-key="max_sec_share_reel_watch" min="1" placeholder="10">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── Story Tab ─── -->
-            <div class="sp-pane" data-pane="story">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-eye me-2"></i>Story Viewer Enabled</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_story_enabled_master" data-key="enable_story_viewer">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cog me-1"></i> Story View Settings</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">View Method</label>
-                            <select class="form-select sp-setting" id="sp_view_method" data-key="view_method">
-                                <option value="view-followers">View Followers</option>
-                                <option value="view-following">View Following</option>
-                                <option value="view-specific">View Specific</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_story_viewer_daily_limit" data-key="story_viewer_daily_limit" min="0" placeholder="50">
-                        </div>
-                    </div>
-                </div>
-                <!-- Collapsible Advanced -->
-                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
-                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
-                </div>
-                <div class="sp-advanced-body">
-                    <div class="sp-section">
-                        <h6><i class="fas fa-tachometer-alt me-1"></i> Stories per Session</h6>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Min Stories to View</label>
-                                <input type="number" class="form-control sp-setting" id="sp_story_viewer_min" data-key="story_viewer_min" min="1" placeholder="5">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Stories to View</label>
-                                <input type="number" class="form-control sp-setting" id="sp_story_viewer_max" data-key="story_viewer_max" min="1" placeholder="15">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="sp-section">
-                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
-                        <div class="sp-toggle-row">
-                            <label>Like Story After Viewing</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_like_story_after_viewing" data-key="like_story_after_viewing">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Don't View Same Account Twice</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_dont_view_same_twice" data-key="dont_view_same_account_twice">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>View Home Feed Stories</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_viewhomefeedstory" data-key="enable_viewhomefeedstory">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── Comment Tab ─── -->
-            <div class="sp-pane" data-pane="comment">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-comment me-2"></i>Comment Enabled</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_comment_enabled_master" data-key="enable_comment">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cog me-1"></i> Comment Settings</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Comment Method</label>
-                            <select class="form-select sp-setting" id="sp_comment_method" data-key="comment_method">
-                                <option value="comment-sources">From Sources</option>
-                                <option value="comment-keywords">From Keywords</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_comment_limit_perday" data-key="comment_limit_perday" min="0" placeholder="20">
-                        </div>
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-list me-1"></i> Comment Sources</h6>
-                    <textarea class="form-control sp-sources-textarea" id="sp_comment_sources" rows="4"
-                        placeholder="One source per line"></textarea>
-                    <button class="btn btn-sm btn-outline-info mt-2" onclick="saveSources('comment_sources', 'sp_comment_sources')">
-                        <i class="fas fa-save me-1"></i> Save Sources
-                    </button>
-                </div>
-                <!-- Collapsible Advanced -->
-                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
-                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
-                </div>
-                <div class="sp-advanced-body">
-                    <div class="sp-section">
-                        <h6><i class="fas fa-tachometer-alt me-1"></i> Comments per Session &amp; Delay</h6>
-                        <div class="sp-range-row mb-3">
-                            <div>
-                                <label class="form-label">Min Comments per Session</label>
-                                <input type="number" class="form-control sp-setting" id="sp_min_comment" data-key="min_comment" min="1" placeholder="2">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Comments per Session</label>
-                                <input type="number" class="form-control sp-setting" id="sp_max_comment" data-key="max_comment" min="1" placeholder="5">
-                            </div>
-                        </div>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Min Delay (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_comment_min_delay" data-key="comment_min_delay" min="0" placeholder="30">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Delay (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_comment_max_delay" data-key="comment_max_delay" min="0" placeholder="60">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── DM Tab ─── -->
-            <div class="sp-pane" data-pane="dm">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-envelope me-2"></i>Direct Message Enabled</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_dm_master" data-key="enable_directmessage">
-                    </div>
-                </div>
-                <div class="sp-section">
-                    <h6><i class="fas fa-cog me-1"></i> DM Settings</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">DM Method</label>
-                            <select class="form-select sp-setting" id="sp_directmessage_method" data-key="directmessage_method" onchange="toggleDmSpecificUsers()">
-                                <option value="dm-new-followers">DM New Followers</option>
-                                <option value="dm-specific-users">DM Specific Users</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_directmessage_daily_limit" data-key="directmessage_daily_limit" min="0" placeholder="20">
-                        </div>
-                    </div>
-                    <!-- Specific Users List (shown when DM Specific Users selected) -->
-                    <div id="dmSpecificUsersSection" style="display:none; margin-top: 12px;">
-                        <label class="form-label">Target Usernames <small class="text-muted">(one per line)</small></label>
-                        <textarea class="form-control sp-setting" id="sp_dm_specific_usernames" data-key="directmessage_specific_usernames" rows="4" placeholder="username1&#10;username2&#10;username3" style="background: #1a1d23; color: #e2e8f0; border-color: #2d3748; font-family: monospace; font-size: 0.85rem;"></textarea>
-                        <small class="text-muted">Enter Instagram usernames to DM. One username per line.</small>
-                    </div>
-                </div>
-                <!-- Collapsible Advanced -->
-                <div class="sp-advanced-toggle" onclick="toggleAdvanced(this)">
-                    <i class="fas fa-chevron-right chevron"></i> ⚙️ Advanced Settings
-                </div>
-                <div class="sp-advanced-body">
-                    <div class="sp-section">
-                        <h6><i class="fas fa-tachometer-alt me-1"></i> Batch Size &amp; Delay</h6>
-                        <div class="sp-range-row mb-3">
-                            <div>
-                                <label class="form-label">Min DMs per Batch</label>
-                                <input type="number" class="form-control sp-setting" id="sp_directmessage_min" data-key="directmessage_min" min="1" placeholder="3">
-                            </div>
-                            <div>
-                                <label class="form-label">Max DMs per Batch</label>
-                                <input type="number" class="form-control sp-setting" id="sp_directmessage_max" data-key="directmessage_max" min="1" placeholder="5">
-                            </div>
-                        </div>
-                        <div class="sp-range-row">
-                            <div>
-                                <label class="form-label">Min Delay (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_directmessage_min_delay" data-key="directmessage_min_delay" min="0" placeholder="30">
-                            </div>
-                            <div>
-                                <label class="form-label">Max Delay (sec)</label>
-                                <input type="number" class="form-control sp-setting" id="sp_directmessage_max_delay" data-key="directmessage_max_delay" min="0" placeholder="90">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="sp-section">
-                        <h6><i class="fas fa-cogs me-1"></i> Options</h6>
-                        <div class="sp-toggle-row">
-                            <label>Enable OpenAI DM</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_openai_dm" data-key="enable_openai_dm">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Skip If DM Already Exists (New Followers)</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_skip_dm_new" data-key="enable_skip_if_dm_exists_directmessage_new_followers">
-                            </div>
-                        </div>
-                        <div class="sp-toggle-row">
-                            <label>Skip If DM Already Exists (Specific User)</label>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input sp-setting" type="checkbox" id="sp_skip_dm_specific" data-key="enable_skip_if_dm_exists_directmessage_specificuser">
-                            </div>
-                        </div>
-                        <div class="row g-3 mt-2">
-                            <div class="col-md-6">
-                                <label class="form-label">New Followers Limit/Day</label>
-                                <input type="number" class="form-control sp-setting" id="sp_dm_new_followers_limit" data-key="directmessage_new_followers_limitperday" min="0" placeholder="10">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Specific User Limit/Day</label>
-                                <input type="number" class="form-control sp-setting" id="sp_dm_specific_limit" data-key="directmessage_specific_user_limitperday" min="0" placeholder="10">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── HBE Tab ─── -->
-            <div class="sp-pane" data-pane="hbe">
-                <div class="sp-master-toggle">
-                    <label><i class="fas fa-robot me-2"></i>Human Behaviour Emulation</label>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input sp-setting" type="checkbox" id="sp_hbe_enabled_master" data-key="enable_human_behaviour_emulation">
-                    </div>
-                </div>
-
-                <!-- Watch Home Feed Stories -->
-                <div class="sp-section">
-                    <h6><i class="fas fa-play-circle me-1"></i> Watch Home Feed Stories</h6>
-                    <div class="sp-toggle-row">
-                        <label>Enable Watch Stories</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_viewhomefeedstory" data-key="enable_viewhomefeedstory">
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Min Stories</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_viewhomefeedstory" data-key="min_viewhomefeedstory">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Max Stories</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_viewhomefeedstory" data-key="max_viewhomefeedstory">
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label class="form-label">Min Watch Sec</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_viewhomefeedstory_delay" data-key="min_viewhomefeedstory_delay">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Max Watch Sec</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_viewhomefeedstory_delay" data-key="max_viewhomefeedstory_delay">
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label class="form-label">% to Like Story</label>
-                            <input type="number" class="form-control sp-setting" id="sp_percent_to_like_homefeedstory" data-key="percent_to_like_homefeedstory">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Scroll Home Feed -->
-                <div class="sp-section">
-                    <h6><i class="fas fa-scroll me-1"></i> Scroll Home Feed</h6>
-                    <div class="sp-toggle-row">
-                        <label>Enable Scroll Home Feed</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_scrollhomefeed" data-key="enable_scrollhomefeed">
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Min Scrolls</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_scrollhomefeed" data-key="min_scrollhomefeed">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Max Scrolls</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_scrollhomefeed" data-key="max_scrollhomefeed">
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label class="form-label">Min Delay Sec</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_scrollhomefeed_delay" data-key="min_scrollhomefeed_delay">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Max Delay Sec</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_scrollhomefeed_delay" data-key="max_scrollhomefeed_delay">
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label class="form-label">% to Like Post</label>
-                            <input type="number" class="form-control sp-setting" id="sp_percent_to_like_homefeed" data-key="percent_to_like_homefeed">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Scroll Explore Page -->
-                <div class="sp-section">
-                    <h6><i class="fas fa-compass me-1"></i> Scroll Explore Page</h6>
-                    <div class="sp-toggle-row">
-                        <label>Enable Scroll Explore Page</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_scrollexplorepage" data-key="enable_scrollexplorepage">
-                        </div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Min Scrolls</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_scrollexplorepage" data-key="min_scrollexplorepage">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Max Scrolls</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_scrollexplorepage" data-key="max_scrollexplorepage">
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label class="form-label">Min Delay Sec</label>
-                            <input type="number" class="form-control sp-setting" id="sp_min_scrollexplorepage_delay" data-key="min_scrollexplorepage_delay">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Max Delay Sec</label>
-                            <input type="number" class="form-control sp-setting" id="sp_max_scrollexplorepage_delay" data-key="max_scrollexplorepage_delay">
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <label class="form-label">% to Like Post</label>
-                            <input type="number" class="form-control sp-setting" id="sp_percent_to_like_explorepagepost" data-key="percent_to_like_explorepagepost">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Browse Profiles -->
-                <div class="sp-section">
-                    <h6><i class="fas fa-user-friends me-1"></i> Browse Profiles</h6>
-                    <p class="text-muted small mb-2">Visit random profiles organically — scroll their grid, watch posts/reels, look like a real user.</p>
-                    <div class="sp-toggle-row">
-                        <label>Enable Browse Profiles</label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_enable_browse_profiles" data-key="enable_browse_profiles">
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-12">
-                            <label class="form-label">Source Usernames <span class="text-muted">(one per line)</span></label>
-                            <textarea class="form-control" id="sp_browse_profiles_sources" rows="4" placeholder="username1&#10;username2&#10;username3" style="font-family: monospace; font-size: 0.85rem;"></textarea>
-                            <button class="btn btn-sm btn-outline-primary mt-1" id="sp_browse_profiles_save_btn" onclick="saveBrowseProfilesSources()">
-                                <i class="fas fa-save me-1"></i>Save Sources
-                            </button>
-                            <span class="text-success small ms-2 d-none" id="sp_browse_profiles_saved_msg">✓ Saved</span>
-                        </div>
-                    </div>
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-4">
-                            <label class="form-label">Daily Limit</label>
-                            <input type="number" class="form-control sp-setting" id="sp_browse_profiles_limit_perday" data-key="browse_profiles_limit_perday" placeholder="10">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Min Time (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_browse_profiles_time_min" data-key="browse_profiles_time_min" placeholder="30">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Max Time (sec)</label>
-                            <input type="number" class="form-control sp-setting" id="sp_browse_profiles_time_max" data-key="browse_profiles_time_max" placeholder="120">
-                        </div>
-                    </div>
-                    <div class="sp-toggle-row mt-2">
-                        <label>Allow Liking <span class="text-muted">(~30% chance, max 1/profile)</span></label>
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input sp-setting" type="checkbox" id="sp_browse_profiles_can_like" data-key="browse_profiles_can_like">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── Insights Tab ─── -->
-            <div class="sp-pane" data-pane="insights">
-                <!-- Non-business placeholder -->
-                <div id="insights-not-business" style="display:none;text-align:center;padding:60px 20px;">
-                    <i class="fas fa-chart-line" style="font-size:3rem;color:#4b5563;margin-bottom:16px;display:block;"></i>
-                    <h5 style="color:#d1d5db;margin-bottom:8px;">Insights Unavailable</h5>
-                    <p style="color:#6b7280;font-size:0.9rem;max-width:360px;margin:0 auto 16px;">
-                        Switch to a <strong>Business Profile</strong> to unlock Instagram Insights — views, interactions, follower demographics, and more.
-                    </p>
-                    <button class="btn btn-sm btn-outline-primary" onclick="document.querySelector('.sp-tab-btn[data-tab=&quot;overview&quot;]').click()">
-                        <i class="fas fa-briefcase me-1"></i> Go to Overview → Switch to Business
-                    </button>
-                </div>
-
-                <!-- Business insights content -->
-                <div id="insights-business-content" style="display:none;">
-                    <!-- Business badge -->
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div>
-                            <span style="display:inline-flex;align-items:center;gap:6px;background:#064e3b;color:#34d399;padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:600;">
-                                <span style="width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block;"></span>
-                                Business Profile
-                            </span>
-                            <span id="insights-biz-category" style="color:#9ca3af;font-size:0.8rem;margin-left:8px;"></span>
-                        </div>
-                        <div id="insights-comparison-period" style="color:#6b7280;font-size:0.75rem;"></div>
-                    </div>
-
-                    <!-- Overview row: Views | Interactions | New Followers | Content Shared -->
-                    <div class="row g-2 mb-3">
-                        <div class="col-3">
-                            <div style="background:#1a1d21;border-radius:8px;padding:14px 10px;text-align:center;border:1px solid #2d3238;">
-                                <div style="font-size:1.3rem;font-weight:700;color:#60a5fa;" id="ins-views">—</div>
-                                <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Views</div>
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <div style="background:#1a1d21;border-radius:8px;padding:14px 10px;text-align:center;border:1px solid #2d3238;">
-                                <div style="font-size:1.3rem;font-weight:700;color:#f472b6;" id="ins-interactions">—</div>
-                                <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Interactions</div>
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <div style="background:#1a1d21;border-radius:8px;padding:14px 10px;text-align:center;border:1px solid #2d3238;">
-                                <div style="font-size:1.3rem;font-weight:700;color:#34d399;" id="ins-new-followers">—</div>
-                                <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">New Followers</div>
-                            </div>
-                        </div>
-                        <div class="col-3">
-                            <div style="background:#1a1d21;border-radius:8px;padding:14px 10px;text-align:center;border:1px solid #2d3238;">
-                                <div style="font-size:1.3rem;font-weight:700;color:#fbbf24;" id="ins-content-shared">—</div>
-                                <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Content Shared</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Views Breakdown -->
-                    <div class="sp-section">
-                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-eye me-1" style="color:#60a5fa;"></i> Views Breakdown</h6>
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <div style="background:#1a1d21;border-radius:8px;padding:12px;border:1px solid #2d3238;">
-                                    <div style="font-size:1.1rem;font-weight:700;color:#17a2b8;" id="ins-accounts-reached">—</div>
-                                    <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;">Accounts Reached</div>
-                                    <div style="font-size:0.75rem;" id="ins-reached-change"></div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <!-- Followers vs Non-followers bar -->
-                                <div style="background:#1a1d21;border-radius:8px;padding:12px;border:1px solid #2d3238;">
-                                    <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;margin-bottom:6px;">Followers vs Non-Followers</div>
-                                    <div style="display:flex;height:20px;border-radius:4px;overflow:hidden;background:#2d3238;">
-                                        <div id="ins-bar-followers" style="background:#6366f1;height:100%;transition:width 0.5s;" title="Followers"></div>
-                                        <div id="ins-bar-nonfollowers" style="background:#a78bfa;height:100%;transition:width 0.5s;" title="Non-followers"></div>
-                                    </div>
-                                    <div style="display:flex;justify-content:space-between;margin-top:4px;">
-                                        <small style="color:#6366f1;font-size:0.7rem;" id="ins-followers-pct-label">Followers —%</small>
-                                        <small style="color:#a78bfa;font-size:0.7rem;" id="ins-nonfollowers-pct-label">Non-followers —%</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Profile Activity -->
-                    <div class="sp-section">
-                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-user-circle me-1" style="color:#f472b6;"></i> Profile Activity</h6>
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <div style="background:#1a1d21;border-radius:8px;padding:12px;border:1px solid #2d3238;">
-                                    <div style="font-size:1.1rem;font-weight:700;color:#ffc107;" id="ins-profile-visits">—</div>
-                                    <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;">Profile Visits</div>
-                                    <div style="font-size:0.75rem;" id="ins-visits-change"></div>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div style="background:#1a1d21;border-radius:8px;padding:12px;border:1px solid #2d3238;">
-                                    <div style="font-size:1.1rem;font-weight:700;color:#38bdf8;" id="ins-link-taps">—</div>
-                                    <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;">External Link Taps</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Followers -->
-                    <div class="sp-section">
-                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-users me-1" style="color:#34d399;"></i> Followers</h6>
-                        <div style="background:#1a1d21;border-radius:8px;padding:14px;border:1px solid #2d3238;display:inline-block;">
-                            <div style="font-size:1.5rem;font-weight:700;color:#22c55e;" id="ins-total-followers">—</div>
-                            <div style="font-size:0.65rem;color:#9ca3af;text-transform:uppercase;">Total Followers</div>
-                        </div>
-                    </div>
-
-                    <!-- Audience Demographics -->
-                    <div class="sp-section">
-                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-chart-pie me-1" style="color:#a78bfa;"></i> Audience Demographics</h6>
-                        <div style="height:220px;position:relative;">
-                            <canvas id="demographicsChart"></canvas>
-                        </div>
-                        <div id="demographicsNoData" style="display:none;text-align:center;color:#6c757d;padding:30px;font-size:0.85rem;">
-                            <i class="fas fa-chart-pie me-1"></i> No demographic data — requires 100+ followers
-                        </div>
-                    </div>
-
-                    <!-- Most Active Times -->
-                    <div class="sp-section">
-                        <h6 style="font-size:0.8rem;color:#d1d5db;"><i class="fas fa-clock me-1" style="color:#fbbf24;"></i> Most Active Times</h6>
-                        <div style="height:180px;position:relative;">
-                            <canvas id="activeTimesChart"></canvas>
-                        </div>
-                        <div id="activeTimesNoData" style="display:none;text-align:center;color:#6c757d;padding:30px;font-size:0.85rem;">
-                            <i class="fas fa-clock me-1"></i> No active times data yet
-                        </div>
-                    </div>
-
-                    <!-- Footer: Scrape button + last scraped -->
-                    <div class="d-flex align-items-center gap-3 mt-3">
-                        <button class="btn btn-sm btn-outline-info" id="btn-scrape-insights" onclick="scrapeInsights()">
-                            🔄 Scrape Now
-                        </button>
-                        <small class="text-muted" id="insights-last-scraped">Last scraped: Never</small>
-                    </div>
-                </div>
-
-                <!-- No data placeholder (business but no scraped data) -->
-                <div id="insights-no-data" style="display:none;text-align:center;padding:50px 20px;">
-                    <i class="fas fa-database" style="font-size:2.5rem;color:#4b5563;margin-bottom:12px;display:block;"></i>
-                    <h6 style="color:#d1d5db;">No Insights Data Yet</h6>
-                    <p style="color:#6b7280;font-size:0.85rem;max-width:320px;margin:0 auto 16px;">
-                        Your account is set up as a Business Profile. Scrape insights to start tracking performance.
-                    </p>
-                    <button class="btn btn-sm btn-outline-info" onclick="scrapeInsights()">
-                        🔄 Scrape Latest Insights
-                    </button>
-                </div>
-            </div>
-
-            <!-- Save bar -->
-            <div class="sp-save-bar">
-                <span class="save-status" id="spSaveStatus"></span>
-                <button class="btn btn-sm btn-outline-info" onclick="openBulkCopyModal()" style="border-radius:8px;font-weight:600;font-size:0.82rem;padding:8px 18px;">
-                    <i class="fas fa-copy me-1"></i> Copy to...
-                </button>
-                <button class="btn-save" onclick="saveAllSettings()">
-                    <i class="fas fa-save me-1"></i> Save Settings
-                </button>
-            </div>
-        </div><!-- /sp-content -->
-    </div>
-</div>
+{% include "_account_panel.html" %}
 
 <!-- ═══════════════ Bulk Copy Modal ═══════════════ -->
 <div class="modal fade bc-modal" id="bulkCopyModal" tabindex="-1" style="z-index: 1070;">
@@ -2092,7 +285,6 @@
 </div>
 
 <!-- Toast notification -->
-<div class="sp-toast" id="spToast"></div>
 {% endblock %}
 
 {% block extra_js %}
@@ -2194,6 +386,7 @@ function refreshDetail() {
             accountsData = data.accounts || [];
             renderAccounts(accountsData);
             updateSummary(accountsData);
+            updateBulkReplaceBtn();
 
             const timeStr = new Date().toLocaleTimeString();
             const dateInfo = isToday(selectedDate)
@@ -2342,860 +535,33 @@ function escHtml(str) {
     return div.innerHTML;
 }
 
+function escAttr(str) {
+    return escHtml(str).replace(/"/g, '&quot;');
+}
+
 // Initialize date UI + load + auto-refresh every 30s
 updateDateUI();
 document.getElementById('datePicker').max = getUTCTodayStr();
 refreshDetail();
 setInterval(refreshDetail, 30000);
 
-// ═══════════════════════════════════════════════════════════
-//  Settings Panel Logic
-// ═══════════════════════════════════════════════════════════
-
-let spCurrentDevice = '';
-let spCurrentAccount = '';
-let spOffcanvas = null;
-
-// ── Tab Switching ──
-document.querySelectorAll('.sp-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.sp-tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const tab = btn.dataset.tab;
-        document.querySelectorAll('.sp-pane').forEach(p => p.classList.remove('active'));
-        const pane = document.querySelector(`.sp-pane[data-pane="${tab}"]`);
-        if (pane) pane.classList.add('active');
-    });
-});
-
-// ── Open Settings Panel ──
-function openAccountSettings(deviceSerial, username) {
-    spCurrentDevice = deviceSerial;
-    spCurrentAccount = username;
-
-    // Header
-    document.getElementById('spUsername').textContent = '@' + username;
-    document.getElementById('spDevice').textContent = deviceSerial;
-
-    // Reset to overview tab
-    document.querySelectorAll('.sp-tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('.sp-tab-btn[data-tab="overview"]').classList.add('active');
-    document.querySelectorAll('.sp-pane').forEach(p => p.classList.remove('active'));
-    document.querySelector('.sp-pane[data-pane="overview"]').classList.add('active');
-
-    // Show loading, hide content
-    document.getElementById('spLoading').style.display = 'flex';
-    document.getElementById('spContent').style.display = 'none';
-
-    // Show offcanvas
-    var panelEl = document.getElementById('settingsPanel');
-    if (!spOffcanvas) {
-        spOffcanvas = new bootstrap.Offcanvas(panelEl);
-        // Strip Bootstrap's scrollbar padding compensation after panel is fully shown
-        panelEl.addEventListener('shown.bs.offcanvas', function() {
-            document.body.style.removeProperty('padding-right');
-            document.querySelectorAll('.navbar, .fixed-top, .navbar-expand-lg').forEach(function(el) {
-                el.style.removeProperty('padding-right');
-            });
-        });
-    }
-    spOffcanvas.show();
-
-    // Load settings from API
-    fetch(`/api/bot-settings/${encodeURIComponent(deviceSerial)}/${encodeURIComponent(username)}`)
-        .then(r => r.json())
-        .then(data => {
-            if (!data.success) {
-                showSpToast(data.error || 'Failed to load settings', 'error');
-                return;
-            }
-            populateSettings(data.settings || {}, data.account_data || {});
-            populateBusinessFields(data.account_data || {});
-
-            // Load insights data in background
-            loadInsights(deviceSerial, username);
-
-            // Load sources in background
-            loadSources('sources', 'sp_follow_sources');
-            loadSources('like_sources', 'sp_like_sources');
-            loadSources('watch_reels_sources', 'sp_reels_sources');
-            loadSources('share_sources', 'sp_share_sources');
-            loadSources('comment_sources', 'sp_comment_sources');
-
-            // Load follower growth chart
-            loadFollowerGrowth(deviceSerial, username);
-
-            document.getElementById('spLoading').style.display = 'none';
-            document.getElementById('spContent').style.display = 'block';
-        })
-        .catch(err => {
-            showSpToast('Error loading settings: ' + err, 'error');
-        });
-}
-
-// ── Toggle Advanced sections ──
-function toggleAdvanced(toggleEl) {
-    toggleEl.classList.toggle('open');
-    const body = toggleEl.nextElementSibling;
-    if (body) body.classList.toggle('open');
-}
-
-function toggleDmSpecificUsers() {
-    var method = document.getElementById('sp_directmessage_method').value;
-    var section = document.getElementById('dmSpecificUsersSection');
-    if (section) {
-        section.style.display = (method === 'dm-specific-users') ? 'block' : 'none';
-    }
-}
-
-// ── Populate Settings into Form ──
-function populateSettings(settings, accountData) {
-    // Overview - readonly account info
-    document.getElementById('sp_username').value = accountData.username || '';
-    document.getElementById('sp_password').value = accountData.password || '';
-    document.getElementById('sp_status').value = accountData.status || '';
-    document.getElementById('sp_instagram_package').value = accountData.instagram_package || '';
-    document.getElementById('sp_followers').value = accountData.followers || '0';
-    document.getElementById('sp_tag').value = accountData.tag || '';
-
-    // Active Hours - from account data (now in Overview tab)
-    document.getElementById('sp_start_time').value = accountData.start_time || '';
-    document.getElementById('sp_end_time').value = accountData.end_time || '';
-
-    // All sp-setting fields (settings_json + toggles merged)
-    document.querySelectorAll('.sp-setting').forEach(el => {
-        const key = el.dataset.key;
-        if (!key) return;
-        const val = settings[key];
-
-        if (el.type === 'checkbox') {
-            el.checked = toBool(val);
-        } else if (el.tagName === 'SELECT') {
-            if (val !== undefined && val !== null) {
-                // Try to set the option; if not found, just set value
-                el.value = val;
-            }
-        } else {
-            el.value = (val !== undefined && val !== null) ? val : '';
+// Deep-link: ?account=<username> auto-opens account settings panel
+(function() {
+    const params = new URLSearchParams(location.search);
+    const targetAccount = params.get('account');
+    if (!targetAccount) return;
+    // Wait for refreshDetail (initial load) to complete + functions to be defined
+    let tries = 0;
+    const tryOpen = () => {
+        if (typeof openAccountSettings === 'function') {
+            openAccountSettings(DEVICE_SERIAL, targetAccount);
+        } else if (tries++ < 30) {
+            setTimeout(tryOpen, 200);
         }
-    });
+    };
+    setTimeout(tryOpen, 600);  // give refreshDetail a head start
+})();
 
-    // Show/hide conditional sections
-    toggleDmSpecificUsers();
-
-    // Update conditional field visibility based on loaded settings
-    updateConditionalFields();
-
-    // Update tab status dots
-    updateTabDots();
-
-    // Load browse profiles sources from account_sources
-    loadBrowseProfilesSources();
-}
-
-// ── Conditional Fields (show/hide based on checkbox) ──
-function updateConditionalFields() {
-    document.querySelectorAll('.sp-conditional').forEach(div => {
-        const dependsId = div.getAttribute('data-depends');
-        const checkbox = document.getElementById(dependsId);
-        if (checkbox) {
-            div.style.display = checkbox.checked ? 'block' : 'none';
-        }
-    });
-}
-
-// Wire up conditional field toggles
-document.querySelectorAll('.sp-conditional').forEach(div => {
-    const dependsId = div.getAttribute('data-depends');
-    const checkbox = document.getElementById(dependsId);
-    if (checkbox) {
-        checkbox.addEventListener('change', () => {
-            div.style.display = checkbox.checked ? 'block' : 'none';
-        });
-    }
-});
-
-// ── Tab Status Dots ──
-const tabDotMap = {
-    'follow': 'sp_follow_enabled_master',
-    'unfollow': 'sp_unfollow_enabled_master',
-    'like': 'sp_like_enabled_master',
-    'reels': 'sp_enable_watch_reels',
-    'share': 'sp_enable_share_post_to_story',
-    'story': 'sp_story_enabled_master',
-    'comment': 'sp_comment_enabled_master',
-    'dm': 'sp_enable_dm_master',
-    'hbe': 'sp_hbe_enabled_master',
-};
-
-function updateTabDots() {
-    for (const [tab, checkboxId] of Object.entries(tabDotMap)) {
-        const dot = document.getElementById(`dot-${tab}`);
-        const cb = document.getElementById(checkboxId);
-        if (dot && cb) {
-            dot.classList.toggle('active', cb.checked);
-        }
-    }
-}
-
-// Update dots when any master toggle changes
-for (const checkboxId of Object.values(tabDotMap)) {
-    const cb = document.getElementById(checkboxId);
-    if (cb) {
-        cb.addEventListener('change', updateTabDots);
-    }
-}
-
-// ── Collect Settings from Form ──
-function collectSettings() {
-    const settings = {};
-
-    document.querySelectorAll('.sp-setting').forEach(el => {
-        const key = el.dataset.key;
-        if (!key) return;
-
-        if (el.type === 'checkbox') {
-            settings[key] = el.checked;
-        } else if (el.type === 'number') {
-            const v = el.value.trim();
-            settings[key] = v !== '' ? parseInt(v) : null;
-        } else {
-            settings[key] = el.value;
-        }
-    });
-
-    return settings;
-}
-
-// ── Collect account-level fields (start_time, end_time) ──
-function collectAccountSettings() {
-    const acctSettings = {};
-    document.querySelectorAll('.sp-acct-setting').forEach(el => {
-        const key = el.dataset.acctKey;
-        if (!key) return;
-        const v = el.value.trim();
-        acctSettings[key] = v !== '' ? v : null;
-    });
-    return acctSettings;
-}
-
-// ── Detect App ID (foreground app on device) ──
-function detectAppId() {
-    if (!spCurrentDevice) { showSpToast('No device selected', 'error'); return; }
-    const btn = event.currentTarget;
-    const origHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting...';
-    btn.disabled = true;
-
-    fetch(`/api/device-manager/${encodeURIComponent(spCurrentDevice)}/detect-foreground-app`)
-        .then(r => r.json())
-        .then(data => {
-            if (data.success && data.package) {
-                document.getElementById('sp_instagram_package').value = data.package;
-                showSpToast(`Detected: ${data.package}`, 'success');
-            } else {
-                showSpToast(data.error || 'Could not detect app', 'error');
-            }
-        })
-        .catch(err => showSpToast('Detection failed: ' + err, 'error'))
-        .finally(() => { btn.innerHTML = origHtml; btn.disabled = false; });
-}
-
-// ── Save All Settings ──
-function saveAllSettings() {
-    const statusEl = document.getElementById('spSaveStatus');
-    statusEl.textContent = 'Saving...';
-    statusEl.style.color = '#ffc107';
-
-    const settings = collectSettings();
-    const acctSettings = collectAccountSettings();
-
-    // Include App ID (instagram_package) — editable field
-    const appIdVal = document.getElementById('sp_instagram_package').value.trim();
-    if (appIdVal) acctSettings.instagram_package = appIdVal;
-
-    // Merge account-level settings for the POST (they'll go into settings_json too)
-    // But also update accounts table for start_time / end_time
-    Object.assign(settings, acctSettings);
-
-    fetch(`/api/bot-settings/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            showSpToast('Settings saved!', 'success');
-            statusEl.textContent = 'Saved ✓';
-            statusEl.style.color = '#28a745';
-            setTimeout(() => { statusEl.textContent = ''; }, 3000);
-            // Refresh the main table to reflect toggle changes
-            refreshDetail();
-        } else {
-            showSpToast(data.error || 'Save failed', 'error');
-            statusEl.textContent = 'Error';
-            statusEl.style.color = '#dc3545';
-        }
-    })
-    .catch(err => {
-        showSpToast('Save error: ' + err, 'error');
-        statusEl.textContent = 'Error';
-        statusEl.style.color = '#dc3545';
-    });
-}
-
-// ── Browse Profiles Sources (account_sources table) ──
-function loadBrowseProfilesSources() {
-    if (!spCurrentDevice || !spCurrentAccount) return;
-    fetch(`/api/sources/info?device_id=${encodeURIComponent(spCurrentDevice)}&account_name=${encodeURIComponent(spCurrentAccount)}&action_type=browse_profiles`)
-        .then(r => r.json())
-        .then(data => {
-            const ta = document.getElementById('sp_browse_profiles_sources');
-            if (ta && data.content !== undefined) {
-                ta.value = data.content || '';
-            }
-        })
-        .catch(err => console.warn('Failed to load browse profiles sources:', err));
-}
-
-function saveBrowseProfilesSources() {
-    if (!spCurrentDevice || !spCurrentAccount) return;
-    const ta = document.getElementById('sp_browse_profiles_sources');
-    const usernames = ta.value.trim();
-    const accountId = spCurrentDevice + '/' + spCurrentAccount;
-
-    fetch('/api/sources/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            account_ids: [accountId],
-            usernames: usernames,
-            source_type: 'browse_profiles'
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        const msg = document.getElementById('sp_browse_profiles_saved_msg');
-        if (data.success) {
-            msg.classList.remove('d-none');
-            setTimeout(() => msg.classList.add('d-none'), 2000);
-        } else {
-            showSpToast(data.message || 'Save failed', 'error');
-        }
-    })
-    .catch(err => showSpToast('Save error: ' + err, 'error'));
-}
-
-// ── Sources (load/save) ──
-function loadSources(listType, textareaId) {
-    fetch(`/api/bot-settings/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/lists/${listType}`)
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById(textareaId).value = (data.items || []).join('\n');
-            }
-        })
-        .catch(() => {}); // Silently fail for sources
-}
-
-function saveSources(listType, textareaId) {
-    const text = document.getElementById(textareaId).value;
-    const items = text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-
-    fetch(`/api/bot-settings/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/lists/${listType}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            showSpToast(`Sources saved (${items.length} items)`, 'success');
-        } else {
-            showSpToast(data.error || 'Failed to save sources', 'error');
-        }
-    })
-    .catch(err => showSpToast('Error: ' + err, 'error'));
-}
-
-// ── Helpers ──
-function toBool(val) {
-    if (val === true || val === 'True' || val === 'true' || val === 'On' || val === 'on' || val === '1' || val === 1) return true;
-    return false;
-}
-
-function togglePasswordVis() {
-    const inp = document.getElementById('sp_password');
-    inp.type = inp.type === 'password' ? 'text' : 'password';
-}
-
-function showSpToast(msg, type) {
-    const toast = document.getElementById('spToast');
-    toast.textContent = msg;
-    toast.className = 'sp-toast ' + (type || 'success');
-    requestAnimationFrame(() => toast.classList.add('show'));
-    setTimeout(() => toast.classList.remove('show'), 3000);
-}
-
-// ── Follower Growth Chart ──
-function formatNum(n) {
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
-    return String(n);
-}
-
-function formatDelta(n) {
-    if (n > 0) return `<span style="color:#22c55e;font-weight:600;">+${formatNum(n)}</span>`;
-    if (n < 0) return `<span style="color:#ef4444;font-weight:600;">${formatNum(n)}</span>`;
-    return `<span style="color:#6c757d;">±0</span>`;
-}
-
-function loadFollowerGrowth(deviceSerial, username) {
-    const chartCanvas = document.getElementById('growthChart');
-    const noDataEl = document.getElementById('growthNoData');
-
-    fetch(`/api/device-manager/${encodeURIComponent(deviceSerial)}/follower-history?username=${encodeURIComponent(username)}&days=30`)
-        .then(r => r.json())
-        .then(data => {
-            if (!data.success || !data.history || data.history.length === 0) {
-                // No data — show placeholder
-                chartCanvas.style.display = 'none';
-                noDataEl.style.display = 'block';
-                document.getElementById('growth_followers').textContent = '—';
-                document.getElementById('growth_following').textContent = '—';
-                document.getElementById('growth_posts').textContent = '—';
-                document.getElementById('growth_followers_delta').innerHTML = '—';
-                return;
-            }
-
-            chartCanvas.style.display = 'block';
-            noDataEl.style.display = 'none';
-
-            const history = data.history;
-            const growth = data.growth || {};
-            const latest = history[history.length - 1];
-
-            // Update stat cards
-            document.getElementById('growth_followers').textContent = formatNum(latest.followers);
-            document.getElementById('growth_following').textContent = formatNum(latest.following);
-            document.getElementById('growth_posts').textContent = formatNum(latest.posts);
-
-            // Delta indicators
-            let deltaHtml = '';
-            if (growth.today !== undefined && growth.today !== 0) {
-                deltaHtml += formatDelta(growth.today) + ' today';
-            }
-            if (growth.week !== undefined && growth.week !== 0) {
-                if (deltaHtml) deltaHtml += ' · ';
-                deltaHtml += formatDelta(growth.week) + ' /wk';
-            }
-            if (!deltaHtml) deltaHtml = '<span style="color:#6c757d;">no change</span>';
-            document.getElementById('growth_followers_delta').innerHTML = deltaHtml;
-
-            // Render chart
-            const labels = history.map(h => {
-                const d = new Date(h.date + 'T00:00:00');
-                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            });
-            const followerData = history.map(h => h.followers);
-
-            // Destroy previous chart instance
-            if (growthChartInstance) {
-                growthChartInstance.destroy();
-                growthChartInstance = null;
-            }
-
-            growthChartInstance = new Chart(chartCanvas, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Followers',
-                        data: followerData,
-                        borderColor: '#22c55e',
-                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                        borderWidth: 2,
-                        pointRadius: history.length > 14 ? 0 : 3,
-                        pointHoverRadius: 5,
-                        pointBackgroundColor: '#22c55e',
-                        tension: 0.3,
-                        fill: true,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index',
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#1a1d21',
-                            titleColor: '#e5e7eb',
-                            bodyColor: '#a0aec0',
-                            borderColor: '#2d3748',
-                            borderWidth: 1,
-                            padding: 10,
-                            callbacks: {
-                                label: ctx => `Followers: ${ctx.parsed.y.toLocaleString()}`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: '#2d3748', drawBorder: false },
-                            ticks: {
-                                color: '#a0aec0',
-                                font: { size: 10 },
-                                maxTicksLimit: 8,
-                            }
-                        },
-                        y: {
-                            grid: { color: '#2d3748', drawBorder: false },
-                            ticks: {
-                                color: '#a0aec0',
-                                font: { size: 10 },
-                                callback: val => formatNum(val),
-                            },
-                            beginAtZero: false,
-                        }
-                    }
-                }
-            });
-        })
-        .catch(err => {
-            console.warn('Failed to load follower growth:', err);
-            chartCanvas.style.display = 'none';
-            noDataEl.style.display = 'block';
-        });
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Business Profile & Insights
-// ═══════════════════════════════════════════════════════════
-
-let demographicsChartInstance = null;
-let activeTimesChartInstance = null;
-
-function populateBusinessFields(accountData) {
-    // Update business profile fields from account data
-    const isBiz = accountData.is_business_profile ? true : false;
-    const checkbox = document.getElementById('sp_is_business_profile');
-    if (checkbox) checkbox.checked = isBiz;
-
-    const catField = document.getElementById('sp_business_category');
-    if (catField) catField.value = accountData.business_category || '';
-
-    const switchedAt = document.getElementById('sp_business_switched_at');
-    if (switchedAt) switchedAt.value = accountData.business_switched_at || 'Not yet';
-
-    // Disable switch button if already business
-    const switchBtn = document.getElementById('btn-switch-business');
-    if (switchBtn) switchBtn.disabled = isBiz;
-
-    // Disable switch-private button if already private
-    const isPrivate = accountData.is_private === 1 || accountData.is_private === '1';
-    const switchPrivBtn = document.getElementById('btn-switch-private');
-    if (switchPrivBtn) switchPrivBtn.disabled = isPrivate;
-    if (isPrivate && switchPrivBtn) {
-        switchPrivBtn.innerHTML = '🔒 Already Private';
-    } else if (switchPrivBtn) {
-        switchPrivBtn.innerHTML = '🔒 Switch to Private';
-    }
-}
-
-function switchToBusiness() {
-    if (!spCurrentDevice || !spCurrentAccount) return;
-    const category = document.getElementById('sp_business_category').value.trim() || 'Digital creator';
-
-    const btn = document.getElementById('btn-switch-business');
-    const statusEl = document.getElementById('switchBusinessStatus');
-    btn.disabled = true;
-    statusEl.textContent = 'Creating task...';
-    statusEl.style.color = '#ffc107';
-
-    fetch(`/api/device-manager/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/switch-business`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: category })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            showSpToast(data.message, 'success');
-            statusEl.textContent = '✓ Task queued — will run on next bot session';
-            statusEl.style.color = '#28a745';
-        } else {
-            showSpToast(data.error || 'Failed', 'error');
-            statusEl.textContent = data.error || 'Failed';
-            statusEl.style.color = '#dc3545';
-            btn.disabled = false;
-        }
-    })
-    .catch(err => {
-        showSpToast('Error: ' + err, 'error');
-        statusEl.textContent = 'Error';
-        statusEl.style.color = '#dc3545';
-        btn.disabled = false;
-    });
-}
-
-function switchToPrivate() {
-    if (!spCurrentDevice || !spCurrentAccount) return;
-
-    const btn = document.getElementById('btn-switch-private');
-    const statusEl = document.getElementById('switchPrivateStatus');
-    btn.disabled = true;
-    statusEl.textContent = 'Creating task...';
-    statusEl.style.color = '#ffc107';
-
-    fetch(`/api/device-manager/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/switch-private`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            showSpToast(data.message, 'success');
-            statusEl.textContent = '✓ Task queued — will run on next bot session';
-            statusEl.style.color = '#28a745';
-        } else {
-            showSpToast(data.error || 'Failed', 'error');
-            statusEl.textContent = data.error || 'Failed';
-            statusEl.style.color = '#dc3545';
-            btn.disabled = false;
-        }
-    })
-    .catch(err => {
-        showSpToast('Error: ' + err, 'error');
-        statusEl.textContent = 'Error';
-        statusEl.style.color = '#dc3545';
-        btn.disabled = false;
-    });
-}
-
-function loadInsights(deviceSerial, username) {
-    const notBizEl = document.getElementById('insights-not-business');
-    const bizContent = document.getElementById('insights-business-content');
-    const noDataEl = document.getElementById('insights-no-data');
-
-    // Hide all sections initially
-    notBizEl.style.display = 'none';
-    bizContent.style.display = 'none';
-    noDataEl.style.display = 'none';
-
-    fetch(`/api/account/${encodeURIComponent(username)}/insights`)
-        .then(r => r.json())
-        .then(data => {
-            if (!data.success) {
-                notBizEl.style.display = 'block';
-                return;
-            }
-
-            if (!data.is_business) {
-                notBizEl.style.display = 'block';
-                return;
-            }
-
-            if (!data.insights) {
-                noDataEl.style.display = 'block';
-                return;
-            }
-
-            // Show business content
-            bizContent.style.display = 'block';
-            const ins = data.insights;
-
-            // Business category badge
-            document.getElementById('insights-biz-category').textContent = data.business_category ? `· ${data.business_category}` : '';
-
-            // Overview cards
-            document.getElementById('ins-views').textContent = formatNum(ins.views || 0);
-            document.getElementById('ins-interactions').textContent = formatNum(ins.interactions || 0);
-            document.getElementById('ins-new-followers').textContent = formatNum(ins.new_followers || 0);
-            document.getElementById('ins-content-shared').textContent = formatNum(ins.content_shared || 0);
-
-            // Views breakdown
-            document.getElementById('ins-accounts-reached').textContent = formatNum(ins.accounts_reached || 0);
-            const reachedChg = ins.accounts_reached_change_pct || 0;
-            document.getElementById('ins-reached-change').innerHTML =
-                reachedChg > 0 ? `<span style="color:#22c55e">▲ ${reachedChg.toFixed(1)}%</span>` :
-                reachedChg < 0 ? `<span style="color:#ef4444">▼ ${Math.abs(reachedChg).toFixed(1)}%</span>` : '';
-
-            // Followers vs Non-followers bar
-            const fPct = ins.views_followers_pct || 0;
-            const nfPct = ins.views_non_followers_pct || 0;
-            document.getElementById('ins-bar-followers').style.width = fPct + '%';
-            document.getElementById('ins-bar-nonfollowers').style.width = nfPct + '%';
-            document.getElementById('ins-followers-pct-label').textContent = `Followers ${fPct.toFixed(0)}%`;
-            document.getElementById('ins-nonfollowers-pct-label').textContent = `Non-followers ${nfPct.toFixed(0)}%`;
-
-            // Profile Activity
-            document.getElementById('ins-profile-visits').textContent = formatNum(ins.profile_visits || 0);
-            const visitChg = ins.profile_visits_change_pct || 0;
-            document.getElementById('ins-visits-change').innerHTML =
-                visitChg > 0 ? `<span style="color:#22c55e">▲ ${visitChg.toFixed(1)}%</span>` :
-                visitChg < 0 ? `<span style="color:#ef4444">▼ ${Math.abs(visitChg).toFixed(1)}%</span>` : '';
-            document.getElementById('ins-link-taps').textContent = formatNum(ins.external_link_taps || 0);
-
-            // Total followers
-            document.getElementById('ins-total-followers').textContent = formatNum(ins.total_followers || 0);
-
-            // Comparison period
-            document.getElementById('insights-comparison-period').textContent =
-                ins.comparison_period ? `vs ${ins.comparison_period}` : (ins.date_range || '');
-
-            // Last scraped
-            if (ins.scraped_at) {
-                const d = new Date(ins.scraped_at);
-                document.getElementById('insights-last-scraped').textContent =
-                    'Last scraped: ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
-            } else {
-                document.getElementById('insights-last-scraped').textContent = 'Last scraped: Never';
-            }
-
-            // Demographics & active times (from parsed JSON fields)
-            const demo = {
-                age_ranges: ins.age_range || {},
-                gender: ins.gender || {},
-                most_active_hours: (ins.most_active_times || {}).hours || [],
-                most_active_days: (ins.most_active_times || {}).days || []
-            };
-            renderDemographicsChart(demo);
-            renderActiveTimesChart(demo);
-        })
-        .catch(err => {
-            console.warn('Failed to load insights v2:', err);
-            notBizEl.style.display = 'block';
-        });
-}
-
-function renderDemographicsChart(demo) {
-    const canvas = document.getElementById('demographicsChart');
-    const noData = document.getElementById('demographicsNoData');
-
-    const ageRanges = demo.age_ranges || {};
-    const labels = Object.keys(ageRanges);
-
-    if (!labels.length) {
-        canvas.style.display = 'none';
-        noData.style.display = 'block';
-        return;
-    }
-
-    canvas.style.display = 'block';
-    noData.style.display = 'none';
-
-    if (demographicsChartInstance) {
-        demographicsChartInstance.destroy();
-        demographicsChartInstance = null;
-    }
-
-    demographicsChartInstance = new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Age Distribution %',
-                data: labels.map(l => ageRanges[l] || 0),
-                backgroundColor: 'rgba(99, 102, 241, 0.6)',
-                borderColor: '#6366f1',
-                borderWidth: 1,
-                borderRadius: 4,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { grid: { color: '#2d3748' }, ticks: { color: '#a0aec0', font: { size: 10 } } },
-                y: { grid: { color: '#2d3748' }, ticks: { color: '#a0aec0', font: { size: 10 }, callback: v => v + '%' }, beginAtZero: true }
-            }
-        }
-    });
-}
-
-function renderActiveTimesChart(demo) {
-    const canvas = document.getElementById('activeTimesChart');
-    const noData = document.getElementById('activeTimesNoData');
-
-    const activeHours = demo.most_active_hours || [];
-    const activeDays = demo.most_active_days || [];
-
-    if (!activeHours.length && !activeDays.length) {
-        canvas.style.display = 'none';
-        noData.style.display = 'block';
-        return;
-    }
-
-    canvas.style.display = 'block';
-    noData.style.display = 'none';
-
-    if (activeTimesChartInstance) {
-        activeTimesChartInstance.destroy();
-        activeTimesChartInstance = null;
-    }
-
-    // Build 24-hour activity data (mark active hours)
-    const hourLabels = Array.from({length: 24}, (_, i) => i + ':00');
-    const hourData = hourLabels.map((_, i) => activeHours.includes(i) ? 1 : 0.15);
-
-    activeTimesChartInstance = new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: hourLabels,
-            datasets: [{
-                label: 'Activity',
-                data: hourData,
-                backgroundColor: hourData.map(v => v > 0.5 ? 'rgba(40, 167, 69, 0.7)' : 'rgba(108, 117, 125, 0.2)'),
-                borderRadius: 2,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 8 }, maxTicksLimit: 12 } },
-                y: { display: false }
-            }
-        }
-    });
-}
-
-function scrapeInsights() {
-    if (!spCurrentDevice || !spCurrentAccount) return;
-
-    const btn = document.getElementById('btn-scrape-insights');
-    const statusEl = document.getElementById('insights-last-scraped');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scraping...';
-
-    fetch(`/api/insights/${encodeURIComponent(spCurrentDevice)}/${encodeURIComponent(spCurrentAccount)}/scrape`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ period: '7d' })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            showSpToast(data.message, 'success');
-            statusEl.textContent = '✓ Scrape task queued';
-        } else {
-            showSpToast(data.error || 'Failed', 'error');
-        }
-    })
-    .catch(err => showSpToast('Error: ' + err, 'error'))
-    .finally(() => {
-        btn.disabled = false;
-        btn.innerHTML = '🔄 Scrape Latest Insights';
-    });
-}
 
 // ═══════════════════════════════════════════════════════════
 //  Bulk Copy Settings
@@ -3967,6 +1333,103 @@ function navigateDevice(dir) {
 // Load device list on page load
 loadDeviceList();
 
+// ── Bulk Replace broken accounts (paste / inventory) ──
+const BROKEN_STATUSES = ['banned','suspended','challenge','login_failed',
+                         'verification_required','logged_out'];
+
+function _brokenCount() {
+    return (accountsData || []).filter(
+        a => BROKEN_STATUSES.includes((a.status || '').toLowerCase())).length;
+}
+
+function updateBulkReplaceBtn() {
+    const n = _brokenCount();
+    const btn = document.getElementById('bulkReplaceBtn');
+    const span = document.getElementById('bulkReplaceBrokenN');
+    if (span) span.textContent = n;
+    if (btn) btn.disabled = (n === 0);
+}
+
+function openBulkReplaceModal() {
+    const n = _brokenCount();
+    if (n === 0) { showSpToast('No broken accounts on this device', 'info'); return; }
+    document.getElementById('bulkReplaceLabel').textContent = DEVICE_SERIAL;
+    document.getElementById('bulkReplaceModalBrokenN').textContent = n;
+    document.getElementById('bulkReplacePaste').value = '';
+    updateBulkPasteCounter();
+    document.getElementById('bulkReplaceResults').classList.add('d-none');
+    const btn = document.getElementById('bulkReplaceConfirmBtn');
+    btn.disabled = false;
+    btn.innerHTML = '\u{1F501} Replace';
+    new bootstrap.Modal(document.getElementById('bulkReplaceModal')).show();
+}
+
+function updateBulkPasteCounter() {
+    const broken = _brokenCount();
+    const lines = document.getElementById('bulkReplacePaste').value
+        .split('\n').map(s => s.trim()).filter(Boolean);
+    const el = document.getElementById('bulkReplacePasteCounter');
+    const n = lines.length;
+    el.textContent = `${n} / ${broken} accounts added`;
+    if (n === 0) el.className = 'small mt-1 text-muted';
+    else if (n < broken) el.className = 'small mt-1 text-warning';
+    else if (n === broken) el.className = 'small mt-1 text-success';
+    else el.className = 'small mt-1 text-info';
+}
+
+function submitBulkReplace() {
+    const pasteTabActive = document.getElementById('brTabPaste')
+        .classList.contains('active');
+    const payload = { device_serial: DEVICE_SERIAL };
+    if (pasteTabActive) {
+        const lines = document.getElementById('bulkReplacePaste').value
+            .split('\n').map(s => s.trim()).filter(Boolean);
+        if (!lines.length) {
+            showSpToast('Paste at least one account (or use the inventory tab)', 'error');
+            return;
+        }
+        payload.pasted_accounts = lines;
+    }
+    const btn = document.getElementById('bulkReplaceConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Replacing…';
+
+    fetch('/api/account-health/auto-fix-device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json().then(d => ({ ok: r.ok, body: d })))
+    .then(({ ok, body }) => {
+        const res = document.getElementById('bulkReplaceResults');
+        const txt = document.getElementById('bulkReplaceResultsText');
+        res.classList.remove('d-none');
+        if (ok && body.success) {
+            let msg = `${body.replaced}/${body.broken_found} accounts added (replaced).`;
+            if (body.errors_count > 0) {
+                const first = (body.errors && body.errors[0]) ? body.errors[0].error : '';
+                msg += ` ${body.errors_count} error(s)${first ? ' — ' + first : ''}`;
+            }
+            txt.className = 'alert mb-0 ' +
+                (body.errors_count > 0 ? 'alert-warning' : 'alert-success');
+            txt.textContent = msg;
+            showSpToast(msg, body.errors_count > 0 ? 'warning' : 'success');
+            refreshDetail();
+        } else {
+            txt.className = 'alert alert-danger mb-0';
+            txt.textContent = body.error || body.message || 'Replace failed';
+            showSpToast(txt.textContent, 'error');
+        }
+        btn.disabled = false;
+        btn.innerHTML = '\u{1F501} Replace';
+    })
+    .catch(err => {
+        showSpToast('Error: ' + err, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '\u{1F501} Replace';
+    });
+}
+
 // ── Auto-Fix (replace broken account from inventory) ──
 let pendingAutoFixId = null;
 
@@ -4039,7 +1502,115 @@ function confirmDevAutoFix() {
 }
 </script>
 
+<!-- Bulk Replace (paste / inventory) Modal -->
+<div class="modal fade" id="bulkReplaceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">&#x1F501; Replace broken accounts — <span id="bulkReplaceLabel"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger py-2 mb-2">
+                    <strong id="bulkReplaceModalBrokenN">…</strong> broken (red) account(s)
+                    on this device will be replaced.
+                </div>
+                <p class="text-muted small mb-2">
+                    For each broken account (banned / suspended / challenge / login_failed /
+                    verification_required / logged_out) the IG clone is data-cleared
+                    (adb pm clear), a new account is assigned, and a pending login task is
+                    created so it appears in Login Automation. Healthy accounts are untouched.
+                </p>
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab"
+                                data-bs-target="#brTabPaste" type="button">Paste accounts</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab"
+                                data-bs-target="#brTabInv" type="button">From inventory</button>
+                    </li>
+                </ul>
+                <div class="tab-content pt-3">
+                    <div class="tab-pane fade show active" id="brTabPaste">
+                        <label class="form-label small">
+                            One account per line:
+                            <code>username:password:2fa_secret:email</code>
+                            (2fa &amp; email optional). Consumed top-to-bottom,
+                            one per broken account.
+                        </label>
+                        <textarea id="bulkReplacePaste" class="form-control bg-black text-white border-secondary"
+                                  rows="8" placeholder="user1:pass1:JBSWY3DPEHPK3PXP&#10;user2:pass2"
+                                  oninput="updateBulkPasteCounter()"></textarea>
+                        <div class="small mt-1" id="bulkReplacePasteCounter">0 / 0 accounts added</div>
+                    </div>
+                    <div class="tab-pane fade" id="brTabInv">
+                        <div class="alert alert-secondary mb-0">
+                            Pull the next available accounts from
+                            <strong>account_inventory</strong> (status = available),
+                            one per broken account, in id order.
+                        </div>
+                    </div>
+                </div>
+                <div class="d-none mt-3" id="bulkReplaceResults">
+                    <div class="alert mb-0" id="bulkReplaceResultsText"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm" style="background:#8b5cf6;color:#fff;"
+                        id="bulkReplaceConfirmBtn" onclick="submitBulkReplace()">
+                    &#x1F501; Replace
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Auto-Fix Modal -->
+<!-- Rename Account Modal (Hydra-DB-side only) -->
+<div class="modal fade" id="renameAcctModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-pen-to-square me-2 text-info"></i>Rename account
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning py-2 small mb-3">
+                    <i class="fas fa-circle-info me-1"></i>
+                    <strong>Metadata-only rename.</strong> This updates Hydra's DBs
+                    (accounts, action_history, sessions, snapshots, profile_updates).
+                    It does <strong>NOT</strong> touch Instagram itself — use only
+                    when you've already changed the IG handle on the device.
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small text-muted">Current username</label>
+                    <input type="text" class="form-control bg-dark text-white-50 border-secondary"
+                           id="renameAcctOld" readonly>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small text-muted">New username</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary"
+                           id="renameAcctNew" maxlength="30"
+                           placeholder="e.g. craigsfun_">
+                    <div class="form-text small text-muted">a-z, 0-9, . and _ only — max 30 chars.</div>
+                </div>
+                <div id="renameAcctStatus" class="small mt-2"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info btn-sm" id="renameAcctConfirmBtn"
+                        onclick="submitRenameAccount()">
+                    <i class="fas fa-check me-1"></i> Rename
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="devAutoFixModal" tabindex="-1">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content bg-dark text-white border-secondary">

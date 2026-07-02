@@ -1,0 +1,3180 @@
+{% extends "base.html" %}
+
+{% block title %}🏆 {{ mother.username }} — Mother Detail{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ─── Phone Mockup ───────────────────────────────────────────── */
+.phone-frame {
+    position: relative;
+    width: 400px;
+    margin: 0 auto;
+    background: #111;
+    border-radius: 42px;
+    padding: 14px;
+    box-shadow: 0 0 0 2px #2a2a2a, 0 10px 36px rgba(0,0,0,0.65),
+                inset 0 0 0 1px #333;
+}
+.phone-notch {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 24px;
+    background: #000;
+    border-radius: 0 0 14px 14px;
+    z-index: 5;
+}
+.phone-screen {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 9 / 16;
+    background: #000;
+    border-radius: 24px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.phone-screen img,
+.phone-screen iframe {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background: #000;
+    user-select: none;
+    -webkit-user-drag: none;
+    border: 0;
+}
+
+/* ─── IG Profile Mockup (CSS-only, instant, no ADB needed) ────── */
+.ig-mockup {
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    color: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    font-size: 11px;
+    line-height: 1.35;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+}
+.ig-mockup::-webkit-scrollbar { width: 0; }
+.ig-statusbar {
+    flex-shrink: 0;
+    height: 18px;
+    padding: 0 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #000;
+    letter-spacing: 0;
+}
+.ig-statusbar .right { display: flex; gap: 4px; align-items: center; font-size: 9px; }
+.ig-topbar {
+    flex-shrink: 0;
+    height: 36px;
+    padding: 0 8px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    border-bottom: 0.5px solid #efefef;
+    position: relative;
+}
+.ig-topbar .left,
+.ig-topbar .right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: #262626;
+    font-size: 16px;
+}
+.ig-topbar .left { justify-content: flex-start; }
+.ig-topbar .right { justify-content: flex-end; }
+.ig-topbar .username {
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+}
+.ig-topbar .lock { font-size: 10px; color: #8e8e8e; }
+.ig-topbar .chev { font-size: 10px; color: #262626; }
+
+.ig-header {
+    padding: 12px 14px 6px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+.ig-avatar-wrap {
+    flex-shrink: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.ig-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+    padding: 2.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ig-avatar > .inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c1c1c1 0%, #888 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 22px;
+    border: 2px solid #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.ig-note-bubble {
+    position: absolute;
+    top: -10px;
+    left: -8px;
+    background: #fff;
+    border: 0.5px solid #dbdbdb;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 9px;
+    color: #8e8e8e;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.ig-note-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 12px;
+    width: 6px;
+    height: 6px;
+    background: #fff;
+    border-right: 0.5px solid #dbdbdb;
+    border-bottom: 0.5px solid #dbdbdb;
+    transform: rotate(45deg);
+}
+.ig-stats {
+    flex: 1;
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+}
+.ig-stats > div { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.ig-stats strong { font-size: 16px; font-weight: 700; color: #000; line-height: 1.1; }
+.ig-stats span { font-size: 11px; color: #262626; }
+
+.ig-bioblock {
+    padding: 0 14px 8px;
+}
+.ig-name {
+    font-weight: 700;
+    font-size: 12px;
+    color: #000;
+    line-height: 1.4;
+}
+.ig-category {
+    font-size: 11px;
+    color: #8e8e8e;
+    margin-top: 1px;
+}
+.ig-bio {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #262626;
+    white-space: pre-wrap;
+}
+.ig-link {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #00376b;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    word-break: break-all;
+}
+.ig-followed-by {
+    font-size: 10px;
+    color: #8e8e8e;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.ig-followed-by .mini-avs {
+    display: inline-flex;
+}
+.ig-followed-by .mini-avs span {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid #fff;
+    margin-left: -4px;
+    display: inline-block;
+}
+.ig-followed-by .mini-avs span:first-child { margin-left: 0; }
+
+.ig-prodash {
+    margin: 0 14px 10px;
+    padding: 9px 12px;
+    background: linear-gradient(135deg, #fafafa, #f5f5f5);
+    border: 0.5px solid #efefef;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.ig-prodash .title { font-weight: 700; color: #000; font-size: 11px; }
+.ig-prodash .sub { color: #8e8e8e; font-size: 10px; margin-top: 1px; }
+.ig-prodash .chev { color: #c7c7cc; font-size: 14px; }
+
+.ig-action-row {
+    display: flex;
+    gap: 5px;
+    padding: 0 14px 10px;
+}
+.ig-action-row button {
+    flex: 1;
+    height: 30px;
+    border-radius: 8px;
+    border: 0;
+    background: #efefef;
+    font-size: 12px;
+    font-weight: 600;
+    color: #000;
+    cursor: default;
+}
+.ig-action-row button.icon-btn {
+    flex: 0 0 30px;
+    padding: 0;
+}
+
+.ig-highlights {
+    display: flex;
+    gap: 14px;
+    padding: 6px 14px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.ig-highlights::-webkit-scrollbar { display: none; }
+.ig-highlights .hl {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.ig-highlights .hl-circle {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 1.5px solid #dbdbdb;
+    background: linear-gradient(135deg, #fafafa, #ededed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8e8e8e;
+    font-size: 18px;
+}
+.ig-highlights .hl-circle.add {
+    border-style: solid;
+    background: #fff;
+}
+.ig-highlights .hl-label {
+    font-size: 10px;
+    color: #262626;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ig-tabs {
+    display: flex;
+    border-top: 0.5px solid #efefef;
+}
+.ig-tabs .tab {
+    flex: 1;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c7c7cc;
+    font-size: 16px;
+    border-bottom: 1px solid transparent;
+    transition: color 0.2s;
+}
+.ig-tabs .tab.active {
+    color: #000;
+    border-bottom-color: #000;
+}
+.ig-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.5px;
+    padding: 1.5px;
+    background: #fff;
+}
+.ig-grid .cell {
+    aspect-ratio: 1 / 1;
+    position: relative;
+    overflow: hidden;
+}
+.ig-grid .cell::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5), transparent 60%);
+    z-index: 1;
+}
+.ig-grid .cell .corner {
+    position: absolute;
+    top: 4px; right: 4px;
+    color: #fff;
+    font-size: 11px;
+    z-index: 2;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+/* Always-visible stats strip at the bottom of each cell (likes/comments/views) */
+.ig-grid .cell .stats-bar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 14px 4px 3px 4px;     /* extra top padding for gradient fade */
+    color: #fff;
+    font-size: 9.5px;
+    font-weight: 600;
+    line-height: 1.1;
+    z-index: 3;
+    display: flex;
+    gap: 6px;
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%,
+                                        rgba(0,0,0,0.35) 60%,
+                                        rgba(0,0,0,0) 100%);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+    pointer-events: none;
+}
+.ig-grid .cell .stats-bar i { font-size: 8.5px; margin-right: 2px; }
+.ig-grid .cell .stats-bar .sep { opacity: 0.6; }
+/* Tabs become clickable + slight hover */
+.ig-tabs .tab { cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.ig-tabs .tab:hover { color: #444; }
+.ig-tabs .tab.disabled { color: #ccc; cursor: not-allowed; }
+.ig-bottomnav {
+    flex-shrink: 0;
+    height: 38px;
+    display: flex;
+    border-top: 0.5px solid #efefef;
+    background: #fff;
+    align-items: center;
+    justify-content: space-around;
+    color: #262626;
+    font-size: 16px;
+    padding-bottom: 4px;
+}
+.ig-bottomnav .item {
+    width: 40px;
+    text-align: center;
+}
+.ig-bottomnav .item.active { color: #000; }
+.ig-bottomnav .item.profile {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c1c1c1, #888);
+    border: 1.5px solid #000;
+}
+
+.ig-preview-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 8px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-family: -apple-system, monospace;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    z-index: 6;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+}
+.phone-screen.interactive img { cursor: crosshair; }
+.tap-ring {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border: 2px solid #0d6efd;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0.9;
+    pointer-events: none;
+    animation: tap-pulse 0.5s ease-out forwards;
+    z-index: 10;
+}
+@keyframes tap-pulse {
+    0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
+    100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0;   }
+}
+.phone-screen .placeholder {
+    color: #6c757d;
+    text-align: center;
+    padding: 20px;
+    font-size: 0.85rem;
+}
+.phone-controls {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.phone-fps-badge {
+    font-size: 0.7rem;
+    color: #6c757d;
+    background: #1a1a1a;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+/* ─── Stats cards ───────────────────────────────────────────── */
+.stat-mini {
+    background: #1c2025;
+    border: 1px solid #2c3138;
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: center;
+}
+.stat-mini .num {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+.stat-mini .label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: #8b94a3;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+}
+.stat-mini .delta-up   { color: #28a745; font-size: 0.78rem; margin-top: 2px; }
+.stat-mini .delta-down { color: #dc3545; font-size: 0.78rem; margin-top: 2px; }
+.stat-mini .delta-zero { color: #6c757d; font-size: 0.78rem; margin-top: 2px; }
+
+/* ─── Slave status pill ─────────────────────────────────────── */
+.slave-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.8rem;
+    background: #1c2025;
+    border: 1px solid #2c3138;
+    color: #adb5bd;
+    margin-right: 6px;
+    margin-bottom: 4px;
+}
+.slave-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+.slave-pill.green  { border-color: #28a745; }
+.slave-pill.yellow { border-color: #ffc107; }
+.slave-pill.red    { border-color: #dc3545; }
+.slave-pill.gray   { border-color: #6c757d; }
+.slave-pill.green  .dot { background: #28a745; }
+.slave-pill.yellow .dot { background: #ffc107; }
+.slave-pill.red    .dot { background: #dc3545; }
+.slave-pill.gray   .dot { background: #6c757d; }
+
+.mother-header-card {
+    background: linear-gradient(135deg, #1f1c2c 0%, #1c2025 100%);
+    border: 1px solid #3a2f5e;
+}
+
+.crown-icon { color: #ffd700; }
+
+/* Section headers — visually group related cards with colored accent */
+.md-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 22px 0 12px 0;
+    color: #d1d5db;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+}
+.md-section-header::before {
+    content: '';
+    width: 4px;
+    height: 18px;
+    border-radius: 2px;
+    background: var(--section-color, #6c757d);
+    flex-shrink: 0;
+}
+.md-section-header::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--section-color, #2c3138) 0%, transparent 100%);
+    opacity: 0.35;
+}
+.md-section-header .icon {
+    font-size: 0.95rem;
+    color: var(--section-color, #adb5bd);
+}
+.md-section-header.first { margin-top: 0; }
+
+/* Per-section color themes */
+.md-section.perf    { --section-color: #4dabf7; }  /* blue */
+.md-section.status  { --section-color: #38d9a9; }  /* teal */
+.md-section.slaves  { --section-color: #b197fc; }  /* purple */
+
+/* Card polish — subtle accent + hover lift */
+.md-section .card {
+    margin-bottom: 14px;
+    border: 1px solid #2c3138;
+    background: #1a1d22;
+    border-radius: 10px;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease;
+    overflow: hidden;
+}
+.md-section .card::before {
+    content: '';
+    display: block;
+    height: 2px;
+    background: var(--section-color, #2c3138);
+    opacity: 0.35;
+    transition: opacity 0.2s ease;
+}
+.md-section .card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255,255,255,0.08);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+}
+.md-section .card:hover::before { opacity: 1; }
+.md-section .card .card-header {
+    padding: 11px 16px;
+    border-bottom: 1px solid #232830;
+}
+.md-section .card .card-body { padding: 14px 16px; }
+.md-section .card .card-title { font-size: 0.98rem; font-weight: 600; }
+.md-section .card .card-title small { font-size: 0.7rem; font-weight: 400; }
+
+/* Hero (mother header) polish */
+.mother-header-card {
+    background: linear-gradient(135deg, #20203a 0%, #1c2025 60%, #2a1f1c 100%);
+    border: 1px solid rgba(255,215,0,0.15);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.mother-header-card h2 {
+    letter-spacing: -0.5px;
+    background: linear-gradient(120deg, #fff 0%, #ffd700 60%, #ffaa00 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Stat-mini polish — softer borders, bigger numbers */
+.stat-mini {
+    background: #1c2025;
+    border: 1px solid #2c3138;
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.stat-mini:hover { border-color: rgba(255,255,255,0.1); transform: translateY(-1px); }
+
+/* Sortable table headers */
+table.slaves-perf th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+table.slaves-perf th.sortable:hover { color: #fff; }
+table.slaves-perf th .sort-icon { font-size: 0.7rem; opacity: 0.4; margin-left: 3px; }
+table.slaves-perf th.sort-asc .sort-icon::before { content: '\f0de'; opacity: 1; }
+table.slaves-perf th.sort-desc .sort-icon::before { content: '\f0dd'; opacity: 1; }
+table.slaves-perf th.sort-asc, table.slaves-perf th.sort-desc { color: #ffc107; }
+table.slaves-perf td.dim { color: #6c757d; }
+table.slaves-perf .pulse-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #28a745;
+    margin-right: 4px;
+}
+table.slaves-perf .pulse-dot.warn { background: #ffc107; }
+table.slaves-perf .pulse-dot.err { background: #dc3545; }
+table.slaves-perf .pulse-dot.cold { background: #6c757d; }
+.action-mini-bar {
+    display: inline-flex;
+    gap: 1px;
+    height: 8px;
+    margin-left: 6px;
+    align-items: center;
+}
+.action-mini-bar span {
+    width: 3px;
+    background: #28a745;
+    border-radius: 1px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/" class="text-info">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/" class="text-info">Mothers</a></li>
+            <li class="breadcrumb-item active text-white">{{ mother.username }}</li>
+        </ol>
+    </nav>
+
+    <style>
+    .acc-status-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+    }
+    .acc-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.78rem;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid #2c3138;
+        color: #adb5bd;
+        white-space: nowrap;
+    }
+    .acc-status-pill.ok      { border-color: #28a745; color: #5cd278; }
+    .acc-status-pill.warning { border-color: #dc3545; color: #ff6b7a; background: rgba(220,53,69,0.08); }
+    .acc-status-pill.unknown { border-color: #6c757d; color: #adb5bd; }
+    .acc-status-pill .icon { font-size: 0.85rem; }
+
+    /* Account Status category rows (in dedicated card) */
+    .acc-cat-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        border-radius: 8px;
+        background: #1c2025;
+        border: 1px solid #2c3138;
+        margin-bottom: 6px;
+    }
+    .acc-cat-row:last-child { margin-bottom: 0; }
+    .acc-cat-row .label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #d1d5db;
+        font-weight: 500;
+    }
+    .acc-cat-row .label .emoji { font-size: 1.2rem; }
+    .acc-cat-row .verdict {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .acc-cat-row.ok      .verdict { color: #28a745; }
+    .acc-cat-row.warning .verdict { color: #dc3545; }
+    .acc-cat-row.unknown .verdict { color: #6c757d; }
+    .acc-cat-row.warning { border-color: rgba(220,53,69,0.4); }
+    .acc-cat-row.ok      { border-color: rgba(40,167,69,0.3); }
+    </style>
+
+    <!-- Header -->
+    <div class="card mother-header-card mb-4">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h2 class="mb-1 text-white">
+                    <i class="fas fa-crown crown-icon me-2"></i>{{ mother.username }}
+                </h2>
+                <div class="text-white-50">
+                    <span class="badge bg-secondary me-1">{{ mother.tag or 'no tag' }}</span>
+                    {% if mother.is_business_profile %}
+                        <span class="badge bg-info" id="bizBadge"><i class="fas fa-briefcase me-1"></i>Business</span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark" id="bizBadge"><i class="fas fa-exclamation-triangle me-1"></i>Personal</span>
+                        <button class="btn btn-sm btn-outline-info ms-2 py-0 px-2" id="markBizBtn"
+                                title="Mark this account as Business in Hydra (use if already switched manually on phone)">
+                            <i class="fas fa-briefcase me-1"></i>Mark as Business
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary ms-1 py-0 px-2" id="detectBizBtn"
+                                title="Detect business profile from device's current IG screen">
+                            <i class="fas fa-search"></i> Detect
+                        </button>
+                    {% endif %}
+                    <span class="ms-2"><i class="fas fa-mobile-alt me-1"></i>{{ mother.device_name or mother.device_serial }}</span>
+                </div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-outline-primary btn-sm"
+                        onclick="openAccountSettings(DEVICE_SERIAL, MOTHER_USERNAME)"
+                        title="Open the full account panel for this mother (settings, content, Quick Profile Edit…)">
+                    <i class="fas fa-id-card me-1"></i>Account Panel
+                </button>
+                <button type="button" class="btn btn-outline-success btn-sm" id="openScheduleModalBtn"
+                        title="Schedule posts/reels/stories on this mother's slaves directly from here">
+                    <i class="fas fa-calendar-plus me-1"></i>Schedule Content
+                </button>
+                <a href="/content-schedule?tag={{ mother.tag }}" class="btn btn-outline-secondary btn-sm"
+                   title="Open full Content Schedule page (advanced options)">
+                    <i class="fas fa-external-link-alt me-1"></i>Full schedule
+                </a>
+                <button class="btn btn-outline-info btn-sm" id="refreshAllBtn">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Left column: Phone Mockup -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-dark">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-mobile-alt me-2"></i>Live Device View
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="phone-frame">
+                        <div class="phone-notch"></div>
+                        <div class="phone-screen" id="phoneScreen">
+                            <div class="placeholder" id="phonePlaceholder">
+                                <div class="spinner-border text-primary mb-2" role="status"></div>
+                                <div id="phonePlaceholderMsg">Opening Mother IG…</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="phone-controls">
+                        <button class="btn btn-sm btn-info" id="previewBtn" title="Instant CSS preview using Hydra DB data">
+                            <i class="fas fa-paint-brush me-1"></i>Preview
+                        </button>
+                        <button class="btn btn-sm btn-primary" id="snapBtn" title="Live screenshot from device">
+                            <i class="fas fa-camera me-1"></i>Snap
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" id="liveToggle" title="Auto-refresh every 3s">
+                            <i class="fas fa-play me-1"></i>Live
+                        </button>
+                        <span class="phone-fps-badge" id="phoneStatus">preview</span>
+                    </div>
+                    <div class="phone-controls mt-1">
+                        <button class="btn btn-sm btn-outline-warning" id="openMotherIgBtn"
+                                title="Switch device to mother's Instagram clone and open her profile. May briefly interrupt slave bot activity.">
+                            <i class="fas fa-crown me-1"></i>Open Mother IG
+                        </button>
+                    </div>
+                    <div class="text-muted small text-center mt-2">
+                        Device: <code>{{ mother.device_serial }}</code>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right column: Stats -->
+        <div class="col-lg-8">
+            <div class="md-section perf">
+            <div class="md-section-header first">
+                <i class="fas fa-chart-line icon"></i> Performance
+            </div>
+            <!-- Mother Stats -->
+            <div class="card mb-4">
+                <div class="card-header bg-dark">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-chart-line me-2 text-warning"></i>Mother Stats
+                        <small class="text-white-50 ms-2" id="mGrowthBaseline">vs 7 days ago</small>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="stat-mini">
+                                <div class="num" id="mPosts">{{ mother.posts or 0 }}</div>
+                                <div class="label">Posts</div>
+                                <div id="mPostsDelta" class="delta-zero">—</div>
+                                <div id="mLastPost" class="small mt-1 text-white-50" title="When the IG post count last increased (≈ last post)">last post: —</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-mini">
+                                <div class="num" id="mFollowers">{{ '{:,}'.format(mother.followers or 0) }}</div>
+                                <div class="label">Followers</div>
+                                <div id="mFollowersDelta" class="delta-zero">—</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-mini">
+                                <div class="num" id="mFollowing">{{ '{:,}'.format(mother.following or 0) }}</div>
+                                <div class="label">Following</div>
+                                <div id="mFollowingDelta" class="delta-zero">—</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            </div><!-- /md-section: Performance -->
+
+            <div class="md-section status">
+            <div class="md-section-header">
+                <i class="fas fa-shield-alt icon"></i> Status &amp; Insights
+            </div>
+            <!-- Account Status (IG Settings → Account Status) -->
+            <div class="card mb-4" id="accStatusCard">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-shield-alt me-2 text-info"></i>Account Status
+                        <small class="text-white-50 ms-2" style="font-size:0.75rem;">IG Settings → Account Status</small>
+                    </h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <small id="accStatusCheckedAt" class="text-white-50" style="font-size:0.75rem;"></small>
+                        <button class="btn btn-sm btn-outline-info" id="scrapeInsightsBtn"
+                                title="Scrape Professional dashboard analytics now (only for business profiles)">
+                            <i class="fas fa-chart-line me-1"></i>Scrape Insights
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="accStatusBody">
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-clock me-1"></i> Not scraped yet — bot will capture on next session.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Insights (IG Professional Dashboard) -->
+            <div class="card mb-4" id="insightsCard">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-chart-bar me-2 text-info"></i>Insights
+                        <small class="text-white-50 ms-2" style="font-size:0.75rem;" id="insightsRange"></small>
+                    </h5>
+                    <small id="insightsScrapedAt" class="text-white-50" style="font-size:0.75rem;"></small>
+                </div>
+                <div class="card-body" id="insightsBody">
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-clock me-1"></i> No insights yet — click "Scrape Insights" above to capture.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROI: Slave activity → Mother growth -->
+            <div class="card mb-4" id="roiCard">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-bullseye me-2 text-success"></i>Slave → Mother ROI
+                        <small class="text-white-50 ms-2">last 7 days</small>
+                    </h5>
+                    <small id="roiHint" class="text-white-50"></small>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-stretch">
+                        <div class="col-md-4">
+                            <div class="stat-mini" style="background:linear-gradient(135deg,#1c2025,#231b1b);">
+                                <div class="num" id="roiActions">—</div>
+                                <div class="label">Slave actions</div>
+                                <div class="delta-zero" id="roiActionsBreakdown" style="font-size:0.65rem;"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-mini" style="background:linear-gradient(135deg,#1c2025,#1b2a1c);">
+                                <div class="num" id="roiGrowth">—</div>
+                                <div class="label">Mother +followers</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-mini" style="background:linear-gradient(135deg,#1c2025,#1b1f2a);">
+                                <div class="num" id="roiRatio">—</div>
+                                <div class="label">Actions per follower</div>
+                                <div class="delta-zero" style="font-size:0.65rem;">lower = better</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Growth chart -->
+            <div class="card mb-4">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-chart-area me-2 text-warning"></i>Follower Growth
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary growth-range" data-days="30">30d</button>
+                        <button type="button" class="btn btn-outline-secondary growth-range active" data-days="90">90d</button>
+                        <button type="button" class="btn btn-outline-secondary growth-range" data-days="all">all</button>
+                    </div>
+                </div>
+                <div class="card-body" style="position:relative;height:220px;">
+                    <canvas id="growthChart"></canvas>
+                    <div id="growthEmpty" class="text-center text-muted" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column;">
+                        <i class="fas fa-chart-line fa-2x mb-2"></i>
+                        <div>No follower snapshots yet for this period.</div>
+                    </div>
+                </div>
+            </div>
+
+            </div><!-- /md-section: Status & Insights -->
+
+            <div class="md-section slaves">
+            <div class="md-section-header">
+                <i class="fas fa-users icon"></i> Slaves
+            </div>
+            <!-- Slaves Summary -->
+            <div class="card mb-4">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-users me-2 text-info"></i>Slaves Overview
+                        <span class="badge bg-secondary ms-2" id="slavesTotal">0</span>
+                    </h5>
+                    <small class="text-white-50">tag: <code>{{ mother.tag }}</code></small>
+                </div>
+                <div class="card-body">
+                    <div id="slavesPills">
+                        <span class="text-muted">Loading…</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slaves Table (rich, sortable) -->
+            <div class="card">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-list me-2"></i>Slaves Performance
+                        <small class="text-white-50 ms-2" id="slavesTableHint">click header to sort</small>
+                    </h5>
+                    <input id="slavesSearch" class="form-control form-control-sm bg-dark text-white border-secondary"
+                           placeholder="Search…" style="width:200px;">
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle slaves-perf">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" data-sort="username">Account <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="sortable" data-sort="device_name">Device <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="text-end sortable" data-sort="followers">Followers <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="text-end sortable" data-sort="today_total">Today <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="text-end sortable" data-sort="week_total">7d <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="text-end sortable" data-sort="errors_today">Err <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="sortable" data-sort="status">Status <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="sortable" data-sort="acc_status_issues" title="IG Settings → Account Status (Removed content / Recommendable / Monetization / Features). Scraped by bot every 24h.">Acc. Status <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="sortable" data-sort="last_action_at">Last action <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="sortable" data-sort="last_post_at" title="When the IG post count last increased (≈ last post). From profile snapshots.">Last Post <i class="fas fa-sort sort-icon"></i></th>
+                                    <th class="text-end">Open</th>
+                                </tr>
+                            </thead>
+                            <tbody id="slavesTable">
+                                <tr><td colspan="11" class="text-center py-4 text-muted">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div><!-- /md-section: Slaves -->
+        </div>
+    </div>
+</div>
+
+<style>
+/* ─── Schedule Content modal — modern minimal, single accent ─── */
+#scheduleContentModal {
+    --sc-accent: #7c6cf0;
+    --sc-accent-soft: rgba(124,108,240,0.13);
+    --sc-accent-border: rgba(124,108,240,0.42);
+    --sc-surface: #16181f;
+    --sc-surface-2: #1b1e27;
+    --sc-border: #272b37;
+    --sc-text: #e9eaf1;
+    --sc-dim: #8b90a2;
+}
+#scheduleContentModal .modal-content {
+    background: #101218;
+    border: 1px solid var(--sc-border);
+    border-radius: 18px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+    overflow: hidden;
+}
+#scheduleContentModal .modal-header {
+    background: transparent;
+    border-bottom: 1px solid var(--sc-border);
+    padding: 18px 22px;
+}
+#scheduleContentModal .modal-title { font-weight: 700; letter-spacing: -0.01em; }
+#scheduleContentModal .modal-title i.fa-calendar-plus { color: var(--sc-accent); }
+#scheduleContentModal .modal-body { padding: 20px 22px; }
+
+.sched-counter-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 11px; border-radius: 8px;
+    background: var(--sc-surface-2); color: var(--sc-dim);
+    border: 1px solid var(--sc-border); font-size: 0.76rem; font-weight: 600;
+}
+.sched-counter-pill i { color: var(--sc-accent); opacity: 0.85; }
+.sched-counter-pill span { color: var(--sc-text); }
+
+/* Section card */
+.sched-section {
+    border: 1px solid var(--sc-border); border-radius: 12px;
+    background: var(--sc-surface); padding: 16px 18px; margin-bottom: 14px;
+}
+.sched-section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+}
+.sched-section-head .title {
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--sc-dim);
+}
+.sched-section-head .title .icon { color: var(--sc-accent); margin-right: 7px; opacity: 0.9; }
+
+/* Tiles — target + content type, unified single accent */
+.sched-type-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.sched-type-grid label {
+    display: block; padding: 12px 8px; text-align: center; cursor: pointer;
+    border: 1px solid var(--sc-border); border-radius: 10px; background: var(--sc-surface-2);
+    transition: all 0.12s ease;
+    font-size: 0.82rem; font-weight: 500; color: var(--sc-dim);
+}
+.sched-type-grid label .emoji { font-size: 1.3rem; display: block; margin-bottom: 4px; }
+.sched-type-grid label:hover { border-color: var(--sc-accent-border); color: var(--sc-text); }
+.sched-type-grid input[type=radio]:checked + label,
+#schedTargetGrid input[type=radio]:checked + label {
+    border-color: var(--sc-accent); background: var(--sc-accent-soft); color: #fff;
+    box-shadow: none;
+}
+
+/* Inputs — consistent dark fields with accent focus */
+#scheduleContentModal .form-control, #scheduleContentModal .form-select {
+    background: var(--sc-surface-2) !important; border: 1px solid var(--sc-border) !important;
+    color: var(--sc-text) !important; border-radius: 9px;
+}
+#scheduleContentModal .form-control::placeholder { color: #5e6376; }
+#scheduleContentModal .form-control:focus, #scheduleContentModal .form-select:focus {
+    border-color: var(--sc-accent) !important; box-shadow: 0 0 0 3px var(--sc-accent-soft) !important;
+}
+#scheduleContentModal .form-switch .form-check-input:checked {
+    background-color: var(--sc-accent); border-color: var(--sc-accent);
+}
+
+/* Dropzone */
+.sched-dropzone {
+    border: 1.5px dashed var(--sc-border); border-radius: 12px;
+    padding: 26px 20px; text-align: center; background: var(--sc-surface-2);
+    transition: all 0.15s ease; cursor: pointer; position: relative;
+}
+.sched-dropzone .dz-icon { font-size: 1.9rem; color: var(--sc-accent); opacity: 0.8; margin-bottom: 8px; display: block; }
+.sched-dropzone:hover, .sched-dropzone.dragover {
+    border-color: var(--sc-accent); background: var(--sc-accent-soft);
+}
+.sched-dropzone.dragover { transform: scale(1.005); }
+.sched-dropzone.has-files { padding: 14px 20px; }
+.sched-dropzone.has-files .dz-icon { font-size: 1.3rem; margin-bottom: 0; display: inline-block; margin-right: 8px; }
+
+/* Files */
+.sched-files { margin-top: 14px; }
+.sched-files-empty { text-align: center; color: var(--sc-dim); padding: 20px; font-size: 0.85rem; }
+.sched-file-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    background: var(--sc-surface-2); border: 1px solid var(--sc-border);
+    border-radius: 10px; margin-bottom: 8px; font-size: 0.86rem;
+    cursor: grab; position: relative; transition: border-color 0.12s ease;
+}
+.sched-file-row:hover { border-color: var(--sc-accent-border); }
+.sched-file-row.dragging { opacity: 0.4; }
+.sched-file-row .day-badge {
+    background: var(--sc-accent-soft); color: var(--sc-accent);
+    font-weight: 700; padding: 4px 10px; border-radius: 7px; font-size: 0.7rem;
+    min-width: 60px; text-align: center; letter-spacing: 0.02em;
+    border: 1px solid var(--sc-accent-border);
+}
+.sched-file-row .file-thumb {
+    width: 42px; height: 42px; border-radius: 8px;
+    background: #0e0f14; display: flex; align-items: center; justify-content: center;
+    overflow: hidden; flex-shrink: 0; border: 1px solid var(--sc-border);
+}
+.sched-file-row .file-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.sched-file-row .file-thumb i { font-size: 1.05rem; color: var(--sc-dim); }
+.sched-file-row .file-meta { flex: 1; min-width: 0; }
+.sched-file-row .file-name {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--sc-text); font-weight: 500;
+}
+.sched-file-row .file-status { font-size: 0.72rem; color: var(--sc-dim); margin-top: 2px; }
+.sched-file-row .file-remove {
+    color: var(--sc-dim); cursor: pointer; padding: 6px 10px; border: 0; background: transparent;
+    border-radius: 6px; transition: all 0.12s ease;
+}
+.sched-file-row .file-remove:hover { color: #ff6b7a; background: rgba(255,107,122,0.08); }
+.sched-file-row .grip { color: var(--sc-dim); cursor: grab; padding: 0 2px; opacity: 0.5; }
+
+/* Preview — day-grouped */
+.sched-day-block { margin-bottom: 10px; }
+.sched-day-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 12px; background: var(--sc-surface-2);
+    border-left: 2px solid var(--sc-accent); border-radius: 7px;
+    font-weight: 600; font-size: 0.8rem; color: var(--sc-text); margin-bottom: 4px;
+}
+.sched-day-header .count { font-weight: 400; color: var(--sc-dim); font-size: 0.75rem; }
+.sched-preview-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px 6px 14px; border-left: 1px solid var(--sc-border); margin-left: 6px;
+    font-size: 0.82rem; color: var(--sc-text);
+}
+.sched-preview-row:hover { background: var(--sc-surface-2); }
+
+/* Info / note card — neutral with subtle accent stripe */
+.sched-info {
+    border: 1px solid var(--sc-border); border-left: 2px solid var(--sc-accent);
+    border-radius: 10px; background: var(--sc-surface); padding: 12px 14px;
+    font-size: 0.8rem; color: var(--sc-dim); margin-bottom: 14px;
+}
+.sched-info strong { color: var(--sc-text); }
+
+/* Footer + actions */
+#scheduleContentModal .modal-footer { border-top: 1px solid var(--sc-border); padding: 16px 22px; }
+#scheduleContentModal #schedSubmitBtn {
+    background: var(--sc-accent); border: 1px solid var(--sc-accent); color: #fff;
+    font-weight: 600; border-radius: 9px;
+}
+#scheduleContentModal #schedSubmitBtn:hover { filter: brightness(1.1); }
+#scheduleContentModal .modal-footer .btn-secondary {
+    background: var(--sc-surface-2); border: 1px solid var(--sc-border); color: var(--sc-text);
+    border-radius: 9px;
+}
+#scheduleContentModal #schedAiCaption {
+    color: var(--sc-accent); border-color: var(--sc-accent-border);
+}
+#scheduleContentModal #schedAiCaption:hover { background: var(--sc-accent); color: #fff; }
+#scheduleContentModal .btn-close { filter: invert(0.7); }
+</style>
+
+<!-- Shared Account Detail panel (settings, content, Quick Profile Edit) — same component as accounts + device-manager -->
+{% include "_account_panel.html" %}
+
+<!-- ─── Schedule Content Modal (v2) ───────────────────────────── -->
+<div class="modal fade" id="scheduleContentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content text-white">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-1">
+            <i class="fas fa-calendar-plus me-2"></i>Schedule Content
+            <span class="ms-2" style="font-size:0.85rem; font-weight:400; color:var(--sc-dim);">
+              for <span style="color:#fff; font-weight:600;">@{{ mother.username }}</span>
+            </span>
+          </h5>
+          <div class="d-flex gap-2 flex-wrap">
+            <span class="sched-counter-pill">
+              <i class="fas fa-users"></i><span id="schedSlaveCount">0</span>&nbsp;<span id="schedTargetLabel">slaves</span>
+            </span>
+            <span class="sched-counter-pill">
+              <i class="fas fa-calendar-day"></i><span id="schedDayCount">0</span>&nbsp;days
+            </span>
+            <span class="sched-counter-pill">
+              <i class="fas fa-paper-plane"></i><span id="schedTotalCount">0</span>&nbsp;total
+            </span>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3">
+
+          <!-- LEFT column: Type + Date + Files -->
+          <div class="col-lg-7">
+
+            <!-- Post target: slaves / mother / both -->
+            <div class="sched-section">
+              <div class="sched-section-head">
+                <span class="title"><i class="fas fa-bullseye icon"></i>Post to</span>
+              </div>
+              <div class="sched-type-grid" id="schedTargetGrid">
+                <div>
+                  <input type="radio" class="btn-check" name="schedTarget" id="schedTargetSlaves" value="slaves" checked>
+                  <label for="schedTargetSlaves"><span class="emoji">👥</span>Slaves</label>
+                </div>
+                <div>
+                  <input type="radio" class="btn-check" name="schedTarget" id="schedTargetMother" value="mother">
+                  <label for="schedTargetMother"><span class="emoji">👑</span>Mother only</label>
+                </div>
+                <div>
+                  <input type="radio" class="btn-check" name="schedTarget" id="schedTargetBoth" value="mother_slaves">
+                  <label for="schedTargetBoth"><span class="emoji">👑➕👥</span>Mother + Slaves</label>
+                </div>
+              </div>
+              <small class="text-white-50 d-block mt-1" style="font-size:0.72rem;">
+                <strong>Mother only</strong> posts purely on <span class="text-warning">@{{ mother.username }}</span> (its own work window) — no slaves involved.
+              </small>
+            </div>
+
+            <!-- Type tiles + start date -->
+            <div class="sched-section">
+              <div class="sched-section-head">
+                <span class="title"><i class="fas fa-shapes icon"></i>Content Type &amp; Schedule</span>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-7">
+                  <label class="form-label small text-white-50 mb-2">What are we posting?</label>
+                  <div class="sched-type-grid">
+                    <div>
+                      <input type="radio" class="btn-check" name="schedType" id="schedTypePost" value="post" checked>
+                      <label for="schedTypePost"><span class="emoji">📷</span>Post</label>
+                    </div>
+                    <div>
+                      <input type="radio" class="btn-check" name="schedType" id="schedTypeReel" value="reel">
+                      <label for="schedTypeReel"><span class="emoji">🎬</span>Reel</label>
+                    </div>
+                    <div>
+                      <input type="radio" class="btn-check" name="schedType" id="schedTypeStory" value="story">
+                      <label for="schedTypeStory"><span class="emoji">⭐</span>Story</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label small text-white-50 mb-2">Start date</label>
+                  <input type="date" class="form-control bg-dark text-white border-secondary" id="schedDate">
+                  <small class="text-white-50 d-block mt-1" style="font-size:0.72rem;">
+                    File 1 → Day 1, file 2 → Day 2, …
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Files section -->
+            <div class="sched-section">
+              <div class="sched-section-head">
+                <span class="title"><i class="fas fa-photo-film icon"></i>Media Files</span>
+                <small class="text-white-50" id="schedFilesHelp" style="font-size:0.75rem;"></small>
+              </div>
+              <div class="sched-dropzone" id="schedDropzone">
+                <i class="fas fa-cloud-upload-alt dz-icon"></i>
+                <strong>Drag &amp; drop files</strong> <span class="text-white-50">or click to browse</span>
+                <div class="text-white-50 small mt-1" style="font-size:0.75rem;">
+                  Images → Post/Story · Videos → Reel · <strong>multiple files = multiple days</strong>
+                </div>
+                <input type="file" id="schedMediaFile" accept="image/*,video/*" multiple style="display:none;">
+              </div>
+              <div class="sched-files" id="schedFilesList"></div>
+            </div>
+          </div>
+
+          <!-- RIGHT column: Caption + extras + preview -->
+          <div class="col-lg-5">
+
+            <!-- Caption -->
+            <div class="sched-section">
+              <div class="sched-section-head">
+                <span class="title"><i class="fas fa-pen-fancy icon"></i>Caption</span>
+                <div class="d-flex gap-1 align-items-center">
+                  <select class="form-select form-select-sm bg-dark text-white border-secondary py-0"
+                          id="schedAiTone" style="width:auto; min-width:120px; font-size:0.72rem; height:24px;">
+                    <option value="engaging">✨ Engaging</option>
+                    <option value="funny">😄 Funny</option>
+                    <option value="professional">💼 Professional</option>
+                    <option value="motivational">💪 Motivational</option>
+                    <option value="casual">😎 Casual</option>
+                    <option value="edgy">🔥 Edgy</option>
+                  </select>
+                  <button type="button" class="btn btn-sm btn-outline-info py-0 px-2"
+                          id="schedAiCaption" style="font-size:0.72rem; height:24px;">
+                    <i class="fas fa-wand-magic-sparkles me-1"></i>AI
+                  </button>
+                </div>
+              </div>
+              <textarea class="form-control bg-dark text-white border-secondary" id="schedCaption" rows="4"
+                        placeholder="Write caption…  (applied to every day; use [AI] for per-post AI text)"></textarea>
+              <label class="form-label small text-white-50 mt-2 mb-1">
+                <i class="fas fa-hashtag me-1"></i>Hashtags
+              </label>
+              <textarea class="form-control bg-dark text-white border-secondary" id="schedHashtags" rows="2"
+                        placeholder="#fyp #viral #explore"></textarea>
+            </div>
+
+            <!-- Anti-detect (per-slave variant spoofing) -->
+            <div class="sched-section">
+              <div class="sched-section-head d-flex justify-content-between align-items-center">
+                <span class="title">
+                  <i class="fas fa-shield-alt icon"></i>Anti-detect
+                </span>
+                <label class="form-check form-switch m-0" style="cursor:pointer;">
+                  <input class="form-check-input" type="checkbox" id="schedSpoofEnabled" checked
+                         style="cursor:pointer;">
+                </label>
+              </div>
+              <div id="schedSpoofControls" class="mt-2">
+                <small class="text-white-50 d-block mb-2" style="font-size:0.72rem;">
+                  Generates a perceptually-unique variant of each file per slave
+                  (different EXIF, color jitter, mirror) so Instagram can't
+                  trivially correlate accounts via duplicate-content hash.
+                  See <a href="/spoofing" target="_blank" style="color:var(--sc-accent);">/spoofing</a> for previews.
+                </small>
+                <div class="d-flex gap-2 align-items-end flex-wrap">
+                  <div>
+                    <label class="form-label small text-white-50 mb-1">Strength</label>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary"
+                            id="schedSpoofPreset" style="width:120px;">
+                      <option value="light">light</option>
+                      <option value="medium" selected>medium</option>
+                      <option value="strong">strong</option>
+                    </select>
+                  </div>
+                  <div class="form-check ms-1" style="padding-top:6px;">
+                    <input class="form-check-input" type="checkbox" id="schedSpoofMirror" checked>
+                    <label class="form-check-label small text-white-50" for="schedSpoofMirror"
+                           style="cursor:pointer;">
+                      Allow mirror flip
+                      <i class="fas fa-info-circle ms-1" title="Uncheck for content with visible text/direction"></i>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Type-specific extras -->
+            <div class="sched-section sched-type-reel" style="display:none;">
+              <div class="sched-section-head">
+                <span class="title"><i class="fas fa-music icon"></i>Reel Music</span>
+              </div>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="schedMusic"
+                     placeholder="e.g. trending audio 2026">
+              <small class="text-white-50 d-block mt-1" style="font-size:0.72rem;">
+                Optional — bot searches IG audio library for this query.
+              </small>
+            </div>
+            <div class="sched-section sched-type-story" style="display:none;">
+              <div class="sched-section-head">
+                <span class="title"><i class="fas fa-share-alt icon"></i>Story Stickers</span>
+              </div>
+              <label class="form-label small text-white-50 mb-1">@ Mention</label>
+              <input type="text" class="form-control bg-dark text-white border-secondary mb-2" id="schedMention"
+                     placeholder="@username (defaults to mother)">
+              <label class="form-label small text-white-50 mb-1">🔗 Link URL</label>
+              <input type="url" class="form-control bg-dark text-white border-secondary" id="schedLink"
+                     placeholder="https://...">
+            </div>
+
+            <!-- Smart scheduling info -->
+            <div class="sched-info">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fas fa-bolt mt-1" style="color:var(--sc-accent);"></i>
+                <div>
+                  <strong>Smart scheduling.</strong>
+                  Each account posts during its own
+                  <code style="color:var(--sc-text);">start_time</code>–<code style="color:var(--sc-text);">end_time</code> window.
+                  <span id="schedSkippedNote" class="d-block mt-1" style="color:#e0a23c;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom: full-width preview timeline -->
+        <div class="sched-section mt-2" style="margin-bottom:0;">
+          <div class="sched-section-head">
+            <span class="title">
+              <i class="fas fa-stream icon"></i>Schedule Preview
+              <span id="schedSummary" class="text-warning ms-2" style="font-weight:400; text-transform:none; letter-spacing:0;"></span>
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    id="schedTogglePreview" style="font-size:0.7rem;">show all</button>
+          </div>
+          <div id="schedSlavesList" style="max-height:240px; overflow-y:auto;"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success px-4" id="schedSubmitBtn">
+          <i class="fas fa-calendar-check me-1"></i>Schedule batch
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+const MOTHER_ID = {{ mother.id }};
+const DEVICE_SERIAL = {{ mother.device_serial|tojson }};
+const MOTHER_USERNAME = {{ mother.username|tojson }};
+const MOTHER_START = {{ mother.start_time|tojson }};
+const MOTHER_END = {{ mother.end_time|tojson }};
+const MOTHER_DEVICE_NAME = {{ (mother.device_name or mother.device_serial)|tojson }};
+const MOTHER_LAST_POST = {{ mother.last_post_at|tojson }};
+let _motherPkg = null;     // populated by loadMother()
+let _slavesCache = [];
+let _liveTimer = null;
+let _liveOn = false;
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function fmtNum(n) { return (n == null ? 0 : Number(n)).toLocaleString(); }
+function fmtDelta(n) {
+    if (n == null) return {text:'—', cls:'delta-zero'};
+    if (n > 0) return {text:'▲ +' + n.toLocaleString(), cls:'delta-up'};
+    if (n < 0) return {text:'▼ ' + n.toLocaleString(), cls:'delta-down'};
+    return {text:'no change', cls:'delta-zero'};
+}
+
+// ─── Mother stats + slaves summary ─────────────────────────────
+async function loadMother() {
+    try {
+        const r = await fetch(`/api/mothers/${MOTHER_ID}`);
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+
+        const m = data.mother;
+        _motherDataCache = m;
+
+        // ── Insights card (Professional Dashboard data) ──
+        const insBody = document.getElementById('insightsBody');
+        const insRange = document.getElementById('insightsRange');
+        const insScraped = document.getElementById('insightsScrapedAt');
+        const ins = data.insights;
+        if (ins) {
+            const fmt = v => (v == null ? '—' : Number(v).toLocaleString('en-US'));
+            const pct = v => (v == null ? '—' : Number(v).toFixed(1) + '%');
+            const delta = v => {
+                if (v == null) return '';
+                const n = Number(v);
+                if (n > 0) return `<small class="delta-up">▲ +${n.toFixed(1)}%</small>`;
+                if (n < 0) return `<small class="delta-down">▼ ${n.toFixed(1)}%</small>`;
+                return '<small class="delta-zero">no change</small>';
+            };
+            const cards = [
+                ['👁', 'Views',           fmt(ins.views),            null],
+                ['💬', 'Interactions',    fmt(ins.interactions),     null],
+                ['🎯', 'Accounts reached', fmt(ins.accounts_reached), delta(ins.accounts_reached_change_pct)],
+                ['👤', 'Profile visits',  fmt(ins.profile_visits),   delta(ins.profile_visits_change_pct)],
+                ['🔗', 'External link taps', fmt(ins.external_link_taps), null],
+                ['❤️', 'Likes',           fmt(ins.likes_count),      null],
+            ];
+            const breakdown = [];
+            if (ins.reels_views_pct != null || ins.posts_views_pct != null) {
+                breakdown.push(`Views: <strong>${pct(ins.reels_views_pct)}</strong> reels · <strong>${pct(ins.posts_views_pct)}</strong> posts`);
+            }
+            if (ins.views_followers_pct != null || ins.views_non_followers_pct != null) {
+                breakdown.push(`Audience: <strong>${pct(ins.views_followers_pct)}</strong> followers · <strong>${pct(ins.views_non_followers_pct)}</strong> non-followers`);
+            }
+            insBody.innerHTML = `
+                <div class="row g-3">
+                    ${cards.map(([icon, label, val, deltaHtml]) => `
+                        <div class="col-md-4 col-lg-2">
+                            <div class="stat-mini" style="position:relative;">
+                                <div style="font-size:1rem;opacity:0.7;">${icon}</div>
+                                <div class="num" style="font-size:1.3rem;">${val}</div>
+                                <div class="label">${label}</div>
+                                ${deltaHtml ? `<div style="margin-top:2px;">${deltaHtml}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${breakdown.length ? `<div class="mt-3 text-white-50" style="font-size:0.85rem;">${breakdown.join(' &nbsp;|&nbsp; ')}</div>` : ''}
+            `;
+            if (insRange) insRange.textContent = ins.date_range ? `(${ins.date_range})` : '';
+            if (insScraped) {
+                const sa = ins.scraped_at || '';
+                insScraped.textContent = sa ? `scraped: ${sa.replace('T',' ').slice(0,16)}` : '';
+            }
+        } else {
+            if (insBody) insBody.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-clock me-1"></i> No insights yet — click <strong>Scrape Insights</strong> above to capture.</div>';
+            if (insRange) insRange.textContent = '';
+            if (insScraped) insScraped.textContent = '';
+        }
+
+        // ── Account Status card (dedicated section) ──
+        const accBody = document.getElementById('accStatusBody');
+        const accChecked = document.getElementById('accStatusCheckedAt');
+        if (accBody) {
+            if (!m.account_status) {
+                accBody.innerHTML = '<div class="text-center text-muted py-3">'
+                    + '<i class="fas fa-clock me-1"></i> Not scraped yet — bot will capture on next session.'
+                    + '</div>';
+                if (accChecked) accChecked.textContent = '';
+            } else {
+                const cats = [
+                    ['removed_content', 'Removed content',         '📋'],
+                    ['recommendable',   "What can't be recommended", '📵'],
+                    ['monetization',    'Monetization',             '💰'],
+                    ['features_usable', "Features you can't use",   '🚦'],
+                ];
+                const rows = cats.map(([key, label, emoji]) => {
+                    const val = m.account_status[key] || 'unknown';
+                    const verdict = val === 'ok'
+                        ? '<i class="fas fa-check-circle"></i> OK'
+                        : val === 'warning'
+                            ? '<i class="fas fa-times-circle"></i> Issue'
+                            : '<i class="fas fa-question-circle"></i> Unknown';
+                    return `
+                        <div class="acc-cat-row ${val}">
+                            <div class="label">
+                                <span class="emoji">${emoji}</span>${label}
+                            </div>
+                            <div class="verdict">${verdict}</div>
+                        </div>`;
+                }).join('');
+                accBody.innerHTML = rows;
+                const checkedAt = m.account_status.checked_at || m.account_status.captured_at || '';
+                if (accChecked) accChecked.textContent = checkedAt ? `checked: ${checkedAt.slice(0, 16)}` : '';
+            }
+        }
+        // Prefer app_cloner (full pkg/activity from settings_json) — same priority as bot_engine
+        // Fallback to instagram_package (short format from accounts table)
+        _motherPkg = (m.app_cloner && m.app_cloner !== 'None') ? m.app_cloner : (m.instagram_package || null);
+        document.getElementById('mPosts').textContent = fmtNum(m.posts);
+        document.getElementById('mFollowers').textContent = fmtNum(m.followers);
+        document.getElementById('mFollowing').textContent = fmtNum(m.following);
+        // Disable open-IG button if we don't know the package
+        const openBtn = document.getElementById('openMotherIgBtn');
+        if (openBtn) {
+            openBtn.disabled = !_motherPkg;
+            if (!_motherPkg) openBtn.title = 'Mother has no instagram_package set in DB';
+        }
+
+        // Growth deltas
+        const g = data.growth_7d || {};
+        const setDelta = (id, val) => {
+            const el = document.getElementById(id);
+            const d = fmtDelta(val);
+            el.textContent = d.text;
+            el.className = d.cls;
+        };
+        setDelta('mPostsDelta', g.posts_delta);
+        setDelta('mFollowersDelta', g.followers_delta);
+        setDelta('mFollowingDelta', g.following_delta);
+        if (g.baseline_at) {
+            document.getElementById('mGrowthBaseline').textContent = `vs ${g.baseline_at}`;
+        } else {
+            document.getElementById('mGrowthBaseline').textContent = 'no baseline yet (7d snapshot needed)';
+        }
+
+        // Slaves summary
+        const s = data.slaves_summary || {total:0};
+        document.getElementById('slavesTotal').textContent = s.total;
+        const pills = [
+            {key:'active',     label:'Active',     cls:'green'},
+            {key:'logged_out', label:'Logged Out', cls:'yellow'},
+            {key:'suspended',  label:'Suspended',  cls:'red'},
+            {key:'banned',     label:'Banned',     cls:'red'},
+            {key:'other',      label:'Other',      cls:'gray'},
+        ].map(p => `<span class="slave-pill ${p.cls}"><span class="dot"></span>${p.label}: <strong>${s[p.key]||0}</strong></span>`).join('');
+        document.getElementById('slavesPills').innerHTML = pills;
+
+        // ROI card
+        const roi = data.roi_7d;
+        if (roi) {
+            document.getElementById('roiActions').textContent = fmtNum(roi.total_actions);
+            const breakdown = Object.entries(roi.actions_by_type || {})
+                .sort((a,b) => b[1]-a[1])
+                .slice(0, 4)
+                .map(([k,v]) => `${k.replace('_',' ')} ${v}`)
+                .join(' · ');
+            document.getElementById('roiActionsBreakdown').textContent = breakdown || '';
+            const dGrowth = document.getElementById('roiGrowth');
+            if (roi.follower_delta == null) {
+                dGrowth.textContent = '—';
+                dGrowth.classList.remove('delta-up','delta-down');
+            } else {
+                dGrowth.innerHTML = (roi.follower_delta > 0 ? '+' : '') + roi.follower_delta.toLocaleString();
+                dGrowth.style.color = roi.follower_delta > 0 ? '#28a745' : (roi.follower_delta < 0 ? '#dc3545' : '#fff');
+            }
+            const dRatio = document.getElementById('roiRatio');
+            if (roi.actions_per_follower != null && roi.actions_per_follower > 0) {
+                dRatio.textContent = roi.actions_per_follower.toFixed(1);
+            } else if (roi.follower_delta != null && roi.follower_delta <= 0) {
+                dRatio.textContent = '∞';
+                dRatio.style.color = '#dc3545';
+            } else {
+                dRatio.textContent = '—';
+            }
+            // Hint message
+            const hint = document.getElementById('roiHint');
+            if (roi.follower_delta == null) {
+                hint.textContent = 'no 7d snapshot baseline yet';
+            } else if (roi.actions_per_follower != null) {
+                hint.textContent = `${roi.total_actions} actions → ${roi.follower_delta > 0 ? '+'+roi.follower_delta : roi.follower_delta} followers`;
+            } else {
+                hint.textContent = `${roi.total_actions} actions, growth flat or negative`;
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load mother:', e);
+    }
+}
+
+// ─── Slaves table (sortable, rich) ─────────────────────────────
+let _sortKey = 'today_total';
+let _sortDir = 'desc';  // 'asc' | 'desc'
+
+async function loadSlaves() {
+    try {
+        const r = await fetch(`/api/mothers/${MOTHER_ID}/slaves`);
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        _slavesCache = (data.slaves || []).map(s => ({
+            ...s,
+            today_total: s.today ? s.today.total : 0,
+        }));
+        renderSlaves();
+    } catch (e) {
+        document.getElementById('slavesTable').innerHTML =
+            `<tr><td colspan="9" class="text-center py-4 text-danger">Error: ${escHtml(e.message)}</td></tr>`;
+    }
+}
+
+function _formatLastAction(iso) {
+    if (!iso) return '<span class="dim">never</span>';
+    const t = new Date(iso.replace(' ', 'T') + (iso.includes('Z') ? '' : ''));
+    const diffMs = Date.now() - t.getTime();
+    if (Number.isNaN(diffMs)) return `<span class="dim">${escHtml(iso.slice(0,16))}</span>`;
+    const m = Math.floor(diffMs / 60000);
+    if (m < 1) return '<span class="text-success">just now</span>';
+    if (m < 60) return `<span class="text-success">${m}m ago</span>`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `<span class="text-warning">${h}h ago</span>`;
+    const d = Math.floor(h / 24);
+    return `<span class="text-danger">${d}d ago</span>`;
+}
+
+// "Last Post" cell — relative time + colour (green ≤2d, amber ≤7d, red older).
+// Source: posts_count snapshot increase. Local-time parsing (matches DB).
+function _lastPostCell(iso) {
+    if (!iso) return '<span class="dim" title="No post detected in snapshot history">—</span>';
+    const t = new Date(iso.replace(' ', 'T').replace('Z', ''));
+    const diffMs = Date.now() - t.getTime();
+    if (Number.isNaN(diffMs)) return `<span class="dim">${escHtml(iso.slice(0,16))}</span>`;
+    const m = Math.floor(diffMs / 60000);
+    let label, cls;
+    if (m < 60) { label = Math.max(1,m) + 'm ago'; cls = 'text-success'; }
+    else { const h = Math.floor(m/60);
+        if (h < 24) { label = h + 'h ago'; cls = 'text-success'; }
+        else { const d = Math.floor(h/24);
+            label = (d < 30 ? d + 'd ago' : Math.floor(d/30) + 'mo ago');
+            cls = d <= 2 ? 'text-success' : d <= 7 ? 'text-warning' : 'text-danger';
+        }
+    }
+    return `<span class="${cls}" title="Last post ~${escHtml(iso)}">${label}</span>`;
+}
+
+function _sortValue(s, key) {
+    if (key === 'today_total') return s.today ? s.today.total : 0;
+    if (key === 'last_action_at') return s.last_action_at ? new Date(s.last_action_at.replace(' ', 'T')).getTime() : 0;
+    if (key === 'last_post_at') return s.last_post_at ? new Date(s.last_post_at.replace(' ', 'T')).getTime() : 0;
+    if (key === 'acc_status_issues') return s.account_status ? (s.account_status.issues ?? -1) : -1;
+    const v = s[key];
+    if (typeof v === 'string') return v.toLowerCase();
+    return v == null ? 0 : v;
+}
+
+function _renderIgStatusBadge(as) {
+    if (!as) return '<span class="dim" title="not yet checked — bot will scrape on next session">—</span>';
+    const issues = as.issues ?? 0;
+    const cats = [
+        ['removed_content',  'Removed content'],
+        ['recommendable',    "What can't be recommended"],
+        ['monetization',     'Monetization'],
+        ['features_usable',  "Features you can't use"],
+    ];
+    const tip = cats.map(([k, label]) => {
+        const v = as[k];
+        const icon = v === 'ok' ? '✓' : (v === 'warning' ? '⚠' : '?');
+        return `${icon} ${label}`;
+    }).join('\n');
+    if (issues === 0) {
+        return `<span class="badge bg-success" title="${tip}\n\nchecked: ${as.checked_at || '?'}"><i class="fas fa-check"></i> OK</span>`;
+    }
+    if (issues > 0) {
+        return `<span class="badge bg-danger" title="${tip}\n\nchecked: ${as.checked_at || '?'}"><i class="fas fa-exclamation-triangle"></i> ${issues}</span>`;
+    }
+    return '<span class="dim">?</span>';
+}
+
+function renderSlaves() {
+    const search = (document.getElementById('slavesSearch').value || '').toLowerCase().trim();
+    const tbody = document.getElementById('slavesTable');
+    if (!_slavesCache.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-4 text-muted">No slaves found.</td></tr>';
+        return;
+    }
+    let filtered = _slavesCache.filter(s =>
+        !search ||
+        (s.username || '').toLowerCase().includes(search) ||
+        (s.device_name || '').toLowerCase().includes(search) ||
+        (s.device_serial || '').toLowerCase().includes(search)
+    );
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-4 text-muted">No matches.</td></tr>';
+        return;
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+        const va = _sortValue(a, _sortKey);
+        const vb = _sortValue(b, _sortKey);
+        if (va < vb) return _sortDir === 'asc' ? -1 : 1;
+        if (va > vb) return _sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Update sort icon classes on headers
+    document.querySelectorAll('table.slaves-perf th.sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.dataset.sort === _sortKey) th.classList.add(_sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+    });
+
+    tbody.innerHTML = filtered.map(s => {
+        const status = (s.status || '').toLowerCase();
+        let badge = '<span class="badge bg-secondary">—</span>';
+        if (status === 'active')              badge = '<span class="badge bg-success">active</span>';
+        else if (status.includes('logged'))   badge = '<span class="badge bg-warning text-dark">logged_out</span>';
+        else if (status.includes('suspend'))  badge = '<span class="badge bg-danger">suspended</span>';
+        else if (status.includes('ban'))      badge = '<span class="badge bg-danger">banned</span>';
+        else if (s.status)                    badge = `<span class="badge bg-secondary">${escHtml(s.status)}</span>`;
+        if (s.unresolved_events > 0) badge += ` <span class="badge bg-warning text-dark" title="${s.unresolved_events} unresolved health events">⚠ ${s.unresolved_events}</span>`;
+
+        const t = s.today || {};
+        // Compact today breakdown: f / l / s / dm / r / st
+        const todayParts = [];
+        if (t.follows)  todayParts.push(`F${t.follows}`);
+        if (t.likes)    todayParts.push(`L${t.likes}`);
+        if (t.shares)   todayParts.push(`Sh${t.shares}`);
+        if (t.dms)      todayParts.push(`DM${t.dms}`);
+        if (t.comments) todayParts.push(`C${t.comments}`);
+        if (t.reels)    todayParts.push(`R${t.reels}`);
+        if (t.stories)  todayParts.push(`St${t.stories}`);
+        const todayTip = todayParts.length ? `title="${todayParts.join(' · ')}"` : '';
+
+        // Pulse dot — based on last action recency
+        let dot = 'cold';
+        if (s.last_action_at) {
+            const diffH = (Date.now() - new Date(s.last_action_at.replace(' ', 'T')).getTime()) / 3600000;
+            if (diffH < 2) dot = '';        // green (active)
+            else if (diffH < 24) dot = 'warn';
+            else dot = 'err';
+        }
+        const errCell = s.errors_today > 0
+            ? `<span class="text-danger">${s.errors_today}</span>`
+            : '<span class="dim">0</span>';
+
+        return `
+            <tr>
+                <td><span class="pulse-dot ${dot}"></span><strong>${escHtml(s.username)}</strong></td>
+                <td><small>${escHtml(s.device_name || s.device_serial)}</small></td>
+                <td class="text-end">${fmtNum(s.followers)}</td>
+                <td class="text-end" ${todayTip}>${t.total ? `<strong>${t.total}</strong>` : '<span class="dim">0</span>'}</td>
+                <td class="text-end">${s.week_total ? s.week_total.toLocaleString() : '<span class="dim">0</span>'}</td>
+                <td class="text-end">${errCell}</td>
+                <td>${badge}</td>
+                <td>${_renderIgStatusBadge(s.account_status)}</td>
+                <td><small>${_formatLastAction(s.last_action_at)}</small></td>
+                <td><small>${_lastPostCell(s.last_post_at)}</small></td>
+                <td class="text-end">
+                    <a href="/device-manager/${encodeURIComponent(s.device_serial)}?account=${encodeURIComponent(s.username)}"
+                       class="btn btn-sm btn-outline-primary" title="Open account settings directly">
+                        <i class="fas fa-cog"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ─── Growth chart (Chart.js line) ──────────────────────────────
+let _growthChart = null;
+async function loadGrowth(days) {
+    try {
+        const r = await fetch(`/api/mothers/${MOTHER_ID}/growth?days=${days}`);
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        renderGrowthChart(data.series || []);
+    } catch (e) {
+        console.error('Growth load failed:', e);
+        document.getElementById('growthEmpty').style.display = 'flex';
+    }
+}
+
+function renderGrowthChart(series) {
+    const empty = document.getElementById('growthEmpty');
+    const canvas = document.getElementById('growthChart');
+    if (!series.length) {
+        empty.style.display = 'flex';
+        if (_growthChart) { _growthChart.destroy(); _growthChart = null; }
+        return;
+    }
+    empty.style.display = 'none';
+
+    const labels = series.map(p => p.day);
+    const followers = series.map(p => p.followers);
+    const following = series.map(p => p.following);
+
+    if (_growthChart) _growthChart.destroy();
+    _growthChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Followers',
+                    data: followers,
+                    borderColor: '#ffc107',
+                    backgroundColor: 'rgba(255,193,7,0.12)',
+                    borderWidth: 2,
+                    tension: 0.25,
+                    fill: true,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                },
+                {
+                    label: 'Following',
+                    data: following,
+                    borderColor: '#6c757d',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1.5,
+                    borderDash: [4, 3],
+                    tension: 0.25,
+                    fill: false,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    hidden: true,  // off by default — focus on followers
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { labels: { color: '#adb5bd', font: { size: 11 } } },
+                tooltip: { backgroundColor: '#1a1a1a', titleColor: '#fff', bodyColor: '#fff' }
+            },
+            scales: {
+                x: { ticks: { color: '#6c757d', maxTicksLimit: 8 }, grid: { color: '#2c3138' } },
+                y: { ticks: { color: '#6c757d' }, grid: { color: '#2c3138' } }
+            }
+        }
+    });
+}
+
+// ─── Phone mockup screenshot polling ───────────────────────────
+async function takeSnap() {
+    const status = document.getElementById('phoneStatus');
+    status.textContent = 'capturing…';
+    try {
+        // 35s client timeout (server has 30s ADB timeout + buffer)
+        const ctrl = new AbortController();
+        const tId = setTimeout(() => ctrl.abort(), 35000);
+        const url = `/api/devices/${encodeURIComponent(DEVICE_SERIAL)}/screenshot?_=${Date.now()}`;
+        const t0 = performance.now();
+        const r = await fetch(url, {signal: ctrl.signal});
+        clearTimeout(tId);
+        if (r.status === 504) {
+            // Device busy — soft-fail, keep current image, don't show ugly error
+            status.textContent = '⏳ device busy, retrying…';
+            return;
+        }
+        if (!r.ok) {
+            const txt = await r.text();
+            throw new Error(`HTTP ${r.status}: ${txt.slice(0,80)}`);
+        }
+        const blob = await r.blob();
+        const screen = document.getElementById('phoneScreen');
+        const oldUrl = screen.querySelector('img')?.src;
+        screen.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        img.onload = () => { if (oldUrl) URL.revokeObjectURL(oldUrl); };
+        screen.appendChild(img);
+        const dt = (performance.now() - t0).toFixed(0);
+        status.textContent = `${dt}ms · ${(blob.size/1024).toFixed(0)}KB`;
+    } catch (e) {
+        // Don't replace working image with error placeholder — just show in status
+        status.textContent = '⏳ ' + (e.message || 'retry').slice(0, 40);
+    }
+}
+
+// Device pixel dimensions (Samsung 1080x1920 portrait — adjust if other devices used)
+const DEVICE_W = 1080;
+const DEVICE_H = 1920;
+let _streamOn = false;
+
+function showTapRing(clientX, clientY) {
+    const screen = document.getElementById('phoneScreen');
+    const rect = screen.getBoundingClientRect();
+    const ring = document.createElement('div');
+    ring.className = 'tap-ring';
+    ring.style.left = (clientX - rect.left) + 'px';
+    ring.style.top = (clientY - rect.top) + 'px';
+    screen.appendChild(ring);
+    setTimeout(() => ring.remove(), 500);
+}
+
+function browserToDevice(clientX, clientY) {
+    const img = document.querySelector('#phoneScreen img');
+    if (!img) return null;
+    const rect = img.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+    // object-fit: contain — image is centered with letterboxing if aspect mismatches
+    // For 9:16 device + 9:16 container, this is just direct ratio
+    const x = Math.round(((clientX - rect.left) / rect.width) * DEVICE_W);
+    const y = Math.round(((clientY - rect.top) / rect.height) * DEVICE_H);
+    return {x, y};
+}
+
+async function sendTap(x, y) {
+    try {
+        await fetch(`/api/devices/${encodeURIComponent(DEVICE_SERIAL)}/tap`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({x, y})
+        });
+    } catch (_) {}
+}
+async function sendSwipe(x1, y1, x2, y2, dur) {
+    try {
+        await fetch(`/api/devices/${encodeURIComponent(DEVICE_SERIAL)}/swipe`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({x1, y1, x2, y2, duration_ms: dur})
+        });
+    } catch (_) {}
+}
+async function sendKey(keycode) {
+    try {
+        await fetch(`/api/devices/${encodeURIComponent(DEVICE_SERIAL)}/key`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({keycode})
+        });
+    } catch (_) {}
+}
+
+function startStream() {
+    const screen = document.getElementById('phoneScreen');
+    const url = `/api/devices/${encodeURIComponent(DEVICE_SERIAL)}/stream?quality=75&scale=0.6&_=${Date.now()}`;
+    screen.innerHTML = `<img src="${url}" alt="live">`;
+    screen.classList.add('interactive');
+    _streamOn = true;
+    document.getElementById('phoneStatus').textContent = 'streaming…';
+    attachInteractionHandlers();
+}
+
+function stopStream() {
+    const screen = document.getElementById('phoneScreen');
+    const img = screen.querySelector('img');
+    if (img) img.src = '';  // disconnect
+    screen.innerHTML = '';
+    screen.classList.remove('interactive');
+    _streamOn = false;
+    document.getElementById('phoneStatus').textContent = 'stopped';
+}
+
+function toggleStream() {
+    const btn = document.getElementById('streamToggle');
+    if (_streamOn) {
+        stopStream();
+        btn.innerHTML = '<i class="fas fa-broadcast-tower me-1"></i>Stream';
+        btn.classList.remove('btn-warning');
+        btn.classList.add('btn-success');
+    } else {
+        startStream();
+        btn.innerHTML = '<i class="fas fa-stop me-1"></i>Stop';
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-warning');
+    }
+}
+
+let _dragStart = null;
+function attachInteractionHandlers() {
+    const screen = document.getElementById('phoneScreen');
+    if (screen._handlersAttached) return;
+    screen._handlersAttached = true;
+
+    screen.addEventListener('pointerdown', e => {
+        if (!_streamOn) return;
+        const dev = browserToDevice(e.clientX, e.clientY);
+        if (!dev) return;
+        _dragStart = {x: dev.x, y: dev.y, t: Date.now(), clientX: e.clientX, clientY: e.clientY};
+    });
+    screen.addEventListener('pointerup', async e => {
+        if (!_streamOn || !_dragStart) return;
+        const dev = browserToDevice(e.clientX, e.clientY);
+        if (!dev) { _dragStart = null; return; }
+        const dx = dev.x - _dragStart.x;
+        const dy = dev.y - _dragStart.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const dt = Date.now() - _dragStart.t;
+        if (dist < 30) {
+            // Tap
+            showTapRing(e.clientX, e.clientY);
+            await sendTap(dev.x, dev.y);
+        } else {
+            // Swipe — clamp duration to drag time (50-1500ms)
+            const dur = Math.max(80, Math.min(1500, dt));
+            await sendSwipe(_dragStart.x, _dragStart.y, dev.x, dev.y, dur);
+        }
+        _dragStart = null;
+    });
+    screen.addEventListener('pointercancel', () => { _dragStart = null; });
+    // Right-click → Back
+    screen.addEventListener('contextmenu', async e => {
+        e.preventDefault();
+        if (!_streamOn) return;
+        await sendKey('KEYCODE_BACK');
+    });
+}
+
+function setPlaceholder(msg, isError) {
+    const screen = document.getElementById('phoneScreen');
+    const cls = isError ? 'text-danger' : 'placeholder';
+    screen.innerHTML = `<div class="placeholder">
+        ${isError ? '<i class="fas fa-exclamation-triangle text-warning fa-2x mb-2 d-block"></i>' : '<div class="spinner-border text-primary mb-2"></div>'}
+        <div class="${cls}">${msg}</div>
+    </div>`;
+}
+
+async function openMotherIG(opts) {
+    opts = opts || {};
+    if (!_motherPkg) {
+        setPlaceholder('No instagram_package set for this mother', true);
+        return;
+    }
+    const btn = document.getElementById('openMotherIgBtn');
+    const status = document.getElementById('phoneStatus');
+    if (btn) btn.disabled = true;
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Opening…';
+    if (status) status.textContent = 'force-stop + launch…';
+    if (opts.showPlaceholder !== false) setPlaceholder('Force-stopping clone & opening Mother IG…');
+
+    try {
+        const r = await fetch(`/api/devices/${encodeURIComponent(DEVICE_SERIAL)}/open-ig`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({package: _motherPkg, username: MOTHER_USERNAME})
+        });
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Open failed');
+        // Wait for IG to cold-start + location banner to disappear (~5-6s).
+        // Show countdown in placeholder so user knows it's progressing.
+        const totalWait = 6;
+        for (let s = totalWait; s > 0; s--) {
+            if (opts.showPlaceholder !== false) {
+                setPlaceholder(`Waiting for IG to settle… ${s}s`);
+            }
+            await new Promise(res => setTimeout(res, 1000));
+        }
+        await takeSnap();
+    } catch (e) {
+        const msg = (e && e.message) || 'open failed';
+        if (status) status.textContent = '❌ ' + msg.slice(0, 50);
+        setPlaceholder(msg, true);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
+}
+
+// ─── IG Profile Mockup (CSS, instant) ──────────────────────────
+let _motherDataCache = null;
+
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+
+function igNumber(n) {
+    n = Number(n) || 0;
+    if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 10000) return Math.round(n / 1000) + 'K';
+    if (n >= 1000) return n.toLocaleString('en-US');
+    return String(n);
+}
+
+// Stable color hash so same username always gets same gradient
+function _hash(s) { let h = 0; for (let i=0; i<s.length; i++) h = ((h<<5)-h+s.charCodeAt(i))|0; return Math.abs(h); }
+function _gridGradient(seed, i) {
+    // 12 IG-ish dim photo gradients — neutral tones (greys, browns, muted) so they look like grid posts
+    const palettes = [
+        ['#3d3d3d','#5a5a5a'], ['#4a3f35','#7a6a55'], ['#2c3e50','#4a6278'],
+        ['#5d4e60','#8a7a8e'], ['#3a3a3a','#1a1a1a'], ['#6b4f3a','#a07c58'],
+        ['#2a2a2a','#4a4a4a'], ['#4d3d3d','#7a5d5d'], ['#3a4a3a','#5a6a5a'],
+        ['#54473d','#8a7560'], ['#262626','#3a3a3a'], ['#5a4a3a','#876854'],
+    ];
+    const p = palettes[(seed + i) % palettes.length];
+    const angle = ((seed * 17 + i * 31) % 180);
+    return `background: linear-gradient(${angle}deg, ${p[0]} 0%, ${p[1]} 100%);`;
+}
+
+function renderIgMockup(m) {
+    const screen = document.getElementById('phoneScreen');
+    const username = m.username || 'unknown';
+    const displayName = m.display_name || '';
+    const posts = m.posts || 0;
+    const followers = m.followers || 0;
+    const following = m.following || 0;
+    const isBiz = !!m.is_business_profile;
+    const isPriv = !!m.is_private;
+    const category = m.business_category || (isBiz ? 'Digital creator' : '');
+    const link = m.profile_link || '';
+    const bio = m.bio || '';
+    const tagsArr = m.tags || [];
+    const avatarLetter = (username[0] || '?').toUpperCase();
+    const seed = _hash(username);
+
+    // 12 grid cells with varied gradients + corner icons
+    const corners = ['','▶','▶','','⊞','▶','','','▶','⊞','',''];  // play=reel, ⊞=carousel
+    const cells = Array.from({length: 12}, (_, i) => {
+        const c = corners[i] || '';
+        return `<div class="cell" style="${_gridGradient(seed, i)}">${c ? `<span class="corner">${c}</span>` : ''}</div>`;
+    }).join('');
+
+    // Highlight stories (cosmetic, but adds polish — labels like "Travel", "Work"…)
+    const highlightLabels = ['New', '✨', 'Mood', 'Gym', 'Travel'];
+    const highlights = highlightLabels.map(label => {
+        return `
+            <div class="hl">
+                <div class="hl-circle">${(label === '✨' ? '✨' : label[0])}</div>
+                <div class="hl-label">${escAttr(label)}</div>
+            </div>`;
+    }).join('');
+
+    // Status bar (fake clock + signal/battery)
+    const now = new Date();
+    const clock = now.toTimeString().slice(0,5);
+
+    const html = `
+    <div class="ig-mockup">
+        <div class="ig-statusbar">
+            <span>${clock}</span>
+            <span class="right">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <span style="font-size:9px;">100%</span>
+                <i class="fas fa-battery-full"></i>
+            </span>
+        </div>
+        <div class="ig-topbar">
+            <div class="left"></div>
+            <div class="username">
+                ${isPriv ? '<span class="lock">🔒</span>' : ''}<span>${escAttr(username)}</span><span class="chev">▾</span>
+            </div>
+            <div class="right">
+                <i class="far fa-square-plus"></i>
+                <i class="fas fa-bars"></i>
+            </div>
+        </div>
+        <div class="ig-header">
+            <div class="ig-avatar-wrap">
+                <div class="ig-note-bubble">Note…</div>
+                <div class="ig-avatar"><div class="inner">${avatarLetter}</div></div>
+            </div>
+            <div class="ig-stats">
+                <div><strong>${igNumber(posts)}</strong><span>posts</span></div>
+                <div><strong>${igNumber(followers)}</strong><span>followers</span></div>
+                <div><strong>${igNumber(following)}</strong><span>following</span></div>
+            </div>
+        </div>
+        <div class="ig-bioblock">
+            ${displayName ? `<div class="ig-name">${escAttr(displayName)}</div>` : ''}
+            ${category ? `<div class="ig-category">${escAttr(category)}</div>` : ''}
+            ${bio ? `<div class="ig-bio">${escAttr(bio)}</div>` : ''}
+            ${link ? `<a class="ig-link" href="#" onclick="return false;"><i class="fas fa-link"></i> ${escAttr(String(link).replace(/^https?:\/\//, ''))}</a>` : ''}
+            ${tagsArr.length ? `
+                <div class="ig-followed-by">
+                    <span class="mini-avs">
+                        <span style="background:linear-gradient(45deg,#ff7e5f,#feb47b);"></span>
+                        <span style="background:linear-gradient(45deg,#667eea,#764ba2);"></span>
+                        <span style="background:linear-gradient(45deg,#f093fb,#f5576c);"></span>
+                    </span>
+                    <span>Followed by your <strong>${escAttr(tagsArr[0])}</strong> slaves</span>
+                </div>` : ''}
+        </div>
+        ${isBiz ? `
+            <div class="ig-prodash">
+                <div>
+                    <div class="title">Professional dashboard</div>
+                    <div class="sub">Tap to see insights, ads, and tools</div>
+                </div>
+                <span class="chev">›</span>
+            </div>` : ''}
+        <div class="ig-action-row">
+            <button>Edit profile</button>
+            <button>Share profile</button>
+            <button class="icon-btn"><i class="fas fa-user-plus" style="font-size:11px;"></i></button>
+        </div>
+        <div class="ig-highlights">
+            ${highlights}
+            <div class="hl">
+                <div class="hl-circle add">＋</div>
+                <div class="hl-label">New</div>
+            </div>
+        </div>
+        <div class="ig-tabs">
+            <div class="tab active" data-ig-tab="posts"
+                 onclick="_switchIgTab('posts')" title="Posts">
+                <i class="fas fa-th"></i>
+            </div>
+            <div class="tab" data-ig-tab="reels"
+                 onclick="_switchIgTab('reels')" title="Reels">
+                <i class="fas fa-play-circle"></i>
+            </div>
+            <div class="tab disabled" title="Tagged (not supported)">
+                <i class="far fa-id-badge"></i>
+            </div>
+        </div>
+        <div class="ig-grid" id="igGrid">${cells}</div>
+        <div class="ig-bottomnav">
+            <span class="item active"><i class="fas fa-home"></i></span>
+            <span class="item"><i class="fas fa-search"></i></span>
+            <span class="item"><i class="far fa-square-plus"></i></span>
+            <span class="item"><i class="fas fa-play"></i></span>
+            <span class="item profile"></span>
+        </div>
+    </div>
+    <div class="ig-preview-badge" id="igPreviewBadge">PREVIEW · Hydra DB</div>
+    `;
+    screen.innerHTML = html;
+    document.getElementById('phoneStatus').textContent = 'preview';
+
+    // Try to hydrate the grid with real IG posts (async, non-blocking).
+    _hydrateIgPreview(username);
+}
+
+// ── Live IG preview (via /api/ig-preview/* — RapidAPI instagram120 proxy) ──
+let _igPreviewLastUsername = null;
+let _igActiveTab = 'posts';                  // 'posts' or 'reels'
+const _igTabCache = {};                      // { 'username|kind' → posts[] }
+
+async function _hydrateIgPreview(username) {
+    if (!username || username === 'unknown') return;
+    _igPreviewLastUsername = username;
+    _igActiveTab = 'posts';
+    try {
+        const [postsResp, profileResp] = await Promise.all([
+            fetch(`/api/ig-preview/posts?username=${encodeURIComponent(username)}`),
+            fetch(`/api/ig-preview/profile?username=${encodeURIComponent(username)}`),
+        ]);
+        if (_igPreviewLastUsername !== username) return;  // user switched
+        if (postsResp.ok) {
+            const pd = await postsResp.json();
+            const posts = pd.posts || [];
+            _igTabCache[`${username}|posts`] = posts;
+            _renderIgPostsGrid(posts, 'posts');
+            const badge = document.getElementById('igPreviewBadge');
+            if (badge && posts.length) {
+                badge.textContent = pd.cached ? 'LIVE · IG (cached)' : 'LIVE · IG';
+                badge.style.background = 'rgba(34, 197, 94, 0.7)';
+            }
+        }
+        if (profileResp.ok) {
+            _applyIgProfileLive(await profileResp.json());
+        }
+    } catch (e) {
+        console.warn('ig-preview hydrate failed', e);
+    }
+}
+
+async function _switchIgTab(kind) {
+    const username = _igPreviewLastUsername;
+    if (!username) return;
+    if (kind === _igActiveTab) return;
+
+    // Update active class on tabs
+    document.querySelectorAll('.ig-tabs .tab').forEach(t => {
+        if (t.classList.contains('disabled')) return;
+        t.classList.toggle('active', t.dataset.igTab === kind);
+    });
+    _igActiveTab = kind;
+
+    // Use cached data if available — instant tab switch
+    const cached = _igTabCache[`${username}|${kind}`];
+    if (cached) { _renderIgPostsGrid(cached, kind); return; }
+
+    // Show small loading hint inside grid (placeholder cells stay)
+    const grid = document.getElementById('igGrid');
+    if (grid) {
+        const cells = grid.querySelectorAll('.cell');
+        cells.forEach(c => c.style.opacity = '0.4');
+    }
+
+    try {
+        const r = await fetch(`/api/ig-preview/${kind}?username=${encodeURIComponent(username)}`);
+        if (_igPreviewLastUsername !== username || _igActiveTab !== kind) return;
+        if (!r.ok) {
+            if (grid) grid.querySelectorAll('.cell').forEach(c => c.style.opacity = '');
+            return;
+        }
+        const d = await r.json();
+        const posts = d.posts || [];
+        _igTabCache[`${username}|${kind}`] = posts;
+        _renderIgPostsGrid(posts, kind);
+    } catch (e) {
+        console.warn('ig-preview tab switch failed', e);
+        if (grid) grid.querySelectorAll('.cell').forEach(c => c.style.opacity = '');
+    }
+}
+
+function _renderIgPostsGrid(posts, kind) {
+    const grid = document.getElementById('igGrid');
+    if (!grid) return;
+    if (!posts.length) {
+        grid.innerHTML = `<div style="grid-column:1/-1;padding:30px;
+            text-align:center;color:#8e8e8e;font-size:11px;">
+            No ${kind === 'reels' ? 'reels' : 'posts'} yet.</div>`;
+        return;
+    }
+    grid.innerHTML = posts.slice(0, 12).map(p => {
+        const isVideo    = p.media_type === 2 || kind === 'reels';
+        const isCarousel = p.media_type === 8;
+        const corner = isVideo
+            ? '<span class="corner"><i class="fas fa-play"></i></span>'
+            : (isCarousel ? '<span class="corner">⊞</span>' : '');
+        const igUrl = p.code ? `https://www.instagram.com/p/${p.code}/` : '#';
+        const tip = _igCellTooltip(p);
+        const thumb = `/api/ig-preview/thumb/${encodeURIComponent(p.id)}`;
+        return `
+            <a class="cell" href="${igUrl}" target="_blank" rel="noopener"
+               title="${escAttr(tip)}"
+               style="background:#1a1a1a;text-decoration:none;opacity:1;">
+                <img src="${thumb}" loading="lazy"
+                     style="width:100%;height:100%;object-fit:cover;display:block;"
+                     onerror="this.style.display='none'">
+                ${corner}
+                ${_igCellStatsBar(p, isVideo)}
+            </a>`;
+    }).join('');
+}
+
+function _igCellStatsBar(p, isVideo) {
+    /* Compact always-visible bottom strip showing likes / comments / views. */
+    const parts = [];
+    if (p.like_count != null) {
+        parts.push(`<span><i class="fas fa-heart"></i>${igNumber(p.like_count)}</span>`);
+    }
+    if (p.comment_count != null) {
+        parts.push(`<span><i class="fas fa-comment"></i>${igNumber(p.comment_count)}</span>`);
+    }
+    // Views/plays: reels use play_count, IG sometimes returns view_count for video posts
+    const playOrView = p.play_count || p.view_count;
+    if (isVideo && playOrView) {
+        parts.push(`<span><i class="fas fa-play"></i>${igNumber(playOrView)}</span>`);
+    }
+    if (!parts.length) return '';
+    return `<div class="stats-bar">${parts.join('<span class="sep">·</span>')}</div>`;
+}
+
+function _igCellTooltip(p) {
+    /* Full numbers in tooltip — the bar uses compact igNumber formatting */
+    const parts = [];
+    if (p.like_count != null)    parts.push(`♥ ${p.like_count.toLocaleString()}`);
+    if (p.comment_count != null) parts.push(`💬 ${p.comment_count.toLocaleString()}`);
+    if (p.play_count)            parts.push(`▶ ${p.play_count.toLocaleString()}`);
+    if (p.view_count)            parts.push(`👁 ${p.view_count.toLocaleString()}`);
+    if (p.caption) parts.push('\n' + p.caption);
+    return parts.join('  ');
+}
+
+function _applyIgProfileLive(prd) {
+    // Update displayed counts to live values from IG (overrides DB)
+    const stats = document.querySelectorAll('.ig-stats div strong');
+    // Order in DOM: posts / followers / following
+    if (stats.length === 3) {
+        if (prd.media_count != null)     stats[0].textContent = igNumber(prd.media_count);
+        if (prd.follower_count != null)  stats[1].textContent = igNumber(prd.follower_count);
+        if (prd.following_count != null) stats[2].textContent = igNumber(prd.following_count);
+    }
+
+    // Profile pic via our backend proxy (cached on disk, no CDN hotlink issues)
+    const av = document.querySelector('.ig-avatar .inner');
+    if (av && prd.username) {
+        const fallbackLetter = (prd.username || '?')[0].toUpperCase();
+        av.style.padding = '0';
+        av.style.background = '#1a1a1a';
+        av.innerHTML = `<img src="/api/ig-preview/profile-pic?username=${encodeURIComponent(prd.username)}"
+            style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;"
+            onerror="this.parentElement.style.background=''; this.parentElement.style.padding=''; this.replaceWith(document.createTextNode('${fallbackLetter}'))">`;
+    }
+
+    // Update / insert display name + bio inside .ig-bioblock
+    const block = document.querySelector('.ig-bioblock');
+    if (!block) return;
+
+    if (prd.full_name) {
+        let nameEl = block.querySelector('.ig-name');
+        if (!nameEl) {
+            nameEl = document.createElement('div');
+            nameEl.className = 'ig-name';
+            block.insertBefore(nameEl, block.firstChild);
+        }
+        nameEl.textContent = prd.full_name;
+    }
+
+    if (prd.category) {
+        let catEl = block.querySelector('.ig-category');
+        if (!catEl) {
+            catEl = document.createElement('div');
+            catEl.className = 'ig-category';
+            const after = block.querySelector('.ig-name');
+            if (after && after.nextSibling) block.insertBefore(catEl, after.nextSibling);
+            else block.appendChild(catEl);
+        }
+        catEl.textContent = prd.category;
+    }
+
+    if (prd.biography) {
+        let bioEl = block.querySelector('.ig-bio');
+        if (!bioEl) {
+            bioEl = document.createElement('div');
+            bioEl.className = 'ig-bio';
+            // Insert after category if it exists, else after name, else first
+            const after = block.querySelector('.ig-category')
+                       || block.querySelector('.ig-name');
+            if (after && after.nextSibling) block.insertBefore(bioEl, after.nextSibling);
+            else if (after) block.appendChild(bioEl);
+            else block.insertBefore(bioEl, block.firstChild);
+        }
+        bioEl.textContent = prd.biography;
+    }
+
+    if (prd.external_url) {
+        let linkEl = block.querySelector('.ig-link');
+        if (!linkEl) {
+            linkEl = document.createElement('a');
+            linkEl.className = 'ig-link';
+            linkEl.href = '#';
+            linkEl.onclick = () => false;
+            block.appendChild(linkEl);
+        }
+        linkEl.innerHTML = `<i class="fas fa-link"></i> ${prd.external_url.replace(/^https?:\/\//, '')}`;
+    }
+}
+
+function showPreview() {
+    if (_motherDataCache) {
+        renderIgMockup(_motherDataCache);
+    } else {
+        // Fall back to a refetch if cache somehow missing
+        loadMother().then(() => {
+            if (_motherDataCache) renderIgMockup(_motherDataCache);
+        });
+    }
+}
+
+// Simple polling-based Live (working version)
+function toggleLive() {
+    const btn = document.getElementById('liveToggle');
+    if (_liveOn) {
+        clearInterval(_liveTimer); _liveTimer = null; _liveOn = false;
+        btn.innerHTML = '<i class="fas fa-play me-1"></i>Live';
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-secondary');
+    } else {
+        _liveOn = true;
+        takeSnap();
+        _liveTimer = setInterval(takeSnap, 3000);
+        btn.innerHTML = '<i class="fas fa-pause me-1"></i>Stop';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+    }
+}
+
+// ─── Wire up ───────────────────────────────────────────────────
+document.getElementById('previewBtn').addEventListener('click', showPreview);
+document.getElementById('snapBtn').addEventListener('click', takeSnap);
+document.getElementById('liveToggle').addEventListener('click', toggleLive);
+document.getElementById('openMotherIgBtn').addEventListener('click', openMotherIG);
+document.getElementById('slavesSearch').addEventListener('input', renderSlaves);
+document.getElementById('refreshAllBtn').addEventListener('click', () => {
+    loadMother();
+    loadSlaves();
+    loadGrowth(_currentGrowthRange);
+});
+
+// Mother header "last post" (server-rendered value, formatted relative)
+(function () {
+    const el = document.getElementById('mLastPost');
+    if (el) el.innerHTML = 'last post: ' + _lastPostCell(MOTHER_LAST_POST);
+})();
+
+// ─── Schedule Content Modal ───────────────────────────────────
+// Each entry: {id, file, name, size, type, status:'pending|uploading|done|error', path, thumb, errorMsg}
+let _schedFiles = [];
+let _schedModalInstance = null;
+let _schedShowAll = false;
+let _schedFileIdCounter = 1;
+
+function _addMinutes(date, mins) {
+    return new Date(date.getTime() + mins * 60000);
+}
+function _todayIsoForInput(date) {
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0,10);
+}
+function _formatLocalDt(d) {
+    return d.toLocaleString('sv-SE').slice(0,16);  // 'YYYY-MM-DD HH:MM'
+}
+function _addDays(date, n) {
+    const d = new Date(date.getTime());
+    d.setDate(d.getDate() + n);
+    return d;
+}
+
+// Build the target account list for scheduling based on the "Post to" radio:
+//   slaves        → all active slaves (default, original behaviour)
+//   mother        → ONLY the mother account (posts purely on the mother)
+//   mother_slaves → mother + all active slaves
+// The mother is represented as a pseudo-account using its own work window so
+// _computeSlaveTime() schedules it inside the mother's start_time/end_time.
+function _getSchedTargets() {
+    const mode = (document.querySelector('input[name="schedTarget"]:checked') || {}).value || 'slaves';
+    const slaves = (_slavesCache || []).filter(s => (s.status || '').toLowerCase() === 'active');
+    const mother = {
+        id: MOTHER_ID,
+        username: MOTHER_USERNAME,
+        device_serial: DEVICE_SERIAL,
+        device_name: MOTHER_DEVICE_NAME,
+        start_time: MOTHER_START,
+        end_time: MOTHER_END,
+        status: 'active',
+        _isMother: true,
+    };
+    if (mode === 'mother') return [mother];
+    if (mode === 'mother_slaves') return [mother, ...slaves];
+    return slaves;
+}
+
+// Human label for the current target mode (for pills / messages).
+function _schedTargetLabel(n) {
+    const mode = (document.querySelector('input[name="schedTarget"]:checked') || {}).value || 'slaves';
+    if (mode === 'mother') return 'mother';
+    if (mode === 'mother_slaves') return 'accounts';
+    return n === 1 ? 'slave' : 'slaves';
+}
+
+// Parse start_time/end_time string ("8" or "08:00" or "0,16") → first window [start, end] in hours
+function _parseWindow(startStr, endStr) {
+    if (startStr == null || endStr == null) return null;
+    const s = String(startStr).split(',')[0].trim();
+    const e = String(endStr).split(',')[0].trim();
+    const sh = parseInt(s, 10);
+    const eh = parseInt(e, 10);
+    if (Number.isNaN(sh) || Number.isNaN(eh)) return null;
+    return [sh, eh];
+}
+
+// Compute scheduled time for a slave within its work window on a given date.
+// - If window is 0-0 → disabled, return null
+// - If window is 0-24 (or sh==eh!=0 in our convention) → any hour
+// - If window has passed today → push to next day's window
+// - Pick a RANDOM minute within the window so slaves are naturally staggered
+function _computeSlaveTime(slave, date, randSeed) {
+    const win = _parseWindow(slave.start_time, slave.end_time);
+    if (!win) return null;
+    let [sh, eh] = win;
+    // 0-0 = disabled (per John's rule); use full day instead so post still goes out
+    if (sh === 0 && eh === 0) { sh = 9; eh = 21; }  // sensible fallback
+    if (eh <= sh) eh = sh + 8;  // crosses midnight or invalid → cap
+
+    const base = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const winStart = new Date(base); winStart.setHours(sh, 0, 0, 0);
+    const winEnd   = new Date(base); winEnd.setHours(eh, 0, 0, 0);
+    const now = new Date();
+
+    let target = winStart;
+    if (winEnd < now) {
+        // Window already passed today — push to tomorrow's same window
+        target = new Date(winStart.getTime() + 24*60*60*1000);
+        target.setHours(sh, 0, 0, 0);
+    } else if (winStart < now) {
+        // Window in progress — start from now
+        target = now;
+    }
+
+    // Random minute offset within remaining window
+    const span = (eh - sh) * 60;          // total window minutes
+    const startedAt = (target.getHours() * 60 + target.getMinutes());
+    const offsetCap = (eh * 60) - startedAt;
+    const cap = Math.max(1, Math.min(span, offsetCap));
+    // Pseudo-random per slave (seeded by id) — deterministic so previews stable
+    const rand = ((slave.id * 9301 + 49297 + randSeed) % 233280) / 233280;
+    const offset = Math.floor(rand * cap);
+    return _addMinutes(target, offset);
+}
+
+// ─── Multi-file rendering ──────────────────────────────────────
+function _renderSchedFiles() {
+    const list = document.getElementById('schedFilesList');
+    const help = document.getElementById('schedFilesHelp');
+    const dz = document.getElementById('schedDropzone');
+    if (!_schedFiles.length) {
+        list.innerHTML = '';
+        if (help) help.textContent = '';
+        if (dz) dz.classList.remove('has-files');
+        _refreshSchedSummary();
+        return;
+    }
+    if (dz) dz.classList.add('has-files');
+    const rows = _schedFiles.map((f, idx) => {
+        let statusHtml = '';
+        if (f.status === 'uploading') statusHtml = '<span class="spinner-border spinner-border-sm" style="width:0.7rem;height:0.7rem;"></span> uploading…';
+        else if (f.status === 'done') statusHtml = '<span class="text-success">✓ ready</span>';
+        else if (f.status === 'error') statusHtml = `<span class="text-danger">❌ ${escHtml(f.errorMsg || 'failed')}</span>`;
+        else statusHtml = '<span class="text-white-50">queued…</span>';
+
+        const thumb = f.thumb
+            ? `<img src="${f.thumb}" alt="">`
+            : (f.type && f.type.startsWith('video/') ? '<i class="fas fa-film text-info"></i>' : '<i class="fas fa-image text-secondary"></i>');
+        return `<div class="sched-file-row" draggable="true" data-id="${f.id}">
+            <span class="grip"><i class="fas fa-grip-vertical"></i></span>
+            <span class="day-badge">DAY ${idx+1}</span>
+            <div class="file-thumb">${thumb}</div>
+            <div class="file-meta">
+                <div class="file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</div>
+                <div class="file-status">${statusHtml}</div>
+            </div>
+            <button type="button" class="file-remove" data-remove="${f.id}" title="Remove"><i class="fas fa-times"></i></button>
+        </div>`;
+    });
+    list.innerHTML = rows.join('');
+    if (help) help.textContent = `${_schedFiles.length} file${_schedFiles.length>1?'s':''} → ${_schedFiles.length} day${_schedFiles.length>1?'s':''}`;
+
+    // Wire remove buttons
+    list.querySelectorAll('[data-remove]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = parseInt(btn.dataset.remove, 10);
+            _schedFiles = _schedFiles.filter(f => f.id !== id);
+            _renderSchedFiles();
+        });
+    });
+
+    // Drag-and-drop reorder
+    list.querySelectorAll('.sched-file-row').forEach(row => {
+        row.addEventListener('dragstart', (e) => {
+            row.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', row.dataset.id);
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+        row.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+        row.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const draggedId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            const targetId = parseInt(row.dataset.id, 10);
+            if (draggedId === targetId) return;
+            const fromIdx = _schedFiles.findIndex(f => f.id === draggedId);
+            const toIdx = _schedFiles.findIndex(f => f.id === targetId);
+            if (fromIdx < 0 || toIdx < 0) return;
+            const [moved] = _schedFiles.splice(fromIdx, 1);
+            _schedFiles.splice(toIdx, 0, moved);
+            _renderSchedFiles();
+        });
+    });
+
+    _refreshSchedSummary();
+}
+
+async function _uploadSchedFile(entry) {
+    entry.status = 'uploading';
+    _renderSchedFiles();
+    try {
+        const fd = new FormData();
+        fd.append('file', entry.file);
+        const r = await fetch('/api/content-schedule/upload', {method: 'POST', body: fd});
+        const data = await r.json();
+        if (!r.ok || data.error) throw new Error(data.error || 'upload failed');
+        // Endpoint returns: {files: [{path, full_path, thumb_url, ...}], uploaded: N}
+        const result = (data.files && data.files[0])
+                    || (data.results && data.results[0])
+                    || data;
+        if (result && result.error) throw new Error(result.error);
+        const path = result.full_path || result.path || result.media_path || result.original_path;
+        if (!path) throw new Error('upload returned no path');
+        entry.path = path;
+        if (result.thumb_url) entry.thumb = result.thumb_url;  // server-side thumb (better than blob)
+        entry.status = 'done';
+    } catch (e) {
+        entry.status = 'error';
+        entry.errorMsg = e.message || 'failed';
+    }
+    _renderSchedFiles();
+}
+
+function _addSchedFiles(fileList) {
+    const arr = Array.from(fileList || []);
+    arr.forEach(file => {
+        const entry = {
+            id: _schedFileIdCounter++,
+            file: file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            status: 'pending',
+            path: null,
+            thumb: null,
+            errorMsg: null,
+        };
+        if (file.type && file.type.startsWith('image/')) {
+            try { entry.thumb = URL.createObjectURL(file); } catch (e) {}
+        }
+        _schedFiles.push(entry);
+        _uploadSchedFile(entry);  // fire and forget; render will update
+    });
+    _renderSchedFiles();
+}
+
+// ─── Smart summary (multi-day) ─────────────────────────────────
+function _refreshSchedSummary() {
+    const slaves = _getSchedTargets();
+    document.getElementById('schedSlaveCount').textContent = slaves.length;
+    const lbl = document.getElementById('schedTargetLabel');
+    if (lbl) lbl.textContent = _schedTargetLabel(slaves.length);
+    const dayCount = Math.max(_schedFiles.length, 0);
+    document.getElementById('schedDayCount').textContent = dayCount;
+    document.getElementById('schedTotalCount').textContent = slaves.length * dayCount;
+
+    const dateInput = document.getElementById('schedDate').value;
+    const summaryEl = document.getElementById('schedSummary');
+    const skippedEl = document.getElementById('schedSkippedNote');
+    const listEl = document.getElementById('schedSlavesList');
+
+    if (!dateInput || !dayCount) {
+        summaryEl.textContent = !dayCount
+            ? `Add files to see the schedule`
+            : `${slaves.length} slaves`;
+        skippedEl.textContent = '';
+        listEl.innerHTML = '';
+        return;
+    }
+
+    const startDate = new Date(dateInput + 'T00:00:00');
+    let totalScheduled = 0, totalSkipped = 0;
+    const dayBlocks = [];
+
+    for (let dayIdx = 0; dayIdx < dayCount; dayIdx++) {
+        const date = _addDays(startDate, dayIdx);
+        const seed = (date.getTime() % 1000) + dayIdx * 17;
+        let scheduledThisDay = 0, skippedThisDay = 0;
+        const previewRows = [];
+        for (const s of slaves) {
+            const t = _computeSlaveTime(s, date, seed);
+            if (!t) { skippedThisDay++; continue; }
+            scheduledThisDay++;
+            const winLabel = `${s.start_time||'?'}-${s.end_time||'?'}h`;
+            previewRows.push({
+                username: s.username,
+                device: s.device_name || s.device_serial,
+                win: winLabel,
+                t: t,
+            });
+        }
+        totalScheduled += scheduledThisDay;
+        totalSkipped += skippedThisDay;
+
+        const dayHeader = `<div class="sched-day-header">
+            <span><i class="fas fa-calendar-day me-1"></i>Day ${dayIdx+1} — ${date.toLocaleDateString('sv-SE')}</span>
+            <span class="count">${scheduledThisDay} posts${skippedThisDay?` · ${skippedThisDay} skipped`:''}</span>
+        </div>`;
+        const limit = _schedShowAll ? previewRows.length : Math.min(5, previewRows.length);
+        const rowsHtml = previewRows.slice(0, limit).map(r =>
+            `<div class="sched-preview-row">
+                <span><i class="fas fa-user-circle text-white-50 me-1"></i><strong>${escHtml(r.username)}</strong>
+                    <small class="text-white-50 ms-1">@${escHtml(r.device)} · ${r.win}</small></span>
+                <small class="text-info">${_formatLocalDt(r.t)}</small>
+            </div>`).join('');
+        const moreNote = (!_schedShowAll && previewRows.length > limit)
+            ? `<div class="text-center text-white-50 py-1" style="font-size:0.72rem;">+${previewRows.length - limit} more…</div>`
+            : '';
+        dayBlocks.push(`<div class="sched-day-block">${dayHeader}${rowsHtml}${moreNote}</div>`);
+    }
+
+    summaryEl.textContent = `${totalScheduled} posts across ${dayCount} day${dayCount>1?'s':''}` + (totalSkipped ? ` · ${totalSkipped} skipped` : '');
+    skippedEl.textContent = totalSkipped ? ` ${totalSkipped} slot${totalSkipped>1?'s':''} skipped (window invalid).` : '';
+    listEl.innerHTML = dayBlocks.join('');
+}
+
+function _toggleSchedTypeSections() {
+    const t = document.querySelector('input[name="schedType"]:checked').value;
+    document.querySelectorAll('.sched-type-reel').forEach(el => el.style.display = (t === 'reel' ? '' : 'none'));
+    document.querySelectorAll('.sched-type-story').forEach(el => el.style.display = (t === 'story' ? '' : 'none'));
+}
+
+function openScheduleModal() {
+    document.getElementById('schedDate').value = _todayIsoForInput(new Date());
+    document.getElementById('schedCaption').value = '';
+    document.getElementById('schedHashtags').value = '';
+    const music = document.getElementById('schedMusic'); if (music) music.value = '';
+    const ment = document.getElementById('schedMention'); if (ment) ment.value = '';
+    const link = document.getElementById('schedLink'); if (link) link.value = '';
+    document.getElementById('schedMediaFile').value = '';
+    _schedFiles = [];
+    _schedShowAll = false;
+    document.getElementById('schedTogglePreview').textContent = 'show all';
+    document.querySelector('input[name="schedType"][value="post"]').checked = true;
+    _toggleSchedTypeSections();
+    _renderSchedFiles();
+    if (!_schedModalInstance) {
+        _schedModalInstance = new bootstrap.Modal(document.getElementById('scheduleContentModal'));
+    }
+    _schedModalInstance.show();
+}
+
+document.getElementById('openScheduleModalBtn').addEventListener('click', openScheduleModal);
+document.getElementById('schedDate').addEventListener('change', _refreshSchedSummary);
+
+// Target radios (slaves / mother / both) → recompute preview & counts
+document.querySelectorAll('input[name="schedTarget"]').forEach(r => {
+    r.addEventListener('change', _refreshSchedSummary);
+});
+
+// Content-type radios → toggle reel/story sections
+document.querySelectorAll('input[name="schedType"]').forEach(r => {
+    r.addEventListener('change', _toggleSchedTypeSections);
+});
+
+// Drop-zone wiring
+(function wireDropzone() {
+    const dz = document.getElementById('schedDropzone');
+    const input = document.getElementById('schedMediaFile');
+    if (!dz || !input) return;
+
+    dz.addEventListener('click', (e) => {
+        // Don't re-trigger when click was on the hidden input itself
+        if (e.target !== input) input.click();
+    });
+    input.addEventListener('change', () => {
+        if (input.files && input.files.length) _addSchedFiles(input.files);
+        input.value = '';  // allow re-selecting same file
+    });
+    ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dz.classList.add('dragover');
+    }));
+    ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (ev === 'dragleave' && dz.contains(e.relatedTarget)) return;
+        dz.classList.remove('dragover');
+    }));
+    dz.addEventListener('drop', (e) => {
+        const files = e.dataTransfer && e.dataTransfer.files;
+        if (files && files.length) _addSchedFiles(files);
+    });
+})();
+
+// Toggle preview show-all
+document.getElementById('schedTogglePreview').addEventListener('click', function() {
+    _schedShowAll = !_schedShowAll;
+    this.textContent = _schedShowAll ? 'show less' : 'show all';
+    _refreshSchedSummary();
+});
+
+// AI caption — real OpenAI call via /api/content-schedule/ai-caption
+// Toggle spoof controls dimness when anti-detect checkbox flips
+(function () {
+    const cb = document.getElementById('schedSpoofEnabled');
+    const ctrl = document.getElementById('schedSpoofControls');
+    if (!cb || !ctrl) return;
+    const sync = () => {
+        ctrl.style.opacity = cb.checked ? '1' : '0.45';
+        ctrl.style.pointerEvents = cb.checked ? '' : 'none';
+    };
+    cb.addEventListener('change', sync);
+    sync();
+})();
+
+document.getElementById('schedAiCaption').addEventListener('click', async function() {
+    const tone = document.getElementById('schedAiTone').value;
+    const contentType = document.querySelector('input[name="schedType"]:checked').value;
+    const captionEl = document.getElementById('schedCaption');
+    const orig = this.innerHTML;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width:0.8rem;height:0.8rem;"></span>';
+    try {
+        const userPrompt = captionEl.value.trim();
+        const promptText = userPrompt
+            ? `Refine/expand this Instagram caption for a ${contentType} (mother account: @${MOTHER_USERNAME}). Tone: ${tone}. Existing: ${userPrompt}`
+            : `Write a short engaging Instagram caption for a ${contentType} from @${MOTHER_USERNAME}. Tone: ${tone}. Use emojis naturally. No hashtags.`;
+        const r = await fetch('/api/content-schedule/ai-caption', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({prompt: promptText, tone, content_type: contentType, count: 1})
+        });
+        const data = await r.json();
+        if (!r.ok || data.error) throw new Error(data.error || `HTTP ${r.status}`);
+        const cap = (data.captions && data.captions[0]) || '';
+        if (cap) captionEl.value = cap;
+        else throw new Error('empty caption returned');
+    } catch (e) {
+        // Fall back to a simple stub if AI not configured
+        if (!captionEl.value.trim()) {
+            captionEl.value = `New from @${MOTHER_USERNAME} 🔥`;
+        }
+        alert('AI caption: ' + (e.message || 'failed') + '\n\nUsing fallback caption.');
+    } finally {
+        this.disabled = false;
+        this.innerHTML = orig;
+    }
+});
+
+// Submit — multi-day, multi-slave
+document.getElementById('schedSubmitBtn').addEventListener('click', async function() {
+    const uploaded = _schedFiles.filter(f => f.status === 'done' && f.path);
+    if (!uploaded.length) { alert('Add at least one media file (and wait for upload to finish).'); return; }
+    if (uploaded.length !== _schedFiles.length) {
+        const stillUploading = _schedFiles.some(f => f.status === 'uploading' || f.status === 'pending');
+        if (stillUploading) { alert('Wait — some files are still uploading.'); return; }
+        const failed = _schedFiles.filter(f => f.status === 'error');
+        if (failed.length && !confirm(`${failed.length} file(s) failed to upload — they will be skipped. Continue?`)) return;
+    }
+    const dateInput = document.getElementById('schedDate').value;
+    if (!dateInput) { alert('Pick a start date'); return; }
+    const contentType = document.querySelector('input[name="schedType"]:checked').value;
+    const caption = document.getElementById('schedCaption').value.trim();
+    const hashtags = document.getElementById('schedHashtags').value.trim();
+    const music = (document.getElementById('schedMusic') || {}).value || '';
+    const mention = (document.getElementById('schedMention') || {}).value || '';
+    const link = (document.getElementById('schedLink') || {}).value || '';
+
+    const slaves = _getSchedTargets();
+    const targetMode = (document.querySelector('input[name="schedTarget"]:checked') || {}).value || 'slaves';
+    if (!slaves.length) {
+        alert(targetMode === 'mother' ? 'Mother account is not active.' : 'No active accounts to schedule on');
+        return;
+    }
+
+    // Compose final caption (caption + blank line + hashtags) — applied to each item
+    const captionFinal = hashtags ? (caption ? `${caption}\n\n${hashtags}` : hashtags) : caption;
+
+    const startDate = new Date(dateInput + 'T00:00:00');
+    const items = [];
+    let skipped = 0;
+    const orderedFiles = uploaded;  // preserves user order
+
+    for (let dayIdx = 0; dayIdx < orderedFiles.length; dayIdx++) {
+        const date = _addDays(startDate, dayIdx);
+        const seed = (date.getTime() % 1000) + dayIdx * 17;
+        const fileEntry = orderedFiles[dayIdx];
+        for (const s of slaves) {
+            const t = _computeSlaveTime(s, date, seed);
+            if (!t) { skipped++; continue; }
+            const item = {
+                account_id: s.id,
+                username: s.username,
+                device_serial: s.device_serial,
+                media_path: fileEntry.path,
+                caption: captionFinal,
+                scheduled_time: t.toISOString().replace('T', ' ').slice(0,19),
+            };
+            if (contentType === 'reel' && music) item.music_search_query = music;
+            if (contentType === 'story') {
+                // Slaves default to mentioning the mother (drives traffic to it).
+                // The mother itself should NOT auto-mention itself — only use an
+                // explicit mention if the operator typed one.
+                const m = s._isMother ? mention : (mention || MOTHER_USERNAME);
+                if (m) item.mention_username = m;
+                if (link) item.link_url = link;
+            }
+            items.push(item);
+        }
+    }
+    if (!items.length) { alert('No valid accounts to schedule on (all have invalid windows).'); return; }
+
+    const btn = this;
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scheduling…';
+    const spoofEnabled = document.getElementById('schedSpoofEnabled').checked;
+    const spoofPreset  = document.getElementById('schedSpoofPreset').value;
+    const spoofMirror  = document.getElementById('schedSpoofMirror').checked;
+
+    // Friendlier success message if spoof is on
+    const spoofNote = spoofEnabled
+        ? `\n🛡 Anti-detect: ${items.length} unique variants will be generated (preset: ${spoofPreset}${spoofMirror ? ', mirror allowed' : ', mirror off'}). This takes a few seconds per item — progress shown on /content-schedule.`
+        : '';
+    try {
+        const r = await fetch('/api/content-schedule/batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                content_type: contentType,
+                caption_template: captionFinal,
+                schedule_items: items,
+                batch_name: `${MOTHER_USERNAME} • ${contentType} • ${targetMode === 'mother' ? 'mother only' : targetMode === 'mother_slaves' ? `mother+${slaves.length-1} slaves` : `${slaves.length} slaves`} × ${orderedFiles.length}d`,
+                spoof_enabled: spoofEnabled,
+                spoof_preset: spoofPreset,
+                spoof_allow_mirror: spoofMirror,
+            })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+        const skippedNote = skipped ? `\n${skipped} slots skipped (invalid window)` : '';
+        const targetDesc = targetMode === 'mother'
+            ? `@${MOTHER_USERNAME} (mother only)`
+            : targetMode === 'mother_slaves'
+                ? `@${MOTHER_USERNAME} + its slaves`
+                : `${MOTHER_USERNAME}'s slaves`;
+        alert(`✅ Scheduled ${items.length} ${contentType}s for ${targetDesc} over ${orderedFiles.length} day${orderedFiles.length>1?'s':''}.${skippedNote}${spoofNote}\n\nbatch_id: ${data.batch_id}\nEach account posts during its own work hours, starting ${dateInput}.\n\nGo to /content-schedule to monitor progress.`);
+        _schedModalInstance.hide();
+    } catch (e) {
+        alert('❌ ' + (e.message || 'failed'));
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    }
+});
+
+// Manual trigger: scrape Professional Dashboard insights for this mother
+const scrapeInsightsBtn = document.getElementById('scrapeInsightsBtn');
+if (scrapeInsightsBtn) {
+    scrapeInsightsBtn.addEventListener('click', async (e) => {
+        const fullMode = !e.shiftKey;  // shift-click = quick overview only
+        const label = fullMode ? 'Full scrape… (~3-5 min)' : 'Quick scrape… (~30-60s)';
+        const orig = scrapeInsightsBtn.innerHTML;
+        if (fullMode && !confirm('Full scrape navigates to Views, Interactions, Followers and Content sections — takes 3-5 minutes. Continue?\n\n(Shift-click for fast overview-only scrape — gets only top numbers.)')) return;
+        scrapeInsightsBtn.disabled = true;
+        scrapeInsightsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + label;
+        try {
+            const url = `/api/accounts/${MOTHER_ID}/scrape-insights` + (fullMode ? '' : '?mode=overview');
+            const r = await fetch(url, {method: 'POST'});
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error || 'Failed');
+            const ov = data.data && data.data.overview ? data.data.overview : {};
+            const range = data.data && data.data.date_range ? data.data.date_range : '?';
+            alert(`✅ Insights scraped!\n\nDate range: ${range}\nNew followers: ${ov.new_followers ?? '—'}\nContent shared: ${ov.content_shared ?? '—'}\nViews: ${ov.views ?? '—'}\nInteractions: ${ov.interactions ?? '—'}\n\nGo to /analytics → ${MOTHER_USERNAME} to see all charts.`);
+        } catch (e) {
+            alert('❌ Scrape failed: ' + e.message);
+        } finally {
+            scrapeInsightsBtn.disabled = false;
+            scrapeInsightsBtn.innerHTML = orig;
+        }
+    });
+}
+
+// Sortable headers
+document.querySelectorAll('table.slaves-perf th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (_sortKey === key) {
+            _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            _sortKey = key;
+            _sortDir = (key === 'username' || key === 'device_name' || key === 'status' || key === 'last_action_at') ? 'asc' : 'desc';
+        }
+        renderSlaves();
+    });
+});
+
+// Growth range buttons
+let _currentGrowthRange = '90';
+document.querySelectorAll('.growth-range').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.growth-range').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        _currentGrowthRange = btn.dataset.days;
+        loadGrowth(_currentGrowthRange);
+    });
+});
+
+// Business profile mark / detect
+async function setBusiness(flag) {
+    try {
+        const r = await fetch(`/api/accounts/${MOTHER_ID}/business`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({is_business_profile: flag ? 1 : 0})
+        });
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        location.reload();
+    } catch (e) {
+        alert('Failed: ' + e.message);
+    }
+}
+
+async function detectBusiness() {
+    const btn = document.getElementById('detectBizBtn');
+    if (!btn) return;
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Detecting…';
+    try {
+        const r = await fetch(`/api/accounts/${MOTHER_ID}/detect-business`, {method: 'POST'});
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        const msg = data.is_business_profile
+            ? `✅ Detected: BUSINESS (${data.indicators_count} indicators: ${data.indicators_found.join(', ')})`
+            : `⚠ Detected: PERSONAL (only ${data.indicators_count} indicators found — need ≥2)`;
+        alert(msg);
+        if (data.is_business_profile) location.reload();
+    } catch (e) {
+        alert('Detect failed: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    }
+}
+
+const markBtn = document.getElementById('markBizBtn');
+if (markBtn) markBtn.addEventListener('click', () => setBusiness(true));
+const detBtn = document.getElementById('detectBizBtn');
+if (detBtn) detBtn.addEventListener('click', detectBusiness);
+
+// Initial load — fetch mother data, then show instant CSS preview (no ADB calls).
+// User can manually click Snap / Live / Open Mother IG to load real screenshots.
+(async () => {
+    await loadMother();     // populates _motherDataCache + _motherPkg + ROI card
+    loadSlaves();           // fire-and-forget
+    loadGrowth('90');       // fire-and-forget
+    showPreview();          // instant CSS mockup using DB data
+})();
+
+// Auto-refresh stats every 60s (not the screenshot)
+setInterval(loadMother, 60000);
+
+// Stop polling on page unload
+window.addEventListener('beforeunload', () => {
+    if (_liveTimer) clearInterval(_liveTimer);
+});
+</script>
+{% endblock %}

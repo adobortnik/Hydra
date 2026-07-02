@@ -153,44 +153,21 @@ def get_all_igbot_processes():
         dict: {device_serial: [pid1, pid2, ...]}
     """
     try:
-        # Use WMIC to get process command lines
-        result = subprocess.run(
-            ['wmic', 'process', 'where', 'name="igbot.exe"', 'get', 'ProcessId,CommandLine', '/FORMAT:CSV'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-
+        # psutil, NOT WMIC: on Windows 11 build 26200+ WMIC is removed and
+        # each call throws a 0xc0000142 app-init error dialog.
+        import psutil
         device_pids = {}
-        lines = result.stdout.strip().split('\n')
-
-        for line in lines[1:]:  # Skip header
-            if not line.strip():
-                continue
-
-            parts = line.split(',')
-            if len(parts) >= 3:
-                # Format: Node,CommandLine,ProcessId
-                command_line = parts[1]
-                try:
-                    pid = int(parts[2])
-                except (ValueError, IndexError):
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if (proc.info.get('name') or '').lower() != 'igbot.exe':
                     continue
-
-                # Extract device serial from command line
-                # Command line format: "path\to\igbot.exe" 10.1.10.192_5555
-                # or: igbot.exe 10.1.10.192_5555
-                if command_line:
-                    # Split and get the last argument (device serial)
-                    cmd_parts = command_line.strip().split()
-                    if len(cmd_parts) >= 2:
-                        device_serial = cmd_parts[-1]
-                        # Validate it looks like a device serial (IP_PORT format)
-                        if '_' in device_serial and '.' in device_serial:
-                            if device_serial not in device_pids:
-                                device_pids[device_serial] = []
-                            device_pids[device_serial].append(pid)
-
+                cmd_parts = proc.info.get('cmdline') or []
+                if len(cmd_parts) >= 2:
+                    device_serial = cmd_parts[-1]
+                    if '_' in device_serial and '.' in device_serial:
+                        device_pids.setdefault(device_serial, []).append(proc.info['pid'])
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
         return device_pids
 
     except Exception as e:

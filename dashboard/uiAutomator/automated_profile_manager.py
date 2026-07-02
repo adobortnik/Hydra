@@ -189,7 +189,7 @@ class AutomatedProfileManager:
             ]
 
             for indicator_text, selector_type in edit_profile_indicators:
-                if self.device(text=indicator_text).exists(timeout=2):
+                if self.device(text=indicator_text).wait(timeout=2):
                     print(f"✓ On edit profile screen (found '{indicator_text}')")
                     return True
 
@@ -197,7 +197,7 @@ class AutomatedProfileManager:
             print("Not on edit profile screen, attempting to navigate...")
 
             # Check if we're on profile page (has "Edit profile" button)
-            if self.device(text="Edit profile").exists(timeout=3):
+            if self.device(text="Edit profile").wait(timeout=3):
                 print("Found 'Edit profile' button, clicking it...")
                 self.device(text="Edit profile").click()
                 time.sleep(2)
@@ -210,7 +210,7 @@ class AutomatedProfileManager:
             ]
 
             for selector in edit_profile_selectors:
-                if selector.exists(timeout=2):
+                if selector.wait(timeout=2):
                     print("Found edit profile button, clicking...")
                     selector.click()
                     time.sleep(2)
@@ -287,7 +287,7 @@ class AutomatedProfileManager:
         ]
 
         for text in quick_indicators:
-            if self.device(textContains=text).exists(timeout=0.5):
+            if self.device(textContains=text).wait(timeout=0.5):
                 print(f"⚠ CHALLENGE DETECTED: verification")
                 print(f"   Text found: '{text}'")
                 return {'is_challenge': True, 'challenge_type': 'verification', 'text': text}
@@ -317,14 +317,14 @@ class AutomatedProfileManager:
                         print(f"  Detected avatar/profile photo modal")
                         # Try to dismiss it
                         for dismiss_text in ["Not now", "Skip", "Cancel", "Maybe Later", "Later"]:
-                            if self.device(text=dismiss_text).exists(timeout=0.3):
+                            if self.device(text=dismiss_text).wait(timeout=0.3):
                                 print(f"  Clicking '{dismiss_text}' on modal...")
                                 self.device(text=dismiss_text).click()
                                 dismissed_count += 1
                                 modal_found = True
                                 time.sleep(1)
                                 break
-                            elif self.device(textContains=dismiss_text).exists(timeout=0.3):
+                            elif self.device(textContains=dismiss_text).wait(timeout=0.3):
                                 print(f"  Clicking button containing '{dismiss_text}'...")
                                 self.device(textContains=dismiss_text).click()
                                 dismissed_count += 1
@@ -340,7 +340,7 @@ class AutomatedProfileManager:
                 dismiss_buttons = ["Not now", "Skip", "Cancel", "Maybe Later", "Later", "Dismiss", "Close"]
                 for button_text in dismiss_buttons:
                     try:
-                        if self.device(text=button_text).exists(timeout=0.3):
+                        if self.device(text=button_text).wait(timeout=0.3):
                             print(f"  Found modal with '{button_text}' button, dismissing...")
                             self.device(text=button_text).click()
                             dismissed_count += 1
@@ -482,7 +482,7 @@ class AutomatedProfileManager:
 
             picture_clicked = False
             for selector in picture_selectors:
-                if selector.exists(timeout=5):
+                if selector.wait(timeout=5):
                     selector.click()
                     print(f"Clicked: {selector.info.get('text', 'profile picture element')}")
                     picture_clicked = True
@@ -516,7 +516,7 @@ class AutomatedProfileManager:
                 else:  # textContains
                     selector = device(textContains=selector_text)
 
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     selector.click()
                     print(f"✓ Selected: {selector_text}")
                     gallery_clicked = True
@@ -561,7 +561,7 @@ class AutomatedProfileManager:
             ]
 
             for selector in confirm_selectors:
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     selector.click()
                     print(f"Clicked confirm button: {selector.info.get('text', 'button')}")
                     time.sleep(1)
@@ -569,7 +569,7 @@ class AutomatedProfileManager:
 
             # Some Instagram versions require a second confirmation
             for selector in confirm_selectors:
-                if selector.exists(timeout=2):
+                if selector.wait(timeout=2):
                     selector.click()
                     print("Clicked second confirmation if needed")
                     break
@@ -610,7 +610,7 @@ class AutomatedProfileManager:
 
             picture_clicked = False
             for selector in picture_selectors:
-                if selector.exists(timeout=5):
+                if selector.wait(timeout=5):
                     selector.click()
                     print(f"Clicked: {selector.info.get('text', 'profile picture element')}")
                     picture_clicked = True
@@ -649,7 +649,7 @@ class AutomatedProfileManager:
                 else:  # textContains
                     selector = device(textContains=selector_text)
 
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     selector.click()
                     print(f"✓ Selected: {selector_text}")
                     gallery_clicked = True
@@ -697,7 +697,7 @@ class AutomatedProfileManager:
             ]
 
             for selector in confirm_selectors:
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     selector.click()
                     print(f"Clicked confirm button: {selector.info.get('text', 'button')}")
                     time.sleep(1)
@@ -705,7 +705,7 @@ class AutomatedProfileManager:
 
             # Some Instagram versions require a second confirmation
             for selector in confirm_selectors:
-                if selector.exists(timeout=2):
+                if selector.wait(timeout=2):
                     selector.click()
                     print("Clicked second confirmation if needed")
                     break
@@ -736,49 +736,82 @@ class AutomatedProfileManager:
             # Step 1: Navigate to bio field (like username)
             # Bio is typically 2 rows below Username on edit profile screen
             # Layout: Name -> Username -> Pronouns -> Bio
+            # The reliable way is to tap the CLICKABLE ROW that contains the "Bio"
+            # label. The old code tapped a fixed offset (bottom+30) BELOW the
+            # label, which on modern IG hits the NEXT row (Links) and never opens
+            # the editor. After every attempt we VERIFY an EditText appeared (the
+            # bio editor has one; the edit-profile list does not).
             bio_navigation_found = False
 
-            try:
-                # Method 1: Find "Bio" label and click below it
-                if device(text="Bio").exists(timeout=3):
-                    bio_label_bounds = device(text="Bio").info['bounds']
-                    print(f"Found 'Bio' label at bounds: {bio_label_bounds}")
-
-                    # Click below the "Bio" label where the bio text/row is
-                    click_x = bio_label_bounds['left'] + 50
-                    click_y = bio_label_bounds['bottom'] + 30  # Click 30 pixels below label
-
-                    print(f"Clicking at ({click_x}, {click_y}) to navigate to bio edit screen")
-                    device.click(click_x, click_y)
-                    bio_navigation_found = True
-                    time.sleep(2)  # Wait for bio edit screen to load
-                else:
-                    print("Could not find 'Bio' label")
-
-            except Exception as e:
-                print(f"Label click method failed: {e}")
-
-            # Method 2: Try clicking on bio text directly
-            if not bio_navigation_found:
+            def _editor_open():
                 try:
-                    # Look for text that indicates current bio or placeholder
-                    bio_text_selectors = [
-                        device(textContains="+ Add Bio"),
-                        device(textContains="Add Bio"),
-                        device(textContains="Tell people"),
-                        device(resourceId="com.instagram.android:id/bio"),
-                    ]
+                    return bool(device(className="android.widget.EditText").wait(timeout=2))
+                except Exception:
+                    return False
 
-                    for selector in bio_text_selectors:
-                        if selector.exists(timeout=2):
-                            selector.click()
-                            print("Clicked bio text/row to navigate to edit screen")
-                            bio_navigation_found = True
-                            time.sleep(2)
-                            break
+            def _tap_row_with_label(lbl):
+                """Tap the clickable container whose bounds enclose the label."""
+                cx = (lbl['left'] + lbl['right']) // 2
+                cy = (lbl['top'] + lbl['bottom']) // 2
+                try:
+                    rows = device(clickable=True)
+                    for i in range(min(rows.count, 40)):
+                        try:
+                            b = rows[i].info['bounds']
+                        except Exception:
+                            continue
+                        if (b['left'] <= cx <= b['right'] and b['top'] <= cy <= b['bottom']
+                                and (b['bottom'] - b['top']) < 400):   # a row, not the list
+                            device.click((b['left'] + b['right']) // 2,
+                                         (b['top'] + b['bottom']) // 2)
+                            return True
+                except Exception as _e:
+                    print(f"  row-tap scan failed: {_e}")
+                return False
 
-                except Exception as e:
-                    print(f"Bio text click method failed: {e}")
+            for attempt in ('row', 'label-center', 'below-label'):
+                if not device(text="Bio").wait(timeout=3):
+                    print("Could not find 'Bio' label")
+                    break
+                lb = device(text="Bio").info['bounds']
+                print(f"Bio nav attempt '{attempt}' — label bounds: {lb}")
+                if attempt == 'row':
+                    if not _tap_row_with_label(lb):
+                        continue
+                elif attempt == 'label-center':
+                    device.click((lb['left'] + lb['right']) // 2,
+                                 (lb['top'] + lb['bottom']) // 2)
+                else:  # below-label (legacy fallback)
+                    device.click(lb['left'] + 50, lb['bottom'] + 20)
+                time.sleep(1.8)
+                if _editor_open():
+                    bio_navigation_found = True
+                    print(f"✓ Bio editor opened via '{attempt}'")
+                    break
+                # didn't open -> if we drifted off edit profile, go back and retry
+                try:
+                    if not device(text="Bio").exists:
+                        device.press("back")
+                        time.sleep(1.2)
+                except Exception:
+                    pass
+
+            # Last resort: placeholder/value text selectors (older layouts)
+            if not bio_navigation_found:
+                for sel in (device(textContains="Add bio"),
+                            device(textContains="Add Bio"),
+                            device(textContains="Tell people"),
+                            device(resourceIdMatches=r".*:id/bio.*")):
+                    try:
+                        if sel.wait(timeout=2):
+                            sel.click()
+                            time.sleep(1.8)
+                            if _editor_open():
+                                bio_navigation_found = True
+                                print("✓ Bio editor opened via placeholder text")
+                                break
+                    except Exception:
+                        pass
 
             if not bio_navigation_found:
                 print("Could not navigate to bio edit screen")
@@ -788,41 +821,108 @@ class AutomatedProfileManager:
             print("Looking for bio EditText field...")
             time.sleep(1)
 
+            # Robust, package-agnostic selectors. The hardcoded
+            # `com.instagram.android:id/bio` never matched CLONE packages
+            # (com.instagram.androim, ...). After tapping the bio row the field
+            # is usually focused, so try that first; then any EditText; then a
+            # package-agnostic resource-id match.
             edit_text_selectors = [
+                device(focused=True),
                 device(className="android.widget.EditText"),
+                device(resourceIdMatches=r".*:id/bio.*"),
                 device.xpath('//android.widget.EditText'),
-                device(resourceId="com.instagram.android:id/bio"),
+                device(descriptionContains="Bio"),
             ]
 
             edit_field = None
             for selector in edit_text_selectors:
-                if selector.exists(timeout=5):
-                    edit_field = selector
-                    edit_field.click()
-                    print("Found bio EditText field")
-                    time.sleep(1)
-                    break
+                try:
+                    if selector.wait(timeout=3):
+                        edit_field = selector
+                        edit_field.click()
+                        print("Found bio EditText field")
+                        time.sleep(1)
+                        break
+                except Exception as _sel_e:
+                    print(f"  selector check failed: {_sel_e}")
 
             if not edit_field:
                 print("Could not find bio edit field")
+                # Diagnostic: dump the current screen so we can see what the
+                # bio edit screen actually contains (EditText vs Compose etc.)
+                try:
+                    import os as _os, time as _t, re as _re
+                    _dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'logs')
+                    _os.makedirs(_dir, exist_ok=True)
+                    _xml = device.dump_hierarchy()
+                    _p = _os.path.join(_dir, 'bio_fail_%d.xml' % int(_t.time()))
+                    with open(_p, 'w', encoding='utf-8') as _f:
+                        _f.write(_xml)
+                    _classes = sorted(set(_re.findall(r'class="([^"]+)"', _xml)))
+                    print(f"BIO-FAIL: screen dumped -> {_p}")
+                    print(f"  nodes={_xml.count('<node')}  classes={_classes}")
+                except Exception as _e:
+                    print(f"  bio dump failed: {_e}")
                 return False
 
-            # Step 3: Clear existing bio and input new one (same method as username)
+            # Step 3: REPLACE the entire bio. The old long-press + "Select all" +
+            # delete only removed the WORD under the press point, so a multi-line
+            # bio kept its other lines and the new text was inserted mid-bio
+            # (e.g. "backup acc / main: yannisko_paluan" + "Fit Guy" ->
+            #  "backup acc / main: @Fit Guy"). We now (a) atomically replace the
+            # whole field via set_text, and only if that fails (b) do a thorough
+            # full-field clear before typing.
             try:
                 print("Clearing existing bio and entering new one...")
+                import subprocess as _sp
+                _serial = getattr(device, 'serial', None)
 
-                # Select all text using long press
-                edit_field.long_click()
-                time.sleep(0.5)
+                def _bio_field_text():
+                    try:
+                        return (edit_field.info.get('text') or '')
+                    except Exception:
+                        return ''
 
-                # Try to find and click "Select all" if it appears
-                if device(text="Select all").exists(timeout=1):
-                    device(text="Select all").click()
-                    time.sleep(0.3)
+                # (a) atomic replace — no cursor/append issues, clears everything
+                try:
+                    edit_field.set_text(new_bio)
+                    time.sleep(0.8)
+                    if _bio_field_text().strip() == new_bio.strip():
+                        print(f"Bio replaced via set_text: {new_bio}")
+                        device.press("back")
+                        time.sleep(2)
+                        return True
+                except Exception as _e:
+                    print(f"set_text replace failed, falling back to clear+type: {_e}")
 
-                # Delete selected text
-                device.press("delete")
-                time.sleep(0.5)
+                # (b) thorough clear of the WHOLE field (not just one word)
+                try:
+                    edit_field.clear_text()
+                except Exception:
+                    pass
+                if _serial:
+                    try:
+                        # CTRL+A (select all) + DEL — clears multi-line content
+                        _sp.run(['adb', '-s', _serial, 'shell', 'input', 'keycombination', '113', '29'], capture_output=True, timeout=5)
+                        _sp.run(['adb', '-s', _serial, 'shell', 'input', 'keyevent', '67'], capture_output=True, timeout=5)
+                        # belt & suspenders: jump to end and backspace a lot
+                        _sp.run(['adb', '-s', _serial, 'shell', 'input', 'keyevent', 'KEYCODE_MOVE_END'], capture_output=True, timeout=5)
+                        _sp.run(['adb', '-s', _serial, 'shell', 'input', 'keyevent', '--longpress'] + ['KEYCODE_DEL'] * 60, capture_output=True, timeout=10)
+                    except Exception:
+                        pass
+                time.sleep(0.4)
+                # last resort: legacy long-press select-all (whole field)
+                if _bio_field_text().strip():
+                    try:
+                        edit_field.long_click()
+                        time.sleep(0.4)
+                        if device(text="Select all").wait(timeout=1):
+                            device(text="Select all").click()
+                            time.sleep(0.3)
+                        device.press("delete")
+                        time.sleep(0.4)
+                    except Exception:
+                        pass
 
                 # Input new bio using shell command
                 # Handle special characters properly
@@ -905,7 +1005,7 @@ class AutomatedProfileManager:
             ]
 
             for selector in links_selectors:
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print(f"Found links field: '{selector.info.get('text', '')}'")
                     selector.click()
                     link_navigation_found = True
@@ -915,7 +1015,7 @@ class AutomatedProfileManager:
             # Method 2: Look for the link text below "Links" label
             if not link_navigation_found:
                 try:
-                    if device(text="Links").exists(timeout=2):
+                    if device(text="Links").wait(timeout=2):
                         bounds = device(text="Links").info['bounds']
                         click_x = bounds['left'] + 50
                         click_y = bounds['bottom'] + 30
@@ -934,7 +1034,7 @@ class AutomatedProfileManager:
                         device.swipe(width // 2, int(height * 0.7), width // 2, int(height * 0.3), duration=0.3)
                         time.sleep(1)
                         for selector in links_selectors:
-                            if selector.exists(timeout=2):
+                            if selector.wait(timeout=2):
                                 selector.click()
                                 link_navigation_found = True
                                 time.sleep(2)
@@ -964,7 +1064,7 @@ class AutomatedProfileManager:
             existing_link = None
             # Existing links show as URL text (e.g., "https://example.com")
             try:
-                if device(textContains="http").exists(timeout=2):
+                if device(textContains="http").wait(timeout=2):
                     existing_link = device(textContains="http")
                     print(f"Found existing link: {existing_link.info.get('text', '')}")
             except:
@@ -980,7 +1080,7 @@ class AutomatedProfileManager:
                 print("No existing link found, adding new one...")
                 added = False
                 for selector in add_link_selectors:
-                    if selector.exists(timeout=3):
+                    if selector.wait(timeout=3):
                         selector.click()
                         added = True
                         time.sleep(2)
@@ -1004,7 +1104,7 @@ class AutomatedProfileManager:
             ]
 
             for selector in url_selectors:
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     url_field = selector
                     print(f"Found URL field")
                     break
@@ -1037,7 +1137,7 @@ class AutomatedProfileManager:
 
             saved = False
             for selector in save_selectors:
-                if selector.exists(timeout=2):
+                if selector.wait(timeout=2):
                     selector.click()
                     saved = True
                     print("Tapped save/done on link form")
@@ -1085,7 +1185,7 @@ class AutomatedProfileManager:
             username_found = False
 
             try:
-                if device(text="Username").exists(timeout=3):
+                if device(text="Username").wait(timeout=3):
                     username_label_bounds = device(text="Username").info['bounds']
                     print(f"Found 'Username' label at bounds: {username_label_bounds}")
 
@@ -1116,7 +1216,7 @@ class AutomatedProfileManager:
 
             edit_field = None
             for selector in edit_text_selectors:
-                if selector.exists(timeout=5):
+                if selector.wait(timeout=5):
                     edit_field = selector
                     edit_field.click()
                     print("Found username EditText field")
@@ -1133,7 +1233,7 @@ class AutomatedProfileManager:
                 edit_field.long_click()
                 time.sleep(0.5)
 
-                if device(text="Select all").exists(timeout=1):
+                if device(text="Select all").wait(timeout=1):
                     device(text="Select all").click()
                     time.sleep(0.3)
 
@@ -1223,6 +1323,17 @@ class AutomatedProfileManager:
 
             # Track what changed for logging
             changes_made = []
+            # What the task ASKED for — used to detect FALSE SUCCESS (a change
+            # that was requested but never applied must report failure, not OK).
+            requested = []
+            if task.get('profile_picture_id'):
+                requested.append('profile_picture')
+            if task.get('new_username'):
+                requested.append('username')
+            if task.get('new_bio'):
+                requested.append('bio')
+            if task.get('new_link') or task.get('profile_link'):
+                requested.append('link')
 
             # Change profile picture if specified
             if task['profile_picture_id']:
@@ -1432,15 +1543,30 @@ class AutomatedProfileManager:
                 except Exception as e:
                     print(f"⚠ Warning: Could not update phone_farm.db: {e}")
 
-            # Mark task as completed
-            update_task_status(task_id, 'completed')
-
+            # ── Honest outcome: compare what was REQUESTED vs what actually happened ──
+            failed = [r for r in requested if r not in changes_made]
             print(f"\n{'='*70}")
-            print(f"Task ID {task_id} completed successfully!")
-            print(f"Changes made: {', '.join(changes_made) if changes_made else 'None'}")
-            print(f"{'='*70}\n")
-
-            return True
+            if requested and not changes_made:
+                # nothing we were asked to do actually worked -> FAIL, don't lie
+                msg = 'No changes applied; failed: ' + ', '.join(requested)
+                update_task_status(task_id, 'failed', msg)
+                print(f"Task ID {task_id} FAILED — {msg}")
+                print(f"{'='*70}\n")
+                return False
+            elif failed:
+                # partial: some changes applied, some didn't
+                msg = 'Partial — applied: ' + (', '.join(changes_made) or 'none') + \
+                      '; FAILED: ' + ', '.join(failed)
+                update_task_status(task_id, 'completed', msg)
+                print(f"Task ID {task_id} PARTIAL — {msg}")
+                print(f"{'='*70}\n")
+                return False
+            else:
+                update_task_status(task_id, 'completed')
+                print(f"Task ID {task_id} completed successfully!")
+                print(f"Changes made: {', '.join(changes_made) if changes_made else 'None'}")
+                print(f"{'='*70}\n")
+                return True
 
         except Exception as e:
             error_msg = str(e)

@@ -81,8 +81,18 @@ class CheckProfileAction:
             # Save snapshot to DB
             self._save_snapshot(snap_username, followers, following, posts)
 
-            # Update accounts.followers + accounts.following
-            self._update_account_followers(followers, following)
+            # Update accounts.followers + accounts.following + accounts.posts
+            self._update_account_metrics(followers, following, posts)
+
+            # Detect business profile from current XML and sync DB flag
+            try:
+                xml = self.ctrl.dump_xml("check_profile_business")
+                is_business = self._detect_business_profile(xml)
+                self._update_business_flag(is_business)
+            except Exception as e:
+                log.warning("[%s] CHECK_PROFILE: business detection failed: %s",
+                            self.device_serial, e)
+                is_business = None
 
             # Log the action
             log_action(
@@ -94,9 +104,9 @@ class CheckProfileAction:
             )
 
             log.info("[%s] CHECK_PROFILE: @%s — %d followers, %d following, "
-                     "%d posts",
+                     "%d posts, business=%s",
                      self.device_serial, snap_username,
-                     followers, following, posts)
+                     followers, following, posts, is_business)
 
             return {
                 'success': True,
@@ -104,6 +114,7 @@ class CheckProfileAction:
                 'followers': followers,
                 'following': following,
                 'posts': posts,
+                'is_business_profile': is_business,
             }
 
         except Exception as e:
@@ -129,20 +140,64 @@ class CheckProfileAction:
             log.error("[%s] CHECK_PROFILE: Failed to save snapshot: %s",
                       self.device_serial, e)
 
-    def _update_account_followers(self, followers, following=None):
-        """Update the accounts table with the current follower/following counts."""
+    def _update_account_metrics(self, followers, following=None, posts=None):
+        """Update the accounts table with current followers/following/posts counts."""
         try:
             conn = get_db()
+            cols = ['followers']
+            vals = [followers]
             if following is not None:
-                conn.execute("""
-                    UPDATE accounts SET followers = ?, following = ? WHERE id = ?
-                """, (followers, following, self.account_id))
-            else:
-                conn.execute("""
-                    UPDATE accounts SET followers = ? WHERE id = ?
-                """, (followers, self.account_id))
+                cols.append('following'); vals.append(following)
+            if posts is not None:
+                cols.append('posts'); vals.append(posts)
+            set_clause = ', '.join(f'{c} = ?' for c in cols)
+            vals.append(self.account_id)
+            conn.execute(f"UPDATE accounts SET {set_clause} WHERE id = ?", vals)
             conn.commit()
             conn.close()
         except Exception as e:
-            log.error("[%s] CHECK_PROFILE: Failed to update account followers: %s",
+            log.error("[%s] CHECK_PROFILE: Failed to update account metrics: %s",
+                      self.device_serial, e)
+
+    # Backwards-compat alias (kept in case anyone external calls it)
+    def _update_account_followers(self, followers, following=None):
+        self._update_account_metrics(followers, following, None)
+
+    @staticmethod
+    def _detect_business_profile(xml):
+        """
+        Detect business/professional profile from own profile screen XML.
+        Returns True if at least 2 indicators present, False otherwise.
+        Mirrors switch_to_business.py:_is_already_business logic.
+        """
+        if not xml:
+            return False
+        xml_lower = xml.lower()
+        indicators = [
+            'professional dashboard',
+            'professional_dashboard',
+            'switch to personal account',
+            'switch account type',
+        ]
+        count = sum(1 for ind in indicators if ind in xml_lower)
+        if 'insights' in xml_lower and 'professional' in xml_lower:
+            count += 1
+        if 'views in the last' in xml_lower:
+            count += 1
+        return count >= 2
+
+    def _update_business_flag(self, is_business):
+        """Update accounts.is_business_profile to reflect detected state."""
+        if is_business is None:
+            return
+        try:
+            conn = get_db()
+            conn.execute(
+                "UPDATE accounts SET is_business_profile = ? WHERE id = ?",
+                (1 if is_business else 0, self.account_id)
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            log.error("[%s] CHECK_PROFILE: Failed to update business flag: %s",
                       self.device_serial, e)

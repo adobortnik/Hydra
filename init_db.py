@@ -19,16 +19,11 @@ import os
 DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db')
 DB_PATH = os.path.join(DB_DIR, 'phone_farm.db')
 
-os.makedirs(DB_DIR, exist_ok=True)
-
-# Delete empty/corrupt DB file
-if os.path.exists(DB_PATH) and os.path.getsize(DB_PATH) == 0:
-    os.remove(DB_PATH)
-    print(f"Removed empty DB file: {DB_PATH}")
-
-conn = sqlite3.connect(DB_PATH)
-conn.execute("PRAGMA journal_mode=WAL")
-conn.execute("PRAGMA foreign_keys=ON")
+# NOTE: SCHEMA is the SINGLE SOURCE OF TRUTH for all table definitions. It is
+# imported by db/migrations.py (ensure_schema) so EVERY startup — fresh install AND
+# update on an old DB — creates any missing table. Keep this module side-effect-free
+# on import (execution lives in init_db() under the __main__ guard) so importing it
+# (even obfuscated in client builds) just exposes SCHEMA without touching the DB.
 
 SCHEMA = """
 -- ═══════════════════════════════════════════
@@ -583,19 +578,37 @@ CREATE TABLE IF NOT EXISTS follower_orders (
 );
 """
 
-print("Initializing Hydra database...")
-print(f"DB path: {DB_PATH}")
-conn.executescript(SCHEMA)
-conn.commit()
+def init_db(db_path=None, verbose=True):
+    """Create all tables from SCHEMA (idempotent — CREATE TABLE IF NOT EXISTS).
+    Safe to run on fresh installs AND existing DBs."""
+    path = db_path or DB_PATH
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Delete empty/corrupt DB file so it can be recreated cleanly
+    if os.path.exists(path) and os.path.getsize(path) == 0:
+        os.remove(path)
+        if verbose:
+            print(f"Removed empty DB file: {path}")
+    conn = sqlite3.connect(path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    if verbose:
+        print("Initializing Hydra database...")
+        print(f"DB path: {path}")
+    conn.executescript(SCHEMA)
+    conn.commit()
+    tables = [r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name != 'sqlite_sequence' ORDER BY name"
+    ).fetchall()]
+    if verbose:
+        print(f"\nCreated {len(tables)} tables:")
+        for t in tables:
+            count = conn.execute(f"SELECT COUNT(*) FROM [{t}]").fetchone()[0]
+            print(f"  {t} ({count} rows)")
+    conn.close()
+    if verbose:
+        print(f"\nDatabase ready at: {path}")
+    return tables
 
-# Verify
-tables = [r[0] for r in conn.execute(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name != 'sqlite_sequence' ORDER BY name"
-).fetchall()]
-print(f"\nCreated {len(tables)} tables:")
-for t in tables:
-    count = conn.execute(f"SELECT COUNT(*) FROM [{t}]").fetchone()[0]
-    print(f"  {t} ({count} rows)")
 
-conn.close()
-print(f"\nDatabase ready at: {DB_PATH}")
+if __name__ == '__main__':
+    init_db()

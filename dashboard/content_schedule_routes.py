@@ -29,6 +29,111 @@ content_schedule_bp = Blueprint('content_schedule', __name__)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEDIA_LIBRARY_DIR = os.path.join(BASE_DIR, 'media_library')
 
+# Spoofed-variant directory — resolved at call time via spoof_storage so a
+# Settings change applies without dashboard restart.
+from spoof_storage import get_variants_dir as _get_spoof_variants_dir
+
+
+def _spoof_batch_inplace(insert_rows, media_idx, preset='medium',
+                         allow_mirror=True, update_progress=None):
+    """Generate one unique spoofed variant per row and replace the media_path
+    field. Used by the batch scheduler so 24 slaves posting the same source
+    file actually upload 24 different files. Returns a new list with rows
+    mutated; rows whose source file is missing or whose spoof fails keep
+    their original path (logged)."""
+    from spoofing_service import spoof_one   # lazy import — avoids cycle
+
+    # Map source -> list of row indexes that use it (just for stats / log)
+    by_source = {}
+    for i, row in enumerate(insert_rows):
+        mp = row[media_idx]
+        if mp:
+            by_source.setdefault(mp, []).append(i)
+    total = sum(len(v) for v in by_source.values())
+    log.info("batch spoof: %d rows across %d unique source(s), preset=%s, "
+             "mirror=%s", total, len(by_source), preset, allow_mirror)
+
+    new_rows = list(insert_rows)
+    done = 0
+    failures = 0
+    variants_dir = _get_spoof_variants_dir()
+    for source, indices in by_source.items():
+        ext = os.path.splitext(source)[1].lower() or '.bin'
+        for i in indices:
+            done += 1
+            # Update progress on EVERY variant so the operator sees the
+            # number tick continuously. Older skip-every-other logic made
+            # the UI look stuck even when the worker was humming.
+            if update_progress:
+                update_progress(
+                    current_item=f'Spoofing variant {done}/{total}…',
+                    done=done, total=total)
+            try:
+                seed = int.from_bytes(os.urandom(4), 'little')
+                vname = f"spoof_{uuid.uuid4().hex[:10]}__{preset}{ext}"
+                vpath = os.path.join(variants_dir, vname)
+                spoof_one(source, vpath, preset=preset, seed=seed,
+                          allow_mirror=allow_mirror)
+                row_list = list(new_rows[i])
+                row_list[media_idx] = vpath
+                new_rows[i] = tuple(row_list)
+            except Exception as e:
+                failures += 1
+                log.error("batch spoof failed for %s row %d: %s",
+                          os.path.basename(source), i, e)
+    if update_progress:
+        update_progress(current_item=f'Spoof done — {total - failures}/{total} variants OK')
+    log.info("batch spoof complete: %d ok, %d failed", total - failures, failures)
+    return new_rows
+
+
+def _spoof_single_media(media_path, preset='medium', allow_mirror=True):
+    """Generate ONE unique spoofed variant of a single media file and return
+    the variant path. Used by the single-item create / post-now endpoints
+    (e.g. the per-account Content composer in device-manager detail) so a
+    manually scheduled post is also anti-detect-unique. On any failure returns
+    the original path (logged) so scheduling never breaks because of spoofing.
+    """
+    if not media_path:
+        return media_path
+    try:
+        from spoofing_service import spoof_one  # lazy import — avoids cycle
+        ext = os.path.splitext(media_path)[1].lower() or '.bin'
+        vname = f"spoof_{uuid.uuid4().hex[:10]}__{preset}{ext}"
+        vpath = os.path.join(_get_spoof_variants_dir(), vname)
+        seed = int.from_bytes(os.urandom(4), 'little')
+        spoof_one(media_path, vpath, preset=preset, seed=seed,
+                  allow_mirror=allow_mirror)
+        log.info("single spoof ok: %s -> %s (preset=%s)",
+                 os.path.basename(media_path), os.path.basename(vpath), preset)
+        return vpath
+    except Exception as e:
+        log.error("single spoof failed for %s: %s — using original",
+                  os.path.basename(media_path or ''), e)
+        return media_path
+
+# Wake-signal dir — "Post NOW" drops one file per device serial here; the
+# per-device run_device.py runners consume it to skip their cooldown sleep.
+# Same path as defined in run_device.py.
+WAKE_DIR = os.path.join(BASE_DIR, 'runtime', 'wake')
+
+
+def _drop_wake_file(device_serial):
+    """Create / touch a wake-signal file for one device serial. The matching
+    DeviceRunner._sleep() consumes it on its next iteration."""
+    if not device_serial:
+        return False
+    try:
+        os.makedirs(WAKE_DIR, exist_ok=True)
+        safe = device_serial.replace(':', '_')
+        path = os.path.join(WAKE_DIR, safe + '.touch')
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(datetime.utcnow().isoformat())
+        return True
+    except Exception as e:
+        log.warning("Failed to drop wake file for %s: %s", device_serial, e)
+        return False
+
 # Supported media extensions
 MEDIA_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi', '.mkv', '.webm'}
 
@@ -240,9 +345,20 @@ def list_scheduled_items():
 
         if status:
             statuses = status.split(',')
-            placeholders = ','.join('?' * len(statuses))
-            query += f" AND status IN ({placeholders})"
-            params.extend(statuses)
+            # `missed` is a VIRTUAL status: items still 'pending' whose
+            # scheduled_time is already in the past (e.g. the bot engine was
+            # down during the slot, like the 29-31.05.2026 outage). It is not
+            # a real value in the status column — translate it to a condition.
+            real_statuses = [s for s in statuses if s != 'missed']
+            conds = []
+            if real_statuses:
+                placeholders = ','.join('?' * len(real_statuses))
+                conds.append(f"status IN ({placeholders})")
+                params.extend(real_statuses)
+            if 'missed' in statuses:
+                conds.append("(status = 'pending' AND datetime(scheduled_time) < datetime('now'))")
+            if conds:
+                query += " AND (" + " OR ".join(conds) + ")"
         if content_type:
             query += " AND content_type = ?"
             params.append(content_type)
@@ -317,12 +433,19 @@ def create_scheduled_item():
             ok, err = validate_media(media_path, data['content_type'])
             if not ok:
                 return jsonify({'error': err}), 400
+            # Optional anti-detect spoofing: replace the media with a unique
+            # variant before scheduling (per-account Content composer toggle).
+            if data.get('spoof_enabled'):
+                media_path = _spoof_single_media(
+                    media_path,
+                    preset=data.get('spoof_preset', 'medium'),
+                    allow_mirror=bool(data.get('spoof_allow_mirror', True)))
 
         now = datetime.utcnow().isoformat()
         conn = get_conn()
         try:
             cursor = conn.execute("""
-                INSERT INTO content_schedule 
+                INSERT INTO content_schedule
                 (account_id, device_serial, username, content_type, media_path,
                  caption, hashtags, location, music_name, music_search_query,
                  mention_username, link_url, scheduled_time, status, batch_id,
@@ -333,7 +456,7 @@ def create_scheduled_item():
                 data.get('device_serial'),
                 data.get('username'),
                 data['content_type'],
-                data.get('media_path'),
+                media_path,
                 data.get('caption'),
                 data.get('hashtags'),
                 data.get('location'),
@@ -352,6 +475,85 @@ def create_scheduled_item():
         finally:
             conn.close()
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@content_schedule_bp.route('/api/content-schedule/post-now', methods=['POST'])
+def post_content_now():
+    """
+    Insert a content_schedule row with scheduled_time = now() AND signal the
+    device's bot engine to skip its next cooldown sleep via a wake file.
+
+    The bot engine ALREADY processes content_schedule as the highest-priority
+    action at the start of every account-touch (see BotEngine.run() ->
+    _check_scheduled_content). So once the engine reaches the target account
+    in its next cycle, it posts this item first. The wake signal just makes
+    sure the engine isn't sitting in a long inter-cycle sleep.
+
+    Body: same as POST /api/content-schedule. Any client-provided
+    scheduled_time is ignored.
+    """
+    try:
+        data = request.get_json() or {}
+
+        if data.get('content_type') not in ('post', 'reel', 'story'):
+            return jsonify({'error': 'content_type must be post, reel, or story'}), 400
+
+        media_path = data.get('media_path')
+        if media_path:
+            ok, err = validate_media(media_path, data['content_type'])
+            if not ok:
+                return jsonify({'error': err}), 400
+            # Optional anti-detect spoofing (per-account Content composer toggle)
+            if data.get('spoof_enabled'):
+                media_path = _spoof_single_media(
+                    media_path,
+                    preset=data.get('spoof_preset', 'medium'),
+                    allow_mirror=bool(data.get('spoof_allow_mirror', True)))
+
+        device_serial = data.get('device_serial')
+        now = datetime.utcnow().isoformat()
+
+        conn = get_conn()
+        try:
+            cursor = conn.execute("""
+                INSERT INTO content_schedule
+                (account_id, device_serial, username, content_type, media_path,
+                 caption, hashtags, location, music_name, music_search_query,
+                 mention_username, link_url, scheduled_time, status, batch_id,
+                 created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+            """, (
+                data.get('account_id'),
+                device_serial,
+                data.get('username'),
+                data['content_type'],
+                media_path,
+                data.get('caption'),
+                data.get('hashtags'),
+                data.get('location'),
+                data.get('music_name'),
+                data.get('music_search_query'),
+                data.get('mention_username'),
+                data.get('link_url'),
+                now,
+                data.get('batch_id'),
+                now, now,
+            ))
+            conn.commit()
+            item_id = cursor.lastrowid
+            row = conn.execute(
+                "SELECT * FROM content_schedule WHERE id = ?", (item_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+
+        woke = _drop_wake_file(device_serial)
+        result = row_to_dict(row) if row else {'id': item_id}
+        result['wake_signaled'] = woke
+        return jsonify(result), 201
+    except Exception as e:
+        log.error("post_content_now error: %s", e)
         return jsonify({'error': str(e)}), 500
 
 
@@ -627,6 +829,17 @@ def _process_batch_background(batch_id, data, content_type, caption_template, ba
                         # Fallback: leave template as-is (AI generation failed)
                         item_caption = caption_template
 
+                    # Type-specific fields: prefer PER-ITEM values (the mother
+                    # detail scheduler and any per-item caller set music /
+                    # mention / link inside each schedule_item), falling back
+                    # to the batch-level value (the main content-schedule UI
+                    # sends them once for the whole batch). Without this the
+                    # per-item reel music / story mention+link were dropped.
+                    item_music   = si.get('music_search_query') or music_search_query
+                    item_mention = si.get('mention_username')   or mention_username
+                    item_link    = si.get('link_url')           or link_url
+                    item_hashtags = si.get('hashtags', hashtags)
+                    item_location = si.get('location', location)
                     insert_rows.append((
                         si.get('account_id'),
                         si.get('device_serial'),
@@ -634,12 +847,12 @@ def _process_batch_background(batch_id, data, content_type, caption_template, ba
                         content_type,
                         mp,
                         item_caption,
-                        hashtags,
-                        location,
-                        None,
-                        music_search_query,
-                        mention_username,
-                        link_url,
+                        item_hashtags,
+                        item_location,
+                        si.get('music_name'),
+                        item_music,
+                        item_mention,
+                        item_link,
                         st.isoformat(),
                         batch_id,
                         now, now
@@ -651,6 +864,20 @@ def _process_batch_background(batch_id, data, content_type, caption_template, ba
                         first_time = st
                     if last_time is None or st > last_time:
                         last_time = st
+
+                # Phase 2.5: Anti-detect spoofing — make every slave's
+                # copy of the same source bit-different (and perceptually
+                # different per pHash/dHash/aHash/wHash) so IG can't trivially
+                # correlate the accounts.
+                if data.get('spoof_enabled'):
+                    sp_preset = data.get('spoof_preset', 'medium')
+                    sp_mirror = bool(data.get('spoof_allow_mirror', True))
+                    _update_progress(current_item='Generating anti-detect variants…',
+                                     done=0, total=len(insert_rows))
+                    insert_rows = _spoof_batch_inplace(
+                        insert_rows, media_idx=4,
+                        preset=sp_preset, allow_mirror=sp_mirror,
+                        update_progress=_update_progress)
 
                 # Phase 3: Batch insert to DB
                 _update_progress(current_item='Saving to database...', done=len(schedule_items))
@@ -790,6 +1017,17 @@ def _process_batch_background(batch_id, data, content_type, caption_template, ba
 
                 last_time = current_time
                 unique_media = set(media_paths)
+
+                # Anti-detect spoofing (legacy mode — same flow as smart mode)
+                if data.get('spoof_enabled'):
+                    sp_preset = data.get('spoof_preset', 'medium')
+                    sp_mirror = bool(data.get('spoof_allow_mirror', True))
+                    _update_progress(current_item='Generating anti-detect variants…',
+                                     done=0, total=len(insert_rows))
+                    insert_rows = _spoof_batch_inplace(
+                        insert_rows, media_idx=4,
+                        preset=sp_preset, allow_mirror=sp_mirror,
+                        update_progress=_update_progress)
 
                 # Batch insert
                 _update_progress(current_item='Saving to database...', done=total_items)
@@ -947,6 +1185,14 @@ def get_schedule_stats():
             stats['failed_today'] = conn.execute(
                 "SELECT COUNT(*) FROM content_schedule WHERE status = 'failed' AND updated_at >= ? AND updated_at < ?",
                 (today, tomorrow)
+            ).fetchone()[0]
+
+            # Missed: still 'pending' but the scheduled slot is already in the
+            # past (engine downtime / device offline). These never posted and
+            # will NOT auto-post in the right window — they need rescheduling.
+            stats['missed'] = conn.execute(
+                "SELECT COUNT(*) FROM content_schedule "
+                "WHERE status = 'pending' AND datetime(scheduled_time) < datetime('now')"
             ).fetchone()[0]
 
             # Scheduled today (upcoming)
@@ -1345,20 +1591,28 @@ def list_accounts_for_schedule():
         
         conn = get_conn()
         try:
+            # Same query for both filtered + all — UI does the device filter
+            # client-side now that we return tag + is_mother + mother info,
+            # avoiding repeat round-trips when user flips the dropdown.
+            # Mother / slave relationship in Hydra is tag-based: a mother
+            # account has is_mother=1, its slaves share its 'tag' column.
+            # So returning `tag` alone is enough — UI groups by tag and the
+            # "mother of tag X" lookup is a client-side find of the row
+            # where is_mother=1 within that tag.
+            base = ("SELECT a.id, a.device_serial, a.username, a.status, "
+                    "       a.start_time, a.end_time, a.tag, a.is_mother, "
+                    "       COALESCE(d.device_name, a.device_serial) as device_name "
+                    "FROM accounts a "
+                    "LEFT JOIN devices d ON a.device_serial = d.device_serial "
+                    "WHERE a.status = 'active' ")
             if device_serial and device_serial != 'all':
                 rows = rows_to_dicts(conn.execute(
-                    "SELECT a.id, a.device_serial, a.username, a.status, a.start_time, a.end_time, "
-                    "COALESCE(d.device_name, a.device_serial) as device_name "
-                    "FROM accounts a LEFT JOIN devices d ON a.device_serial = d.device_serial "
-                    "WHERE a.device_serial = ? AND a.status = 'active' ORDER BY a.username",
-                    (device_serial,)
-                ).fetchall())
+                    base + "AND a.device_serial = ? "
+                           "ORDER BY a.tag, a.device_serial, a.username",
+                    (device_serial,)).fetchall())
             else:
                 rows = rows_to_dicts(conn.execute(
-                    "SELECT a.id, a.device_serial, a.username, a.status, a.start_time, a.end_time, "
-                    "COALESCE(d.device_name, a.device_serial) as device_name "
-                    "FROM accounts a LEFT JOIN devices d ON a.device_serial = d.device_serial "
-                    "WHERE a.status = 'active' ORDER BY a.device_serial, a.username"
+                    base + "ORDER BY a.tag, a.device_serial, a.username"
                 ).fetchall())
             return jsonify({'accounts': rows})
         finally:
@@ -1378,11 +1632,90 @@ def serve_media_file(filepath):
         full_path = os.path.join(MEDIA_LIBRARY_DIR, filepath)
         if not os.path.exists(full_path):
             return jsonify({'error': 'File not found'}), 404
-        
+
         directory = os.path.dirname(full_path)
         filename = os.path.basename(full_path)
         from flask import send_from_directory
         return send_from_directory(directory, filename)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# ACCOUNT CONTENT - per-account post overview (Content tab in settings panel)
+# =============================================================================
+
+def _resolve_media_path(media_path):
+    """Resolve a content_schedule.media_path to an absolute path.
+    media_path may be absolute or relative to MEDIA_LIBRARY_DIR."""
+    if not media_path:
+        return None
+    if os.path.isabs(media_path):
+        return media_path
+    return os.path.join(MEDIA_LIBRARY_DIR, media_path)
+
+
+@content_schedule_bp.route('/api/content-schedule/account/<int:account_id>')
+def account_content_list(account_id):
+    """List all content (post/reel/story) scheduled or posted via Hydra for
+    one account. Powers the Content tab in the account settings panel."""
+    try:
+        conn = get_conn()
+        rows = conn.execute(
+            "SELECT id, content_type, caption, hashtags, location, media_path, "
+            "status, scheduled_time, posted_at, error_message, created_at "
+            "FROM content_schedule WHERE account_id = ? "
+            "ORDER BY COALESCE(posted_at, scheduled_time, created_at) DESC, id DESC",
+            (account_id,)
+        ).fetchall()
+        conn.close()
+
+        video_exts = VIDEO_EXTENSIONS | {'.avi', '.mkv', '.webm'}
+        items = []
+        counts = {'posted': 0, 'pending': 0, 'failed': 0}
+        for r in rows:
+            d = dict(r)
+            mp = d.get('media_path') or ''
+            ext = os.path.splitext(mp)[1].lower()
+            full = _resolve_media_path(mp)
+            d['is_video'] = ext in video_exts
+            d['has_media'] = bool(full and os.path.exists(full))
+            d['thumb_url'] = ('/api/content-schedule/thumb/%d' % d['id']
+                              if d['has_media'] else None)
+            d['media_filename'] = os.path.basename(mp) if mp else ''
+            st = (d.get('status') or '').lower()
+            if st == 'completed':
+                counts['posted'] += 1
+            elif st == 'failed':
+                counts['failed'] += 1
+            elif st in ('pending', 'posting'):
+                counts['pending'] += 1
+            items.append(d)
+
+        return jsonify({'success': True, 'account_id': account_id,
+                        'items': items, 'counts': counts})
+    except Exception as e:
+        log.error("account_content_list error: %s", e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@content_schedule_bp.route('/api/content-schedule/thumb/<int:item_id>')
+def serve_content_thumb(item_id):
+    """Serve the media file for one content_schedule row (abs or relative path)."""
+    try:
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT media_path FROM content_schedule WHERE id = ?", (item_id,)
+        ).fetchone()
+        conn.close()
+        if not row or not row['media_path']:
+            return jsonify({'error': 'No media'}), 404
+        full_path = _resolve_media_path(row['media_path'])
+        if not full_path or not os.path.exists(full_path):
+            return jsonify({'error': 'File not found'}), 404
+        from flask import send_from_directory
+        return send_from_directory(os.path.dirname(full_path),
+                                   os.path.basename(full_path))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

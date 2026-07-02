@@ -13,7 +13,7 @@ import time
 
 from automation.actions.helpers import (
     action_delay, random_sleep, log_action,
-    get_account_settings,
+    get_account_settings, get_today_action_count,
 )
 from automation.ig_controller import IGController, Screen
 
@@ -92,6 +92,24 @@ class EngageAction:
         """
         viewed = 0
 
+        # ── Daily session cap (safe: fails open if anything errors) ──
+        # `storyview_session_limit_perday` = max sessions of home-story viewing
+        # per day. Default 999 = effectively unlimited (preserves legacy
+        # behavior if operator never sets this field).
+        try:
+            _v = self.settings.get('storyview_session_limit_perday')
+            cap = int(_v) if _v is not None else 999
+            done = get_today_action_count(
+                self.device_serial, self.username, 'story_view')
+            if done >= cap:
+                log.info(
+                    "[%s] %s: storyview daily cap reached (%d/%d) — skipping",
+                    self.device_serial, self.username, done, cap)
+                return 0
+        except Exception as _e:
+            log.debug("[%s] storyview cap check failed: %s (proceeding)",
+                      self.device_serial, _e)
+
         min_stories = int(self.settings.get('min_viewhomefeedstory') or 5)
         max_stories = int(self.settings.get('max_viewhomefeedstory') or 10)
         target = random.randint(min_stories, max_stories)
@@ -122,16 +140,25 @@ class EngageAction:
                 log.info("[%s] No stories available", self.device_serial)
                 return 0
 
-            # Find first story that isn't "Your story" (index > 0 or different username)
+            # Find first story that is NOT the account's own "Your story"
+            # bubble. "Your story" is index 0 with username == self.username;
+            # clicking it opens the ADD_CONTENT (story-creation) screen, not
+            # a story viewer. Warmup accounts follow nobody, so the tray
+            # often contains ONLY "Your story" — in that case we must NOT
+            # click anything (the old `unseen[0]` fallback opened the story
+            # camera every cycle and got stuck on "Add story").
             target_story = None
             for s in unseen:
-                if s['index'] > 0 or s['username'] != self.username:
-                    target_story = s
-                    break
-            if not target_story and unseen:
-                target_story = unseen[0]
+                is_own = (s['index'] == 0 and s['username'] == self.username)
+                if is_own:
+                    continue
+                target_story = s
+                break
 
             if not target_story:
+                log.info("[%s] No other-user stories to view "
+                         "(only own 'Your story' present) — skipping",
+                         self.device_serial)
                 return 0
 
             # Click the story
@@ -150,8 +177,11 @@ class EngageAction:
                 viewed += 1
 
                 # Maybe like the story
-                like_pct = int(self.settings.get('percent_to_like_homefeedstory') or 50)
-                if random.randint(1, 100) <= like_pct:
+                # IMPORTANT: use explicit None check — `or 50` would treat 0 as falsy
+                # and overwrite with default 50, making "disable likes" impossible.
+                _v = self.settings.get('percent_to_like_homefeedstory')
+                like_pct = int(_v) if _v is not None else 50
+                if like_pct > 0 and random.randint(1, 100) <= like_pct:
                     self.ctrl.like_story()
 
                 # Tap to next story
@@ -183,6 +213,21 @@ class EngageAction:
         Scroll through the home feed for warmup using IGController.
         Returns number of scroll actions.
         """
+        # ── Daily session cap (safe: fails open if anything errors) ──
+        try:
+            _v = self.settings.get('homefeed_session_limit_perday')
+            cap = int(_v) if _v is not None else 999
+            done = get_today_action_count(
+                self.device_serial, self.username, 'engage_homefeed')
+            if done >= cap:
+                log.info(
+                    "[%s] %s: homefeed daily cap reached (%d/%d) — skipping",
+                    self.device_serial, self.username, done, cap)
+                return 0
+        except Exception as _e:
+            log.debug("[%s] homefeed cap check failed: %s (proceeding)",
+                      self.device_serial, _e)
+
         min_scrolls = int(self.settings.get('min_scrollhomefeed') or 5)
         max_scrolls = int(self.settings.get('max_scrollhomefeed') or 10)
         target = random.randint(min_scrolls, max_scrolls)
@@ -206,9 +251,11 @@ class EngageAction:
 
                 scrolls += 1
 
-                # Maybe like a post while scrolling
-                like_pct = int(self.settings.get('percent_to_like_homefeed') or 50)
-                if random.randint(1, 100) <= like_pct:
+                # Maybe like a post while scrolling.
+                # Explicit None check so 0 disables likes (0 or 50 == 50 was a bug).
+                _v = self.settings.get('percent_to_like_homefeed')
+                like_pct = int(_v) if _v is not None else 50
+                if like_pct > 0 and random.randint(1, 100) <= like_pct:
                     if self.ctrl.like_post():
                         log_action(self.session_id, self.device_serial,
                                   self.username, 'like', success=True)
@@ -226,6 +273,13 @@ class EngageAction:
         except Exception as e:
             log.error("[%s] Feed scroll error: %s", self.device_serial, e)
 
+        # Log the session so the daily cap counter works
+        if scrolls > 0:
+            try:
+                log_action(self.session_id, self.device_serial, self.username,
+                           'engage_homefeed', success=True)
+            except Exception:
+                pass
         return scrolls
 
     def _scroll_explore_page(self):
@@ -233,6 +287,21 @@ class EngageAction:
         Browse the explore page for engagement using IGController.
         Returns number of scroll actions.
         """
+        # ── Daily session cap (safe: fails open if anything errors) ──
+        try:
+            _v = self.settings.get('explore_session_limit_perday')
+            cap = int(_v) if _v is not None else 999
+            done = get_today_action_count(
+                self.device_serial, self.username, 'engage_explore')
+            if done >= cap:
+                log.info(
+                    "[%s] %s: explore daily cap reached (%d/%d) — skipping",
+                    self.device_serial, self.username, done, cap)
+                return 0
+        except Exception as _e:
+            log.debug("[%s] explore cap check failed: %s (proceeding)",
+                      self.device_serial, _e)
+
         min_scrolls = int(self.settings.get('min_scrollexplorepage') or 5)
         max_scrolls = int(self.settings.get('max_scrollexplorepage') or 10)
         target = random.randint(min_scrolls, max_scrolls)
@@ -255,9 +324,11 @@ class EngageAction:
 
                 scrolls += 1
 
-                # Maybe open and like a post
-                like_pct = int(self.settings.get('percent_to_like_explorepagepost') or 50)
-                if random.randint(1, 100) <= like_pct:
+                # Maybe open and like a post.
+                # Explicit None check so 0 disables likes (0 or 50 == 50 was a bug).
+                _v = self.settings.get('percent_to_like_explorepagepost')
+                like_pct = int(_v) if _v is not None else 50
+                if like_pct > 0 and random.randint(1, 100) <= like_pct:
                     if self.ctrl.open_explore_post():
                         self.ctrl.like_post()
                         log_action(self.session_id, self.device_serial,
@@ -280,6 +351,13 @@ class EngageAction:
         self.ctrl.press_back()
         time.sleep(1)
 
+        # Log the session so the daily cap counter works
+        if scrolls > 0:
+            try:
+                log_action(self.session_id, self.device_serial, self.username,
+                           'engage_explore', success=True)
+            except Exception:
+                pass
         return scrolls
 
 

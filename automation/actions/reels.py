@@ -71,7 +71,9 @@ class ReelsAction:
 
     def _init_limits(self):
         """Initialize reel watching limits from settings."""
-        self.daily_limit = int(self.settings.get('watch_reel_limit_perday') or 50)
+        # Explicit None check — `or 50` would treat 0 as falsy and ignore user intent.
+        _v = self.settings.get('watch_reel_limit_perday')
+        self.daily_limit = int(_v) if _v is not None else 50
 
         min_reels = int(self.settings.get('min_reels_to_watch') or 10)
         max_reels = int(self.settings.get('max_reels_to_watch') or 20)
@@ -91,7 +93,8 @@ class ReelsAction:
             self.max_watch_sec = 15
 
         self.like_enabled = bool(self.settings.get('enable_like_reel', False))
-        self.like_percent = int(self.settings.get('like_reel_percent') or 40)
+        _v = self.settings.get('like_reel_percent')
+        self.like_percent = int(_v) if _v is not None else 40
         self.save_enabled = bool(self.settings.get('enable_save_reels_after_watching', False))
 
         log.info("[%s] Reels limits: daily=%d, session_target=%d, "

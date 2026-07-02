@@ -65,15 +65,19 @@ class FollowAction:
         self._init_limits()
 
     def _init_limits(self):
-        """Initialize follow limits from account settings."""
-        raw_limit = self.account.get('follow_limit_perday', '0')
-        if raw_limit and raw_limit not in ('deprecated', 'None', ''):
-            self.daily_limit = int(raw_limit) if str(raw_limit).isdigit() else 0
-        else:
-            self.daily_limit = 0
+        """Initialize follow limits from account settings.
 
-        if self.daily_limit <= 0:
-            self.daily_limit = int(self.settings.get('default_action_limit_perday') or 28)
+        Daily limit is SOLELY driven by settings.default_action_limit_perday
+        (same key the dashboard UI binds to). The legacy
+        accounts.follow_limit_perday column is ignored (was a 2-source-of-truth
+        hazard — UI showed one value while bot used another; column has been
+        migrated to 'deprecated' for all rows by _migrate_follow_limit.py).
+        """
+        try:
+            self.daily_limit = int(
+                self.settings.get('default_action_limit_perday') or 28)
+        except (TypeError, ValueError):
+            self.daily_limit = 28
 
         follow_action = self.account.get('follow_action', '10,20')
         if ',' in str(follow_action):

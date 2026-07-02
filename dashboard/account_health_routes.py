@@ -55,6 +55,7 @@ def api_health_list():
             SELECT he.*,
                    a.status AS account_status,
                    a.instagram_package,
+                   a.tag AS account_tag,
                    d.device_name
             FROM account_health_events he
             LEFT JOIN accounts a ON a.id = he.account_id
@@ -785,6 +786,265 @@ def api_auto_fix_all():
     except Exception as e:
         log.error("Auto-fix-all error: %s", e, exc_info=True)
         return jsonify({'error': 'Bulk auto-fix failed: %s' % str(e)}), 500
+
+
+@account_health_bp.route('/api/account-health/device-broken-count')
+def api_device_broken_count():
+    """
+    GET /api/account-health/device-broken-count?device_serial=...
+    Lightweight: how many accounts on a device are broken (replaceable),
+    plus total account count. Used by the Edit Device modal.
+    """
+    device_serial = request.args.get('device_serial', '').strip()
+    if not device_serial:
+        return jsonify({'error': 'device_serial required'}), 400
+    conn = get_conn()
+    try:
+        placeholders = ','.join('?' * len(BROKEN_STATUSES))
+        broken = conn.execute(
+            "SELECT COUNT(*) c FROM accounts WHERE device_serial = ? "
+            "AND status IN ({})".format(placeholders),
+            (device_serial, *BROKEN_STATUSES)
+        ).fetchone()['c']
+        total = conn.execute(
+            "SELECT COUNT(*) c FROM accounts WHERE device_serial = ?",
+            (device_serial,)
+        ).fetchone()['c']
+        return jsonify({'device_serial': device_serial,
+                        'broken': broken, 'total': total})
+    finally:
+        conn.close()
+
+
+@account_health_bp.route('/api/account-health/auto-fix-device', methods=['POST'])
+def api_auto_fix_device():
+    """
+    POST /api/account-health/auto-fix-device
+    Body: { "device_serial": "192.168.x.x_5555" }
+
+    Replace ALL broken accounts on ONE device from inventory. Same logic as
+    auto-fix-all but scoped to a single device. Each replacement gets a
+    fresh inventory account, a pending login task (so it shows up in Login
+    Automation), and the old account is marked 'replaced'.
+    """
+    data = request.get_json() or {}
+    device_serial = data.get('device_serial')
+    if not device_serial:
+        return jsonify({'error': 'device_serial required'}), 400
+
+    # Source mode:
+    #   pasted_accounts = [{username,password,two_fa}] → use these in order
+    #   (no pasted_accounts) → pull from account_inventory (legacy behavior)
+    pasted = data.get('pasted_accounts') or []
+    pasted_queue = list(pasted)  # consumed FIFO as we replace
+    use_paste = bool(pasted_queue)
+
+    results, errors = [], []
+    try:
+        conn = get_conn()
+        placeholders = ','.join('?' * len(BROKEN_STATUSES))
+        broken_rows = conn.execute(
+            "SELECT id, username, status FROM accounts "
+            "WHERE device_serial = ? AND status IN ({}) "
+            "ORDER BY instagram_package ASC".format(placeholders),
+            (device_serial, *BROKEN_STATUSES)
+        ).fetchall()
+        conn.close()
+
+        if not broken_rows:
+            return jsonify({'success': True, 'replaced': 0, 'errors_count': 0,
+                            'results': [], 'errors': [],
+                            'message': 'No broken accounts on this device'})
+
+        for row in broken_rows:
+            acct = dict(row)
+            try:
+                inner_conn = get_conn()
+                now = datetime.utcnow().isoformat()
+
+                old_account = inner_conn.execute(
+                    "SELECT * FROM accounts WHERE id = ?", (acct['id'],)
+                ).fetchone()
+                if not old_account:
+                    errors.append({'account_id': acct['id'], 'error': 'Not found'})
+                    inner_conn.close()
+                    continue
+                old_account = dict(old_account)
+                if old_account['status'] not in BROKEN_STATUSES:
+                    inner_conn.close()
+                    continue
+
+                if use_paste:
+                    # Consume next pasted account (FIFO). Accept either a dict
+                    # {username,password,two_fa,email} or a raw string
+                    # "username:password:2fa[:email]".
+                    if not pasted_queue:
+                        errors.append({'account_id': acct['id'],
+                                       'username': acct['username'],
+                                       'error': 'Ran out of pasted accounts'})
+                        inner_conn.close()
+                        break
+                    raw = pasted_queue.pop(0)
+                    if isinstance(raw, dict):
+                        p_user = (raw.get('username') or '').strip()
+                        p_pass = (raw.get('password') or '').strip()
+                        p_2fa = (raw.get('two_fa') or raw.get('two_factor_auth')
+                                 or '').strip()
+                        p_email = (raw.get('email') or '').strip()
+                    else:
+                        parts = [x.strip() for x in str(raw).split(':')]
+                        p_user = parts[0] if len(parts) > 0 else ''
+                        p_pass = parts[1] if len(parts) > 1 else ''
+                        p_2fa = parts[2] if len(parts) > 2 else ''
+                        p_email = parts[3] if len(parts) > 3 else ''
+                    if not p_user or not p_pass:
+                        errors.append({'account_id': acct['id'],
+                                       'username': acct['username'],
+                                       'error': 'Bad pasted line (need user:pass): %r' % raw})
+                        inner_conn.close()
+                        continue
+                    inv = {'id': None, 'username': p_user, 'password': p_pass,
+                           'two_factor_auth': p_2fa or None,
+                           'email': p_email or None}
+                else:
+                    inv = inner_conn.execute(
+                        "SELECT * FROM account_inventory WHERE status = 'available' "
+                        "ORDER BY id ASC LIMIT 1"
+                    ).fetchone()
+                    if not inv:
+                        errors.append({'account_id': acct['id'],
+                                       'username': acct['username'],
+                                       'error': 'No more inventory accounts available'})
+                        inner_conn.close()
+                        break
+                    inv = dict(inv)
+
+                old_settings_row = inner_conn.execute(
+                    "SELECT settings_json FROM account_settings WHERE account_id = ?",
+                    (old_account['id'],)
+                ).fetchone()
+                old_settings_json = (json.loads(old_settings_row['settings_json'])
+                                     if old_settings_row else {})
+                app_cloner = old_settings_json.get('app_cloner', 'None')
+
+                device_id = old_account.get('device_id')
+                ds = old_account['device_serial']
+                instagram_package = old_account['instagram_package']
+                start_time = old_account.get('start_time', '0')
+                end_time = old_account.get('end_time', '0')
+
+                adb_clear_ok = False
+                try:
+                    adb_serial = ds.replace('_', ':')
+                    cr = subprocess.run(
+                        ['adb', '-s', adb_serial, 'shell', 'pm', 'clear',
+                         instagram_package],
+                        capture_output=True, timeout=15, text=True)
+                    adb_clear_ok = cr.returncode == 0
+                except Exception:
+                    pass
+
+                cursor = inner_conn.execute("""
+                    INSERT INTO accounts (
+                        device_id, device_serial, username, password, email,
+                        instagram_package, two_fa_token, status,
+                        follow_enabled, unfollow_enabled, mute_enabled, like_enabled,
+                        comment_enabled, story_enabled, switchmode,
+                        start_time, end_time,
+                        follow_action, unfollow_action, random_action, random_delay,
+                        follow_delay, unfollow_delay, like_delay,
+                        follow_limit_perday, unfollow_limit_perday, like_limit_perday,
+                        created_at, updated_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, 'pending_login',
+                        'False','False','False','False','False','False','False',
+                        ?, ?, '0','0','30,60','30,60','30','30','0','0','0','0',
+                        ?, ?
+                    )
+                """, (
+                    device_id, ds, inv['username'], inv['password'], inv.get('email'),
+                    instagram_package, inv.get('two_factor_auth'),
+                    start_time, end_time, now, now
+                ))
+                new_account_id = cursor.lastrowid
+
+                warmup_end = (datetime.utcnow() + timedelta(days=7)).isoformat()
+                warmup_settings = {
+                    "enable_watch_reels": True,
+                    "min_reels_to_watch": "10", "max_reels_to_watch": "20",
+                    "watch_reels_duration_min": "5", "watch_reels_duration_max": "15",
+                    "watch_reels_daily_limit": "100",
+                    "app_cloner": app_cloner, "_warmup_mode": True,
+                    "_warmup_start": now, "_warmup_end": warmup_end,
+                    "_replaced_account_id": old_account['id'],
+                    "_replaced_username": old_account['username'],
+                }
+                inner_conn.execute(
+                    "INSERT INTO account_settings (account_id, settings_json, updated_at) "
+                    "VALUES (?, ?, ?)",
+                    (new_account_id, json.dumps(warmup_settings), now))
+
+                inner_conn.execute("""
+                    INSERT INTO login_tasks (
+                        device_serial, instagram_package, username, password,
+                        two_fa_token, status, priority, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, 'pending', 10, ?, ?)
+                """, (ds, instagram_package, inv['username'], inv['password'],
+                      inv.get('two_factor_auth'), now, now))
+
+                inner_conn.execute(
+                    "UPDATE accounts SET status = 'replaced', start_time = '0', "
+                    "end_time = '0', updated_at = ? WHERE id = ?",
+                    (now, old_account['id']))
+
+                inner_conn.execute("""
+                    UPDATE account_health_events
+                    SET resolved_at = ?, resolved_by = 'auto_fix_device',
+                        replacement_account_id = ?
+                    WHERE account_id = ? AND resolved_at IS NULL
+                """, (now, new_account_id, old_account['id']))
+
+                if not use_paste and inv.get('id') is not None:
+                    inner_conn.execute("""
+                        UPDATE account_inventory
+                        SET status = 'used', device_assigned = ?,
+                            assigned_to_device_serial = ?, assigned_to_account_id = ?,
+                            assigned_at = ?, date_used = ?
+                        WHERE id = ?
+                    """, (ds, ds, new_account_id, now, now, inv['id']))
+
+                inner_conn.commit()
+                inner_conn.close()
+
+                results.append({
+                    'old_username': old_account['username'],
+                    'old_status': old_account['status'],
+                    'new_username': inv['username'],
+                    'new_account_id': new_account_id,
+                    'instagram_package': instagram_package,
+                    'adb_clear_ok': adb_clear_ok,
+                })
+                log.info("Auto-fix device %s: @%s -> @%s",
+                         device_serial, old_account['username'], inv['username'])
+
+            except Exception as e:
+                errors.append({'account_id': acct['id'],
+                               'username': acct['username'], 'error': str(e)})
+                log.error("Auto-fix device error for #%d: %s", acct['id'], e)
+
+        return jsonify({
+            'success': True,
+            'device_serial': device_serial,
+            'broken_found': len(broken_rows),
+            'replaced': len(results),
+            'errors_count': len(errors),
+            'results': results,
+            'errors': errors[:20],
+        })
+
+    except Exception as e:
+        log.error("Auto-fix-device error: %s", e, exc_info=True)
+        return jsonify({'error': 'Device auto-fix failed: %s' % str(e)}), 500
 
 
 def _format_duration(delta):

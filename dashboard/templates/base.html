@@ -55,13 +55,21 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
+                    {% if can('dashboard') %}
                     <li class="nav-item">
                         <a class="nav-link" href="/"><i class="fas fa-tachometer-alt me-1"></i> Dashboard</a>
                     </li>
+                    {% endif %}
+                    {% if can('devices') %}
                     <li class="nav-item">
                         <a class="nav-link text-warning" href="/device-manager"><i class="fas fa-server me-1"></i> Devices</a>
                     </li>
+                    <!-- hidden for now: <li class="nav-item">
+                        <a class="nav-link text-warning" href="/cloudphone"><i class="fas fa-mobile-screen-button me-1"></i> Live</a>
+                    </li> -->
+                    {% endif %}
                     <!-- Accounts dropdown -->
+                    {% if can('accounts') %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user-circle me-1"></i> Accounts
@@ -73,7 +81,9 @@
                             <li><a class="dropdown-item" href="/inventory"><i class="fas fa-warehouse me-2 text-info"></i>Inventory V2</a></li>
                         </ul>
                     </li>
+                    {% endif %}
                     <!-- Content dropdown -->
+                    {% if can('content') %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-photo-video me-1"></i> Content
@@ -87,7 +97,9 @@
                             <li><a class="dropdown-item" href="/comments"><i class="fas fa-comments me-2 text-success"></i>Comment Lists</a></li>
                         </ul>
                     </li>
+                    {% endif %}
                     <!-- Automation dropdown -->
+                    {% if can('automation') %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-robot me-1"></i> Automation
@@ -103,7 +115,9 @@
                             <li><a class="dropdown-item" href="/docs"><i class="fas fa-book me-2 text-warning"></i>Feature Docs</a></li>
                         </ul>
                     </li>
+                    {% endif %}
                     <!-- Operations dropdown -->
+                    {% if can('operations') %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-tasks me-1"></i> Operations
@@ -116,7 +130,9 @@
 <!-- Bulk Settings button removed -->
                         </ul>
                     </li>
+                    {% endif %}
                     <!-- Phone Farm V2 dropdown -->
+                    {% if can('phone_farm') %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle text-success" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-mobile-alt me-1"></i> Phone Farm
@@ -134,10 +150,25 @@
                             <li><a class="dropdown-item" href="/source-quality"><i class="fas fa-chart-bar me-2 text-info"></i>Source Quality Scoring</a></li>
                         </ul>
                     </li>
+                    {% endif %}
+                    <!-- AI / Account Factory (internal — hidden in client builds) -->
+                    {% if (ff('account_factory') or ff('ai_executor')) and can('ai_factory') %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" style="color:#a99cff">
+                            <i class="fas fa-robot me-1"></i> AI Factory
+                        </a>
+                        <ul class="dropdown-menu">
+                            {% if ff('account_factory') %}<li><a class="dropdown-item" href="/account-factory"><i class="fas fa-industry me-2" style="color:#7c6cf0"></i>Account Factory</a></li>{% endif %}
+                            {% if ff('ai_executor') %}<li><a class="dropdown-item" href="/ai-executor"><i class="fas fa-flask me-2" style="color:#7c6cf0"></i>AI Executor <span class="text-muted" style="font-size:.75rem">(lab)</span></a></li>{% endif %}
+                        </ul>
+                    </li>
+                    {% endif %}
                     <!-- Analytics -->
+                    {% if can('analytics') %}
                     <li class="nav-item">
                         <a class="nav-link text-info" href="/analytics"><i class="fas fa-chart-bar me-1"></i> Analytics</a>
                     </li>
+                    {% endif %}
                     <!-- Docs link -->
                     <li class="nav-item">
                         <a class="nav-link" href="/docs" target="_blank"><i class="fas fa-book me-1"></i> Docs</a>
@@ -145,15 +176,28 @@
                 </ul>
                 <!-- Settings + Health Bell -->
                 <div class="ms-auto d-flex align-items-center">
+                    {% if is_superadmin %}
+                    <a href="/users" class="nav-link me-3" title="User Management">
+                        <i class="fas fa-users-cog fa-lg"></i>
+                    </a>
+                    {% endif %}
+                    {% if can('settings') %}
                     <a href="/settings" class="nav-link me-3" title="Dashboard Settings">
                         <i class="fas fa-cog fa-lg"></i>
                     </a>
+                    {% endif %}
+                    {% if can('accounts') %}
                     <a href="/account-health" class="nav-link position-relative me-3" id="healthBell" title="Account Health Alerts">
                         <i class="fas fa-bell fa-lg"></i>
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="healthBellBadge" style="font-size:.65rem;">
                             0
                         </span>
                     </a>
+                    {% endif %}
+                    {% if current_user %}
+                    <span class="nav-link text-muted me-2" style="font-size:.85rem"><i class="fas fa-user-circle me-1"></i>{{ current_user.username }}</span>
+                    <a href="/logout" class="nav-link" title="Sign out"><i class="fas fa-right-from-bracket fa-lg"></i></a>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -182,6 +226,7 @@
     <script>
     (function() {
         function updateHealthBell() {
+            if (!document.getElementById('healthBell')) return;  // bell hidden for this user
             fetch('/api/account-health/notifications')
                 .then(r => r.json())
                 .then(data => {
@@ -205,5 +250,8 @@
     })();
     </script>
     {% block extra_js %}{% endblock %}
+
+    <!-- Hydra Assistant floating chat -->
+    {% include 'partials/hydra_chat.html' ignore missing %}
 </body>
 </html>

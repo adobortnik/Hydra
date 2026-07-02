@@ -290,6 +290,27 @@
     </div>
 </div>
 
+<!-- Re-register (fresh signup) Modal -->
+<div class="modal fade" id="reregisterModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-magic me-2 text-info"></i>Re-register account <span class="text-muted small ms-2">fresh IG signup on this slot</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopReregPoll()"></button>
+            </div>
+            <div class="modal-body" id="reregBody">
+                <div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="stopReregPoll()">Cancel</button>
+                <button type="button" class="btn btn-info" id="reregStartBtn" onclick="startReregister()" disabled>
+                    <i class="fas fa-magic me-1"></i>Start re-registration
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Event Detail Modal -->
 <div class="modal fade" id="eventDetailModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -314,6 +335,9 @@
 
 {% block extra_js %}
 <script>
+// Re-register uses the Account Factory API — hide it when that feature is off
+// (e.g. client builds) so the button never 404s.
+const HAS_ACCOUNT_FACTORY = {{ 'true' if ff('account_factory') else 'false' }};
 let allEvents = [];
 let currentFilter = '';
 let currentModalEventId = null;
@@ -423,9 +447,17 @@ function renderEvents(events) {
             </td>
             <td class="text-muted">${timeAgo(e.detected_at)}</td>
             <td>
-                <button class="btn-autofix me-1" onclick="showAutoFixModal(${e.id})" title="Auto-Fix: Replace from inventory">
-                    <i class="fas fa-wrench me-1"></i>Auto-Fix
-                </button>
+                <div class="btn-group me-1">
+                    <button class="btn-autofix dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Replace this account">
+                        <i class="fas fa-sync-alt me-1"></i>Replace
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark">
+                        ${HAS_ACCOUNT_FACTORY ? `<li><a class="dropdown-item" href="#" onclick="showReregisterModal(${e.id}); return false;">
+                            <i class="fas fa-magic me-2 text-info"></i>Re-register <span class="text-muted small">— fresh signup</span></a></li>` : ''}
+                        <li><a class="dropdown-item" href="#" onclick="showAutoFixModal(${e.id}); return false;">
+                            <i class="fas fa-box-open me-2 text-warning"></i>From inventory <span class="text-muted small">— paste/pool</span></a></li>
+                    </ul>
+                </div>
                 <button class="btn btn-sm btn-outline-success me-1" onclick="resolveEvent(${e.id})" title="Resolve">
                     <i class="fas fa-check"></i>
                 </button>
@@ -708,6 +740,159 @@ function fixAllAccounts() {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-magic me-1"></i>Fix All';
     });
+}
+
+// ── Re-register (fresh signup) Flow ──
+let reregEvent = null;     // the health event being re-registered
+let reregJob = null;       // running factory job id
+let reregPoll = null;      // poll interval
+
+function stopReregPoll() { if (reregPoll) { clearInterval(reregPoll); reregPoll = null; } }
+
+function showReregisterModal(eventId) {
+    const ev = allEvents.find(e => e.id === eventId);
+    if (!ev) return;
+    reregEvent = ev;
+    reregJob = null;
+    stopReregPoll();
+
+    const startBtn = document.getElementById('reregStartBtn');
+    startBtn.disabled = true;
+    startBtn.innerHTML = '<i class="fas fa-magic me-1"></i>Start re-registration';
+
+    const body = document.getElementById('reregBody');
+    const base = ev.account_tag || '';
+    const noSlot = !ev.instagram_package;
+    body.innerHTML = `
+        <div class="replace-detail">
+            <div class="label">Replacing (Banned / Broken)</div>
+            <div class="value text-danger">@${escHtml(ev.username || '?')}</div>
+            <div class="mt-1 text-muted" style="font-size:.82rem;">
+                Device: <strong>${escHtml(ev.device_name || ev.device_serial || '-')}</strong><br>
+                Slot: <code>${escHtml(ev.instagram_package || '— unknown —')}</code>
+            </div>
+        </div>
+        ${noSlot ? '<div class="alert alert-danger">This account has no clone slot recorded (instagram_package). Cannot re-register here — use From inventory instead.</div>' : `
+        <div class="row g-2 mt-1">
+            <div class="col-md-6">
+                <label class="label d-block mb-1">Recipe</label>
+                <select id="reregRecipe" class="form-select form-select-sm bg-black text-white border-secondary"></select>
+            </div>
+            <div class="col-md-3">
+                <label class="label d-block mb-1">Mother / naming base</label>
+                <input id="reregNaming" class="form-control form-control-sm bg-black text-white border-secondary" value="${escHtml(base)}" placeholder="jackharrer">
+            </div>
+            <div class="col-md-3">
+                <label class="label d-block mb-1">Tag</label>
+                <input id="reregTag" class="form-control form-control-sm bg-black text-white border-secondary" value="${escHtml(base)}" placeholder="jack">
+            </div>
+        </div>
+        <div class="replace-warning mt-3">
+            <i class="fas fa-info-circle me-1"></i>
+            <strong>What will happen:</strong>
+            <ul class="mb-0 mt-1" style="padding-left:1.2rem;">
+                <li>The device's bot engine pauses, then <strong>NEW_IDENTITY</strong> resets the clone fingerprint</li>
+                <li>A brand-new IG account is created via the signup recipe (OUR naming scheme)</li>
+                <li>On success the new account is saved active on this slot; the banned one is marked <code>replaced</code></li>
+                <li>Captcha or manual step → flagged for you (no auto-bypass)</li>
+            </ul>
+        </div>
+        <div id="reregProgress" class="mt-3" style="display:none;">
+            <div class="label mb-1">Progress</div>
+            <div id="reregStatus" class="text-muted" style="font-size:.85rem;">starting…</div>
+            <div class="text-center mt-2"><img id="reregShot" style="max-height:320px;border-radius:8px;display:none;border:1px solid #2d3139;"></div>
+        </div>`}
+    `;
+
+    new bootstrap.Modal(document.getElementById('reregisterModal')).show();
+    if (noSlot) return;
+
+    // populate recipes, default to ig-signup
+    fetch('/api/account-factory/recipes').then(r => r.json()).then(d => {
+        const sel = document.getElementById('reregRecipe');
+        const recs = d.recipes || [];
+        if (!recs.length) { sel.innerHTML = '<option value="">no recipes — record one in AI Executor</option>'; return; }
+        sel.innerHTML = recs.map(r => `<option value="${r.id}">${escHtml(r.name)} (#${r.id})</option>`).join('');
+        const ig = recs.find(r => /ig.?signup/i.test(r.name));
+        if (ig) sel.value = ig.id;
+        startBtn.disabled = false;
+    }).catch(() => {
+        document.getElementById('reregRecipe').innerHTML = '<option value="">failed to load recipes</option>';
+    });
+}
+
+function startReregister() {
+    if (!reregEvent) return;
+    const recipeId = parseInt((document.getElementById('reregRecipe') || {}).value) || 0;
+    const naming = (document.getElementById('reregNaming') || {}).value.trim();
+    const tag = (document.getElementById('reregTag') || {}).value.trim();
+    if (!recipeId) { showToast('Pick a recipe', 'warning'); return; }
+    if (!naming) { showToast('Enter a mother / naming base', 'warning'); return; }
+
+    const startBtn = document.getElementById('reregStartBtn');
+    startBtn.disabled = true;
+    startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Starting…';
+
+    fetch('/api/account-factory/reregister', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            account_id: reregEvent.account_id, recipe_id: recipeId,
+            mother: naming, naming_base: naming, tag: tag,
+        }),
+    }).then(r => r.json()).then(data => {
+        if (data.error) { showToast(data.error, 'error'); startBtn.disabled = false; startBtn.innerHTML = '<i class="fas fa-magic me-1"></i>Start re-registration'; return; }
+        reregJob = data.job_id;
+        document.getElementById('reregProgress').style.display = '';
+        document.getElementById('reregStatus').innerHTML = `Creating <strong>@${escHtml(data.new_username || '')}</strong> on <code>${escHtml(data.package || '')}</code>…`;
+        startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Running…';
+        stopReregPoll();
+        reregPoll = setInterval(pollRereg, 2500);
+        pollRereg();
+    }).catch(err => {
+        showToast('Re-register error: ' + err.message, 'error');
+        startBtn.disabled = false;
+        startBtn.innerHTML = '<i class="fas fa-magic me-1"></i>Start re-registration';
+    });
+}
+
+function pollRereg() {
+    if (!reregJob) return;
+    fetch('/api/account-factory/batch/status/' + reregJob).then(r => r.json()).then(d => {
+        if (d.shot) {
+            const img = document.getElementById('reregShot');
+            if (img) { img.src = 'data:image/png;base64,' + d.shot; img.style.display = 'inline-block'; }
+        }
+        const a = (d.accounts || [])[0];
+        const statusEl = document.getElementById('reregStatus');
+        if (a && statusEl) {
+            const ico = {done:'✅', fail:'❌', needs_attention:'⚠️', running:'⏳', queued:'•'}[a.status] || '⏳';
+            let line = `${ico} <strong>@${escHtml(a.username || '')}</strong> — ${escHtml(a.step || a.status)}`;
+            if (a.last) line += ` <span class="text-muted">${escHtml(a.last)}</span>`;
+            if (a.error) line += `<br><span class="text-danger">${escHtml(String(a.error).slice(0, 120))}</span>`;
+            statusEl.innerHTML = line;
+        }
+        if (!d.running) {
+            stopReregPoll();
+            const st = a ? a.status : 'fail';
+            const startBtn = document.getElementById('reregStartBtn');
+            startBtn.innerHTML = '<i class="fas fa-magic me-1"></i>Start re-registration';
+            if (st === 'done') {
+                showToast(`✅ Re-registered @${reregEvent.username} → @${a.username}`, 'success');
+                setTimeout(() => {
+                    const m = bootstrap.Modal.getInstance(document.getElementById('reregisterModal'));
+                    if (m) m.hide();
+                    loadData();
+                }, 1200);
+            } else if (st === 'needs_attention') {
+                showToast('⚠️ Needs manual step (captcha/human) — check the device', 'warning');
+                startBtn.disabled = false;
+            } else {
+                showToast('❌ Re-registration failed' + (a && a.error ? ': ' + a.error : ''), 'error');
+                startBtn.disabled = false;
+            }
+        }
+    }).catch(() => {});
 }
 </script>
 {% endblock %}

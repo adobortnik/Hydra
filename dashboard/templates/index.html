@@ -131,6 +131,58 @@
         </div>
     </div>
 
+    {% if ff('mother_dashboard') %}
+    <!-- Mother Accounts Table -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="card-title text-white mb-0">
+                        <i class="fas fa-crown me-2 text-warning"></i>Mother Accounts
+                        <span class="badge bg-secondary ms-2" id="motherCount">0</span>
+                    </h5>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input id="motherSearch" class="form-control form-control-sm bg-dark text-white border-secondary"
+                               placeholder="Search username, tag, device..." style="width:240px;">
+                        <button id="refreshMothers" class="btn btn-sm btn-outline-primary" title="Refresh">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Tag</th>
+                                    <th class="text-end">Posts</th>
+                                    <th>Last Post</th>
+                                    <th class="text-end">Followers</th>
+                                    <th class="text-end">Following</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Slaves</th>
+                                    <th class="text-end" style="min-width:180px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mothersTable">
+                                <tr><td colspan="9" class="text-center py-4 text-muted">
+                                    <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="mothersEmpty" class="text-center py-4 text-muted" style="display:none;">
+                        <i class="fas fa-info-circle me-1"></i> No mother accounts marked yet.
+                        Open an account in <a href="/device-manager" class="text-info">Device Manager</a>
+                        and toggle <strong>"This is a mother account"</strong> in its settings.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Inventory Stats Row -->
     <div class="row mb-4">
         <div class="col-md-12">
@@ -196,7 +248,7 @@
     </div>
     
     <!-- Charts Row -->
-    <div class="row mb-4">
+    <div class="row mb-4" style="display:none;">
         <div class="col-md-6 mb-4 mb-md-0">
             <div class="card h-100">
                 <div class="card-header bg-dark">
@@ -224,7 +276,7 @@
     </div>
     
     <!-- Recent Activity -->
-    <div class="row">
+    <div class="row" style="display:none;">
         <div class="col-12">
             <div class="card">
                 <div class="card-header bg-dark">
@@ -282,5 +334,122 @@
         })
         .catch(() => {});
 })();
+
+{% if ff('mother_dashboard') %}
+// ─── Mother Accounts Dashboard ─────────────────────────────────────
+(function() {
+    let _mothersCache = [];
+
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+    function fmtNum(n) { return (n == null ? 0 : Number(n)).toLocaleString(); }
+
+    // Relative "time ago". Timestamps from the DB are stored in LOCAL time
+    // (verified: snapshot/action timestamps match local clock), so parse as
+    // local — do NOT append 'Z'.
+    function _parseLocalTs(ts) {
+        return new Date(String(ts).replace(' ', 'T').replace('Z', ''));
+    }
+    function timeAgo(ts) {
+        if (!ts) return null;
+        const t = _parseLocalTs(ts);
+        if (isNaN(t)) return null;
+        const sec = Math.floor((Date.now() - t.getTime()) / 1000);
+        if (sec < 0) return 'just now';
+        if (sec < 3600) return Math.max(1, Math.floor(sec / 60)) + 'm ago';
+        if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+        const d = Math.floor(sec / 86400);
+        if (d < 30) return d + 'd ago';
+        if (d < 365) return Math.floor(d / 30) + 'mo ago';
+        return Math.floor(d / 365) + 'y ago';
+    }
+    // Coloured "Last Post" badge: green ≤2d, amber ≤7d, red older, grey none.
+    function lastPostBadge(ts) {
+        const label = timeAgo(ts);
+        if (!label) return '<span class="text-white-50" title="No post detected in snapshot history">—</span>';
+        const d = (Date.now() - _parseLocalTs(ts).getTime()) / 86400000;
+        const cls = d <= 2 ? 'text-success' : d <= 7 ? 'text-warning' : 'text-danger';
+        return `<span class="${cls}" title="Last post ~${escHtml(ts)}"><i class="fas fa-circle me-1" style="font-size:0.5rem;vertical-align:middle;"></i>${label}</span>`;
+    }
+
+    function statusBadge(kind, status) {
+        if (kind === 'ok') return '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>OK</span>';
+        if (kind === 'warning') return '<span class="badge bg-warning text-dark" title="Has unresolved health events"><i class="fas fa-exclamation-triangle me-1"></i>Warning</span>';
+        if (kind === 'error') return `<span class="badge bg-danger" title="${escHtml(status || '')}"><i class="fas fa-times-circle me-1"></i>${escHtml(status || 'Issue')}</span>`;
+        return '<span class="badge bg-secondary">—</span>';
+    }
+
+    function renderMothers() {
+        const search = (document.getElementById('motherSearch').value || '').toLowerCase().trim();
+        const tbody = document.getElementById('mothersTable');
+        const empty = document.getElementById('mothersEmpty');
+        const countBadge = document.getElementById('motherCount');
+
+        countBadge.textContent = _mothersCache.length;
+
+        if (!_mothersCache.length) {
+            tbody.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+
+        const filtered = _mothersCache.filter(m =>
+            !search ||
+            (m.username || '').toLowerCase().includes(search) ||
+            (m.tag || '').toLowerCase().includes(search) ||
+            (m.device_name || '').toLowerCase().includes(search) ||
+            (m.device_serial || '').toLowerCase().includes(search)
+        );
+
+        if (!filtered.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No matches.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(m => {
+            const tags = (m.tags || []).map(t => `<span class="badge bg-secondary me-1">${escHtml(t)}</span>`).join('') || '<span class="text-muted">—</span>';
+            const bizIcon = m.is_business_profile ? '<i class="fas fa-briefcase text-info ms-1" title="Business profile"></i>' : '<i class="fas fa-exclamation-triangle text-warning ms-1" title="Not a business profile — Insights unavailable"></i>';
+            return `
+                <tr>
+                    <td>
+                        <strong class="text-warning">${escHtml(m.username)}</strong>${bizIcon}<br>
+                        <small class="text-white-50">${escHtml(m.device_name || m.device_serial)}</small>
+                    </td>
+                    <td>${tags}</td>
+                    <td class="text-end">${fmtNum(m.posts)}</td>
+                    <td>${lastPostBadge(m.last_post_at)}</td>
+                    <td class="text-end fw-bold">${fmtNum(m.followers)}</td>
+                    <td class="text-end">${fmtNum(m.following)}</td>
+                    <td>${statusBadge(m.status_kind, m.status)}</td>
+                    <td class="text-end"><span class="badge bg-info">${m.slave_count}</span></td>
+                    <td class="text-end">
+                        <a href="/mothers/${m.id}" class="btn btn-sm btn-warning" title="Open mother detail page with phone view">
+                            <i class="fas fa-crown"></i> Open
+                        </a>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    async function loadMothers() {
+        try {
+            const r = await fetch('/api/mothers');
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error || 'Failed to load');
+            _mothersCache = data.mothers || [];
+            renderMothers();
+        } catch (e) {
+            document.getElementById('mothersTable').innerHTML =
+                `<tr><td colspan="9" class="text-center py-4 text-danger">Error: ${escHtml(e.message)}</td></tr>`;
+        }
+    }
+
+    document.getElementById('refreshMothers').addEventListener('click', loadMothers);
+    document.getElementById('motherSearch').addEventListener('input', renderMothers);
+    loadMothers();
+    setInterval(loadMothers, 60000);
+})();
+{% endif %}
 </script>
 {% endblock %}

@@ -114,32 +114,25 @@ def _find_run_device_processes(use_cache=True):
 
     processes = []
     try:
-        result = subprocess.run(
-            ['wmic', 'process', 'where',
-             "name like '%python%'",
-             'get', 'ProcessId,CommandLine', '/format:csv'],
-            capture_output=True, text=True, timeout=15
-        )
-        for line in result.stdout.strip().split('\n'):
-            line = line.strip()
-            if not line or line.startswith('Node,'):
+        # Use psutil instead of WMIC: on Windows 11 24H2/25H2 (build 26200+)
+        # WMIC is removed/broken and every invocation throws a 0xc0000142
+        # app-init error DIALOG. Polling /api/bot/status then spawned hundreds
+        # of error dialogs. psutil is pure-Python, no subprocess, no dialogs.
+        import psutil
+        for proc in psutil.process_iter(['pid', 'cmdline']):
+            try:
+                cmd = proc.info.get('cmdline') or []
+                cmdline = ' '.join(cmd)
+                if 'run_device.py' in cmdline:
+                    serial_match = re.search(r'run_device\.py["\s]*\s+(\S+)', cmdline)
+                    serial_raw = serial_match.group(1) if serial_match else '?'
+                    processes.append({
+                        'pid': proc.info['pid'],
+                        'serial': serial_raw.replace(':', '_'),  # DB format
+                        'cmdline': cmdline,
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
-            parts = line.split(',')
-            if len(parts) < 3:
-                continue
-            pid_str = parts[-1].strip()
-            cmdline = ','.join(parts[1:-1]).strip()
-
-            if 'run_device.py' in cmdline and pid_str.isdigit():
-                serial_match = re.search(r'run_device\.py["\s]*\s+(\S+)', cmdline)
-                serial_raw = serial_match.group(1) if serial_match else '?'
-                # Normalize to DB format (underscore)
-                serial_db = serial_raw.replace(':', '_')
-                processes.append({
-                    'pid': int(pid_str),
-                    'serial': serial_db,
-                    'cmdline': cmdline,
-                })
     except Exception as e:
         print(f'[bot_launcher] Error scanning processes: {e}')
     _proc_cache['data'] = processes
@@ -427,25 +420,20 @@ def stop_all():
             failed += 1
             details.append({'serial': p['serial'], 'pid': p['pid'], 'status': 'failed'})
 
-    # Also try to clean up parent cmd windows hosting run_device.py
+    # Also try to clean up parent cmd windows hosting run_device.py (psutil,
+    # not WMIC — see _find_run_device_processes note re: 0xc0000142 dialogs).
     try:
-        result = subprocess.run(
-            ['wmic', 'process', 'where',
-             "name like '%cmd%'",
-             'get', 'ProcessId,CommandLine', '/format:csv'],
-            capture_output=True, text=True, timeout=15
-        )
-        for line in result.stdout.strip().split('\n'):
-            line = line.strip()
-            if not line or line.startswith('Node,'):
+        import psutil
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                name = (proc.info.get('name') or '').lower()
+                if 'cmd' not in name:
+                    continue
+                cmdline = ' '.join(proc.info.get('cmdline') or [])
+                if 'run_device.py' in cmdline:
+                    _kill_pid(proc.info['pid'])
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
-            parts = line.split(',')
-            if len(parts) < 3:
-                continue
-            pid_str = parts[-1].strip()
-            cmdline = ','.join(parts[1:-1]).strip()
-            if 'run_device.py' in cmdline and pid_str.isdigit():
-                _kill_pid(int(pid_str))
     except Exception:
         pass
 

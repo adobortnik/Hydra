@@ -359,3 +359,71 @@ def _sync_jap_key_to_legacy(api_key):
             f.write(api_key)
     except Exception:
         pass
+
+
+# ─────────────────────────────────────────────────────────────────
+# Spoofing vault location (where source uploads + generated variants live)
+# ─────────────────────────────────────────────────────────────────
+
+@settings_bp.route('/spoof-vault', methods=['GET'])
+def get_spoof_vault():
+    """Current vault root + usage stats. Used by the Settings UI."""
+    try:
+        from spoof_storage import get_vault_stats
+        return jsonify({'success': True, **get_vault_stats()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@settings_bp.route('/spoof-vault/pick-folder', methods=['POST'])
+def pick_spoof_vault_folder():
+    """Open a NATIVE Windows folder-browser dialog on the host running the
+    dashboard. Returns the chosen path so the UI can pre-fill the input.
+
+    Only useful when the operator is physically at the dashboard's host PC —
+    if they're browsing via Cloudflare from elsewhere, the dialog opens on
+    the home PC where they can't see it (UI keeps a manual text input as
+    the primary path).
+    """
+    import subprocess as _sp
+    # PowerShell one-liner — Shell.Application BrowseForFolder. -1 = no parent
+    # window (dialog floats free, comes to front).
+    ps = (
+        "$f = (New-Object -ComObject Shell.Application)"
+        ".BrowseForFolder(0,'Pick the Hydra Spoofing Vault folder',0,0); "
+        "if ($f) { Write-Output $f.Self.Path }"
+    )
+    try:
+        proc = _sp.run(
+            ["powershell", "-NoProfile", "-STA", "-Command", ps],
+            capture_output=True, text=True, timeout=120,
+        )
+        path = (proc.stdout or '').strip()
+        if not path:
+            return jsonify({'success': True, 'path': '',
+                            'message': 'cancelled'})
+        return jsonify({'success': True, 'path': path})
+    except _sp.TimeoutExpired:
+        return jsonify({'success': False,
+                        'error': 'picker timed out (dialog left open?)'}), 504
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@settings_bp.route('/spoof-vault', methods=['POST'])
+def set_spoof_vault():
+    """Change the vault root. Empty / null path reverts to default.
+    Body: {"path": "D:/hydra-vault" | "" | null}"""
+    try:
+        data = request.get_json() or {}
+        path = data.get('path', '')
+        from spoof_storage import set_vault_root, get_vault_stats
+        result = set_vault_root(path)
+        if not result['ok']:
+            return jsonify({'success': False,
+                            'error': result['error'],
+                            'root': result['root']}), 400
+        # Return fresh stats so the UI can re-render usage immediately
+        return jsonify({'success': True, **get_vault_stats()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

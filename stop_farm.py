@@ -40,36 +40,22 @@ def find_bot_processes():
     processes = []
 
     try:
-        # Use WMIC on Windows to get process details
-        result = subprocess.run(
-            ["wmic", "process", "where",
-             "name like '%python%'",
-             "get", "ProcessId,CommandLine", "/format:csv"],
-            capture_output=True, text=True, timeout=15
-        )
-
-        for line in result.stdout.strip().split("\n"):
-            line = line.strip()
-            if not line or line.startswith("Node,"):
+        # psutil, NOT WMIC: on Windows 11 build 26200+ WMIC is removed and
+        # each call throws a 0xc0000142 app-init error dialog.
+        import psutil
+        for proc in psutil.process_iter(["pid", "cmdline"]):
+            try:
+                cmdline = " ".join(proc.info.get("cmdline") or [])
+                if "run_device.py" in cmdline:
+                    serial_match = re.search(r'run_device\.py\s+(\S+)', cmdline)
+                    serial = serial_match.group(1) if serial_match else "?"
+                    processes.append({
+                        "pid": proc.info["pid"],
+                        "serial": serial,
+                        "cmdline": cmdline,
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
-            # CSV: Node,CommandLine,ProcessId
-            parts = line.split(",")
-            if len(parts) < 3:
-                continue
-
-            pid_str = parts[-1].strip()
-            cmdline = ",".join(parts[1:-1]).strip()
-
-            if "run_device.py" in cmdline and pid_str.isdigit():
-                # Extract device serial from command line
-                serial_match = re.search(r'run_device\.py\s+(\S+)', cmdline)
-                serial = serial_match.group(1) if serial_match else "?"
-
-                processes.append({
-                    "pid": int(pid_str),
-                    "serial": serial,
-                    "cmdline": cmdline,
-                })
     except Exception as e:
         print(f"{RED}Error scanning processes: {e}{RESET}")
 
@@ -100,28 +86,18 @@ def stop_console_windows():
     These have 'Phone Farm' in their window title.
     """
     try:
-        result = subprocess.run(
-            ["wmic", "process", "where",
-             "name like '%cmd%' or name like '%powershell%'",
-             "get", "ProcessId,CommandLine", "/format:csv"],
-            capture_output=True, text=True, timeout=15
-        )
-
+        import psutil
         pids_to_kill = []
-        for line in result.stdout.strip().split("\n"):
-            line = line.strip()
-            if not line or line.startswith("Node,"):
+        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+            try:
+                name = (proc.info.get("name") or "").lower()
+                if "cmd" not in name and "powershell" not in name:
+                    continue
+                cmdline = " ".join(proc.info.get("cmdline") or [])
+                if "run_device.py" in cmdline:
+                    pids_to_kill.append(proc.info["pid"])
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
-            parts = line.split(",")
-            if len(parts) < 3:
-                continue
-
-            pid_str = parts[-1].strip()
-            cmdline = ",".join(parts[1:-1]).strip()
-
-            if ("run_device.py" in cmdline) and pid_str.isdigit():
-                pids_to_kill.append(int(pid_str))
-
         return pids_to_kill
     except Exception:
         return []

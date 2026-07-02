@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Hydra</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  :root { --acc:#a99cff; --bg:#0f1117; --card:#171a23; --bd:#262b38; --dim:#8b93a7; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:
+      radial-gradient(1200px 600px at 70% -10%, rgba(124,108,240,.18), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(124,108,240,.12), transparent 55%), var(--bg);
+    color:#e6e8ee; font-family:system-ui,'Segoe UI',sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card { width:100%; max-width:380px; background:var(--card); border:1px solid var(--bd);
+    border-radius:18px; padding:34px 30px; box-shadow:0 24px 60px rgba(0,0,0,.45); }
+  .brand { text-align:center; margin-bottom:24px; }
+  .brand .logo { width:58px; height:58px; border-radius:16px; display:inline-flex;
+    align-items:center; justify-content:center; font-size:1.7rem; color:#fff;
+    background:linear-gradient(135deg,#7c6cf0,#a99cff); box-shadow:0 8px 24px rgba(124,108,240,.45); }
+  .brand h1 { font-size:1.45rem; margin:14px 0 2px; letter-spacing:.5px; }
+  .brand p { color:var(--dim); font-size:.85rem; margin:0; }
+  label { font-size:.8rem; color:var(--dim); margin-bottom:6px; display:block; text-transform:uppercase; letter-spacing:.4px; }
+  .field { margin-bottom:16px; }
+  .input-wrap { position:relative; }
+  .input-wrap i { position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:var(--dim); pointer-events:none; }
+  input { width:100%; padding:12px 14px 12px 42px; background:#0f131c; border:1px solid var(--bd);
+    border-radius:10px; color:#e6e8ee; font-size:.95rem; outline:none; transition:border-color .15s;
+    display:block; line-height:1.4; }
+  input:focus { border-color:var(--acc); }
+  .input-wrap:focus-within i { color:var(--acc); }
+  .btn-go { width:100%; padding:12px; border:0; border-radius:10px; color:#fff; font-weight:600;
+    font-size:.95rem; cursor:pointer; background:linear-gradient(135deg,#7c6cf0,#a99cff);
+    transition:filter .15s; margin-top:6px; }
+  .btn-go:hover { filter:brightness(1.08); }
+  .err { background:rgba(220,53,69,.12); border:1px solid rgba(220,53,69,.4); color:#ff8a93;
+    border-radius:10px; padding:10px 12px; font-size:.85rem; margin-bottom:16px; text-align:center; }
+  .foot { text-align:center; color:var(--dim); font-size:.72rem; margin-top:20px; }
+</style>
+</head>
+<body>
+  <form class="card" method="POST" action="/login{% if next %}?next={{ next|urlencode }}{% endif %}">
+    <div class="brand">
+      <span class="logo"><i class="fas fa-dragon"></i></span>
+      <h1>Hydra</h1>
+      <p>Phone Farm Control Center</p>
+    </div>
+    {% if error %}<div class="err"><i class="fas fa-circle-exclamation me-1"></i>{{ error }}</div>{% endif %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field">
+      <label for="u">Username</label>
+      <div class="input-wrap">
+        <i class="fas fa-user"></i>
+        <input id="u" name="username" autocomplete="username" autofocus required>
+      </div>
+    </div>
+    <div class="field">
+      <label for="p">Password</label>
+      <div class="input-wrap">
+        <i class="fas fa-lock"></i>
+        <input id="p" name="password" type="password" autocomplete="current-password" required>
+      </div>
+    </div>
+    <button class="btn-go" type="submit"><i class="fas fa-right-to-bracket me-1"></i> Sign in</button>
+    <div class="foot">v{{ hydra_version }} · authorized access only</div>
+  </form>
+</body>
+</html>

@@ -78,6 +78,99 @@
                 </form>
             </div>
         </div>
+
+        {% if ff('assistant_chat') %}
+        <!-- AI Chat (Hydra Assistant) Section -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-comments me-2"></i>Hydra Assistant (AI Chat)
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="chatAlertBox" class="d-none"></div>
+                <p class="text-muted small mb-3">
+                    Configure an LLM provider to enable the floating Hydra
+                    Assistant chat in the dashboard. The model can query the
+                    farm DB and logs read-only — useful for diagnostics,
+                    summaries, and risk analysis.
+                </p>
+                <form id="chatSettingsForm">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Provider</label>
+                            <select class="form-select" id="chatProvider">
+                                <option value="deepseek">DeepSeek (cheap, recommended)</option>
+                                <option value="groq">Groq (free tier, fast)</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic (Claude)</option>
+                                <option value="ollama">Ollama (local, no key)</option>
+                                <option value="openai_compat">Custom (OpenAI-compatible)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Model</label>
+                            <input type="text" class="form-control" id="chatModel"
+                                   placeholder="e.g. deepseek-chat">
+                            <div class="form-text small">
+                                Examples: <code>deepseek-chat</code>,
+                                <code>llama-3.3-70b-versatile</code>,
+                                <code>gpt-4o-mini</code>,
+                                <code>claude-sonnet-4-5</code>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Base URL <small class="text-muted">(advanced)</small></label>
+                            <input type="text" class="form-control" id="chatBaseUrl"
+                                   placeholder="auto from provider">
+                            <div class="form-text small">Leave blank to use provider default.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">API Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="chatApiKey"
+                                       placeholder="Leave blank to keep current">
+                                <button class="btn btn-outline-secondary" type="button"
+                                        onclick="toggleKeyVisibility('chatApiKey', this)">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text small">
+                                Current: <code id="chatKeyMasked">(not set)</code>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label d-flex justify-content-between">
+                                <span>System Prompt <small class="text-muted">(optional override)</small></span>
+                                <button type="button" class="btn btn-sm btn-link p-0"
+                                        onclick="resetChatPrompt()">reset to default</button>
+                            </label>
+                            <textarea class="form-control" id="chatSystemPrompt" rows="5"
+                                      placeholder="Default Hydra Assistant prompt is used if blank"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chatEnabled" checked>
+                                <label class="form-check-label" for="chatEnabled">
+                                    Show floating chat widget in dashboard
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary flex-grow-1" id="saveChatBtn">
+                            <i class="fas fa-save me-1"></i> Save AI Chat Settings
+                        </button>
+                        <button type="button" class="btn btn-outline-info"
+                                id="testChatBtn" onclick="testChat()">
+                            <i class="fas fa-vial me-1"></i> Test Connection
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- JAP API Key Section -->
         <div class="card shadow-sm mt-4">
             <div class="card-header bg-dark text-white">
@@ -108,10 +201,227 @@
             </div>
         </div>
 
+        <!-- Spoofing Vault Section -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Spoofing Vault</h5>
+            </div>
+            <div class="card-body">
+                <div id="vaultAlertBox" class="d-none"></div>
+                <p class="text-muted small mb-3">
+                    Where uploaded sources and generated anti-detect variants are stored.
+                    A typical 50-video × 23-slave batch produces ~20 GB. Point this at an
+                    external drive if your system drive is tight.
+                </p>
+                <div class="mb-3">
+                    <label for="vaultPath" class="form-label">Vault root</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="vaultPath"
+                               placeholder="e.g. D:\hydra-vault — leave blank for default">
+                        <button type="button" class="btn btn-outline-secondary" id="vaultBrowseBtn"
+                                onclick="pickVaultFolder()"
+                                title="Open native folder picker on the dashboard host PC">
+                            <i class="fas fa-folder-open me-1"></i>Browse…
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        Default: <code id="vaultDefault">(loading…)</code>.
+                        Subdirs <code>spoof_sources/</code> and <code>spoof_variants/</code>
+                        are auto-created here.
+                        <br><span class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>Browse opens on the
+                            PC where the dashboard runs — only useful when you're
+                            at that machine.
+                        </span>
+                    </div>
+                </div>
+                <div id="vaultStats" class="border rounded p-2 mb-3 small bg-light"
+                     style="font-family:ui-monospace,Menlo,monospace;display:none;">
+                    <div>Current: <strong id="vaultCurrent">—</strong></div>
+                    <div class="mt-1 text-muted">
+                        Sources: <span id="vaultSources">—</span> ·
+                        Variants: <span id="vaultVariants">—</span> ·
+                        Total used: <span id="vaultTotal">—</span> ·
+                        Free on drive: <span id="vaultFree">—</span>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary flex-grow-1" onclick="saveVault()">
+                        <i class="fas fa-save me-1"></i> Save Vault Path
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="loadVault()"
+                            title="Refresh stats">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bot Engine Settings Section -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Bot Engine Settings</h5>
+            </div>
+            <div class="card-body">
+                <div id="engineAlertBox" class="d-none"></div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="skipProxyCheck" role="switch">
+                    <label class="form-check-label" for="skipProxyCheck">
+                        <strong>Skip VPN / Proxy Check</strong>
+                    </label>
+                    <div class="form-text">When enabled, the bot engine will NOT check if VPN/Proxy is active before running. Use this if your devices don't use a proxy or if the check causes false positives.</div>
+                </div>
+                <button type="button" class="btn btn-primary w-100" id="saveEngineBtn" onclick="saveEngineSettings()">
+                    <i class="fas fa-save me-1"></i> Save Engine Settings
+                </button>
+            </div>
+        </div>
+
     </div>
 </div>
 
 <script>
+// ---- Engine Settings ----
+function loadEngineSettings() {
+    fetch('/api/settings/engine')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('skipProxyCheck').checked = !!data.skip_proxy_check;
+        })
+        .catch(() => {});
+}
+
+function saveEngineSettings() {
+    const btn = document.getElementById('saveEngineBtn');
+    const alertBox = document.getElementById('engineAlertBox');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+
+    fetch('/api/settings/engine', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            skip_proxy_check: document.getElementById('skipProxyCheck').checked
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        alertBox.className = 'alert alert-success';
+        alertBox.textContent = 'Engine settings saved!';
+        alertBox.classList.remove('d-none');
+        setTimeout(() => alertBox.classList.add('d-none'), 3000);
+    })
+    .catch(err => {
+        alertBox.className = 'alert alert-danger';
+        alertBox.textContent = 'Error saving settings: ' + err;
+        alertBox.classList.remove('d-none');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Engine Settings';
+    });
+}
+
+// Load engine settings on page load
+document.addEventListener('DOMContentLoaded', loadEngineSettings);
+
+// ---- Spoofing Vault ----
+function _fmtBytes(n) {
+    if (n == null) return '—';
+    const u = ['B','KB','MB','GB','TB'];
+    let i = 0; let v = n;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return v.toFixed(v < 10 && i > 0 ? 2 : 1) + ' ' + u[i];
+}
+
+function loadVault() {
+    fetch('/api/settings/spoof-vault')
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) throw new Error(d.error || 'failed');
+            document.getElementById('vaultDefault').textContent = d.default_root || '?';
+            // Only pre-fill the input if user overrode the default
+            const input = document.getElementById('vaultPath');
+            input.value = d.is_default ? '' : (d.root || '');
+            const stats = document.getElementById('vaultStats');
+            stats.style.display = 'block';
+            document.getElementById('vaultCurrent').textContent = d.root || '?';
+            document.getElementById('vaultSources').textContent =
+                `${d.sources.count} files (${_fmtBytes(d.sources.bytes)})`;
+            document.getElementById('vaultVariants').textContent =
+                `${d.variants.count} files (${_fmtBytes(d.variants.bytes)})`;
+            document.getElementById('vaultTotal').textContent = _fmtBytes(d.total_bytes);
+            document.getElementById('vaultFree').textContent =
+                d.drive_free_bytes != null ? _fmtBytes(d.drive_free_bytes) : '—';
+        })
+        .catch(e => {
+            const box = document.getElementById('vaultAlertBox');
+            box.className = 'alert alert-danger';
+            box.textContent = 'Failed to load vault info: ' + e.message;
+        });
+}
+
+function pickVaultFolder() {
+    const btn = document.getElementById('vaultBrowseBtn');
+    const box = document.getElementById('vaultAlertBox');
+    box.className = 'd-none';
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pick…';
+    fetch('/api/settings/spoof-vault/pick-folder', {method: 'POST'})
+        .then(r => r.json().then(d => ({ok: r.ok, body: d})))
+        .then(({ok, body}) => {
+            if (ok && body.success && body.path) {
+                document.getElementById('vaultPath').value = body.path;
+                box.className = 'alert alert-info py-2';
+                box.textContent = `Selected: ${body.path} — click Save to apply.`;
+            } else if (ok && body.success) {
+                // user cancelled the dialog
+                box.className = 'alert alert-warning py-2';
+                box.textContent = 'Picker cancelled.';
+            } else {
+                box.className = 'alert alert-danger py-2';
+                box.textContent = body.error || 'Picker failed';
+            }
+        })
+        .catch(e => {
+            box.className = 'alert alert-danger py-2';
+            box.textContent = 'Network error: ' + e.message;
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        });
+}
+
+function saveVault() {
+    const path = document.getElementById('vaultPath').value.trim();
+    const box = document.getElementById('vaultAlertBox');
+    box.className = 'd-none';
+    fetch('/api/settings/spoof-vault', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: path})
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, body: d})))
+    .then(({ok, body}) => {
+        if (ok && body.success) {
+            box.className = 'alert alert-success';
+            box.textContent = `Vault root set to ${body.root}`;
+            loadVault();
+        } else {
+            box.className = 'alert alert-danger';
+            box.textContent = body.error || `Save failed`;
+        }
+    })
+    .catch(e => {
+        box.className = 'alert alert-danger';
+        box.textContent = 'Network error: ' + e.message;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', loadVault);
+
 // ---- AI Settings ----
 function toggleKeyVisibility(inputId, btn) {
     const input = document.getElementById(inputId);
@@ -259,6 +569,116 @@ async function testJapKey() {
         btn.innerHTML = '<i class="fas fa-vial me-1"></i> Test';
     }
 }
+
+{% if ff('assistant_chat') %}
+// ---- Hydra AI Chat settings ----
+let _defaultChatPrompt = '';
+
+async function loadChatSettings() {
+    try {
+        const r = await fetch('/api/chat/settings');
+        const d = await r.json();
+        document.getElementById('chatProvider').value = d.provider || 'deepseek';
+        document.getElementById('chatModel').value = d.model || '';
+        document.getElementById('chatBaseUrl').value = d.base_url || '';
+        document.getElementById('chatKeyMasked').textContent = d.api_key_masked || '(not set)';
+        document.getElementById('chatEnabled').checked = d.enabled !== false;
+        _defaultChatPrompt = d.system_prompt || '';
+        // Only show prompt textarea content if it's custom (otherwise leave blank as override hint)
+        document.getElementById('chatSystemPrompt').value = '';
+    } catch (e) {
+        console.warn('Failed to load chat settings:', e);
+    }
+}
+loadChatSettings();
+
+function resetChatPrompt() {
+    document.getElementById('chatSystemPrompt').value = '';
+}
+
+document.getElementById('chatSettingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const alertBox = document.getElementById('chatAlertBox');
+    const btn = document.getElementById('saveChatBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+    const payload = {
+        provider: document.getElementById('chatProvider').value,
+        model: document.getElementById('chatModel').value.trim(),
+        base_url: document.getElementById('chatBaseUrl').value.trim(),
+        enabled: document.getElementById('chatEnabled').checked,
+    };
+    const apiKey = document.getElementById('chatApiKey').value;
+    if (apiKey) payload.api_key = apiKey;
+    const customPrompt = document.getElementById('chatSystemPrompt').value.trim();
+    if (customPrompt) payload.system_prompt = customPrompt;
+
+    try {
+        const r = await fetch('/api/chat/settings', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const result = await r.json();
+        if (r.ok) {
+            alertBox.className = 'alert alert-success';
+            alertBox.textContent = 'AI Chat settings saved.';
+        } else {
+            alertBox.className = 'alert alert-danger';
+            alertBox.textContent = result.error || 'Save failed.';
+        }
+        alertBox.classList.remove('d-none');
+        document.getElementById('chatApiKey').value = '';
+        loadChatSettings();
+        setTimeout(() => alertBox.classList.add('d-none'), 4000);
+    } catch (err) {
+        alertBox.className = 'alert alert-danger';
+        alertBox.textContent = 'Network error: ' + err.message;
+        alertBox.classList.remove('d-none');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save AI Chat Settings';
+    }
+});
+
+async function testChat() {
+    const alertBox = document.getElementById('chatAlertBox');
+    const btn = document.getElementById('testChatBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Testing...';
+    // Use only fields that are filled to override saved config for the test
+    const payload = {};
+    ['chatProvider','chatModel','chatBaseUrl','chatApiKey'].forEach(id => {
+        const v = document.getElementById(id).value.trim();
+        if (v) {
+            const map = {chatProvider:'provider', chatModel:'model',
+                         chatBaseUrl:'base_url', chatApiKey:'api_key'};
+            payload[map[id]] = v;
+        }
+    });
+    try {
+        const r = await fetch('/api/chat/test', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        if (d.ok) {
+            alertBox.className = 'alert alert-success';
+            alertBox.innerHTML = `<strong>✓ Connected.</strong> Model <code>${d.model}</code> replied: <code>${(d.reply || '').replace(/</g,'&lt;')}</code>`;
+        } else {
+            alertBox.className = 'alert alert-danger';
+            alertBox.innerHTML = `<strong>✗ Failed:</strong> ${(d.error || 'unknown').replace(/</g,'&lt;')}`;
+        }
+        alertBox.classList.remove('d-none');
+    } catch (err) {
+        alertBox.className = 'alert alert-danger';
+        alertBox.textContent = 'Network error: ' + err.message;
+        alertBox.classList.remove('d-none');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-vial me-1"></i> Test Connection';
+    }
+}
+{% endif %}
 
 // ---- Password ----
 document.getElementById('changePasswordForm').addEventListener('submit', async function(e) {

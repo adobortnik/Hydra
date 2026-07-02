@@ -503,46 +503,69 @@ class ShareToStoryAction:
         log.debug("[%s] Failed to open grid item", self.device_serial)
         return False
 
-    def _click_share_button(self):
-        """Click the share/send button on the current post.
-        
-        Live test confirmed: desc='Send post' and rid='row_feed_button_share' 
+    def _click_share_button(self, max_wait=8):
+        """Click the share/send button on the current post or reel.
+
+        Live test confirmed: desc='Send post' and rid='row_feed_button_share'
         are the correct selectors on IG clone apps.
+
+        IMPORTANT (2026-06-01): on full-screen REELS the right-side action bar
+        (like / comment / SHARE) renders only AFTER the reel video loads. A
+        single 2s check often fired before the share button existed →
+        intermittent "Share button not found" (~1/3 of reel shares failed at
+        this step, across the farm since Feb 2026 — NOT a reel-vs-post issue,
+        a timing one: the same reel succeeds when it loads fast enough).
+        Fix: POLL all known selectors for up to `max_wait` seconds, giving the
+        action bar time to appear, instead of one early shot.
         """
-        # Method 1: Content description (confirmed working in live test)
-        for desc in ["Send post", "Share", "Send", "Share post"]:
-            el = self.device(description=desc)
-            if el.exists(timeout=2):
+        deadline = time.time() + max_wait
+        attempt = 0
+        while time.time() < deadline:
+            attempt += 1
+
+            # Method 1: Content description (confirmed working in live test)
+            for desc in ["Send post", "Share", "Send", "Share post"]:
+                el = self.device(description=desc)
+                if el.exists(timeout=0.5):
+                    el.click()
+                    time.sleep(2)
+                    log.debug("[%s] Clicked share via desc='%s' (attempt %d)",
+                              self.device_serial, desc, attempt)
+                    return True
+
+            # Method 2: Resource ID (post: row_feed_button_share / direct_share_button;
+            # reel/clips viewer uses its own share button id)
+            el = self.device(resourceIdMatches=(
+                ".*row_feed_button_share.*|.*direct_share_button.*|"
+                ".*clips_share_button.*|.*reel.*share.*button.*"))
+            if el.exists(timeout=0.5):
                 el.click()
                 time.sleep(2)
-                log.debug("[%s] Clicked share via desc='%s'",
-                          self.device_serial, desc)
+                log.debug("[%s] Clicked share via resource ID (attempt %d)",
+                          self.device_serial, attempt)
                 return True
 
-        # Method 2: Resource ID (confirmed: row_feed_button_share)
-        el = self.device(resourceIdMatches=".*row_feed_button_share.*|.*direct_share_button.*")
-        if el.exists(timeout=2):
-            el.click()
-            time.sleep(2)
-            log.debug("[%s] Clicked share via resource ID", self.device_serial)
-            return True
+            # Method 3: Find in XML and click by bounds
+            xml = self.ctrl.dump_xml()
+            share_match = re.search(
+                r'<node[^>]*(?:row_feed_button_share|direct_share_button|clips_share_button)[^>]*'
+                r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                xml)
+            if share_match:
+                x = (int(share_match.group(1)) + int(share_match.group(3))) // 2
+                y = (int(share_match.group(2)) + int(share_match.group(4))) // 2
+                self.device.click(x, y)
+                time.sleep(2)
+                log.debug("[%s] Clicked share via bounds (%d, %d) (attempt %d)",
+                          self.device_serial, x, y, attempt)
+                return True
 
-        # Method 3: Find in XML and click by bounds
-        xml = self.ctrl.dump_xml()
-        share_match = re.search(
-            r'<node[^>]*(?:row_feed_button_share|direct_share_button)[^>]*'
-            r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
-            xml)
-        if share_match:
-            x = (int(share_match.group(1)) + int(share_match.group(3))) // 2
-            y = (int(share_match.group(2)) + int(share_match.group(4))) // 2
-            self.device.click(x, y)
-            time.sleep(2)
-            log.debug("[%s] Clicked share via bounds (%d, %d)",
-                      self.device_serial, x, y)
-            return True
+            # Not found yet — likely the reel action bar hasn't rendered.
+            # Wait briefly and retry until the deadline.
+            time.sleep(1.0)
 
-        log.debug("[%s] Share button not found", self.device_serial)
+        log.debug("[%s] Share button not found after %ds polling",
+                  self.device_serial, max_wait)
         return False
 
     def _select_add_to_story(self):
@@ -631,28 +654,42 @@ class ShareToStoryAction:
 
         log.info("[%s] Adding mention @%s via sticker picker", self.device_serial, mention_target)
 
-        # Step 1: Open sticker picker — swipe up first, fallback to button
+        # Step 1: Open sticker picker.
+        # Old impl swiped up from screen-middle to open the picker. Newer
+        # IG interprets that gesture on the story editor as DRAG-MEDIA-UP
+        # (operator sees the photo/video slide off the canvas, picker
+        # never opens). Prefer the explicit sticker-button taps; only
+        # fall back to swipe-up if every selector failed.
         sticker_found = False
-        w, h = self.device.window_size()
-        self.device.swipe(w // 2, int(h * 0.5), w // 2, int(h * 0.15), duration=0.3)
-        time.sleep(2)
-
-        if self.device(className="android.widget.EditText").exists(timeout=2):
-            sticker_found = True
-            log.debug("[%s] Opened sticker picker via swipe up", self.device_serial)
+        for selector in [
+            self.device(description="Emojis and stickers"),
+            self.device(descriptionContains="Stickers"),
+            self.device(descriptionContains="sticker"),
+            self.device(resourceIdMatches=".*asset_button.*"),
+            self.device(resourceIdMatches=".*sticker.*button.*"),
+        ]:
+            if selector.exists(timeout=2):
+                selector.click()
+                time.sleep(3)
+                sticker_found = True
+                log.debug("[%s] Opened sticker picker via button selector",
+                          self.device_serial)
+                break
 
         if not sticker_found:
-            for selector in [
-                self.device(description="Emojis and stickers"),
-                self.device(resourceIdMatches=".*asset_button.*"),
-                self.device(descriptionContains="sticker"),
-            ]:
-                if selector.exists(timeout=2):
-                    selector.click()
-                    time.sleep(3)
-                    sticker_found = True
-                    log.debug("[%s] Opened sticker picker via button", self.device_serial)
-                    break
+            # Last resort: swipe up. On modern IG this drags the media
+            # instead of opening the picker — but if no button was found
+            # we have nothing else to try.
+            log.warning("[%s] No sticker button found — falling back to swipe-up "
+                        "(may drag media on modern IG)", self.device_serial)
+            w, h = self.device.window_size()
+            self.device.swipe(w // 2, int(h * 0.5), w // 2, int(h * 0.15),
+                              duration=0.3)
+            time.sleep(2)
+            if self.device(className="android.widget.EditText").exists(timeout=2):
+                sticker_found = True
+                log.debug("[%s] Opened sticker picker via swipe up (fallback)",
+                          self.device_serial)
 
         if not sticker_found:
             log.warning("[%s] Could not open sticker picker for mention", self.device_serial)
@@ -824,32 +861,39 @@ class ShareToStoryAction:
 
         log.info("[%s] Adding link sticker: %s", self.device_serial, url[:50])
 
-        # Step 1: Open sticker picker — try swipe up first (more reliable), fallback to button
+        # Step 1: Open sticker picker. Same fix as _add_story_mention —
+        # swipe-up from screen center now drags the media on the story
+        # editor instead of opening the picker. Prefer button taps; swipe
+        # is last resort only.
         sticker_found = False
 
-        # Method A: Swipe up from center to open sticker picker
-        w, h = self.device.window_size()
-        self.device.swipe(w // 2, int(h * 0.5), w // 2, int(h * 0.15), duration=0.3)
-        time.sleep(2)
-        
-        # Check if sticker picker opened (search bar should appear)
-        if self.device(className="android.widget.EditText").exists(timeout=2):
-            sticker_found = True
-            log.debug("[%s] Opened sticker picker via swipe up", self.device_serial)
-        
-        # Method B: Tap sticker button
+        # Method A (preferred): tap sticker button via explicit selectors
+        for selector in [
+            self.device(description="Emojis and stickers"),
+            self.device(descriptionContains="Stickers"),
+            self.device(descriptionContains="sticker"),
+            self.device(resourceIdMatches=".*asset_button.*"),
+            self.device(resourceIdMatches=".*sticker.*button.*"),
+        ]:
+            if selector.exists(timeout=2):
+                selector.click()
+                time.sleep(3)
+                sticker_found = True
+                log.debug("[%s] Opened sticker picker via button", self.device_serial)
+                break
+
+        # Method B (last resort): swipe up — may drag media on modern IG
         if not sticker_found:
-            for selector in [
-                self.device(description="Emojis and stickers"),
-                self.device(resourceIdMatches=".*asset_button.*"),
-                self.device(descriptionContains="sticker"),
-            ]:
-                if selector.exists(timeout=2):
-                    selector.click()
-                    time.sleep(3)
-                    sticker_found = True
-                    log.debug("[%s] Opened sticker picker via button", self.device_serial)
-                    break
+            log.warning("[%s] No sticker button found — fallback to swipe-up "
+                        "(may drag media on modern IG)", self.device_serial)
+            w, h = self.device.window_size()
+            self.device.swipe(w // 2, int(h * 0.5), w // 2, int(h * 0.15),
+                              duration=0.3)
+            time.sleep(2)
+            if self.device(className="android.widget.EditText").exists(timeout=2):
+                sticker_found = True
+                log.debug("[%s] Opened sticker picker via swipe-up (fallback)",
+                          self.device_serial)
 
         if not sticker_found:
             log.warning("[%s] Could not open sticker picker", self.device_serial)

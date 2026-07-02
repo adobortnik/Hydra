@@ -1,0 +1,796 @@
+{% extends "base.html" %}
+{% block title %}Spoofing — Hydra{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css">
+<style>
+:root {
+    --sp-bg: #0f1115;
+    --sp-card: #161a21;
+    --sp-card-2: #1d2128;
+    --sp-border: #262b34;
+    --sp-text: #e5e7eb;
+    --sp-muted: #9ca3af;
+    --sp-accent: #8b5cf6;
+    --sp-accent-2: #6366f1;
+    --sp-ok: #34d399;
+    --sp-warn: #fbbf24;
+    --sp-err: #f87171;
+}
+
+.sp-page {
+    color: var(--sp-text);
+    padding: 24px 32px 80px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+.sp-page h1 {
+    font-weight: 700; font-size: 1.8rem; margin: 0 0 4px;
+    background: linear-gradient(135deg, #c4b5fd 0%, #818cf8 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.sp-page .lead {
+    color: var(--sp-muted); font-size: 0.9rem;
+    margin: 0 0 24px; max-width: 700px;
+}
+
+/* ── Drop zone ── */
+.sp-drop {
+    border: 2px dashed #3b4250;
+    border-radius: 16px;
+    padding: 48px 24px;
+    text-align: center;
+    background: var(--sp-card);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-bottom: 24px;
+}
+.sp-drop:hover,
+.sp-drop.dragover {
+    border-color: var(--sp-accent);
+    background: linear-gradient(135deg, #1a1530 0%, #1a1d2a 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(139, 92, 246, 0.15);
+}
+.sp-drop .icon {
+    font-size: 3.4rem; color: var(--sp-accent); margin-bottom: 12px;
+}
+.sp-drop h3 { margin: 0; font-weight: 600; font-size: 1.05rem; }
+.sp-drop .sub { color: var(--sp-muted); font-size: 0.83rem; margin-top: 6px; }
+.sp-drop input[type=file] { display: none; }
+
+/* ── Controls row ── */
+.sp-controls {
+    background: var(--sp-card);
+    border: 1px solid var(--sp-border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+}
+.sp-field { display: flex; flex-direction: column; gap: 6px; }
+.sp-field label {
+    font-size: 0.72rem; color: var(--sp-muted);
+    text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600;
+}
+.sp-field .form-control,
+.sp-field .form-select {
+    background: var(--sp-card-2);
+    color: var(--sp-text);
+    border: 1px solid var(--sp-border);
+    padding: 7px 11px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    min-width: 130px;
+}
+.sp-field .form-control:focus, .sp-field .form-select:focus {
+    outline: none; border-color: var(--sp-accent);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
+}
+.sp-source-info {
+    flex: 1;
+    color: var(--sp-muted); font-size: 0.85rem;
+    padding-left: 8px;
+    border-left: 1px solid var(--sp-border);
+}
+.sp-source-info .name { color: var(--sp-text); font-weight: 600; }
+.sp-source-info .meta { font-size: 0.75rem; }
+
+.sp-btn {
+    background: linear-gradient(135deg, var(--sp-accent-2), var(--sp-accent));
+    color: #fff; border: none; padding: 10px 20px;
+    border-radius: 10px; font-weight: 600; font-size: 0.9rem;
+    cursor: pointer; transition: all 0.15s;
+}
+.sp-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+.sp-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Preset cards ── */
+.sp-preset-row {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.sp-preset {
+    flex: 1; min-width: 140px;
+    background: var(--sp-card-2);
+    border: 1px solid var(--sp-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.sp-preset:hover { border-color: #4b5260; }
+.sp-preset.active {
+    border-color: var(--sp-accent);
+    background: linear-gradient(135deg, rgba(139,92,246,0.18), rgba(99,102,241,0.10));
+    box-shadow: 0 0 0 1px var(--sp-accent) inset;
+}
+.sp-preset .name {
+    font-weight: 700; font-size: 0.92rem; text-transform: capitalize;
+    margin-bottom: 2px;
+}
+.sp-preset .name .pill {
+    background: var(--sp-accent); color: #fff;
+    font-size: 0.55rem; padding: 2px 6px; border-radius: 6px;
+    margin-left: 6px; vertical-align: middle; font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.sp-preset .desc { color: var(--sp-muted); font-size: 0.74rem; }
+
+/* ── Results ── */
+.sp-results {
+    margin-top: 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+.sp-result-card {
+    background: var(--sp-card);
+    border: 1px solid var(--sp-border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.sp-result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.sp-result-card.original {
+    border-color: var(--sp-accent-2);
+    box-shadow: 0 0 0 1px var(--sp-accent-2) inset;
+}
+.sp-result-media {
+    background: #000;
+    aspect-ratio: 1 / 1;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+}
+.sp-result-media img,
+.sp-result-media video {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.sp-result-badge {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(0,0,0,0.65);
+    color: #fff; font-size: 0.65rem; font-weight: 700;
+    padding: 3px 8px; border-radius: 6px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.sp-result-card.original .sp-result-badge { background: var(--sp-accent-2); }
+.sp-result-meta {
+    padding: 9px 11px;
+    font-size: 0.72rem; color: var(--sp-muted);
+    border-top: 1px solid var(--sp-border);
+}
+.sp-result-meta .row { display: flex; justify-content: space-between; gap: 6px; }
+.sp-result-meta .row strong { color: var(--sp-text); font-weight: 600; }
+.sp-result-actions {
+    padding: 6px 8px;
+    border-top: 1px solid var(--sp-border);
+    display: flex; gap: 6px; justify-content: flex-end;
+}
+.sp-result-actions a, .sp-result-actions button {
+    background: transparent; color: var(--sp-muted);
+    border: 1px solid var(--sp-border);
+    padding: 3px 8px; font-size: 0.7rem; border-radius: 5px;
+    cursor: pointer; text-decoration: none;
+    transition: all 0.12s;
+}
+.sp-result-actions a:hover, .sp-result-actions button:hover {
+    color: var(--sp-text); border-color: var(--sp-accent);
+}
+
+/* ── Hash comparison panel (per variant) ── */
+.sp-hash-panel {
+    border-top: 1px solid var(--sp-border);
+    background: rgba(0,0,0,0.25);
+    padding: 8px 11px;
+    font-size: 0.7rem;
+}
+.sp-hash-panel .summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.sp-hash-panel .summary .label {
+    font-weight: 700; font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.sp-hash-panel .summary.safe   { color: var(--sp-ok); }
+.sp-hash-panel .summary.partial { color: var(--sp-warn); }
+.sp-hash-panel .summary.risky  { color: var(--sp-err); }
+
+.sp-hash-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 36px 60px;
+    gap: 6px; align-items: center;
+    padding: 2px 0;
+}
+.sp-hash-row .algo { font-weight: 600; color: var(--sp-text); }
+.sp-hash-row .bar {
+    height: 4px; background: #20252e; border-radius: 2px; overflow: hidden;
+    position: relative;
+}
+.sp-hash-row .bar .fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--sp-err);
+    border-radius: 2px;
+}
+.sp-hash-row .bar .fill.bypass { background: var(--sp-ok); }
+.sp-hash-row .bar .fill.partial { background: var(--sp-warn); }
+.sp-hash-row .dist  { color: var(--sp-text); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.sp-hash-row .stat {
+    text-align: right;
+    font-size: 0.6rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.sp-hash-row .stat.bypass { color: var(--sp-ok); }
+.sp-hash-row .stat.risky  { color: var(--sp-err); }
+
+.sp-hash-hex {
+    margin-top: 6px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.62rem;
+    color: var(--sp-muted);
+    display: grid;
+    grid-template-columns: auto auto;
+    column-gap: 8px;
+    row-gap: 2px;
+}
+.sp-hash-hex .h { color: var(--sp-text); }
+
+.sp-result-card.safe    { border-color: rgba(52, 211, 153, 0.6); }
+.sp-result-card.partial { border-color: rgba(251, 191, 36, 0.6); }
+.sp-result-card.risky   { border-color: rgba(248, 113, 113, 0.6); }
+
+/* Make the thumbnail itself a click target (cursor + zoom hint on hover) */
+.sp-result-media a.sp-zoom { display: block; width: 100%; height: 100%; }
+.sp-result-media a.sp-zoom { cursor: zoom-in; position: relative; }
+.sp-result-media a.sp-zoom::after {
+    content: '\f00e';           /* fa-search-plus */
+    font-family: 'Font Awesome 5 Free', 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    top: 8px; right: 8px;
+    color: #fff;
+    background: rgba(0,0,0,0.55);
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+}
+.sp-result-card:hover .sp-result-media a.sp-zoom::after { opacity: 1; }
+.sp-result-media a.sp-zoom img,
+.sp-result-media a.sp-zoom video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* GLightbox dark theme tweaks */
+.glightbox-clean .gslide-description { background: rgba(15, 17, 21, 0.95); }
+.gslide-description .gslide-title { color: #fff; font-weight: 700; }
+.gslide-description .gslide-desc  { color: #c7d2fe; }
+
+/* ── Job progress ── */
+.sp-progress {
+    margin-top: 18px; background: var(--sp-card);
+    border: 1px solid var(--sp-border); border-radius: 10px;
+    padding: 14px 16px; display: none;
+}
+.sp-progress.active { display: block; }
+.sp-progress .label {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+}
+.sp-progress .label strong { font-size: 0.95rem; }
+.sp-progress .label .pct { color: var(--sp-accent); font-weight: 700; }
+.sp-progress .bar {
+    height: 6px; background: var(--sp-card-2); border-radius: 3px; overflow: hidden;
+}
+.sp-progress .bar .fill {
+    height: 100%; background: linear-gradient(90deg, var(--sp-accent-2), var(--sp-accent));
+    width: 0%; transition: width 0.35s;
+}
+.sp-progress .status { color: var(--sp-muted); font-size: 0.8rem; margin-top: 6px; }
+
+.sp-empty {
+    text-align: center; color: var(--sp-muted);
+    padding: 60px 20px; font-size: 0.9rem;
+}
+.sp-empty .icon { font-size: 2.5rem; color: #4b5260; margin-bottom: 12px; display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sp-page">
+    <h1><i class="fas fa-shield-alt me-2"></i>Spoofing Lab</h1>
+    <p class="lead">
+        Generate per-account unique variants of an image or video so multiple
+        slave accounts posting the same source don't trip Instagram's
+        duplicate-content / perceptual-hash correlation.
+    </p>
+
+    <!-- Drop zone -->
+    <div class="sp-drop" id="spDrop">
+        <input type="file" id="spDropInput" accept="image/*,video/*">
+        <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+        <h3>Drag &amp; drop an image or video here</h3>
+        <div class="sub">or click to browse — JPEG, PNG, MP4, MOV supported (max ~100 MB)</div>
+    </div>
+
+    <!-- Controls (hidden until file uploaded) -->
+    <div id="spControlsWrap" style="display:none;">
+        <div class="sp-preset-row" id="spPresets"></div>
+        <div class="sp-controls">
+            <div class="sp-field">
+                <label>Variants to generate</label>
+                <input type="number" class="form-control" id="spCount" value="4" min="1" max="50">
+            </div>
+            <div class="sp-field">
+                <label>Strength</label>
+                <select class="form-select" id="spStrengthSelect">
+                    <option value="light">light</option>
+                    <option value="medium" selected>medium</option>
+                    <option value="strong">strong</option>
+                </select>
+            </div>
+            <div class="sp-field">
+                <label>Hash threshold</label>
+                <input type="number" class="form-control" id="spThreshold"
+                       value="6" min="1" max="32" title="Min Hamming distance per algo to count as 'bypass' (higher = stricter)">
+            </div>
+            <div class="sp-field">
+                <label>Mirror flip</label>
+                <label style="display:flex;gap:8px;align-items:center;padding:7px 0;font-size:0.85rem;cursor:pointer;color:var(--sp-text);font-weight:500;text-transform:none;letter-spacing:0;">
+                    <input type="checkbox" id="spAllowMirror" checked
+                           style="width:16px;height:16px;accent-color:var(--sp-accent);">
+                    Allow
+                </label>
+            </div>
+            <div class="sp-source-info" id="spSourceInfo">
+                <div class="name">No file loaded</div>
+            </div>
+            <div>
+                <button class="sp-btn" id="spGenBtn" onclick="spGenerate()" disabled>
+                    <i class="fas fa-magic me-1"></i> Generate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="sp-progress" id="spProgress">
+        <div class="label">
+            <strong id="spProgLabel">Spoofing in progress…</strong>
+            <span class="pct" id="spProgPct">0%</span>
+        </div>
+        <div class="bar"><div class="fill" id="spProgFill"></div></div>
+        <div class="status" id="spProgStatus"></div>
+    </div>
+
+    <div class="sp-results" id="spResults">
+        <div class="sp-empty" style="grid-column:1/-1;">
+            <i class="fas fa-flask icon"></i>
+            <div>Upload a file to start spoofing.</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+<script>
+const PRESET_DESC = {
+    light:  'Near-identical to source — strip EXIF, ±2% jitter, no rotation.',
+    medium: 'Default. Stronger color / crop / noise + micro-rotate. Audio jitter on video.',
+    strong: 'Aggressive. Mirror flip (30%), bigger color shift, visible re-encode.',
+};
+const PRESET_PILL = { medium: 'recommended' };
+
+let _spSource = null;       // {path, filename, size_bytes, kind}
+let _spStrength = 'medium';
+let _spCurrentJobId = null;
+let _spPolling = false;
+
+function init() {
+    const dz = document.getElementById('spDrop');
+    const input = document.getElementById('spDropInput');
+    dz.addEventListener('click', () => input.click());
+    input.addEventListener('change', (e) => {
+        if (e.target.files[0]) spUpload(e.target.files[0]);
+    });
+    ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, (e)=>{
+        e.preventDefault(); dz.classList.add('dragover');
+    }));
+    ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, (e)=>{
+        e.preventDefault(); dz.classList.remove('dragover');
+    }));
+    dz.addEventListener('drop', (e) => {
+        if (e.dataTransfer.files[0]) spUpload(e.dataTransfer.files[0]);
+    });
+    renderPresets();
+    document.getElementById('spStrengthSelect').addEventListener('change',
+        (e) => { _spStrength = e.target.value; renderPresets(); });
+}
+
+function renderPresets() {
+    const wrap = document.getElementById('spPresets');
+    wrap.innerHTML = ['light','medium','strong'].map(name => `
+        <div class="sp-preset ${name === _spStrength ? 'active' : ''}"
+             onclick="spPickPreset('${name}')">
+            <div class="name">${name}${PRESET_PILL[name] ? ` <span class="pill">${PRESET_PILL[name]}</span>` : ''}</div>
+            <div class="desc">${PRESET_DESC[name]}</div>
+        </div>`).join('');
+}
+function spPickPreset(name) {
+    _spStrength = name;
+    document.getElementById('spStrengthSelect').value = name;
+    renderPresets();
+}
+
+async function spUpload(file) {
+    const fd = new FormData(); fd.append('file', file);
+    const dz = document.getElementById('spDrop');
+    dz.innerHTML = '<div class="icon"><i class="fas fa-spinner fa-spin"></i></div><h3>Uploading…</h3>';
+    try {
+        const r = await fetch('/api/spoof/upload', { method:'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'upload failed');
+        _spSource = d;
+        document.getElementById('spControlsWrap').style.display = 'block';
+        document.getElementById('spGenBtn').disabled = false;
+        renderSourceInfo();
+        renderInitialResult(d);
+    } catch (e) {
+        dz.innerHTML = `<div class="icon" style="color:var(--sp-err);"><i class="fas fa-times"></i></div>
+            <h3>Upload failed</h3><div class="sub">${e.message}</div>`;
+    } finally {
+        // Restore drop zone after a bit so user can drop another file
+        setTimeout(() => {
+            dz.innerHTML = `<input type="file" id="spDropInput" accept="image/*,video/*">
+                <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <h3>Drag &amp; drop an image or video here</h3>
+                <div class="sub">or click to browse</div>`;
+            init();  // rebind
+        }, 1200);
+    }
+}
+
+function renderSourceInfo() {
+    if (!_spSource) return;
+    const sizeMB = (_spSource.size_bytes / (1024*1024)).toFixed(2);
+    document.getElementById('spSourceInfo').innerHTML = `
+        <div class="name">${_spSource.filename}</div>
+        <div class="meta">${_spSource.kind.toUpperCase()} · ${sizeMB} MB</div>`;
+}
+
+function renderInitialResult(src) {
+    const grid = document.getElementById('spResults');
+    grid.innerHTML = renderCard({
+        original: true,
+        label: 'ORIGINAL',
+        path: src.path,
+        kind: src.kind,
+        size_bytes: src.size_bytes,
+        seed: null,
+        stats: null,
+    });
+    _refreshLightbox();
+}
+
+function escAttrJs(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function _lightboxDescFromStats(v) {
+    if (!v.stats) return '';
+    const s = v.stats;
+    const bits = [];
+    if (s.preset)        bits.push(`preset ${s.preset}`);
+    if (s.exif_device)   bits.push(`📷 ${s.exif_device}`);
+    if (s.exif_gps_city) bits.push(`📍 ${s.exif_gps_city}`);
+    if (s.mirrored)      bits.push('🪞 mirrored');
+    const hc = s.hash_compare;
+    if (hc && hc.algorithms) {
+        bits.push(`${hc.bypass_count}/${hc.total_algos} algos bypassed (≥${hc.threshold})`);
+    }
+    return bits.join(' · ');
+}
+
+let _spLightbox = null;
+function _refreshLightbox() {
+    // GLightbox library is loaded from CDN — wait until it's available
+    if (typeof GLightbox === 'undefined') return;
+    if (_spLightbox) { try { _spLightbox.destroy(); } catch(e){} }
+    _spLightbox = GLightbox({
+        selector: '.glightbox',
+        loop: true,
+        touchNavigation: true,
+        keyboardNavigation: true,
+        closeOnOutsideClick: true,
+        zoomable: true,
+    });
+}
+
+function renderCard(v) {
+    const url = `/api/spoof/file?path=${encodeURIComponent(v.path)}`;
+    const lbType = v.kind === 'video' ? 'video' : 'image';
+    const lbTitle = v.label || ('Variant ' + ((v.index ?? 0) + 1));
+    // Compose a short description for the lightbox caption from key stats
+    const lbDesc = _lightboxDescFromStats(v);
+    const inner = v.kind === 'video'
+        ? `<video src="${url}" muted autoplay loop playsinline></video>`
+        : `<img src="${url}" loading="lazy">`;
+    const media = `<a class="glightbox sp-zoom" href="${url}"
+                      data-gallery="spoof-results"
+                      data-type="${lbType}"
+                      data-title="${escAttrJs(lbTitle)}"
+                      data-description="${escAttrJs(lbDesc)}">${inner}</a>`;
+    const sizeKB = v.size_bytes ? (v.size_bytes / 1024).toFixed(0) + ' KB' : '—';
+    let metaRows = `<div class="row"><span>Size</span><strong>${sizeKB}</strong></div>`;
+    if (v.stats) {
+        const s = v.stats;
+        if (s.preset)         metaRows += `<div class="row"><span>Preset</span><strong>${s.preset}</strong></div>`;
+        if (s.exif_device)    metaRows += `<div class="row"><span>EXIF</span><strong>${s.exif_device}</strong></div>`;
+        if (s.exif_gps_city)  metaRows += `<div class="row"><span>GPS</span><strong>${s.exif_gps_city}</strong></div>`;
+        if (s.exif_iso)       metaRows += `<div class="row"><span>ISO / shutter</span><strong>${s.exif_iso} · ${s.exif_shutter||''}</strong></div>`;
+        if (s.crop_pct != null) metaRows += `<div class="row"><span>Crop</span><strong>${s.crop_pct}%${s.crop_sides_px?' ['+s.crop_sides_px.join('/')+']':''}</strong></div>`;
+        if (s.brightness != null) metaRows += `<div class="row"><span>Brightness</span><strong>${(s.brightness*100).toFixed(1)}%</strong></div>`;
+        if (s.saturation != null) metaRows += `<div class="row"><span>Saturation</span><strong>${(s.saturation*100).toFixed(1)}%</strong></div>`;
+        if (s.hue_deg != null) metaRows += `<div class="row"><span>Hue</span><strong>${s.hue_deg}°</strong></div>`;
+        if (s.gamma != null)   metaRows += `<div class="row"><span>Gamma</span><strong>${s.gamma}</strong></div>`;
+        if (s.blur_radius != null) metaRows += `<div class="row"><span>Blur</span><strong>r=${s.blur_radius}</strong></div>`;
+        if (s.chroma_shift_px)   metaRows += `<div class="row"><span>Chroma shift</span><strong>±${s.chroma_shift_px} px</strong></div>`;
+        if (s.rotate_deg != null && s.rotate_deg !== 0) metaRows += `<div class="row"><span>Rotate</span><strong>${s.rotate_deg}°</strong></div>`;
+        if (s.mirrored)        metaRows += `<div class="row"><span>Mirrored</span><strong>✓</strong></div>`;
+        if (s.vignette)        metaRows += `<div class="row"><span>Vignette</span><strong>${s.vignette}</strong></div>`;
+        if (s.jpeg_quality)    metaRows += `<div class="row"><span>JPEG q</span><strong>${s.jpeg_quality}</strong></div>`;
+        if (s.crf)             metaRows += `<div class="row"><span>CRF</span><strong>${s.crf}</strong></div>`;
+        if (s.trim_start_ms)   metaRows += `<div class="row"><span>Trim</span><strong>${s.trim_start_ms} ms</strong></div>`;
+        if (s.retry_attempts && s.retry_attempts.length > 1) {
+            metaRows += `<div class="row"><span>Retries</span><strong>${s.retry_attempts.length - 1}</strong></div>`;
+        }
+    }
+
+    // ── Hash panel (only for non-original variants) ──
+    const hc = v.stats && v.stats.hash_compare;
+    let hashPanel = '';
+    let cardCls = '';
+    if (hc && hc.algorithms) {
+        const bypass = hc.bypass_count || 0;
+        const total = hc.total_algos || 4;
+        let stateCls, label;
+        if (bypass >= 3)       { stateCls = 'safe';    label = '✓ STRONG'; cardCls = 'safe'; }
+        else if (bypass >= 2)  { stateCls = 'safe';    label = '✓ SAFE';   cardCls = 'safe'; }
+        else if (bypass >= 1)  { stateCls = 'partial'; label = '⚠ PARTIAL'; cardCls = 'partial'; }
+        else                   { stateCls = 'risky';   label = '✕ TOO SIMILAR'; cardCls = 'risky'; }
+
+        const rows = Object.entries(hc.algorithms).map(([algo, d]) => {
+            const cls = d.status === 'bypass' ? 'bypass' :
+                        (d.distance >= Math.max(1, hc.threshold - 2) ? 'partial' : '');
+            const pct = Math.min(100, (d.distance / Math.max(hc.threshold * 2, 12)) * 100);
+            return `
+                <div class="sp-hash-row">
+                    <span class="algo">${algo}</span>
+                    <div class="bar"><div class="fill ${cls}" style="width:${pct}%;"></div></div>
+                    <span class="dist">${d.distance}</span>
+                    <span class="stat ${d.status}">${d.status === 'bypass' ? '✓ BYPASS' : '✕ RISKY'}</span>
+                </div>`;
+        }).join('');
+
+        const hexRows = Object.entries(hc.algorithms).map(([algo, d]) =>
+            `<span>${algo} src</span><span class="h">${d.original}</span>
+             <span>${algo} new</span><span class="h">${d.spoofed}</span>`).join('');
+
+        hashPanel = `
+            <div class="sp-hash-panel">
+                <div class="summary ${stateCls}">
+                    <span class="label">${label}</span>
+                    <span style="color:var(--sp-muted);font-weight:500;">
+                        ${bypass}/${total} hash algorithms bypassed (threshold ≥${hc.threshold})
+                    </span>
+                </div>
+                ${rows}
+                <details style="margin-top:6px;">
+                    <summary style="cursor:pointer;color:var(--sp-muted);font-size:0.65rem;">
+                        Hash hex
+                    </summary>
+                    <div class="sp-hash-hex">${hexRows}</div>
+                </details>
+            </div>`;
+    }
+
+    const respoofBtn = v.original ? '' :
+        `<button onclick="spRespoof('${v.path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\'")}', ${v.index || 0})">
+            <i class="fas fa-redo me-1"></i>Spoof again
+        </button>`;
+
+    return `
+        <div class="sp-result-card ${v.original ? 'original' : cardCls}">
+            <div class="sp-result-media">
+                ${media}
+                <div class="sp-result-badge">${v.label || ('V' + (v.seed || '?'))}</div>
+            </div>
+            <div class="sp-result-meta">${metaRows}</div>
+            ${hashPanel}
+            <div class="sp-result-actions">
+                <a href="${url}" download><i class="fas fa-download me-1"></i>Download</a>
+                ${respoofBtn}
+            </div>
+        </div>`;
+}
+
+async function spRespoof(oldVariantPath, idx) {
+    if (!_spSource) return;
+    const preset = _spStrength;
+    const allow_mirror = document.getElementById('spAllowMirror').checked;
+    try {
+        const r = await fetch('/api/spoof/quick', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({source_path: _spSource.path, preset, count: 1,
+                                  allow_mirror})
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'failed');
+        const v = (d.variants || [])[0];
+        if (!v) return;
+        // Append to results
+        _spLastVariants = _spLastVariants || [];
+        _spLastVariants.push(v);
+        renderResults(_spLastVariants);
+    } catch (e) {
+        alert('Respoof failed: ' + e.message);
+    }
+}
+let _spLastVariants = null;
+
+async function spGenerate() {
+    if (!_spSource) return;
+    const count = parseInt(document.getElementById('spCount').value, 10) || 1;
+    const preset = _spStrength;
+
+    document.getElementById('spGenBtn').disabled = true;
+    showProgress(true, `Generating ${count} ${preset} variants…`, 0);
+
+    // Small batches (<=4) go via /quick (synchronous, faster UX); larger via /job.
+    const allow_mirror = document.getElementById('spAllowMirror').checked;
+
+    if (count <= 4) {
+        try {
+            const r = await fetch('/api/spoof/quick', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({source_path: _spSource.path,
+                                      preset, count, allow_mirror})
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || 'failed');
+            renderResults(d.variants || []);
+            showProgress(false);
+        } catch (e) {
+            showProgress(true, 'Error: ' + e.message, 0);
+        } finally {
+            document.getElementById('spGenBtn').disabled = false;
+        }
+        return;
+    }
+
+    // Async job
+    try {
+        const r = await fetch('/api/spoof/job', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({source_path: _spSource.path,
+                                  preset, count, allow_mirror})
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'failed');
+        _spCurrentJobId = d.job_id;
+        pollJob();
+    } catch (e) {
+        showProgress(true, 'Error: ' + e.message, 0);
+        document.getElementById('spGenBtn').disabled = false;
+    }
+}
+
+async function pollJob() {
+    if (!_spCurrentJobId || _spPolling) return;
+    _spPolling = true;
+    try {
+        while (true) {
+            const r = await fetch('/api/spoof/job/' + _spCurrentJobId);
+            const d = await r.json();
+            const total = d.count || 1;
+            const done = d.progress || 0;
+            const pct = Math.round(done / total * 100);
+            showProgress(true,
+                `${d.status === 'running' ? 'Spoofing' : d.status}: ${done}/${total}`,
+                pct);
+            renderResults(d.variants || []);
+            if (['done','failed','partial'].includes(d.status)) {
+                document.getElementById('spGenBtn').disabled = false;
+                if (d.error_message) {
+                    document.getElementById('spProgStatus').textContent =
+                        'Error: ' + d.error_message;
+                } else if (d.status === 'done') {
+                    setTimeout(() => showProgress(false), 1500);
+                }
+                break;
+            }
+            await new Promise(r => setTimeout(r, 1200));
+        }
+    } finally {
+        _spPolling = false;
+    }
+}
+
+function showProgress(active, label, pct) {
+    const el = document.getElementById('spProgress');
+    el.classList.toggle('active', active);
+    if (!active) return;
+    document.getElementById('spProgLabel').textContent = label;
+    document.getElementById('spProgPct').textContent = (pct || 0) + '%';
+    document.getElementById('spProgFill').style.width = (pct || 0) + '%';
+}
+
+function renderResults(variants) {
+    _spLastVariants = variants;
+    const grid = document.getElementById('spResults');
+    const cards = [];
+    if (_spSource) {
+        cards.push(renderCard({
+            original: true, label: 'ORIGINAL', path: _spSource.path,
+            kind: _spSource.kind, size_bytes: _spSource.size_bytes,
+        }));
+    }
+    variants.forEach((v, i) => {
+        cards.push(renderCard({
+            original: false,
+            label: `VARIANT ${i + 1}`,
+            path: v.variant_path,
+            kind: _spSource && _spSource.kind,
+            size_bytes: (v.stats && v.stats.dst_size_bytes) || null,
+            seed: v.seed,
+            stats: v.stats,
+            index: i,
+        }));
+    });
+    grid.innerHTML = cards.join('');
+    _refreshLightbox();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+{% endblock %}

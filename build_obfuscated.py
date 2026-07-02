@@ -341,7 +341,7 @@ def run_pyarmor(py_files: list, dry_run: bool = False) -> dict:
             # for named imports and access violations on Python 3.13.
             # "--enable-rft",    # DISABLED — breaks cross-module imports
             "--mix-str",         # Obfuscate string constants (safe)
-            "--enable-bcc",      # Compile to C extensions (strongest protection, needs clang)
+            # "--enable-bcc",    # DISABLED — requires VC++ runtime on client, causes DLL load failures
         ] + file_paths
         
         result = subprocess.run(
@@ -369,7 +369,7 @@ def run_pyarmor(py_files: list, dry_run: bool = False) -> dict:
                     "--output", str(output_dir),
                     # "--enable-rft",  # DISABLED — breaks cross-module imports
                     "--mix-str",
-                    "--enable-bcc",
+                    # "--enable-bcc",  # DISABLED — requires VC++ runtime on client
                     str(FARM_DIR / f),
                 ]
                 

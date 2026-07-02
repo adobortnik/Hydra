@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Hydra — Mirror (native){% endblock %}
+{% block content %}
+<style>
+#cpm { --acc:#7c6cf0; --surf:#16181f; --surf2:#1b1e27; --bd:#272b37; --dim:#8b90a2; color:#e9eaf1; }
+#cpm .hd { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+#cpm .pill { background:var(--surf2); border:1px solid var(--bd); border-radius:9px; padding:6px 12px; font-size:.82rem; color:var(--dim); }
+#cpm .btn-g { background:var(--surf2); border:1px solid var(--bd); color:#e9eaf1; border-radius:9px; padding:7px 14px; font-size:.84rem; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:7px; }
+#cpm .btn-g:hover { border-color:var(--acc); color:#fff; }
+#cpm .btn-acc { background:var(--acc); border-color:var(--acc); color:#fff; }
+#cpm .frame-wrap { background:#000; border:1px solid var(--bd); border-radius:14px; overflow:hidden; height:calc(100vh - 165px); min-height:420px; }
+#cpm iframe { width:100%; height:100%; border:0; display:block; background:#000; }
+#cpm .notice { background:var(--surf); border:1px solid var(--bd); border-radius:14px; padding:34px; text-align:center; }
+#cpm .notice .ic { font-size:2.4rem; color:var(--acc); margin-bottom:14px; }
+#cpm .notice h3 { font-weight:700; margin:0 0 8px; }
+#cpm .notice p { color:var(--dim); max-width:560px; margin:0 auto 10px; font-size:.9rem; line-height:1.6; }
+#cpm code { background:var(--surf2); border:1px solid var(--bd); border-radius:6px; padding:2px 7px; color:#c3b8ff; }
+</style>
+
+<div id="cpm" class="container-fluid py-4">
+  <div class="hd">
+    <div>
+      <h1 style="font-weight:700;margin:0;font-size:1.4rem"><i class="fas fa-tower-broadcast me-2" style="color:var(--acc)"></i>Native Mirror <span class="pill" style="vertical-align:middle">ws-scrcpy · H.264</span></h1>
+      <div style="color:var(--dim);font-size:.84rem">Smooth + sharp real-time mirroring &amp; control. Alternative to the <a href="/cloudphone" style="color:var(--acc)">getscreen view</a>.</div>
+    </div>
+    <a id="cpmOpen" class="btn-g btn-acc" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i>Open in new tab</a>
+  </div>
+
+  <div id="cpmHost"></div>
+</div>
+
+<script>
+(function(){
+  const PORT = {{ ws_port }};
+  const host = location.hostname || 'localhost';
+  const mirrorUrl = 'http://' + host + ':' + PORT + '/';
+  document.getElementById('cpmOpen').href = mirrorUrl;
+  const wrap = document.getElementById('cpmHost');
+
+  // If the dashboard is on https (e.g. via Cloudflare), browsers block embedding
+  // an http iframe (mixed content) AND a remote browser can't reach the farm's
+  // LAN address anyway. Show a clear path instead of a broken frame.
+  if (location.protocol === 'https:') {
+    wrap.innerHTML = `
+      <div class="notice">
+        <div class="ic"><i class="fas fa-shield-halved"></i></div>
+        <h3>Native mirror runs locally on the farm PC</h3>
+        <p>ws-scrcpy serves at <code>${mirrorUrl}</code> on the farm machine. It can't be
+        embedded over the public HTTPS dashboard (mixed-content + it's a LAN address),
+        and it has no password — so it isn't exposed publicly.</p>
+        <p><b>On the farm PC / LAN</b> open the dashboard at <code>http://&lt;farm-ip&gt;:5055/cloudphone-mirror</code>
+        and it embeds here directly. To use it remotely, we can add an authenticated
+        Cloudflare route — ask and I'll set it up.</p>
+        <p style="margin-top:16px"><a class="btn-g btn-acc" href="${mirrorUrl}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square me-1"></i>Try opening it anyway</a></p>
+      </div>`;
+    return;
+  }
+
+  // http (local / LAN) → embed it
+  wrap.innerHTML = '<div class="frame-wrap"><iframe src="' + mirrorUrl + '" allow="fullscreen" title="native mirror"></iframe></div>';
+})();
+</script>
+{% endblock %}

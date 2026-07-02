@@ -49,6 +49,104 @@ _stop_requested = set()  # batch_ids that should stop
 
 
 # ─────────────────────────────────────────────
+# THREAD-AWARE STDOUT TEE (for live log window)
+# ─────────────────────────────────────────────
+# Each login worker thread can attach its own log file. All print() calls
+# from that thread (including those from imported modules like login_automation)
+# get teed to the file in addition to the normal stdout. Other threads
+# (HTTP request handlers, bot launchers) are unaffected.
+
+class _ThreadAwareTee:
+    def __init__(self, original_stdout):
+        self._orig = original_stdout
+        self._files = {}  # thread_id -> file_handle
+        self._lock = threading.Lock()
+
+    def attach(self, file_handle):
+        tid = threading.get_ident()
+        with self._lock:
+            self._files[tid] = file_handle
+
+    def detach(self):
+        tid = threading.get_ident()
+        with self._lock:
+            self._files.pop(tid, None)
+
+    def write(self, data):
+        try:
+            self._orig.write(data)
+        except Exception:
+            pass
+        tid = threading.get_ident()
+        with self._lock:
+            f = self._files.get(tid)
+        if f:
+            try:
+                f.write(data)
+                f.flush()
+            except Exception:
+                pass
+
+    def flush(self):
+        try:
+            self._orig.flush()
+        except Exception:
+            pass
+
+    def isatty(self):
+        try:
+            return self._orig.isatty()
+        except Exception:
+            return False
+
+    def __getattr__(self, name):
+        return getattr(self._orig, name)
+
+
+_tee_stdout = None
+_tee_lock = threading.Lock()
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+
+
+def _ensure_tee_installed():
+    global _tee_stdout
+    with _tee_lock:
+        if _tee_stdout is None:
+            _tee_stdout = _ThreadAwareTee(sys.stdout)
+            sys.stdout = _tee_stdout
+
+
+def _login_log_path():
+    """Single shared log file for live login automation window."""
+    os.makedirs(LOG_DIR, exist_ok=True)
+    return os.path.join(LOG_DIR, 'login_automation_live.log')
+
+
+def _attach_worker_log():
+    """Open the shared log file in append mode and attach to this thread."""
+    _ensure_tee_installed()
+    try:
+        f = open(_login_log_path(), 'a', encoding='utf-8', buffering=1)
+        _tee_stdout.attach(f)
+        return f
+    except Exception:
+        return None
+
+
+def _detach_worker_log(file_handle):
+    if _tee_stdout is not None:
+        try:
+            _tee_stdout.detach()
+        except Exception:
+            pass
+    if file_handle:
+        try:
+            file_handle.close()
+        except Exception:
+            pass
+
+
+# ─────────────────────────────────────────────
 # PAGE ROUTE
 # ─────────────────────────────────────────────
 
@@ -296,6 +394,50 @@ def api_reset_failed():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@login_v2_bp.route('/api/login-v2/open-log-window', methods=['POST'])
+def api_open_log_window():
+    """
+    Open a separate console window that live-tails the login automation log.
+    Spawned as a detached cmd window using PowerShell's Get-Content -Wait
+    (equivalent of `tail -f`).
+
+    Body: { batch_id: "batch_xxx" }  (optional — used only for window title)
+    """
+    try:
+        import subprocess
+        data = request.get_json(silent=True) or {}
+        batch_id = data.get('batch_id') or 'live'
+        log_path = _login_log_path()
+
+        # Make sure the file exists so PS doesn't error out
+        try:
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            if not os.path.exists(log_path):
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.utcnow().isoformat()}] login automation live log created\n")
+        except Exception:
+            pass
+
+        title = f"Login Automation Live - {batch_id}"
+        # PowerShell Get-Content -Wait acts like tail -f.
+        # We start it via `cmd /c start` so the window is detached from Flask.
+        ps_cmd = (
+            f"$Host.UI.RawUI.WindowTitle='{title}'; "
+            f"Write-Host 'Live login automation log:'; "
+            f"Write-Host '{log_path}'; "
+            f"Write-Host '----------------------------------------'; "
+            f"Get-Content -Path '{log_path}' -Wait -Tail 50"
+        )
+        subprocess.Popen(
+            ['cmd', '/c', 'start', title, 'powershell', '-NoExit', '-Command', ps_cmd],
+            shell=False,
+            creationflags=getattr(subprocess, 'CREATE_NEW_CONSOLE', 0)
+        )
+        return jsonify({'status': 'success', 'log_path': log_path, 'title': title})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @login_v2_bp.route('/api/login-v2/stop', methods=['POST'])
 def api_stop_login():
     """Stop a running login batch. Remaining tasks revert to pending."""
@@ -510,13 +652,21 @@ _verify_lock = threading.Lock()
 
 @login_v2_bp.route('/api/login-v2/active-accounts', methods=['GET'])
 def api_active_accounts():
-    """Get all active (logged-in) accounts for the verify modal."""
+    """
+    Get all CHECKABLE accounts (any status except dead ones) for the verify
+    modal. Verifier opens every clone and corrects status both ways —
+    upgrade if actually logged in, downgrade if actually out — so we
+    want to surface ALL non-dead accounts in the modal, not just 'active'.
+    """
     try:
-        accounts = get_all_accounts(status_filter=['active'])
+        CHECKABLE = ['active', 'logged_in', 'login_failed', 'logged_out',
+                     'verification_required', 'pending_login', 'logging_in']
+        accounts = get_all_accounts(status_filter=CHECKABLE)
         return jsonify({
             'status': 'success',
             'accounts': accounts,
             'total': len(accounts),
+            'note': 'All non-dead accounts surfaced. Suspended/banned/replaced excluded.',
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -537,17 +687,39 @@ def api_verify_accounts():
     data = request.get_json() or {}
     device_serials = data.get('device_serials', [])
 
-    # Get accounts to verify — only "active" ones (the ones we think are logged in)
+    # By default check ALL "checkable" accounts — even login_failed, logged_out
+    # etc. The verifier will UPGRADE actually-logged-in accounts to active and
+    # DOWNGRADE actually-out accounts to login_failed. This corrects DB drift
+    # caused by post-login modal verification failures.
+    #
+    # We still SKIP terminally-dead statuses (no point opening IG on a banned
+    # account — IG will only confirm the death).
+    CHECKABLE = (
+        'active', 'logged_in',
+        'login_failed', 'logged_out',
+        'verification_required',  # might have resolved on its own after a few days
+        'pending_login', 'logging_in',
+    )
+    SKIP_STATUSES = ('suspended', 'banned', 'replaced', 'disabled')
+
+    # `only_active=true` body flag preserves the OLD behavior (check only
+    # currently-active accounts) for callers that explicitly want it.
+    only_active = bool(data.get('only_active', False))
+    allowed = ('active',) if only_active else CHECKABLE
+
     if device_serials:
         accounts = []
         for ds in device_serials:
             accounts.extend(get_accounts_for_device(ds))
-        accounts = [a for a in accounts if a.get('status') == 'active']
+        accounts = [a for a in accounts
+                    if (a.get('status') or '').lower() in allowed]
     else:
-        accounts = get_all_accounts(status_filter=['active'])
+        accounts = get_all_accounts(status_filter=list(allowed))
 
     if not accounts:
-        return jsonify({'status': 'error', 'message': 'No active accounts to verify'}), 400
+        return jsonify({'status': 'error',
+                        'message': f'No checkable accounts to verify '
+                                   f'(allowed statuses: {", ".join(allowed)})'}), 400
 
     # Group by device
     by_device = {}
@@ -698,27 +870,84 @@ def _verify_one_device(device_serial, accounts):
                         _verify_state['results'].append({
                             'username': username, 'device': device_serial,
                             'package': package, 'status': 'not_logged_in',
+                            'reason': reason,
                         })
                 else:
                     # === Check positive logged-in indicators ===
                     logged_in = False
-                    p_rid = package + ':id/profile_tab'
-                    if device(resourceId=p_rid).exists(timeout=3):
-                        logged_in = True
-                    elif device(description="Profile").exists(timeout=2) and 'sign up' not in xl:
-                        logged_in = True
-                    elif device(description="Home").exists(timeout=2) and 'sign up' not in xl and 'join instagram' not in xl:
-                        logged_in = True
-                    elif device(description="Search and explore").exists(timeout=2):
-                        logged_in = True
+
+                    # First, check for post-login modals. These ONLY appear
+                    # AFTER a successful login (Android permission dialogs,
+                    # IG's "Set up new device" / location / save login info /
+                    # welcome screens). If any of these are on screen, the
+                    # account is logged in but a modal is blocking the home
+                    # feed — exactly the case John was hitting manually.
+                    post_login_modals = [
+                        # Android 13+ system permission dialogs
+                        'com.android.permissioncontroller',
+                        'send you notifications',
+                        'allow notifications',
+                        'turn on notifications',
+                        # IG location flow
+                        'set up on new device',
+                        'to use location services',
+                        'allow instagram to access your location',
+                        "access this device's location",
+                        'access this device’s location',
+                        'while using the app',
+                        'only this time',
+                        'how you can use location services',
+                        # Save login info / device-trust
+                        'save your login info',
+                        "we'll remember this device",
+                        'we’ll remember this device',
+                        # Other typical post-login prompts
+                        'add a profile photo',
+                        'add profile photo',
+                        'discover people to follow',
+                        'find people to follow',
+                        'sync contacts',
+                        "see when you're online",
+                        'see when you’re online',
+                    ]
+                    matched_modal = None
+                    for marker in post_login_modals:
+                        if marker in xl:
+                            matched_modal = marker
+                            logged_in = True
+                            break
+
+                    if not logged_in:
+                        p_rid = package + ':id/profile_tab'
+                        if device(resourceId=p_rid).exists(timeout=3):
+                            logged_in = True
+                        elif device(description="Profile").exists(timeout=2) and 'sign up' not in xl:
+                            logged_in = True
+                        elif device(description="Home").exists(timeout=2) and 'sign up' not in xl and 'join instagram' not in xl:
+                            logged_in = True
+                        elif device(description="Search and explore").exists(timeout=2):
+                            logged_in = True
+                    elif matched_modal:
+                        print(f"[VERIFY] {device_serial} | {username} — post-login modal detected: '{matched_modal}'")
 
                 if not not_logged and logged_in:
                     print(f"[VERIFY] {device_serial} | {username} — LOGGED IN")
+                    # UPGRADE status to active (corrects accounts that were
+                    # mis-flagged as login_failed when verify_logged_in() got
+                    # confused by a post-login modal).
+                    try:
+                        prev = (acc.get('status') or '').lower()
+                        if prev != 'active':
+                            update_account_status(acc_id, 'active')
+                            print(f"[VERIFY] {device_serial} | {username} status: {prev} -> active")
+                    except Exception as _e:
+                        print(f"[VERIFY] {username} status upgrade failed: {_e}")
                     with _verify_lock:
                         _verify_state['verified'] += 1
                         _verify_state['results'].append({
                             'username': username, 'device': device_serial,
                             'package': package, 'status': 'verified',
+                            'previous_status': acc.get('status'),
                         })
                 elif not not_logged and not logged_in:
                     # Uncertain = conservative, mark as failed
@@ -790,6 +1019,18 @@ def _run_device_logins(batch_id, device_serial, tasks):
     Runs in a background thread.
     Auto-stops bot engine on the device before starting logins.
     """
+    # Tee this thread's stdout to the shared live-log file (used by the
+    # optional "Live log window" toggle in the v2 UI).
+    log_handle = _attach_worker_log()
+    print(f"\n{'='*70}\n[BATCH {batch_id}] device={device_serial} starting {len(tasks)} task(s) at {datetime.utcnow().isoformat()}\n{'='*70}")
+    try:
+        _run_device_logins_inner(batch_id, device_serial, tasks)
+    finally:
+        print(f"[BATCH {batch_id}] device={device_serial} thread done\n")
+        _detach_worker_log(log_handle)
+
+
+def _run_device_logins_inner(batch_id, device_serial, tasks):
     # Stop bot engine if running on this device
     stopped_pid = _stop_bot_engine_on_device(device_serial)
     if stopped_pid:

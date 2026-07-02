@@ -110,6 +110,58 @@ def unclaim_job_slot(job_id):
         log.error("JOB #%d: Failed to unclaim slot: %s", job_id, e)
 
 
+def is_post_url(target):
+    """Check if the target is an Instagram post/reel URL (not a username)."""
+    return ('instagram.com' in target and
+            ('/p/' in target or '/reel/' in target or '/reels/' in target or '/tv/' in target))
+
+
+def open_post_via_deeplink(device, device_serial, package, url):
+    """
+    Open an Instagram post/reel URL via ADB deep link.
+    Returns True if the post loaded successfully.
+    """
+    import subprocess
+    adb_serial = device_serial.replace('_', ':')
+    clean_url = url.split('?')[0]  # Strip query params like ?igsh=...
+
+    # Force-stop for clean state
+    subprocess.run(
+        ['adb', '-s', adb_serial, 'shell', 'am', 'force-stop', package],
+        capture_output=True, timeout=5
+    )
+    random_sleep(1, 2, label="force_stop_wait")
+
+    # Open via deep link
+    subprocess.run(
+        ['adb', '-s', adb_serial, 'shell', 'am', 'start',
+         '-a', 'android.intent.action.VIEW', '-d', clean_url, package],
+        capture_output=True, timeout=10
+    )
+    random_sleep(5, 8, label="deeplink_post_load")
+
+    # Check if post loaded (look for like button or media)
+    has_content = (
+        device(resourceIdMatches='.*row_feed_button_like').exists(timeout=3) or
+        device(descriptionContains='Like').exists(timeout=2) or
+        device(resourceIdMatches='.*media_group').exists(timeout=2)
+    )
+
+    if not has_content:
+        # Scroll down in case header is blocking
+        info = device.info
+        h = info.get('displayHeight', 1920)
+        w = info.get('displayWidth', 1080)
+        device.swipe(w // 2, int(h * 0.7), w // 2, int(h * 0.3), steps=20)
+        random_sleep(1, 2, label="scroll_after_deeplink")
+        has_content = (
+            device(resourceIdMatches='.*row_feed_button_like').exists(timeout=2) or
+            device(descriptionContains='Like').exists(timeout=2)
+        )
+
+    return has_content
+
+
 def wait_for_global_delay(job_id, delay_seconds):
     """
     Check last action time for this job across ALL devices using a shared
@@ -406,13 +458,18 @@ class JobExecutor:
     # ------------------------------------------------------------------
     def _execute_follow(self, budget, done_today):
         """
-        Follow users from target account's follower list.
-        Uses the same IGController methods as FollowAction:
-          - search_user() → navigate to source profile
-          - open_followers() → open followers list
-          - get_visible_usernames_in_list() → parse usernames from list
-          - follow_user_from_list() → click Follow button next to username
-          - scroll_list() → scroll for more users
+        Follow the TARGET account directly.
+        Each of our accounts follows the target profile (click Follow button).
+        
+        Flow:
+          1. Atomic claim a slot (prevents overshoot with 50 parallel devices)
+          2. search_user(target) → navigate to target profile
+          3. Check Follow button state
+          4. Click Follow if not already following
+          5. VERIFY button changed to "Following" or "Requested"
+          6. Unclaim if failed
+        
+        One follow per account per job execution.
         """
         from automation.ig_controller import IGController
 
@@ -420,7 +477,41 @@ class JobExecutor:
         pkg = self.account.get('package', 'com.instagram.androie')
         ctrl = IGController(self.device, self.device_serial, pkg)
 
+        target = self.target.lstrip('@')
+
+        log.info("[%s] JOB #%d (follow): Following @%s directly "
+                 "(%d/%d today, %d/%s total)",
+                 self.device_serial, self.job_id, target,
+                 done_today, self.daily_limit,
+                 self.job.get('completed_count', 0),
+                 str(self.target_count) if self.target_count > 0 else '∞')
+
+        # --- Step 0: Check if this account already completed this job (prevent unfollow) ---
+        try:
+            conn = get_db()
+            already = conn.execute(
+                "SELECT COUNT(*) FROM job_history "
+                "WHERE job_id = ? AND account_id = ? AND status = 'success'",
+                (self.job_id, self.account_id)
+            ).fetchone()[0]
+            conn.close()
+            if already > 0:
+                log.info("[%s] JOB #%d: Account %s already followed target, skipping "
+                         "(prevent unfollow)", self.device_serial, self.job_id, self.username)
+                result['skipped'] += 1
+                return result
+        except Exception as e:
+            log.warning("[%s] JOB #%d: Could not check history: %s",
+                        self.device_serial, self.job_id, e)
+
+        # --- Step 1: Atomic claim ---
+        if not claim_job_slot(self.job_id):
+            log.info("[%s] JOB #%d: Target reached, skipping", 
+                     self.device_serial, self.job_id)
+            return result
+
         ctrl.ensure_app()
+        time.sleep(2)
         ctrl.dismiss_popups()
 
         # Enable AdbKeyboard for search typing
@@ -429,128 +520,125 @@ class JobExecutor:
         except Exception:
             pass
 
-        # Get recently followed to avoid duplicates
-        recently_followed = get_recently_interacted(
-            self.device_serial, self.username, 'follow', days=14)
-
-        source = self.target.lstrip('@')
-        session_target = min(budget, random.randint(8, 18))
-
-        log.info("[%s] JOB #%d (follow): Following from @%s's followers "
-                 "(%d/%d today, %d/%s total)",
-                 self.device_serial, self.job_id, source,
-                 done_today, self.daily_limit,
-                 self.job.get('completed_count', 0),
-                 str(self.target_count) if self.target_count > 0 else '∞')
-
-        # Search for source user
-        if not ctrl.search_user(source):
-            log.warning("[%s] JOB #%d: Could not find source @%s",
-                        self.device_serial, self.job_id, source)
+        # --- Step 2: Search for target user ---
+        if not ctrl.search_user(target):
+            log.warning("[%s] JOB #%d: Could not find @%s",
+                        self.device_serial, self.job_id, target)
             record_job_action(self.job_id, self.account_id, 'follow',
-                              source, success=False,
-                              error_message="Source user not found")
+                              target, success=False,
+                              error_message="Target user not found")
+            unclaim_job_slot(self.job_id)
             result['errors'] += 1
             return result
 
-        random_sleep(2, 4, label="on_source_profile")
+        random_sleep(2, 4, label="on_target_profile")
         ctrl.dismiss_popups()
 
-        # Open followers list
-        if not ctrl.open_followers():
-            log.warning("[%s] JOB #%d: Could not open followers for @%s",
-                        self.device_serial, self.job_id, source)
-            ctrl.press_back()
+        # --- Step 3: Find Follow button ---
+        follow_btn = self.device(resourceIdMatches='.*profile_header_follow_button.*')
+        if not follow_btn.exists(timeout=5):
+            # Fallback: text-based search
+            follow_btn = self.device(text='Follow', className='android.widget.Button')
+        if not follow_btn.exists(timeout=3):
+            follow_btn = self.device(textMatches='(?i)^follow$', clickable=True)
+
+        if not follow_btn.exists:
+            log.warning("[%s] JOB #%d: No Follow button found on @%s profile",
+                        self.device_serial, self.job_id, target)
             record_job_action(self.job_id, self.account_id, 'follow',
-                              source, success=False,
-                              error_message="Could not open followers list")
+                              target, success=False,
+                              error_message="No Follow button on profile")
+            unclaim_job_slot(self.job_id)
             result['errors'] += 1
+            ctrl.press_back()
             return result
 
-        random_sleep(2, 4, label="followers_list_loaded")
+        btn_text = (follow_btn.get_text() or '').strip().lower()
 
-        # Scroll through followers and follow (same logic as FollowAction._follow_from_source)
-        max_scroll_attempts = 15
-        scroll_attempts = 0
-        seen_usernames = set()
+        # --- Already following? ---
+        if btn_text in ('following', 'requested'):
+            log.info("[%s] JOB #%d: Already following @%s (%s)",
+                     self.device_serial, self.job_id, target, btn_text)
+            # Count as success (already done)
+            record_job_action(self.job_id, self.account_id, 'follow',
+                              target, success=True)
+            log_action(self.session_id, self.device_serial,
+                       self.username, 'follow',
+                       target_username=target, success=True)
+            result['actions_done'] += 1
+            ctrl.press_back()
+            time.sleep(0.5)
+            ctrl.press_back()
+            return result
 
-        while result['actions_done'] < session_target and scroll_attempts < max_scroll_attempts:
-            # Use get_visible_usernames_in_list (same as FollowAction)
-            usernames = ctrl.get_visible_usernames_in_list()
-            new_users = [u for u in usernames if u not in seen_usernames]
+        # --- Step 4: Click Follow (coordinate click for reliability) ---
+        if btn_text not in ('follow', 'follow back'):
+            log.warning("[%s] JOB #%d: Unexpected button text '%s' on @%s",
+                        self.device_serial, self.job_id, btn_text, target)
+            unclaim_job_slot(self.job_id)
+            result['errors'] += 1
+            ctrl.press_back()
+            return result
 
-            if not new_users:
-                scroll_attempts += 1
-                if scroll_attempts >= max_scroll_attempts:
-                    log.info("[%s] JOB #%d: Reached end of followers list",
-                             self.device_serial, self.job_id)
-                    break
-                ctrl.scroll_list("down")
-                random_sleep(1, 2)
-                continue
+        try:
+            bounds = follow_btn.info.get('bounds', {})
+            cx = (bounds.get('left', 0) + bounds.get('right', 0)) // 2
+            cy = (bounds.get('top', 0) + bounds.get('bottom', 0)) // 2
+            if cx > 0 and cy > 0:
+                self.device.click(cx, cy)
+            else:
+                follow_btn.click()
+        except Exception as e:
+            log.warning("[%s] JOB #%d: Click error: %s", 
+                        self.device_serial, self.job_id, e)
+            unclaim_job_slot(self.job_id)
+            result['errors'] += 1
+            ctrl.press_back()
+            return result
 
-            scroll_attempts = 0  # Reset on finding new users
+        time.sleep(3)
 
-            for uname in new_users:
-                if result['actions_done'] >= session_target:
-                    break
+        # --- Step 5: VERIFY follow actually worked ---
+        # Re-fetch button (fresh element, not cached)
+        verify_btn = self.device(resourceIdMatches='.*profile_header_follow_button.*')
+        if not verify_btn.exists(timeout=3):
+            verify_btn = self.device(textMatches='(?i)^(following|requested)$', clickable=True)
 
-                seen_usernames.add(uname)
-                clean = uname.strip().lstrip('@').lower()
+        verified = False
+        if verify_btn.exists:
+            new_text = (verify_btn.get_text() or '').strip().lower()
+            if new_text in ('following', 'requested'):
+                verified = True
+                log.info("[%s] JOB #%d (follow): VERIFIED — @%s followed @%s (%s)",
+                         self.device_serial, self.job_id, self.username, target, new_text)
 
-                if not clean or clean == self.username.lower():
-                    continue
-                if clean in recently_followed:
-                    result['skipped'] += 1
-                    continue
-
-                # Use follow_user_from_list (same as FollowAction)
-                try:
-                    followed = ctrl.follow_user_from_list(uname)
-                    if followed is True:
-                        result['actions_done'] += 1
-                        recently_followed.add(clean)
-
-                        # Record to job_history + update counters
-                        record_job_action(self.job_id, self.account_id,
-                                          'follow', clean, success=True)
-
-                        # Also log to action_history for global tracking
-                        log_action(self.session_id, self.device_serial,
-                                   self.username, 'follow',
-                                   target_username=clean, success=True)
-
-                        log.info("[%s] JOB #%d (follow): Followed @%s (%d/%d today)",
-                                 self.device_serial, self.job_id, clean,
-                                 done_today + result['actions_done'],
-                                 self.daily_limit)
-
-                        action_delay('follow')
-                    elif followed is False:
-                        result['skipped'] += 1
-                    else:
-                        # None = error
-                        result['errors'] += 1
-                except Exception as e:
-                    log.warning("[%s] JOB #%d: Error following @%s: %s",
-                                self.device_serial, self.job_id, clean, e)
-                    result['errors'] += 1
-
-            # Scroll down for more
-            ctrl.scroll_list("down")
-            random_sleep(1.5, 3, label="scroll_followers")
+        if verified:
+            result['actions_done'] += 1
+            record_job_action(self.job_id, self.account_id, 'follow',
+                              target, success=True)
+            log_action(self.session_id, self.device_serial,
+                       self.username, 'follow',
+                       target_username=target, success=True)
+        else:
+            # Follow click didn't stick — unclaim
+            log.warning("[%s] JOB #%d: Follow NOT verified for @%s (button: %s)",
+                        self.device_serial, self.job_id, target,
+                        verify_btn.get_text() if verify_btn.exists else 'gone')
+            unclaim_job_slot(self.job_id)
+            record_job_action(self.job_id, self.account_id, 'follow',
+                              target, success=False,
+                              error_message="Follow not verified - button did not change")
+            result['errors'] += 1
 
         # Go back to clean state
         ctrl.press_back()
         time.sleep(1)
         ctrl.press_back()
-        time.sleep(1)
-        ctrl.press_back()
         time.sleep(0.5)
 
-        log.info("[%s] JOB #%d (follow): Done. Followed %d, skipped %d, errors %d",
+        log.info("[%s] JOB #%d (follow): Done. success=%d, errors=%d",
                  self.device_serial, self.job_id,
-                 result['actions_done'], result['skipped'], result['errors'])
+                 result['actions_done'], result['errors'])
         return result
 
     # ------------------------------------------------------------------
@@ -580,7 +668,7 @@ class JobExecutor:
 
         source = self.target.lstrip('@')
         is_post_url = ('instagram.com' in self.target and
-                       ('/p/' in self.target or '/reel/' in self.target))
+                       ('/p/' in self.target or '/reel/' in self.target or '/reels/' in self.target))
 
         # For URL targets: 1 like per account. For profiles: multiple likes.
         if is_post_url:
@@ -597,7 +685,25 @@ class JobExecutor:
                  str(self.target_count) if self.target_count > 0 else '∞')
 
         if is_post_url:
-            # --- Deep link flow (same as comment) ---
+            # --- Check if this account already liked this URL (prevent unlike) ---
+            try:
+                conn = get_db()
+                already = conn.execute(
+                    "SELECT COUNT(*) FROM job_history "
+                    "WHERE job_id = ? AND account_id = ? AND status = 'success'",
+                    (self.job_id, self.account_id)
+                ).fetchone()[0]
+                conn.close()
+                if already > 0:
+                    log.info("[%s] JOB #%d: Account %s already liked this post, skipping "
+                             "(prevent unlike)", self.device_serial, self.job_id, self.username)
+                    result['skipped'] += 1
+                    return result
+            except Exception as e:
+                log.warning("[%s] JOB #%d: Could not check history: %s",
+                            self.device_serial, self.job_id, e)
+
+            # --- Deep link flow ---
             adb_serial = self.device_serial.replace('_', ':')
             clean_url = self.target.split('?')[0]
             # Force-stop IG for clean state
@@ -622,6 +728,9 @@ class JobExecutor:
                 def _find_like_btn(timeout=1):
                     return (
                         d(resourceIdMatches='.*row_feed_button_like').exists(timeout=timeout) or
+                        d(resourceIdMatches='.*like_button').exists(timeout=timeout) or
+                        d(resourceIdMatches='.*clips_like_button').exists(timeout=timeout) or
+                        d(resourceIdMatches='.*reel_viewer_texture_view').exists(timeout=timeout) or
                         d(descriptionContains='Like').exists(timeout=timeout)
                     )
 
@@ -875,7 +984,7 @@ class JobExecutor:
         # Detect if target is a post URL or a username
         # Handles both instagram.com/p/XXX and instagram.com/user/p/XXX formats
         is_post_url = ('instagram.com' in self.target and
-                       ('/p/' in self.target or '/reel/' in self.target))
+                       ('/p/' in self.target or '/reel/' in self.target or '/reels/' in self.target))
 
         comment_action.ctrl.ensure_app()
         comment_action.ctrl.dismiss_popups()
@@ -1152,21 +1261,43 @@ class JobExecutor:
     def _execute_share_to_story(self, budget, done_today):
         """
         Share target account's posts to this account's story.
-        Delegates to ShareToStoryAction's proven internal methods:
-          - _share_from_source() handles the full flow:
-            search_user → open grid → click share → add to story → publish
+        Supports both:
+          - Post/reel URL → deep link → share to story
+          - Username → search_user → open grid → share to story
         """
         from automation.actions.share_to_story import ShareToStoryAction
+        import subprocess
 
         result = {'actions_done': 0, 'errors': 0, 'skipped': 0}
         pkg = self.account.get('package', 'com.instagram.androie')
 
         source = self.target.lstrip('@')
-        session_target = min(budget, random.randint(1, 3))  # Stories are less frequent
+        target_is_url = is_post_url(self.target)
+        session_target = min(budget, 1 if target_is_url else random.randint(1, 3))
 
-        log.info("[%s] JOB #%d (share_to_story): Sharing @%s's posts to story "
+        # --- Check if this account already shared this (prevent duplicate) ---
+        if target_is_url:
+            try:
+                conn = get_db()
+                already = conn.execute(
+                    "SELECT COUNT(*) FROM job_history "
+                    "WHERE job_id = ? AND account_id = ? AND status = 'success'",
+                    (self.job_id, self.account_id)
+                ).fetchone()[0]
+                conn.close()
+                if already > 0:
+                    log.info("[%s] JOB #%d: Account %s already shared this post, skipping",
+                             self.device_serial, self.job_id, self.username)
+                    result['skipped'] += 1
+                    return result
+            except Exception as e:
+                log.warning("[%s] JOB #%d: Could not check history: %s",
+                            self.device_serial, self.job_id, e)
+
+        log.info("[%s] JOB #%d (share_to_story): Sharing %s to story "
                  "(%d/%d today, %d/%s total)",
-                 self.device_serial, self.job_id, source,
+                 self.device_serial, self.job_id,
+                 f"post URL" if target_is_url else f"@{source}'s posts",
                  done_today, self.daily_limit,
                  self.job.get('completed_count', 0),
                  str(self.target_count) if self.target_count > 0 else '∞')
@@ -1180,43 +1311,112 @@ class JobExecutor:
         share_action.ctrl.ensure_app()
         share_action.ctrl.dismiss_popups()
 
-        for i in range(session_target + 2):
-            if result['actions_done'] >= session_target:
-                break
-
-            try:
-                share_action.ctrl.dismiss_popups()
-                # Use ShareToStoryAction's proven _share_from_source method
-                shared = share_action._share_from_source(source)
-                if shared:
-                    result['actions_done'] += 1
-                    record_job_action(self.job_id, self.account_id,
-                                      'share_to_story', source, success=True)
-                    log_action(self.session_id, self.device_serial,
-                               self.username, 'share_to_story',
-                               target_username=source, success=True)
-                    log.info("[%s] JOB #%d (share_to_story): Shared @%s's post to story "
-                             "(%d/%d today)",
-                             self.device_serial, self.job_id, source,
-                             done_today + result['actions_done'],
-                             self.daily_limit)
-                    random_sleep(10, 20, label="after_story_share")
-                else:
-                    result['skipped'] += 1
-                    result['errors'] += 1
-
-                # Pause between shares
-                if result['actions_done'] < session_target:
-                    random_sleep(5, 15, label="between_story_shares")
-
-            except Exception as e:
-                log.warning("[%s] JOB #%d: Error sharing to story: %s",
-                            self.device_serial, self.job_id, e)
+        if target_is_url:
+            # --- URL flow: open post via deep link, then share to story ---
+            if not open_post_via_deeplink(self.device, self.device_serial, pkg, self.target):
+                log.warning("[%s] JOB #%d: Could not open post URL: %s",
+                            self.device_serial, self.job_id, self.target)
+                record_job_action(self.job_id, self.account_id,
+                                  'share_to_story', source, success=False,
+                                  error_message="Could not open post URL")
                 result['errors'] += 1
+                return result
+
+            share_action.ctrl.dismiss_popups()
+
+            # Find share/send button on the post
+            d = self.device
+            share_btn = (
+                d(resourceIdMatches='.*row_feed_button_share') or
+                d(descriptionContains='Share') or
+                d(descriptionContains='Send')
+            )
+            if share_btn.exists(timeout=3):
+                share_btn.click()
+                random_sleep(2, 3, label="share_menu_open")
+
+                # Look for "Add to your story" option
+                story_opt = (
+                    d(textContains='Add to your story') or
+                    d(textContains='Add reel to your story') or
+                    d(textContains='story')
+                )
+                if story_opt.exists(timeout=3):
+                    story_opt.click()
+                    random_sleep(3, 5, label="story_editor_load")
+
+                    # Publish — look for share/done button
+                    publish_btn = (
+                        d(resourceIdMatches='.*share_story_button') or
+                        d(descriptionContains='Share') or
+                        d(textContains='Share') or
+                        d(text='Your story')
+                    )
+                    if publish_btn.exists(timeout=5):
+                        publish_btn.click()
+                        random_sleep(3, 5, label="publishing_story")
+                        result['actions_done'] += 1
+                        record_job_action(self.job_id, self.account_id,
+                                          'share_to_story', source, success=True)
+                        log_action(self.session_id, self.device_serial,
+                                   self.username, 'share_to_story',
+                                   target_username=source, success=True)
+                        log.info("[%s] JOB #%d (share_to_story): Shared post URL to story",
+                                 self.device_serial, self.job_id)
+                    else:
+                        log.warning("[%s] JOB #%d: Could not find publish button",
+                                    self.device_serial, self.job_id)
+                        result['errors'] += 1
+                else:
+                    log.warning("[%s] JOB #%d: Could not find 'Add to story' option",
+                                self.device_serial, self.job_id)
+                    result['errors'] += 1
+            else:
+                log.warning("[%s] JOB #%d: Could not find share button on post",
+                            self.device_serial, self.job_id)
+                result['errors'] += 1
+
+            # Go back to clean state
+            share_action.ctrl.press_back()
+            time.sleep(1)
+            share_action.ctrl.press_back()
+        else:
+            # --- Username flow: use ShareToStoryAction's proven method ---
+            for i in range(session_target + 2):
+                if result['actions_done'] >= session_target:
+                    break
+
                 try:
-                    share_action._recover()
-                except Exception:
-                    pass
+                    share_action.ctrl.dismiss_popups()
+                    shared = share_action._share_from_source(source)
+                    if shared:
+                        result['actions_done'] += 1
+                        record_job_action(self.job_id, self.account_id,
+                                          'share_to_story', source, success=True)
+                        log_action(self.session_id, self.device_serial,
+                                   self.username, 'share_to_story',
+                                   target_username=source, success=True)
+                        log.info("[%s] JOB #%d (share_to_story): Shared @%s's post to story "
+                                 "(%d/%d today)",
+                                 self.device_serial, self.job_id, source,
+                                 done_today + result['actions_done'],
+                                 self.daily_limit)
+                        random_sleep(10, 20, label="after_story_share")
+                    else:
+                        result['skipped'] += 1
+                        result['errors'] += 1
+
+                    if result['actions_done'] < session_target:
+                        random_sleep(5, 15, label="between_story_shares")
+
+                except Exception as e:
+                    log.warning("[%s] JOB #%d: Error sharing to story: %s",
+                                self.device_serial, self.job_id, e)
+                    result['errors'] += 1
+                    try:
+                        share_action._recover()
+                    except Exception:
+                        pass
 
         log.info("[%s] JOB #%d (share_to_story): Done. Shared %d, skipped %d, errors %d",
                  self.device_serial, self.job_id,

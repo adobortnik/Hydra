@@ -400,6 +400,17 @@
                     <label class="form-label">Notes</label>
                     <textarea class="form-control bg-dark text-white border-secondary" id="editNotes" rows="2"></textarea>
                 </div>
+                <hr class="border-secondary">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="small text-muted">Accounts on this device</div>
+                        <div id="editBrokenSummary" class="text-muted">Loading…</div>
+                    </div>
+                    <button type="button" class="btn btn-sm" style="background:#8b5cf6;color:#fff;"
+                            id="editReplaceBtn" onclick="openReplaceFromEdit()" disabled>
+                        <i class="fas fa-rotate me-1"></i> Replace broken
+                    </button>
+                </div>
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -437,6 +448,72 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-warning" id="grantPermConfirmBtn" onclick="startGrantPermissions()">
                     &#x1F511; Grant All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="replaceAcctModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">&#x1F501; Replace broken accounts — <span id="replaceAcctLabel"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger py-2 mb-2" id="replaceAcctBrokenBanner">
+                    <strong id="replaceAcctBrokenN">…</strong> broken (red) account(s)
+                    on this device will be replaced.
+                </div>
+                <p class="text-muted small mb-2">
+                    For each broken account (banned / suspended / challenge / login_failed /
+                    verification_required / logged_out) the IG clone is data-cleared
+                    (adb pm clear), a new account is assigned, and a pending login task is
+                    created so it appears in Login Automation. Healthy accounts are untouched.
+                </p>
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab"
+                                data-bs-target="#tabPaste" type="button">Paste accounts</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab"
+                                data-bs-target="#tabInv" type="button">From inventory</button>
+                    </li>
+                </ul>
+                <div class="tab-content pt-3">
+                    <div class="tab-pane fade show active" id="tabPaste">
+                        <label class="form-label small">
+                            One account per line:
+                            <code>username:password:2fa_secret:email</code>
+                            (2fa &amp; email optional). Consumed top-to-bottom,
+                            one per broken account.
+                        </label>
+                        <textarea id="replaceAcctPaste" class="form-control bg-black text-white border-secondary"
+                                  rows="8" placeholder="user1:pass1:JBSWY3DPEHPK3PXP&#10;user2:pass2"
+                                  oninput="updatePasteCounter()"></textarea>
+                        <div class="small mt-1" id="replaceAcctPasteCounter">
+                            0 / 0 accounts added
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="tabInv">
+                        <div class="alert alert-secondary mb-0">
+                            Pull the next available accounts from
+                            <strong>account_inventory</strong> (status = available),
+                            one per broken account, in id order.
+                        </div>
+                    </div>
+                </div>
+                <div class="d-none mt-3" id="replaceAcctResults">
+                    <div class="alert mb-0" id="replaceAcctResultsText"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary" id="replaceAcctFooter">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn" style="background:#8b5cf6;color:#fff;"
+                        id="replaceAcctConfirmBtn" onclick="submitReplaceAccounts()">
+                    &#x1F501; Replace
                 </button>
             </div>
         </div>
@@ -522,6 +599,9 @@ function renderDevices(devices) {
                     <button class="btn-action btn-edit" onclick="editDevice(${dev.id}, '${escAttr(dev.device_serial)}', '${escAttr(dev.device_name||'')}', '${escAttr(dev.notes||'')}')" title="Edit">
                         <i class="fas fa-edit"></i>
                     </button>
+                    <button class="btn-action btn-delete" onclick="deleteDevice(${dev.id}, '${escAttr(dev.device_serial)}', '${escAttr(dev.device_name||'')}', ${dev.account_count || 0})" title="Delete device (removes from DB)">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </td>
         </tr>`;
@@ -530,7 +610,7 @@ function renderDevices(devices) {
 
 function updateStats(devices) {
     const total = devices.length;
-    const online = devices.filter(d => d.status === 'connected').length;
+    const online = devices.filter(d => d.bot_status === 'active' || d.bot_status === 'hung').length;
     const offline = total - online;
     const accounts = devices.reduce((sum, d) => sum + (d.account_count || 0), 0);
 
@@ -976,12 +1056,175 @@ function addDevice() {
     });
 }
 
+let _replaceTarget = { serial: null, label: null, broken: 0 };
+
 function editDevice(id, serial, name, notes) {
     document.getElementById('editDeviceId').value = id;
     document.getElementById('editSerial').value = serial;
     document.getElementById('editName').value = name;
     document.getElementById('editNotes').value = notes;
+
+    const label = name && name !== serial ? `${name} (${serial})` : serial;
+    _replaceTarget = { serial, label, broken: 0 };
+
+    const summary = document.getElementById('editBrokenSummary');
+    const repBtn = document.getElementById('editReplaceBtn');
+    summary.textContent = 'Loading…';
+    summary.className = 'text-muted';
+    repBtn.disabled = true;
+
+    fetch('/api/account-health/device-broken-count?device_serial=' +
+          encodeURIComponent(serial))
+        .then(r => r.json())
+        .then(d => {
+            if (d.error) { summary.textContent = d.error; return; }
+            _replaceTarget.broken = d.broken || 0;
+            if (d.broken > 0) {
+                summary.innerHTML =
+                    `<span class="text-danger fw-bold">${d.broken} broken</span>` +
+                    ` / ${d.total} total`;
+                repBtn.disabled = false;
+            } else {
+                summary.innerHTML =
+                    `<span class="text-success">0 broken</span> / ${d.total} total`;
+                repBtn.disabled = true;
+            }
+        })
+        .catch(() => { summary.textContent = 'Could not load account health'; });
+
     new bootstrap.Modal(document.getElementById('editDeviceModal')).show();
+}
+
+function openReplaceFromEdit() {
+    const editModal = bootstrap.Modal.getInstance(
+        document.getElementById('editDeviceModal'));
+    if (editModal) editModal.hide();
+    // small delay so the edit modal's backdrop is fully gone first
+    setTimeout(() => openReplaceModal(), 250);
+}
+
+function openReplaceModal() {
+    const { label, broken } = _replaceTarget;
+    document.getElementById('replaceAcctLabel').textContent = label;
+    document.getElementById('replaceAcctBrokenN').textContent = broken;
+    document.getElementById('replaceAcctPaste').value = '';
+    updatePasteCounter();
+    const res = document.getElementById('replaceAcctResults');
+    res.classList.add('d-none');
+    const btn = document.getElementById('replaceAcctConfirmBtn');
+    btn.disabled = false;
+    btn.innerHTML = '\u{1F501} Replace';
+    new bootstrap.Modal(document.getElementById('replaceAcctModal')).show();
+}
+
+function updatePasteCounter() {
+    const broken = _replaceTarget.broken || 0;
+    const lines = document.getElementById('replaceAcctPaste').value
+        .split('\n').map(s => s.trim()).filter(Boolean);
+    const el = document.getElementById('replaceAcctPasteCounter');
+    const n = lines.length;
+    el.textContent = `${n} / ${broken} accounts added`;
+    if (n === 0) el.className = 'small mt-1 text-muted';
+    else if (n < broken) el.className = 'small mt-1 text-warning';
+    else if (n === broken) el.className = 'small mt-1 text-success';
+    else el.className = 'small mt-1 text-info';  // more pasted than needed (extra ignored)
+}
+
+function submitReplaceAccounts() {
+    const { serial, label } = _replaceTarget;
+    if (!serial) return;
+    const pasteTabActive = document.getElementById('tabPaste')
+        .classList.contains('active');
+
+    const payload = { device_serial: serial };
+    if (pasteTabActive) {
+        const lines = document.getElementById('replaceAcctPaste').value
+            .split('\n').map(s => s.trim()).filter(Boolean);
+        if (!lines.length) {
+            showToast('Paste at least one account (or use the inventory tab)', 'warning');
+            return;
+        }
+        payload.pasted_accounts = lines;
+    }
+
+    const btn = document.getElementById('replaceAcctConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Replacing…';
+
+    fetch('/api/account-health/auto-fix-device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json().then(d => ({ ok: r.ok, body: d })))
+    .then(({ ok, body }) => {
+        const res = document.getElementById('replaceAcctResults');
+        const txt = document.getElementById('replaceAcctResultsText');
+        res.classList.remove('d-none');
+        if (ok && body.success) {
+            let msg = `${label}: ${body.replaced}/${body.broken_found} accounts added (replaced).`;
+            if (body.errors_count > 0) {
+                const first = (body.errors && body.errors[0]) ? body.errors[0].error : '';
+                msg += ` ${body.errors_count} error(s)${first ? ' — ' + first : ''}`;
+            }
+            txt.className = 'alert mb-0 ' +
+                (body.errors_count > 0 ? 'alert-warning' : 'alert-success');
+            txt.textContent = msg;
+            showToast(msg, body.errors_count > 0 ? 'warning' : 'success');
+            refreshDevices();
+        } else {
+            txt.className = 'alert alert-danger mb-0';
+            txt.textContent = body.error || body.message || 'Replace failed';
+            showToast(txt.textContent, 'danger');
+        }
+        btn.disabled = false;
+        btn.innerHTML = '\u{1F501} Replace';
+    })
+    .catch(err => {
+        showToast('Error: ' + err, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '\u{1F501} Replace';
+    });
+}
+
+function deleteDevice(id, serial, name, accountCount) {
+    const label = name && name !== serial ? `${name} (${serial})` : serial;
+    let url = `/api/devices/${id}`;
+
+    if (accountCount > 0) {
+        // Offer cascade-delete (force=true) with extra confirmation.
+        const cascadeMsg =
+            `${label} has ${accountCount} account(s) assigned.\n\n` +
+            `Click OK to CASCADE-DELETE — this will permanently remove:\n` +
+            `  • the device row\n` +
+            `  • all ${accountCount} accounts on it (including passwords, 2FA, history)\n` +
+            `  • their bot settings + browse_profiles sources\n\n` +
+            `This is destructive and IRREVERSIBLE. Use for decommissioning old devices whose accounts are dead.\n\n` +
+            `Cancel to abort.`;
+        if (!confirm(cascadeMsg)) return;
+        // Second confirmation — type the serial
+        const typed = prompt(`Type the device serial to confirm cascade delete:\n${serial}`);
+        if (typed !== serial) {
+            showToast('Cancelled — serial did not match', 'warning');
+            return;
+        }
+        url += '?force=true';
+    } else {
+        if (!confirm(`Delete device ${label} from the database?\n\nThis removes the row from Hydra only — does NOT factory-reset the phone.`)) return;
+    }
+
+    fetch(url, { method: 'DELETE' })
+        .then(r => r.json().then(d => ({ ok: r.ok, body: d })))
+        .then(({ ok, body }) => {
+            if (ok && (body.status === 'success' || body.success)) {
+                const msg = body.message ? body.message : `Device ${label} deleted`;
+                showToast(msg, 'success');
+                refreshDevices();
+            } else {
+                showToast(body.message || body.error || 'Failed to delete device', 'danger');
+            }
+        })
+        .catch(err => showToast('Error: ' + err, 'danger'));
 }
 
 function saveDevice() {

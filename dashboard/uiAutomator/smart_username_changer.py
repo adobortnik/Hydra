@@ -181,7 +181,7 @@ class SmartUsernameChanger:
             ]
 
             for selector in username_selectors:
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     # Click on the field below the "Username" label
                     bounds = selector.info['bounds']
                     # Click below the label (where the actual username is)
@@ -204,7 +204,7 @@ class SmartUsernameChanger:
             # Find the EditText field
             edit_field = self.device(className="android.widget.EditText")
 
-            if not edit_field.exists(timeout=3):
+            if not edit_field.wait(timeout=3):
                 print("  Warning: EditText field not found")
                 return False
 
@@ -213,7 +213,7 @@ class SmartUsernameChanger:
             time.sleep(0.5)
 
             # Try to select all
-            if self.device(text="Select all").exists(timeout=1):
+            if self.device(text="Select all").wait(timeout=1):
                 self.device(text="Select all").click()
                 time.sleep(0.3)
                 self.device.press("delete")
@@ -261,7 +261,7 @@ class SmartUsernameChanger:
                 ]
 
                 for selector in save_selectors:
-                    if selector.exists(timeout=0.5):
+                    if selector.wait(timeout=0.5):
                         print("  Save button is ready, clicking...")
                         selector.click()
                         time.sleep(0.5)
@@ -274,7 +274,7 @@ class SmartUsernameChanger:
 
             # Fallback: Try to click any save button even if not clickable
             for selector in save_selectors:
-                if selector.exists(timeout=1):
+                if selector.wait(timeout=1):
                     selector.click()
                     return True
 
@@ -308,11 +308,11 @@ class SmartUsernameChanger:
 
             # Check for error text on screen
             for error_text in error_indicators:
-                if self.device(textContains=error_text).exists(timeout=2):
+                if self.device(textContains=error_text).wait(timeout=2):
                     return f"Username taken: '{error_text}'"
 
             # Check for generic error dialogs
-            if self.device(className="android.widget.TextView", textMatches=".*error.*|.*Error.*").exists(timeout=1):
+            if self.device(className="android.widget.TextView", textMatches=".*error.*|.*Error.*").wait(timeout=1):
                 error_msg = self.device(className="android.widget.TextView", textMatches=".*error.*|.*Error.*").get_text()
                 return f"Error: {error_msg}"
 
@@ -344,12 +344,12 @@ class SmartUsernameChanger:
             ]
 
             for indicator in edit_profile_indicators:
-                if indicator.exists(timeout=2):
+                if indicator.wait(timeout=2):
                     print(f"  ✓ Found edit profile indicator: {indicator.info.get('text', 'field')}")
                     return True
 
             # Check if we're still on username edit screen (has large EditText field)
-            if self.device(className="android.widget.EditText").exists(timeout=1):
+            if self.device(className="android.widget.EditText").wait(timeout=1):
                 # If EditText exists, we might still be on username edit screen
                 # Check if "Username" label is at the top (indicates username edit screen)
                 if self.device(text="Username").exists() and not self.device(text="Name").exists():
@@ -540,7 +540,7 @@ class SmartUsernameChanger:
             ]
 
             for indicator_text, selector_type in edit_profile_indicators:
-                if self.device(text=indicator_text).exists(timeout=1):
+                if self.device(text=indicator_text).wait(timeout=1):
                     print(f"  ✓ On edit profile screen (found '{indicator_text}')")
                     return True
 
@@ -569,7 +569,7 @@ class SmartUsernameChanger:
             ]
 
             for selector in edit_profile_selectors:
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print("  Found 'Edit profile' button, clicking...")
                     selector.click()
                     time.sleep(2)

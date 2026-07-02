@@ -115,6 +115,10 @@
     }
     .group-filter-btn:hover { border-color: #0d6efd; color: #e0e0e0; }
     .group-filter-btn.active { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+    /* Tag bubble variant (yellow accent) */
+    .group-filter-btn[data-type="tag"] { border-color: #6c5b3e; color: #e0c98c; }
+    .group-filter-btn[data-type="tag"]:hover { border-color: #ffc107; color: #ffe69c; }
+    .group-filter-btn[data-type="tag"].active { background: #b8860b; border-color: #ffc107; color: #fff; }
     .group-badge {
         font-size: 0.65rem;
         padding: 0.15rem 0.4rem;
@@ -173,12 +177,6 @@
                                 <select class="form-select bg-dark text-white border-secondary" id="deviceSelect" multiple size="3">
                                 </select>
                                 <small class="text-white-50">Hold Ctrl/Cmd to select multiple devices</small>
-                            </div>
-                            <div class="mb-3">
-                                <label for="tagSelect" class="form-label">Filter by Tag:</label>
-                                <select class="form-select bg-dark text-white border-secondary" id="tagSelect" multiple size="3">
-                                </select>
-                                <small class="text-white-50">Hold Ctrl/Cmd to select multiple tags</small>
                             </div>
                             <div class="mb-2">
                                 <button class="btn btn-sm btn-outline-secondary w-100" id="clearFiltersBtn">
@@ -275,12 +273,6 @@ username3
                                 <select class="form-select bg-dark text-white border-secondary" id="settingsDeviceSelect" multiple size="3">
                                 </select>
                                 <small class="text-white-50">Hold Ctrl/Cmd to select multiple devices</small>
-                            </div>
-                            <div class="mb-3">
-                                <label for="settingsTagSelect" class="form-label">Filter by Tag:</label>
-                                <select class="form-select bg-dark text-white border-secondary" id="settingsTagSelect" multiple size="3">
-                                </select>
-                                <small class="text-white-50">Hold Ctrl/Cmd to select multiple tags</small>
                             </div>
                             <div class="mb-2">
                                 <button class="btn btn-sm btn-outline-secondary w-100" id="settingsClearFiltersBtn">
@@ -417,31 +409,17 @@ username3
         });
     }
 
-    async function populateTagDropdown(selectEl) {
-        if (!selectEl) return;
-        try {
-            const r = await fetch('/api/profile_automation/tags');
-            if (!r.ok) throw new Error('Failed to load tags');
-            const tags = await r.json();
-            selectEl.innerHTML = '';
-            tags.forEach(t => {
-                const o = document.createElement('option');
-                o.value = t.name;
-                o.textContent = t.name;
-                selectEl.appendChild(o);
-            });
-        } catch (e) {
-            console.error('Error loading tags:', e);
-        }
-    }
-
-    function applyFilters(accounts, deviceSelect, tagSelect, search, activeGroup) {
+    // activeFilter format: '' | 'group:NAME' | 'tag:NAME'
+    function applyFilters(accounts, deviceSelect, search, activeFilter) {
         let f = [...accounts];
-        if (activeGroup) f = f.filter(a => getGroupKey(a) === activeGroup);
+        if (activeFilter) {
+            const [type, ...rest] = activeFilter.split(':');
+            const value = rest.join(':');
+            if (type === 'group') f = f.filter(a => getGroupKey(a) === value);
+            else if (type === 'tag') f = f.filter(a => Array.isArray(a.tags) && a.tags.includes(value));
+        }
         const devs = Array.from(deviceSelect.selectedOptions).map(o => o.value);
-        const tags = Array.from(tagSelect.selectedOptions).map(o => o.value);
         if (devs.length) f = f.filter(a => devs.includes(a.device_id));
-        if (tags.length) f = f.filter(a => a.tags && a.tags.some(t => tags.includes(t)));
         if (search) {
             const s = search.toLowerCase();
             f = f.filter(a => a.account_name.toLowerCase().includes(s) || a.device_id.toLowerCase().includes(s));
@@ -453,25 +431,44 @@ username3
     function getGroupKey(acct) {
         if (acct.device_group) return acct.device_group;
         const name = (acct.device_name || acct.device_id || '').toUpperCase();
-        const m = name.match(/^([A-Z]+)/);
+        const m = name.match(/^([A-Z]+\d*)/);
         return m ? m[1] : name.split(/[\s_]/)[0] || '?';
     }
 
-    function renderGroupBar(barId, accounts, activeGroup, onSelect) {
+    function renderGroupBar(barId, accounts, activeFilter, onSelect) {
         const bar = document.getElementById(barId);
         if (!bar) return;
-        const groups = {};
-        accounts.forEach(a => { const g = getGroupKey(a); groups[g] = (groups[g]||0) + 1; });
-        const sorted = Object.keys(groups).sort();
-        if (sorted.length <= 1) { bar.innerHTML = ''; return; }
+        // Device groups
+        const groupCounts = {};
+        // Tag counts (each account counted at most once per tag)
+        const tagCounts = {};
+        accounts.forEach(a => {
+            const g = getGroupKey(a);
+            if (g) groupCounts[g] = (groupCounts[g] || 0) + 1;
+            if (Array.isArray(a.tags)) {
+                a.tags.forEach(t => { if (t) tagCounts[t] = (tagCounts[t] || 0) + 1; });
+            }
+        });
+        const groupKeys = Object.keys(groupCounts).sort();
+        const tagKeys   = Object.keys(tagCounts).sort();
+        if (groupKeys.length <= 1 && tagKeys.length === 0) { bar.innerHTML = ''; return; }
         const total = accounts.length;
-        bar.innerHTML =
-            `<span class="group-filter-btn ${!activeGroup?'active':''}" data-group="">${escHtml('All')} <span class="group-badge">${total}</span></span>` +
-            sorted.map(g =>
-                `<span class="group-filter-btn ${activeGroup===g?'active':''}" data-group="${escHtml(g)}">${escHtml(g)} <span class="group-badge">${groups[g]}</span></span>`
-            ).join('');
+
+        const allBtn = `<span class="group-filter-btn ${!activeFilter?'active':''}" data-key="">All <span class="group-badge">${total}</span></span>`;
+        const groupBtns = groupKeys.map(g => {
+            const key = `group:${g}`;
+            const active = activeFilter === key ? 'active' : '';
+            return `<span class="group-filter-btn ${active}" data-type="group" data-key="${escHtml(key)}" title="Device group"><i class="fas fa-mobile-alt me-1"></i>${escHtml(g)} <span class="group-badge">${groupCounts[g]}</span></span>`;
+        }).join('');
+        const tagBtns = tagKeys.map(t => {
+            const key = `tag:${t}`;
+            const active = activeFilter === key ? 'active' : '';
+            return `<span class="group-filter-btn ${active}" data-type="tag" data-key="${escHtml(key)}" title="Account tag"><i class="fas fa-tag me-1"></i>${escHtml(t)} <span class="group-badge">${tagCounts[t]}</span></span>`;
+        }).join('');
+
+        bar.innerHTML = allBtn + groupBtns + tagBtns;
         bar.querySelectorAll('.group-filter-btn').forEach(btn => {
-            btn.onclick = () => onSelect(btn.dataset.group || '');
+            btn.onclick = () => onSelect(btn.dataset.key || '');
         });
     }
 
@@ -513,7 +510,6 @@ username3
     const $accountsList = document.getElementById('accountsList');
     const $search       = document.getElementById('accountSearch');
     const $deviceSel    = document.getElementById('deviceSelect');
-    const $tagSel       = document.getElementById('tagSelect');
     const $clearFilters = document.getElementById('clearFiltersBtn');
     const $selectAll    = document.getElementById('selectAllAccounts');
     const $countBadge   = document.getElementById('selectedCount');
@@ -593,7 +589,7 @@ username3
     let srcActiveGroup = '';
 
     function doFilter() {
-        filteredAccounts = applyFilters(allAccounts, $deviceSel, $tagSel, currentSearch, srcActiveGroup);
+        filteredAccounts = applyFilters(allAccounts, $deviceSel, currentSearch, srcActiveGroup);
         renderAccounts();
     }
 
@@ -606,11 +602,9 @@ username3
     // Wire shared-pane events once
     $search.addEventListener('input', function() { currentSearch = this.value; doFilter(); });
     $deviceSel.addEventListener('change', doFilter);
-    $tagSel.addEventListener('change', doFilter);
     $clearFilters.addEventListener('click', function() {
         $search.value = ''; currentSearch = ''; srcActiveGroup = '';
         $deviceSel.selectedIndex = -1;
-        $tagSel.selectedIndex = -1;
         renderGroupBar('groupFilterBar', allAccounts, srcActiveGroup, onSrcGroupSelect);
         doFilter();
     });
@@ -680,7 +674,6 @@ username3
             filteredAccounts = [...allAccounts];
             renderAccounts();
             populateDeviceDropdown($deviceSel, allAccounts);
-            await populateTagDropdown($tagSel);
             srcActiveGroup = '';
             renderGroupBar('groupFilterBar', allAccounts, srcActiveGroup, onSrcGroupSelect);
         } catch (err) {
@@ -703,7 +696,6 @@ username3
         $editor.value = '';
         $resultsCont.style.display = 'none';
         $deviceSel.selectedIndex = -1;
-        $tagSel.selectedIndex = -1;
 
         // Update UI text
         const fileNote = filename ? ` (<strong>${filename}</strong>)` : '';
@@ -780,7 +772,6 @@ username3
         const sList    = document.getElementById('settingsAccountsList');
         const sSearch  = document.getElementById('settingsAccountSearch');
         const sDevice  = document.getElementById('settingsDeviceSelect');
-        const sTag     = document.getElementById('settingsTagSelect');
         const sClearF  = document.getElementById('settingsClearFiltersBtn');
         const sSelAll  = document.getElementById('settingsSelectAllAccounts');
         const sCount   = document.getElementById('settingsSelectedCount');
@@ -794,7 +785,7 @@ username3
 
         let accts = [], filtered = [], selected = new Set(), search = '', sActiveGroup = '';
 
-        function doFilter() { filtered = applyFilters(accts, sDevice, sTag, search, sActiveGroup); render(); }
+        function doFilter() { filtered = applyFilters(accts, sDevice, search, sActiveGroup); render(); }
 
         function onSettingsGroupSelect(g) {
             sActiveGroup = g;
@@ -825,8 +816,7 @@ username3
 
         sSearch.addEventListener('input', function() { search = this.value; doFilter(); });
         sDevice.addEventListener('change', doFilter);
-        sTag.addEventListener('change', doFilter);
-        sClearF.addEventListener('click', function() { sSearch.value=''; search=''; sDevice.selectedIndex=-1; sTag.selectedIndex=-1; sActiveGroup=''; renderGroupBar('settingsGroupFilterBar', accts, sActiveGroup, onSettingsGroupSelect); doFilter(); });
+        sClearF.addEventListener('click', function() { sSearch.value=''; search=''; sDevice.selectedIndex=-1; sActiveGroup=''; renderGroupBar('settingsGroupFilterBar', accts, sActiveGroup, onSettingsGroupSelect); doFilter(); });
         sSelAll.addEventListener('change', function() { filtered.forEach(a => { const id=`${a.device_id}/${a.account_name}`; this.checked?selected.add(id):selected.delete(id); }); render(); });
         sClearS.addEventListener('click', function() { selected.clear(); render(); });
 
@@ -860,7 +850,6 @@ username3
                 if (!r.ok) throw new Error('Failed');
                 accts = await r.json(); filtered=[...accts]; render();
                 populateDeviceDropdown(sDevice, accts);
-                await populateTagDropdown(sTag);
                 sActiveGroup = '';
                 renderGroupBar('settingsGroupFilterBar', accts, sActiveGroup, onSettingsGroupSelect);
             } catch(e) {

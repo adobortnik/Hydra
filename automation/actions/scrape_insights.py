@@ -912,10 +912,13 @@ def save_insights_to_db(data, account_id, device_serial=None, db_path=None):
             device_serial,
             data.get('scraped_at', datetime.datetime.now().isoformat()),
             data.get('date_range'),
-            # Overview
-            overview.get('views'),
-            overview.get('interactions'),
-            overview.get('new_followers'),
+            # Overview — prefer drilled detail totals where they're more accurate.
+            # views_detail.total parses `content-desc="N Views"` from the Views
+            # detail page; the dashboard overview parser was picking up
+            # "Accounts reached" instead of the real Views number.
+            views.get('total') if views.get('total') is not None else overview.get('views'),
+            interactions.get('total') if interactions.get('total') is not None else overview.get('interactions'),
+            overview.get('new_followers'),  # overview value is reliable
             overview.get('content_shared'),
             # Views detail
             views.get('accounts_reached'),

@@ -1688,6 +1688,7 @@ function renderExecutionTable(tasks) {
         const statusIcon = {
             pending: '<span class="task-status pending"><i class="fas fa-clock"></i> Pending</span>',
             processing: '<span class="task-status processing"><i class="fas fa-spinner fa-spin"></i> Processing</span>',
+            in_progress: '<span class="task-status processing"><i class="fas fa-spinner fa-spin"></i> In progress</span>',
             completed: '<span class="task-status completed"><i class="fas fa-check"></i> Done</span>',
             failed: '<span class="task-status failed"><i class="fas fa-times"></i> Failed</span>'
         }[t.status] || `<span class="task-status">${t.status}</span>`;
@@ -1703,18 +1704,35 @@ function renderExecutionTable(tasks) {
 
         const error = t.error_message ? `<span class="text-danger small">${(t.error_message || '').substring(0, 50)}</span>` : '';
 
+        // Device cell: show serial + IG package badge. Highlight bare
+        // 'com.instagram.android' (= classic IG, NOT a clone) — that's
+        // almost always a misconfiguration. See the Craig #895-908 incident.
+        const pkg = t.instagram_package || '';
+        const isBarePkg = pkg === 'com.instagram.android';
+        const pkgBadge = pkg
+            ? `<span class="badge ${isBarePkg ? 'bg-danger' : 'bg-secondary'} ms-1"
+                     title="${isBarePkg ? 'Classic IG (no clone) — this is almost certainly wrong' : 'Clone'}">
+                 ${pkg.replace('com.instagram.', '')}
+               </span>`
+            : '';
+        const devCell = `<span class="text-muted small">${(t.device_serial || '').replace(/_/g, ':')}</span><br>${pkgBadge}`;
+
+        // Action buttons — log + restart + delete always available.
+        // Force-delete-confirm for in-progress/processing (stuck-detection).
         let actions = '';
-        if (t.status === 'failed') {
-            actions += `<button class="btn btn-xs btn-outline-warning" onclick="restartTask(${t.id})" title="Retry"><i class="fas fa-redo"></i></button>`;
+        actions += `<button class="btn btn-xs btn-outline-info" onclick="viewTaskLog(${t.id})" title="View worker log"><i class="fas fa-file-lines"></i></button>`;
+        if (t.status === 'failed' || t.status === 'completed') {
+            actions += ` <button class="btn btn-xs btn-outline-warning" onclick="restartTask(${t.id})" title="Re-queue as pending"><i class="fas fa-redo"></i></button>`;
         }
-        if (t.status === 'pending' || t.status === 'failed') {
-            actions += ` <button class="btn btn-xs btn-outline-danger" onclick="deleteTask(${t.id})" title="Delete"><i class="fas fa-trash"></i></button>`;
-        }
+        // Delete is available for EVERY status — gives operator a way out of
+        // stuck rows that an old worker crash left behind.
+        const isStuck = t.status === 'in_progress' || t.status === 'processing';
+        actions += ` <button class="btn btn-xs btn-outline-danger" onclick="deleteTask(${t.id}, ${isStuck})" title="${isStuck ? 'Force-delete stuck task' : 'Delete'}"><i class="fas fa-trash"></i></button>`;
 
         html += `<tr>
             <td>${statusIcon}</td>
             <td><strong>${t.username || '?'}</strong></td>
-            <td class="text-muted small">${(t.device_serial || '').replace(/_/g, ':').substring(0, 20)}</td>
+            <td>${devCell}</td>
             <td>${actionBadges}</td>
             <td>${details}</td>
             <td>${error}</td>
@@ -1723,6 +1741,71 @@ function renderExecutionTable(tasks) {
     });
 
     tbody.html(html);
+}
+
+// ── Log viewer modal ──
+function viewTaskLog(taskId) {
+    // Ensure modal exists (lazy create)
+    if (!document.getElementById('taskLogModal')) {
+        $('body').append(`
+        <div class="modal fade" id="taskLogModal" tabindex="-1">
+          <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content bg-dark text-white border-secondary">
+              <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-file-lines me-2"></i>
+                  Worker log — task #<span id="taskLogId">?</span>
+                  <span class="badge bg-secondary ms-2" id="taskLogAttempts"></span>
+                </h5>
+                <div class="ms-auto d-flex gap-2 align-items-center">
+                  <button class="btn btn-sm btn-outline-secondary" onclick="refreshTaskLog()"
+                          title="Refresh"><i class="fas fa-sync"></i></button>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+              </div>
+              <div class="modal-body" style="font-family:ui-monospace,Menlo,monospace;
+                   font-size:0.78rem; background:#0a0a10;">
+                <div id="taskLogStatus" class="text-muted mb-2"></div>
+                <pre id="taskLogContent" style="color:#e5e7eb; white-space:pre-wrap;
+                     word-break:break-word; margin:0;">Loading…</pre>
+              </div>
+            </div>
+          </div>
+        </div>`);
+    }
+    document.getElementById('taskLogId').textContent = taskId;
+    document.getElementById('taskLogContent').textContent = 'Loading…';
+    document.getElementById('taskLogAttempts').textContent = '';
+    document.getElementById('taskLogStatus').textContent = '';
+    window._activeTaskLogId = taskId;
+    new bootstrap.Modal(document.getElementById('taskLogModal')).show();
+    refreshTaskLog();
+}
+
+function refreshTaskLog() {
+    const taskId = window._activeTaskLogId;
+    if (!taskId) return;
+    $.get(`/api/profile_automation/tasks/${taskId}/log`)
+        .done(function(d) {
+            if (d.status === 'success') {
+                document.getElementById('taskLogContent').textContent = d.log || '(empty)';
+                document.getElementById('taskLogAttempts').textContent =
+                    d.attempts ? `${d.attempts} attempt${d.attempts > 1 ? 's' : ''} · ${d.lines} lines` : '';
+                document.getElementById('taskLogStatus').textContent =
+                    d.attempts > 0
+                        ? `Reading from dashboard_stdout.log — auto-scroll to bottom to see latest.`
+                        : 'No log lines found — the task may not have started yet, or its log is older than our tail window.';
+                // Scroll log to bottom
+                const pre = document.getElementById('taskLogContent');
+                pre.scrollTop = pre.scrollHeight;
+                pre.parentElement.scrollTop = pre.parentElement.scrollHeight;
+            } else {
+                document.getElementById('taskLogContent').textContent =
+                    'Error: ' + (d.message || 'failed to load');
+            }
+        })
+        .fail(function() {
+            document.getElementById('taskLogContent').textContent = 'Network error loading log.';
+        });
 }
 
 function runAllTasks() {
@@ -1830,7 +1913,12 @@ function restartTask(taskId) {
     });
 }
 
-function deleteTask(taskId) {
+function deleteTask(taskId, isStuck) {
+    if (isStuck) {
+        if (!confirm(`Task #${taskId} is marked as Processing/In-progress.\n\n` +
+                     `Usually means the worker crashed mid-task and never marked it done.\n` +
+                     `Delete anyway?`)) return;
+    }
     $.ajax({
         url: `/api/profile_automation/tasks/${taskId}`,
         method: 'DELETE',
@@ -1838,7 +1926,12 @@ function deleteTask(taskId) {
             if (data.status === 'success') {
                 showToast(`Task ${taskId} deleted`, 'success');
                 refreshExecution();
+            } else {
+                showToast(data.message || 'Delete failed', 'error');
             }
+        },
+        error: function(xhr) {
+            showToast('Delete failed', 'error');
         }
     });
 }

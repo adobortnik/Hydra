@@ -159,25 +159,92 @@
             <h5 class="mb-0"><i class="fas fa-file-import me-2"></i>Step 2: Import Accounts</h5>
         </div>
         <div class="card-body">
-            <div class="mb-3">
-                <label class="form-label">
-                    Paste Accounts
-                    <small class="text-muted">(username:password:2fa_token — one per line)</small>
-                </label>
-                <textarea class="form-control bg-dark text-white border-secondary font-monospace"
-                    id="accountsText" rows="12"
-                    placeholder="username1:password1:2FA_SECRET&#10;username2:password2&#10;username3:password3:ANOTHER_SECRET"></textarea>
-                <div class="d-flex justify-content-between mt-1">
-                    <small class="text-muted">2FA token is optional. Duplicates auto-removed.</small>
-                    <small class="text-info" id="lineCount">0 accounts</small>
+
+            <!-- Tabs: Paste vs From Inventory -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabPaste" type="button" role="tab">
+                        <i class="fas fa-paste me-1"></i>Paste
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tabInventoryBtn" data-bs-toggle="tab" data-bs-target="#tabInventory" type="button" role="tab">
+                        <i class="fas fa-boxes-stacked me-1"></i>From Inventory
+                        <span class="badge bg-secondary ms-1" id="invCountBadge">…</span>
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+
+                <!-- PASTE tab (original) -->
+                <div class="tab-pane fade show active" id="tabPaste" role="tabpanel">
+                    <label class="form-label">
+                        Paste Accounts
+                        <small class="text-muted">(username:password:2fa_token — one per line)</small>
+                    </label>
+                    <textarea class="form-control bg-dark text-white border-secondary font-monospace"
+                        id="accountsText" rows="12"
+                        placeholder="username1:password1:2FA_SECRET&#10;username2:password2&#10;username3:password3:ANOTHER_SECRET"></textarea>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-muted">2FA token is optional. Duplicates auto-removed.</small>
+                        <small class="text-info" id="lineCount">0 accounts</small>
+                    </div>
+                </div>
+
+                <!-- INVENTORY tab -->
+                <div class="tab-pane fade" id="tabInventory" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <input type="text" id="invSearch" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                   placeholder="🔍 search username/email/notes…" style="width:240px;">
+                            <select id="invStatusFilter" class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;">
+                                <option value="unassigned" selected>Only unassigned</option>
+                                <option value="">All statuses</option>
+                                <option value="assigned">assigned</option>
+                                <option value="burned">burned</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadInventory()">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <button class="btn btn-sm btn-outline-light" type="button" onclick="invSelectAll(true)">All</button>
+                            <button class="btn btn-sm btn-outline-light" type="button" onclick="invSelectAll(false)">None</button>
+                            <span class="badge bg-info" id="invSelectedBadge">0 selected</span>
+                        </div>
+                    </div>
+                    <div class="border border-secondary rounded" style="max-height:380px; overflow-y:auto;">
+                        <table class="table table-dark table-sm table-hover mb-0">
+                            <thead style="position:sticky;top:0;background:#1a1a2e;z-index:1;">
+                                <tr>
+                                    <th style="width:36px;"><input type="checkbox" id="invCheckAll" onchange="invSelectAll(this.checked)"></th>
+                                    <th>Username</th>
+                                    <th>2FA</th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Added</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invTableBody">
+                                <tr><td colspan="6" class="text-center text-muted py-3">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2">
+                        <small class="text-muted">Pick rows from Account Inventory and click <strong>Use Selected</strong> to populate the deploy list.</small>
+                        <button class="btn btn-sm btn-success" type="button" onclick="useSelectedInventory()">
+                            <i class="fas fa-arrow-down me-1"></i>Use Selected (<span id="invUseCount">0</span>)
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div class="alert alert-info bg-dark border-info text-white py-2 mb-3" id="capacityAlert" style="display:none">
+            <div class="alert alert-info bg-dark border-info text-white py-2 mb-3 mt-3" id="capacityAlert" style="display:none">
                 <!-- filled by JS -->
             </div>
 
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 mt-3">
                 <button class="btn btn-secondary" onclick="goToStep(1)">
                     <i class="fas fa-arrow-left me-1"></i> Back
                 </button>
@@ -732,5 +799,145 @@ function resetWizard() {
     loadDevices();
     goToStep(1);
 }
+
+// ─────────────── ACCOUNT INVENTORY TAB ───────────────
+let inventoryCache = [];
+const invSelected = new Set();  // ids of picked rows
+
+function fmtDate(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString(); } catch { return iso; }
+}
+
+function loadInventory() {
+    $('#invTableBody').html('<tr><td colspan="6" class="text-center text-muted py-3">Loading…</td></tr>');
+    $.getJSON('/api/inventory/accounts')
+        .done(function(rows) {
+            if (!Array.isArray(rows)) rows = rows.accounts || [];
+            inventoryCache = rows;
+            // Available count = those not assigned and not burned
+            const availableCount = rows.filter(r =>
+                !r.assigned_to_account_id && r.status !== 'burned' && r.status !== 'assigned'
+            ).length;
+            $('#invCountBadge').text(availableCount + ' free');
+            renderInventory();
+        })
+        .fail(function() {
+            $('#invTableBody').html('<tr><td colspan="6" class="text-center text-danger py-3">Failed to load inventory.</td></tr>');
+        });
+}
+
+function renderInventory() {
+    const q = ($('#invSearch').val() || '').toLowerCase().trim();
+    const statusFilter = $('#invStatusFilter').val();
+    let rows = inventoryCache;
+
+    if (statusFilter === 'unassigned') {
+        rows = rows.filter(r => !r.assigned_to_account_id && r.status !== 'assigned' && r.status !== 'burned');
+    } else if (statusFilter) {
+        rows = rows.filter(r => r.status === statusFilter);
+    }
+    if (q) {
+        rows = rows.filter(r =>
+            (r.username || '').toLowerCase().includes(q) ||
+            (r.email || '').toLowerCase().includes(q) ||
+            (r.notes || '').toLowerCase().includes(q)
+        );
+    }
+
+    if (!rows.length) {
+        $('#invTableBody').html('<tr><td colspan="6" class="text-center text-muted py-3">No accounts match.</td></tr>');
+        updateInvSelectedCount();
+        return;
+    }
+
+    const html = rows.map(r => {
+        const isPicked = invSelected.has(r.id);
+        const has2fa = !!(r.two_factor_auth && r.two_factor_auth.length > 5);
+        const statusBadge = r.status === 'burned'
+            ? '<span class="badge bg-danger">burned</span>'
+            : r.status === 'assigned'
+                ? '<span class="badge bg-warning text-dark">assigned</span>'
+                : '<span class="badge bg-success">unassigned</span>';
+        return `<tr data-inv-id="${r.id}">
+            <td><input type="checkbox" class="inv-row-check" data-inv-id="${r.id}" ${isPicked ? 'checked' : ''}></td>
+            <td><code>${(r.username || '').replace(/</g,'&lt;')}</code></td>
+            <td>${has2fa ? '<i class="fas fa-shield-alt text-success" title="has 2FA"></i>' : '<span class="text-muted">—</span>'}</td>
+            <td><small>${(r.email || '').replace(/</g,'&lt;')}</small></td>
+            <td>${statusBadge}</td>
+            <td><small class="text-muted">${fmtDate(r.date_added)}</small></td>
+        </tr>`;
+    }).join('');
+    $('#invTableBody').html(html);
+
+    // Wire row checkbox events
+    $('.inv-row-check').off('change').on('change', function() {
+        const id = parseInt($(this).data('inv-id'), 10);
+        if (this.checked) invSelected.add(id); else invSelected.delete(id);
+        updateInvSelectedCount();
+    });
+    updateInvSelectedCount();
+}
+
+function invSelectAll(checked) {
+    $('.inv-row-check').each(function() {
+        const id = parseInt($(this).data('inv-id'), 10);
+        this.checked = checked;
+        if (checked) invSelected.add(id); else invSelected.delete(id);
+    });
+    $('#invCheckAll').prop('checked', checked);
+    updateInvSelectedCount();
+}
+
+function updateInvSelectedCount() {
+    $('#invSelectedBadge').text(invSelected.size + ' selected');
+    $('#invUseCount').text(invSelected.size);
+}
+
+function useSelectedInventory() {
+    if (invSelected.size === 0) { alert('Select at least one account first.'); return; }
+    // Build username:password:2fa lines
+    const lines = [];
+    inventoryCache.forEach(r => {
+        if (!invSelected.has(r.id)) return;
+        const u = r.username || '';
+        const p = r.password || '';
+        const t = (r.two_factor_auth || '').trim();
+        if (!u || !p) return;
+        lines.push(t ? `${u}:${p}:${t}` : `${u}:${p}`);
+    });
+    if (!lines.length) {
+        alert('Selected rows have no usable credentials (missing username/password).');
+        return;
+    }
+    // Append to existing textarea or replace based on user choice
+    const existing = $('#accountsText').val().trim();
+    let final = lines.join('\n');
+    if (existing) {
+        if (confirm('Append to existing pasted accounts? Cancel = replace.')) {
+            final = existing + '\n' + final;
+        }
+    }
+    $('#accountsText').val(final);
+    updateLineCount();
+    // Switch to Paste tab so user sees the result
+    const pasteTab = new bootstrap.Tab(document.querySelector('[data-bs-target="#tabPaste"]'));
+    pasteTab.show();
+}
+
+// Wire search + status filter
+$(document).on('input', '#invSearch', renderInventory);
+$(document).on('change', '#invStatusFilter', renderInventory);
+
+// Lazy-load inventory only when its tab is shown the first time
+let inventoryLoaded = false;
+document.addEventListener('shown.bs.tab', function(e) {
+    if (e.target?.getAttribute('data-bs-target') === '#tabInventory' && !inventoryLoaded) {
+        loadInventory();
+        inventoryLoaded = true;
+    }
+});
+// Always do an initial inventory count fetch so the badge is meaningful from the start
+loadInventory();
 </script>
 {% endblock %}

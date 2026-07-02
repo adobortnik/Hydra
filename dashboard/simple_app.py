@@ -57,7 +57,7 @@ _logger.info("Dashboard starting up (PID: %d)", os.getpid())
 import zipfile
 
 # Media folder sync functionality is now in a separate script
-from flask import Flask, render_template, jsonify, request, send_from_directory, redirect, make_response, Response
+from flask import Flask, render_template, jsonify, request, send_from_directory, redirect, make_response, Response, g, render_template_string, session, url_for
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from jap_api_utils import JAP_API_KEY, save_jap_api_key, load_jap_api_key
@@ -74,6 +74,64 @@ from bot_launcher_routes import bot_launcher_bp
 from device_management_routes import device_management_bp
 from import_v2_routes import import_v2_bp
 from login_automation_v2_routes import login_v2_bp
+from ig_preview_routes import ig_preview_bp
+from spoofing_routes import spoofing_bp
+try:
+    from feature_flags import is_enabled as _ff_enabled
+except Exception:
+    def _ff_enabled(name): return True
+if _ff_enabled("assistant_chat"):
+    try:
+        from chat_routes import chat_bp
+    except Exception as _e:
+        chat_bp = None
+        print(f"[chat] disabled — import failed: {_e}")
+else:
+    chat_bp = None
+    print("[chat] disabled via feature_flags")
+# ai_executor + account_factory are internal IP — excluded from client builds.
+# Guarded so a dist with the files removed (feature off) still starts cleanly.
+if _ff_enabled("ai_executor"):
+    try:
+        from ai_executor_routes import ai_executor_bp
+    except Exception as _e:
+        ai_executor_bp = None
+        print(f"[ai_executor] disabled — import failed: {_e}")
+else:
+    ai_executor_bp = None
+    print("[ai_executor] disabled via feature_flags")
+if _ff_enabled("account_factory"):
+    try:
+        from account_factory_routes import account_factory_bp
+    except Exception as _e:
+        account_factory_bp = None
+        print(f"[account_factory] disabled — import failed: {_e}")
+else:
+    account_factory_bp = None
+    print("[account_factory] disabled via feature_flags")
+# cloudphone — internal live-mirror tooling (wraps our cloudphone app + scrcpy +
+# PyAV); excluded from client builds.
+if _ff_enabled("cloudphone"):
+    try:
+        from cloudphone_routes import cloudphone_bp
+    except Exception as _e:
+        cloudphone_bp = None
+        print(f"[cloudphone] disabled — import failed: {_e}")
+else:
+    cloudphone_bp = None
+    print("[cloudphone] disabled via feature_flags")
+# mother_dashboard — internal mother/slaves feature, excluded from client builds.
+if _ff_enabled("mother_dashboard"):
+    try:
+        from mothers_routes import mothers_bp
+    except Exception as _e:
+        mothers_bp = None
+        print(f"[mother_dashboard] disabled — import failed: {_e}")
+else:
+    mothers_bp = None
+    print("[mother_dashboard] disabled via feature_flags")
+import auth_users
+from user_management_routes import user_management_bp
 from job_orders_v2_routes import job_orders_v2_bp
 from content_schedule_routes import content_schedule_bp
 from farm_stats_routes import farm_stats_bp
@@ -2490,25 +2548,103 @@ def _auth_required_response():
     )
 
 
-# Ensure config exists at import time
-_load_auth_config()
+_FORBIDDEN_HTML = """<!doctype html><html><head><meta charset="utf-8">
+<title>No access</title><style>body{background:#0f1117;color:#e6e6e6;font-family:system-ui,Segoe UI,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+.box{max-width:480px;text-align:center;padding:32px;background:#171a23;border:1px solid #262b38;border-radius:14px}
+h1{font-size:1.3rem;margin:0 0 8px}p{color:#9aa3b2}a{color:#a99cff;text-decoration:none}
+.links a{display:inline-block;margin:6px 8px;padding:8px 14px;background:#222736;border-radius:8px}</style></head>
+<body><div class="box"><h1>🔒 No access to this section</h1>
+<p>Your account doesn't have the <b>{{ perm }}</b> permission. Ask an admin if you need it.</p>
+<div class="links">{% for k,label in allowed %}<a href="{{ links[k] }}">{{ label }}</a>{% endfor %}</div>
+</div></body></html>"""
 
-# Ensure DB schema is up to date (runs migrations for missing columns)
+# first navigable path for each permission, for the "you can go here" links
+_PERM_LANDING = {
+    'dashboard': '/', 'devices': '/device-manager', 'accounts': '/accounts',
+    'content': '/content-schedule', 'automation': '/profile-automation-v2',
+    'operations': '/job-orders-v2', 'phone_farm': '/farm-stats',
+    'analytics': '/analytics', 'ai_factory': '/ai-executor',
+    'settings': '/settings', 'users': '/users',
+}
+
+
+def _forbidden_response(perm):
+    """Friendly 403 page listing the sections this user CAN open."""
+    user = getattr(g, 'user', None)
+    allowed = [(k, label) for k, label in auth_users.PERMISSIONS
+               if auth_users.user_can(user, k)]
+    html = render_template_string(_FORBIDDEN_HTML, perm=perm, allowed=allowed,
+                                  links=_PERM_LANDING)
+    return Response(html, 403)
+
+
+# Ensure config exists + migrate to the multi-user format at import time
+auth_users.load_config()
+
+# Ensure DB schema is up to date (creates DB on fresh install + runs migrations)
 try:
     import sys as _sys
     _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if _parent not in _sys.path:
         _sys.path.insert(0, _parent)
     from db.migrations import ensure_schema as _ensure_schema
-    _db_path = os.path.join(_parent, 'db', 'phone_farm.db')
+    _db_dir = os.path.join(_parent, 'db')
+    _db_path = os.path.join(_db_dir, 'phone_farm.db')
+    os.makedirs(_db_dir, exist_ok=True)
+    # Fresh install: run init_db.py first to create all tables from scratch
+    if not os.path.exists(_db_path) or os.path.getsize(_db_path) == 0:
+        _logger.info("Fresh install detected — running init_db.py to create all tables")
+        try:
+            _init_db_script = os.path.join(_parent, 'init_db.py')
+            if os.path.exists(_init_db_script):
+                import subprocess as _sp
+                _sp.run([_sys.executable, _init_db_script],
+                        capture_output=True, timeout=60, cwd=_parent, check=False)
+        except Exception as _ie:
+            print(f"[WARNING] init_db.py run failed: {_ie}")
+    # Always run ensure_schema to add any missing columns (safe to call repeatedly)
     if os.path.exists(_db_path):
         _ensure_schema(_db_path)
 except Exception as _e:
     print(f"[WARNING] Schema migration failed: {_e}")
 
+# Auto-create global_settings.json with empty defaults (so AI feature reads don't crash)
+try:
+    _gs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'global_settings.json')
+    if not os.path.exists(_gs_path):
+        _default_settings = {
+            'openai_api_key': '',
+            'anthropic_api_key': '',
+            'jap_api_key': '',
+            'skip_proxy_check': False,
+        }
+        with open(_gs_path, 'w', encoding='utf-8') as _f:
+            json.dump(_default_settings, _f, indent=2)
+        _logger.info("Created default global_settings.json (fill in API keys via Settings page)")
+except Exception as _gse:
+    print(f"[WARNING] global_settings.json creation failed: {_gse}")
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024  # 512 MB per request
+
+# Persistent secret key for session cookies (survives restarts → logins persist).
+def _flask_secret():
+    import secrets
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.flask_secret')
+    try:
+        if os.path.exists(p):
+            return open(p, encoding='utf-8').read().strip()
+        key = secrets.token_hex(32)
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write(key)
+        return key
+    except Exception:
+        return secrets.token_hex(32)
+app.secret_key = _flask_secret()
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 60 * 60 * 24 * 14  # 14 days
 
 # ── Hydra Version ────────────────────────────────────────────────────
 def _load_version():
@@ -2523,7 +2659,16 @@ HYDRA_VERSION = _load_version()
 
 @app.context_processor
 def inject_version():
-    return {'hydra_version': HYDRA_VERSION}
+    # `ff('feature')` hides nav/UI for features off in this build.
+    # `can('perm')` hides nav sections the logged-in user lacks permission for.
+    _u = getattr(g, 'user', None)
+    return {
+        'hydra_version': HYDRA_VERSION,
+        'ff': _ff_enabled,
+        'can': lambda perm: auth_users.user_can(_u, perm),
+        'current_user': _u,
+        'is_superadmin': auth_users.is_superadmin(_u),
+    }
 
 # ── Flask error logging ──────────────────────────────────────────────
 @app.errorhandler(Exception)
@@ -2540,23 +2685,113 @@ def _log_errors(response):
     return response
 
 
-# ---- Basic Auth before_request hook ----
+# Paths reachable WITHOUT a login (the login page itself + its static assets).
+_AUTH_EXEMPT = ('/login', '/static/', '/favicon.ico')
+
+
+def _current_user():
+    """Resolve the logged-in user: session cookie first (nice login page), then
+    HTTP Basic Auth as a fallback so programmatic/API clients keep working.
+    Re-resolves from auth_config each request so permission changes apply live."""
+    uname = session.get('username')
+    if uname:
+        u = auth_users.find_user(uname)
+        if u:
+            return u
+        session.pop('username', None)   # user was deleted → drop stale session
+    auth = request.authorization
+    if auth:
+        return auth_users.check_credentials(auth.username, auth.password)
+    return None
+
+
 @app.before_request
-def _require_basic_auth():
-    """Enforce HTTP Basic Auth on all routes except /api/auth/change-password (handled separately)."""
+def _require_login():
+    """Session/Basic auth + page-level permission enforcement."""
     try:
-        if request.path == '/api/auth/change-password' and request.method == 'POST':
+        path = request.path
+        if any(path == p or path.startswith(p) for p in _AUTH_EXEMPT):
             return None
-        auth = request.authorization
-        if not auth or not _check_auth(auth.username, auth.password):
-            return _auth_required_response()
+        user = _current_user()
+        if not user:
+            # Browsers → friendly login page; API/XHR → 401 JSON (no native popup).
+            if path.startswith('/api/'):
+                return jsonify({'error': 'authentication required'}), 401
+            return redirect(url_for('login_page', next=path))
+        g.user = user
+        perm = auth_users.path_required_permission(path)
+        if perm and not auth_users.user_can(user, perm):
+            return _forbidden_response(perm)
         return None
-    except Exception as e:
-        import traceback, os
+    except Exception:
+        import traceback
         err_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'auth_error.log')
         with open(err_path, 'a') as f:
             f.write(f"\n[{request.path}] Auth error: {traceback.format_exc()}\n")
-        return _auth_required_response()
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'auth error'}), 401
+        return redirect(url_for('login_page'))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login_page():
+    """Custom login page (session-based). Basic Auth still works as a fallback."""
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        user = auth_users.check_credentials(username, password)
+        if user:
+            session['username'] = user['username']
+            session.permanent = True
+            nxt = request.args.get('next') or request.form.get('next') or '/'
+            if not nxt.startswith('/') or nxt.startswith('//'):
+                nxt = '/'
+            return redirect(nxt)
+        return render_template('login.html', error='Invalid username or password',
+                               next=request.args.get('next', '')), 401
+    if session.get('username') and auth_users.find_user(session['username']):
+        return redirect('/')
+    return render_template('login.html', next=request.args.get('next', ''))
+
+
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect(url_for('login_page'))
+
+
+@app.route('/api/settings/engine', methods=['GET'])
+def get_engine_settings():
+    """Get bot engine settings from global_settings.json."""
+    try:
+        gs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'global_settings.json')
+        if os.path.exists(gs_path):
+            with open(gs_path, 'r') as f:
+                gs = json.load(f)
+            return jsonify({
+                'skip_proxy_check': gs.get('skip_proxy_check', False),
+            })
+        return jsonify({'skip_proxy_check': False})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/settings/engine', methods=['POST'])
+def save_engine_settings():
+    """Save bot engine settings to global_settings.json."""
+    try:
+        gs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'global_settings.json')
+        gs = {}
+        if os.path.exists(gs_path):
+            with open(gs_path, 'r') as f:
+                gs = json.load(f)
+        data = request.get_json()
+        gs['skip_proxy_check'] = bool(data.get('skip_proxy_check', False))
+        with open(gs_path, 'w') as f:
+            json.dump(gs, f, indent=2)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/settings/ai', methods=['GET'])
@@ -2629,13 +2864,16 @@ def change_password():
         if len(new_password) < 6:
             return jsonify({'error': 'New password must be at least 6 characters'}), 400
 
-        config = _load_auth_config()
-        if not check_password_hash(config.get('password_hash', ''), current_password):
+        user = getattr(g, 'user', None)
+        if not user:
+            return jsonify({'error': 'Not authenticated'}), 401
+        if not check_password_hash(user.get('password_hash', ''), current_password):
             return jsonify({'error': 'Current password is incorrect'}), 403
 
-        config['password_hash'] = generate_password_hash(new_password)
-        _save_auth_config(config)
-        _logger.info("Dashboard password changed successfully")
+        ok, msg = auth_users.update_user(user['username'], password=new_password)
+        if not ok:
+            return jsonify({'error': msg}), 400
+        _logger.info("Password changed for user %s", user['username'])
 
         return jsonify({'message': 'Password changed successfully'})
     except Exception as e:
@@ -2647,6 +2885,16 @@ def change_password():
 def settings_page():
     """Settings page for changing dashboard password."""
     return render_template('settings_auth.html')
+
+
+@app.route('/users')
+def users_page():
+    """Superadmin: manage users + their permission matrix."""
+    if not auth_users.is_superadmin(getattr(g, 'user', None)):
+        return _forbidden_response('users')
+    return render_template('users.html',
+                           permissions=auth_users.visible_permissions(),
+                           presets=auth_users.PRESETS)
 
 
 # ── Automation Documentation (template-based) ──────────────────────
@@ -2666,11 +2914,17 @@ app.register_blueprint(bulk_import_bp)
 app.register_blueprint(job_orders_bp, url_prefix='/job-orders')
 app.register_blueprint(follow_list_bp)
 app.register_blueprint(bot_launcher_bp)
+if ai_executor_bp is not None:
+    app.register_blueprint(ai_executor_bp)
+if account_factory_bp is not None:
+    app.register_blueprint(account_factory_bp)
 app.register_blueprint(device_management_bp)
 app.register_blueprint(import_v2_bp)
 app.register_blueprint(login_v2_bp)
 app.register_blueprint(job_orders_v2_bp)
 app.register_blueprint(content_schedule_bp)
+app.register_blueprint(ig_preview_bp)
+app.register_blueprint(spoofing_bp)
 app.register_blueprint(farm_stats_bp)
 app.register_blueprint(account_health_bp)
 app.register_blueprint(proxy_bp)
@@ -2681,6 +2935,13 @@ app.register_blueprint(flow_map_bp)
 app.register_blueprint(source_quality_bp)
 app.register_blueprint(sync_bp)
 app.register_blueprint(analytics_bp)
+if cloudphone_bp is not None:
+    app.register_blueprint(cloudphone_bp)
+if mothers_bp is not None:
+    app.register_blueprint(mothers_bp)
+app.register_blueprint(user_management_bp)
+if chat_bp is not None:
+    app.register_blueprint(chat_bp)
 
 # ── Documentation routes ─────────────────────────────────────────────
 DOCS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs')
@@ -2953,6 +3214,154 @@ def api_accounts():
         accounts = [a for a in accounts if a.get('deviceid') == device_filter]
 
     return jsonify(accounts)
+
+@app.route('/api/accounts/overview')
+def api_accounts_overview():
+    """Modern accounts overview — rich per-account data straight from
+    phone_farm.db for the redesigned /accounts page. One efficient pass:
+    status, tag, mother/warmup flags, followers (+24h delta), last action,
+    last post (posts_count snapshot increase), work window, IG account-status
+    issues, unresolved health events, and which actions are enabled."""
+    import json as _json
+    from phone_farm_db import get_conn as _gc
+    conn = _gc()
+    try:
+        rows = conn.execute("""
+            SELECT a.id, a.username, a.device_serial, a.status, a.tag, a.is_mother,
+                   a.start_time, a.end_time, a.warmup, a.is_private,
+                   a.followers, a.following, a.posts, a.instagram_package,
+                   a.account_status_json,
+                   a.follow_enabled, a.like_enabled, a.comment_enabled,
+                   a.story_enabled, a.dm_enabled, a.share_enabled, a.reels_enabled,
+                   d.device_name
+            FROM accounts a
+            LEFT JOIN devices d ON d.device_serial = a.device_serial
+            WHERE COALESCE(a.status,'') != 'replaced'
+            ORDER BY a.username
+        """).fetchall()
+
+        latest, prev = {}, {}
+        for r in conn.execute("""
+            SELECT account_id, followers, following, captured_at,
+                   ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY captured_at DESC) rn
+            FROM follower_snapshots"""):
+            if r['rn'] == 1:
+                latest[r['account_id']] = r
+        for r in conn.execute("""
+            SELECT account_id, followers,
+                   ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY captured_at DESC) rn
+            FROM follower_snapshots WHERE captured_at < datetime('now','-1 day')"""):
+            if r['rn'] == 1:
+                prev[r['account_id']] = r['followers']
+
+        last_action = {r['username']: r['t'] for r in conn.execute(
+            "SELECT username, MAX(timestamp) t FROM action_history GROUP BY username")}
+        today_cnt = {r['username']: r['c'] for r in conn.execute(
+            "SELECT username, COUNT(*) c FROM action_history "
+            "WHERE DATE(timestamp)=DATE('now','localtime') AND success=1 GROUP BY username")}
+        last_post = {r['account_id']: r['t'] for r in conn.execute("""
+            WITH s AS (SELECT account_id, captured_at, posts_count,
+                       LAG(posts_count) OVER (PARTITION BY account_id ORDER BY captured_at) pp
+                       FROM follower_snapshots WHERE posts_count IS NOT NULL)
+            SELECT account_id, MAX(captured_at) t FROM s
+            WHERE pp IS NOT NULL AND posts_count > pp GROUP BY account_id""")}
+        health = {r['account_id']: r['c'] for r in conn.execute(
+            "SELECT account_id, COUNT(*) c FROM account_health_events "
+            "WHERE resolved_at IS NULL GROUP BY account_id")}
+
+        def _on(v):
+            return str(v).lower() in ('1', 'true')
+
+        toggles = [('follow', 'follow_enabled'), ('like', 'like_enabled'),
+                   ('comment', 'comment_enabled'), ('story', 'story_enabled'),
+                   ('dm', 'dm_enabled'), ('reels', 'reels_enabled'),
+                   ('share', 'share_enabled')]
+
+        out = []
+        summary = {'total': 0, 'active': 0, 'mothers': 0, 'warmup': 0,
+                   'issues': 0, 'by_status': {}}
+        for r in rows:
+            aid, uname = r['id'], r['username']
+            lt = latest.get(aid)
+            foll = (lt['followers'] if lt and lt['followers'] is not None else r['followers']) or 0
+            folg = (lt['following'] if lt and lt['following'] is not None else r['following']) or 0
+            base = prev.get(aid)
+            issues = 0
+            if r['account_status_json']:
+                try:
+                    js = _json.loads(r['account_status_json'])
+                    issues = sum(1 for k, v in js.items()
+                                 if k not in ('captured_at', 'checked_at') and v == 'warning')
+                except Exception:
+                    pass
+            is_mother = bool(r['is_mother'])
+            warmup = _on(r['warmup'])
+            d = {
+                'id': aid, 'username': uname,
+                'device_serial': r['device_serial'],
+                'device_name': r['device_name'] or r['device_serial'],
+                'status': r['status'] or 'unknown',
+                'tag': r['tag'] or '',
+                'is_mother': is_mother,
+                'is_private': _on(r['is_private']),
+                'warmup': warmup,
+                'start_time': r['start_time'], 'end_time': r['end_time'],
+                'followers': foll, 'following': folg,
+                'posts': r['posts'] or 0,
+                'followers_delta': (foll - base) if base is not None else None,
+                'last_action_at': last_action.get(uname),
+                'today_actions': today_cnt.get(uname, 0),
+                'last_post_at': last_post.get(aid),
+                'health_events': health.get(aid, 0),
+                'status_issues': issues,
+                'enabled_actions': [k for k, col in toggles if _on(r[col])],
+            }
+            out.append(d)
+            summary['total'] += 1
+            st = (r['status'] or 'unknown').lower()
+            summary['by_status'][st] = summary['by_status'].get(st, 0) + 1
+            if st == 'active':
+                summary['active'] += 1
+            if is_mother:
+                summary['mothers'] += 1
+            if warmup:
+                summary['warmup'] += 1
+            if issues > 0 or health.get(aid, 0) > 0:
+                summary['issues'] += 1
+        return jsonify({'success': True, 'accounts': out, 'summary': summary})
+    finally:
+        conn.close()
+
+
+@app.route('/api/accounts/set-tag', methods=['POST'])
+def api_accounts_set_tag():
+    """Assign a tag (mother group) to one or more accounts by id — powers the
+    /accounts page quick-tag (single row) + bulk-assign (multi-select). The tag
+    is the slave→mother grouping (accounts.tag), same field Account Factory uses.
+    Empty/blank tag clears it. Body: {ids:[int,...], tag:"jagger"}."""
+    from datetime import datetime as _dtnow
+    from phone_farm_db import get_conn as _gc
+    data = request.get_json() or {}
+    raw_ids = data.get('ids') or []
+    tag = (data.get('tag') or '').strip()
+    try:
+        ids = [int(x) for x in raw_ids]
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'bad account ids'}), 400
+    if not ids:
+        return jsonify({'success': False, 'error': 'no account ids provided'}), 400
+    conn = _gc()
+    try:
+        now = _dtnow.now().strftime('%Y-%m-%d %H:%M:%S')
+        ph = ','.join('?' * len(ids))
+        cur = conn.execute(
+            f"UPDATE accounts SET tag=?, updated_at=? WHERE id IN ({ph})",
+            [tag, now, *ids])
+        conn.commit()
+        return jsonify({'success': True, 'updated': cur.rowcount, 'tag': tag})
+    finally:
+        conn.close()
+
 
 @app.route('/api/account/<deviceid>/<account>')
 def api_account(deviceid, account):
@@ -4527,5 +4936,9 @@ def handle_exception(e):
 
 
 if __name__ == '__main__':
-    # Run Flask app without debug mode to avoid watchdog compatibility issues
+    # Run Flask app without debug mode to avoid watchdog compatibility issues.
+    # But: enable Jinja template auto-reload so template edits go live without restart.
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
+    app.jinja_env.auto_reload = True
+    app.jinja_env.cache = {}
     app.run(debug=False, host='0.0.0.0', port=5055)

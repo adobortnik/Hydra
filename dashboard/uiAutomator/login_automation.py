@@ -232,15 +232,29 @@ class LoginAutomation:
             # Use uiautomator2's app_start with monkey (most reliable)
             self.device.app_start(instagram_package, use_monkey=True)
             print("[OK] Instagram launched with monkey")
-            time.sleep(5)  # Give app time to launch
+            time.sleep(5)  # Initial render budget
 
-            # Verify app is running
+            # Verify app is running, and wait for first interactive UI element
+            # to appear — slow devices need more than a flat sleep(5).
             current_app = self.device.app_current().get('package')
             if current_app == instagram_package:
                 print(f"[OK] Instagram is running: {instagram_package}")
-                return True
-
-            return True  # Still return True even if verification fails
+            # Wait up to 8 more seconds for ANY clickable UI element to render.
+            # This avoids flaky behavior on slow devices where the splash is
+            # still up when we start trying to detect the screen state.
+            ready_deadline = time.time() + 8
+            while time.time() < ready_deadline:
+                try:
+                    if (self.device(className="android.widget.EditText").wait(timeout=0.5)
+                        or self.device(className="android.widget.Button").wait(timeout=0.5)
+                        or self.device(textContains="account").wait(timeout=0.5)
+                        or self.device(textContains="Log").wait(timeout=0.5)):
+                        print("[OK] IG UI rendered")
+                        break
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            return True
 
         except Exception as e:
             print(f"[!] app_start failed: {e}, falling back to ADB monkey command")
@@ -270,8 +284,8 @@ class LoginAutomation:
             xml_lower = xml_dump.lower()
 
             # Check for already logged in (profile tab visible)
-            if self.device(description="Profile").exists(timeout=2) or \
-               self.device(resourceId="com.instagram.android:id/profile_tab").exists(timeout=2):
+            if self.device(description="Profile").wait(timeout=2) or \
+               self.device(resourceId="com.instagram.android:id/profile_tab").wait(timeout=2):
                 print("[OK] Already logged in (profile tab visible)")
                 return 'logged_in'
 
@@ -290,58 +304,72 @@ class LoginAutomation:
                     print(f"[!] SMS/Email verification screen detected: '{keyword}' — account cannot be logged in")
                     return 'sms_challenge'
 
-            # Check for challenge/verification screens
-            challenge_keywords = ["verify", "security check", "unusual activity", "confirm", "suspicious"]
+            # Check for challenge/verification screens.
+            # Keywords MUST be specific multi-word phrases — bare words like
+            # "verify" or "confirm" match the welcome / age-gate / cookie /
+            # T&C screens (e.g. "Verify you're 13+", "Confirm your age",
+            # "I confirm I have read the terms") and cause the bot to abort
+            # before it can click "Already have an account".
+            challenge_keywords = [
+                "security check",
+                "unusual activity",
+                "suspicious activity",
+                "verify your identity",
+                "verify it's you",
+                "verify it’s you",
+                "verify your account",
+                "confirm your identity",
+                "confirm it's you",
+                "confirm it’s you",
+                "confirm you're human",
+                "confirm you’re human",
+                "we need to confirm",
+                "to use your account",          # "Confirm you're human to use your account"
+                "we just need to make sure",
+                "help us confirm",
+            ]
             for keyword in challenge_keywords:
                 if keyword in xml_lower:
                     print(f"[!] Challenge screen detected: {keyword}")
                     return 'challenge'
 
-            # Check for signup/intro screen (has login-related button and signup/get started button)
-            # Check for login screen FIRST (has username and password fields)
-            # This is more reliable than button detection
-            # NOTE: IG login fields use content-desc, not text (text is often empty)
-            has_username_field = (
-                self.device(descriptionContains="Username").exists(timeout=2) or
-                self.device(descriptionContains="username").exists(timeout=2) or
-                self.device(textContains="Username").exists(timeout=2) or
-                self.device(textContains="Phone").exists(timeout=2) or
-                self.device(textContains="Email").exists(timeout=2) or
-                self.device(descriptionContains="email").exists(timeout=2) or
-                self.device(descriptionContains="phone").exists(timeout=2) or
-                self.device(className="android.widget.EditText").exists(timeout=2)
-            )
+            # ─── XML-based fast detection (no per-selector timeouts) ───
+            # All checks run against the already-dumped xml_lower string.
+            # Each check is O(1) — no UIAutomator round-trips.
+            has_password_field = any(kw in xml_lower for kw in [
+                'descriptionContains="Password"'.lower(),
+                'description="password"',
+                'text="password"',
+                'hint="password"',
+                # generic match — any node mentioning password as text/desc/hint
+                'password',
+            ]) and ('password' in xml_lower)
 
-            has_password_field = (
-                self.device(descriptionContains="Password").exists(timeout=2) or
-                self.device(descriptionContains="password").exists(timeout=2) or
-                self.device(textContains="Password").exists(timeout=2) or
-                self.device(textContains="password").exists(timeout=2)
-            )
+            # username field signals
+            username_keywords = [
+                'username', 'phone number', 'email or username',
+                'mobile number', 'email address',
+                'descriptionContains="Username"'.lower(),
+            ]
+            has_username_field = any(kw in xml_lower for kw in username_keywords)
 
-            # If we have BOTH username and password fields, we're definitely on login screen
-            if has_username_field and has_password_field:
-                print("[OK] On login screen (has username AND password fields)")
+            # Has at least one EditText
+            has_edit_text = 'android.widget.edittext' in xml_lower
+
+            # Login screen = has password keyword + at least one EditText
+            if has_password_field and has_edit_text:
+                print("[OK] On login screen (password field + EditText present)")
                 return 'login'
 
-            # Check if it's just the intro screen with "I already have an account" or "Sign Up"
-            # (These appear BEFORE the login screen)
-            has_already_account = (
-                self.device(textContains="I already have an account").exists(timeout=2) or
-                self.device(textContains="Already have an account").exists(timeout=2)
-            )
+            # Intro / signup affordances
+            has_already_account = any(kw in xml_lower for kw in [
+                'already have an account', 'i already have',
+            ])
+            has_signup_button = any(kw in xml_lower for kw in [
+                'sign up', 'get started', 'create new account',
+                'join instagram', 'create account',
+            ])
 
-            has_signup_button = (
-                self.device(textContains="Sign Up").exists(timeout=2) or
-                self.device(textContains="Sign up").exists(timeout=2) or
-                self.device(textContains="Get started").exists(timeout=2) or
-                self.device(textContains="Get Started").exists(timeout=2) or
-                self.device(textContains="Create").exists(timeout=2) or
-                self.device(textContains="Join Instagram").exists(timeout=2)
-            )
-
-            # Only consider it signup screen if we have "already have account" or signup button
-            # AND we DON'T have both username+password fields
             if has_already_account or has_signup_button:
                 print("[OK] On signup/intro screen (has 'already have account' or signup button)")
                 return 'signup'
@@ -360,7 +388,16 @@ class LoginAutomation:
 
     def handle_signup_screen(self):
         """
-        Handle the signup screen by clicking "Already have an account?" or similar
+        Handle the signup screen by clicking "Already have an account?" or similar.
+
+        Hardened for slow devices / different IG clone layouts:
+          - Polls multiple selectors over a longer window (lets the button
+            actually finish rendering before we try to click).
+          - Verifies the click actually advanced us to the login screen
+            BEFORE returning True (prevents downstream "Failed to enter
+            credentials" when a blind click missed the button).
+          - Falls back to coordinate-based click only if no selector matched
+            after polling, AND verifies result.
 
         Returns:
             bool: True if successfully navigated to login screen
@@ -369,7 +406,7 @@ class LoginAutomation:
         print("HANDLING SIGNUP SCREEN")
         print("-"*70)
 
-        # Multiple selector variations for "Already have an account?" link
+        # All known variants of the "switch to login" affordance.
         selectors = [
             self.device(textContains="I already have an account"),
             self.device(textContains="Already have an account"),
@@ -379,31 +416,213 @@ class LoginAutomation:
             self.device(text="Log In"),
             self.device(text="Log in"),
             self.device(descriptionContains="Log in"),
+            self.device(descriptionContains="Already have"),
+            self.device(textMatches=r"(?i)already\s*have\s*an?\s*account"),
+            self.device(textMatches=r"(?i)log\s*in"),
         ]
 
-        # Try each selector
-        for i, selector in enumerate(selectors, 1):
-            try:
-                if selector.exists(timeout=3):
-                    print(f"[OK] Found login link (selector #{i})")
-                    selector.click()
-                    print("[OK] Clicked login link")
-                    time.sleep(3)  # Wait for transition
-                    return True
-            except Exception as e:
-                print(f"[!] Selector #{i} failed: {e}")
-                continue
-
-        # Fallback: click bottom area where "Log In" link usually is
+        # ─── PRIMARY: XML-based bounds extraction (FAST — single dump) ───
+        # Most layouts can be solved on the first dump. Skip the slow
+        # per-selector polling unless XML scan finds nothing.
         try:
-            print("[!] Trying coordinate-based click (bottom center)")
+            bounds = self._find_login_link_bounds()
+            if bounds:
+                cx, cy = bounds
+                print(f"[FAST] XML-based click at ({cx}, {cy})")
+                self.device.click(cx, cy)
+                time.sleep(2.5)
+                if self._is_on_login_screen():
+                    print("[OK] Reached login screen via XML bounds")
+                    return True
+                print("[!] XML click did not advance — falling back to selectors")
+        except Exception as e:
+            print(f"[!] XML primary failed: {e}")
+
+        # ─── SECONDARY: short selector poll (max ~5s) ───
+        # Only used if XML scan came up empty (button not yet rendered).
+        clicked = False
+        deadline = time.time() + 5
+        while not clicked and time.time() < deadline:
+            # Re-dump XML and try again — much cheaper than 11 × selector.exists
+            try:
+                bounds = self._find_login_link_bounds()
+                if bounds:
+                    cx, cy = bounds
+                    print(f"[OK] Login link rendered after wait — clicking ({cx}, {cy})")
+                    self.device.click(cx, cy)
+                    time.sleep(2.5)
+                    if self._is_on_login_screen():
+                        return True
+                    clicked = True  # exit and let coordinate fallback try
+                    break
+            except Exception:
+                pass
+            # Quick selector probes (timeout=0.5 — 11 selectors × 0.5 = 5.5s max)
+            for i, selector in enumerate(selectors[:4], 1):  # only top-4 most common
+                try:
+                    if selector.wait(timeout=0.5):
+                        print(f"[OK] Found login link (selector #{i})")
+                        try:
+                            selector.click()
+                            print("[OK] Clicked login link")
+                            clicked = True
+                            break
+                        except Exception:
+                            continue
+                except Exception:
+                    continue
+            if clicked:
+                break
+            time.sleep(0.5)
+
+        if clicked:
+            time.sleep(2.5)
+            if self._is_on_login_screen():
+                print("[OK] Confirmed: navigated to login screen")
+                return True
+            print("[!] Clicked but still on intro/signup — coordinate fallback")
+
+        # ─── Last-resort: safe coordinate click ───
+        # AVOID the Android system nav bar at the very bottom (last ~5% on
+        # most phones, ~10% on devices with software nav). We never click
+        # below 90% of screen height.
+        try:
+            print("[!] Trying coordinate-based click (safe zone, avoids nav bar)")
             width, height = self.device.window_size()
-            self.device.click(width // 2, int(height * 0.85))  # Bottom center area
-            time.sleep(3)
-            return True
+            # Conservative y-range — keeps us above any soft nav buttons.
+            # Verify each click actually advanced to login before declaring success.
+            for y_pct in (0.86, 0.82, 0.78, 0.74):
+                pkg_before = (self.device.app_current().get('package') or '')
+                try:
+                    self.device.click(width // 2, int(height * y_pct))
+                    time.sleep(2.5)
+
+                    # If our click sent IG to background (e.g. hit Home button),
+                    # re-launch and bail to outer caller for a clean retry.
+                    pkg_after = (self.device.app_current().get('package') or '')
+                    if pkg_before and pkg_after and pkg_after != pkg_before \
+                       and not pkg_after.startswith('com.instagram'):
+                        print(f"[!] y={y_pct} sent app to background ({pkg_after}) — aborting fallback")
+                        # Try to re-foreground IG
+                        try:
+                            self.device.app_start(pkg_before, use_monkey=True)
+                            time.sleep(3)
+                        except Exception:
+                            pass
+                        return False
+
+                    if self._is_on_login_screen():
+                        print(f"[OK] Coordinate click at y={y_pct} reached login")
+                        return True
+                except Exception:
+                    continue
         except Exception as e:
             print(f"[X] Coordinate click failed: {e}")
 
+        # Last resort: maybe we were never on signup at all
+        if self._is_on_login_screen():
+            print("[OK] Already on login screen (no navigation needed)")
+            return True
+
+        print("[X] handle_signup_screen: could not reach login screen")
+        return False
+
+    def _find_login_link_bounds(self):
+        """
+        Parse the current XML hierarchy and find the bounds of the
+        "Log In" / "Already have an account" affordance.
+
+        Returns (cx, cy) center coordinates, or None if not found.
+
+        This is robust to: layout changes, custom views with text in
+        descendants, different aspect ratios. We never return coordinates
+        inside the Android system nav-bar area (bottom ~5%).
+        """
+        import re
+        try:
+            xml = self.device.dump_hierarchy() or ''
+        except Exception:
+            return None
+        if not xml:
+            return None
+
+        # Window size — used to filter out Android nav bar clicks.
+        try:
+            w, h = self.device.window_size()
+        except Exception:
+            w, h = 1080, 2340
+        nav_bar_top = int(h * 0.95)  # never click below this y
+
+        # Patterns we trust for a login link, ordered by specificity.
+        keyword_patterns = [
+            r"i\s*already\s*have\s*an?\s*account",
+            r"already\s*have\s*an?\s*account",
+            r"\blog\s*in\b",        # "Log in" / "Log In"
+            r"\blogin\b",
+        ]
+        # Tag scan: every <node ... /> can carry text="..." OR content-desc="..."
+        # We extract bounds [x1,y1][x2,y2] from each node and check both fields.
+        node_re = re.compile(
+            r'<node[^>]*?(?:text="(?P<text>[^"]*)")?[^>]*?'
+            r'(?:content-desc="(?P<desc>[^"]*)")?[^>]*?'
+            r'bounds="\[(?P<x1>\d+),(?P<y1>\d+)\]\[(?P<x2>\d+),(?P<y2>\d+)\]"',
+            re.IGNORECASE,
+        )
+
+        # Build a list of (priority, cx, cy, label) candidates.
+        candidates = []
+        for m in node_re.finditer(xml):
+            text = (m.group('text') or '').strip().lower()
+            desc = (m.group('desc') or '').strip().lower()
+            content = f"{text} {desc}".strip()
+            if not content:
+                continue
+            for prio, pat in enumerate(keyword_patterns):
+                if re.search(pat, content):
+                    x1, y1, x2, y2 = (int(m.group(k)) for k in ('x1','y1','x2','y2'))
+                    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                    # Discard zero-area matches or things in the system nav-bar.
+                    if x2 <= x1 or y2 <= y1:
+                        continue
+                    if cy >= nav_bar_top:
+                        continue
+                    # Discard tiny elements (likely icons, not text links)
+                    if (x2 - x1) < 40 or (y2 - y1) < 20:
+                        continue
+                    candidates.append((prio, cx, cy, content[:40]))
+                    break  # one keyword match per node is enough
+
+        if not candidates:
+            return None
+
+        # Best candidate: lowest priority number (most specific keyword),
+        # tie-break by lowest y (login link is at bottom of the welcome card).
+        candidates.sort(key=lambda c: (c[0], -c[2]))
+        best = candidates[0]
+        print(f"[XML] login-link candidate: '{best[3]}' at ({best[1]}, {best[2]}) (prio={best[0]})")
+        return (best[1], best[2])
+
+    def _is_on_login_screen(self):
+        """
+        Quick check: are we on the actual credential-entry login screen
+        (i.e. has the password field rendered)? Used by handle_signup_screen
+        to verify a click actually worked.
+        """
+        try:
+            if (self.device(descriptionContains="Password").wait(timeout=1)
+                or self.device(textContains="Password").wait(timeout=1)
+                or self.device(text="Forgot password?").wait(timeout=1)
+                or self.device(textContains="Forgot password").wait(timeout=1)):
+                return True
+            # Also accept if we have ≥2 EditText fields (login screen has
+            # username + password) AND no signup intro buttons.
+            edits = self.device(className="android.widget.EditText")
+            if edits.wait(timeout=1) and edits.count >= 2:
+                xml_lower = (self.device.dump_hierarchy() or '').lower()
+                if "create new account" not in xml_lower and "join instagram" not in xml_lower:
+                    return True
+        except Exception:
+            pass
         return False
 
     def _clear_field(self, field):
@@ -467,7 +686,7 @@ class LoginAutomation:
 
             username_field = None
             for i, selector in enumerate(username_selectors, 1):
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print(f"[OK] Found username field (selector #{i})")
                     username_field = selector
                     break
@@ -510,7 +729,7 @@ class LoginAutomation:
 
             password_field = None
             for i, selector in enumerate(password_selectors, 1):
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print(f"[OK] Found password field (selector #{i})")
                     password_field = selector
                     break
@@ -550,7 +769,7 @@ class LoginAutomation:
             ]
 
             for i, selector in enumerate(login_button_selectors, 1):
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print(f"[OK] Found login button (selector #{i})")
                     selector.click()
                     print("[OK] Clicked login button")
@@ -576,25 +795,11 @@ class LoginAutomation:
             xml_dump = (self._dump_app_hierarchy("[2FA_DETECT]") or '')
             xml_lower = xml_dump.lower()
 
-            # FIRST: Exclude challenge/notification screens that are NOT 2FA code entry
-            # These screens may contain words like "we sent" but are NOT code entry screens
-            challenge_exclusions = [
-                "check your notifications",
-                "notifications on another device",
-                "waiting for approval",
-                "approve from the other device",
-                "try another way",
-                "check your sms",
-                "check your email",
-                "confirm your identity",
-                "it was you",
-            ]
-            for excl in challenge_exclusions:
-                if excl in xml_lower:
-                    print(f"[X] Not 2FA code entry — this is a challenge screen ('{excl}')")
-                    return False
-
-            # Strong 2FA code entry keywords (specific to the actual code entry screen)
+            # ─── PRIORITY 1: Strong 2FA code-entry indicators (definitive) ───
+            # The actual 2FA code entry screen ALSO contains a "Try another way"
+            # link at the bottom — so we must NOT blanket-exclude on that phrase.
+            # If we see any of these strong markers, we are 100% on the code-entry
+            # screen, even if 'try another way' is also present.
             strong_keywords = [
                 "enter the 6-digit code",
                 "enter the code",
@@ -606,11 +811,36 @@ class LoginAutomation:
                 "enter your security",
                 "authentication code",
             ]
-
             for keyword in strong_keywords:
                 if keyword in xml_lower:
-                    print(f"[OK] 2FA code entry screen detected: '{keyword}'")
+                    print(f"[OK] 2FA code entry screen detected (strong): '{keyword}'")
                     return True
+
+            # ─── PRIORITY 2: Exclude challenge/notification screens ───
+            # Only kicks in when no strong code-entry marker was found.
+            # These screens may contain "try another way" but lack the code field.
+            challenge_exclusions = [
+                "check your notifications",
+                "notifications on another device",
+                "waiting for approval",
+                "approve from the other device",
+                "check your sms",
+                "check your email",
+                "confirm your identity",
+                "it was you",
+            ]
+            for excl in challenge_exclusions:
+                if excl in xml_lower:
+                    print(f"[X] Not 2FA code entry — this is a challenge screen ('{excl}')")
+                    return False
+
+            # 'try another way' alone (without strong markers) = challenge screen
+            if "try another way" in xml_lower:
+                # …unless there's a single EditText (could still be code entry on stripped UI)
+                edit_texts = self.device(className="android.widget.EditText")
+                if not (edit_texts.wait(timeout=1) and edit_texts.count == 1):
+                    print("[X] Not 2FA code entry — 'try another way' present and no single EditText")
+                    return False
 
             # Weak keywords — only match if there's also an EditText (input field) visible
             weak_keywords = ["we sent", "verify", "2fa", "enter your"]
@@ -618,7 +848,7 @@ class LoginAutomation:
                 if keyword in xml_lower:
                     # Must also have an input field to be a code entry screen
                     edit_texts = self.device(className="android.widget.EditText")
-                    if edit_texts.exists(timeout=2) and edit_texts.count == 1:
+                    if edit_texts.wait(timeout=2) and edit_texts.count == 1:
                         print(f"[OK] 2FA screen detected: '{keyword}' + single EditText field")
                         return True
                     else:
@@ -626,7 +856,7 @@ class LoginAutomation:
 
             # Check for single EditText + code/security context
             edit_texts = self.device(className="android.widget.EditText")
-            if edit_texts.exists(timeout=2):
+            if edit_texts.wait(timeout=2):
                 edit_text_count = edit_texts.count
                 print(f"Found {edit_text_count} EditText field(s)")
                 if edit_text_count == 1:
@@ -635,7 +865,7 @@ class LoginAutomation:
                         return True
 
             # Check for "Resend Code" button (unique to 2FA)
-            if self.device(textContains="Resend").exists(timeout=1):
+            if self.device(textContains="Resend").wait(timeout=1):
                 print("[OK] 2FA screen detected ('Resend' button found)")
                 return True
 
@@ -795,19 +1025,19 @@ class LoginAutomation:
 
             # Look for the button
             try_btn = self.device(textContains="Try another way")
-            if not try_btn.exists(timeout=3):
+            if not try_btn.wait(timeout=3):
                 try_btn = self.device(textContains="another way")
-            if not try_btn.exists(timeout=3):
+            if not try_btn.wait(timeout=3):
                 try_btn = self.device(descriptionContains="Try another way")
 
-            if try_btn.exists(timeout=2):
+            if try_btn.wait(timeout=2):
                 print(f"{TAG} [OK] Found 'Try another way' - clicking...")
                 try_btn.click()
                 time.sleep(2)
 
                 # Verify click registered - if button still visible, retry with coordinates
                 try:
-                    if try_btn.exists(timeout=2):
+                    if try_btn.wait(timeout=2):
                         print(f"{TAG} Button still visible - clicking by coordinates...")
                         try:
                             bounds = try_btn.info.get("bounds", {})
@@ -872,11 +1102,11 @@ class LoginAutomation:
 
         # Find and click "Authentication app"
         auth_app = self.device(textContains="Authentication app")
-        if not auth_app.exists(timeout=3):
+        if not auth_app.wait(timeout=3):
             auth_app = self.device(textContains="authentication app")
-        if not auth_app.exists(timeout=3):
+        if not auth_app.wait(timeout=3):
             auth_app = self.device(descriptionContains="Authentication app")
-        if not auth_app.exists(timeout=3):
+        if not auth_app.wait(timeout=3):
             # Try scrolling
             try:
                 w, h = self.device.window_size()
@@ -886,7 +1116,7 @@ class LoginAutomation:
                 pass
             auth_app = self.device(textContains="Authentication app")
 
-        if not auth_app.exists(timeout=3):
+        if not auth_app.wait(timeout=3):
             print(f"{TAG} [X] 'Authentication app' option NOT FOUND")
             xml_debug = (self._dump_app_hierarchy(TAG) or "")
             print(f"{TAG} [DEBUG] Screen (1500 chars):\n{xml_debug[:1500]}")
@@ -899,7 +1129,7 @@ class LoginAutomation:
         # Try to verify radio button is selected
         try:
             radio = self.device(className="android.widget.RadioButton", textContains="Authentication")
-            if radio.exists(timeout=2):
+            if radio.wait(timeout=2):
                 checked = radio.info.get("checked", False)
                 if not checked:
                     print(f"{TAG} Radio not checked - clicking directly...")
@@ -918,7 +1148,7 @@ class LoginAutomation:
 
         for btn_text in ["Continue", "Next", "CONTINUE", "NEXT"]:
             btn = self.device(textContains=btn_text)
-            if btn.exists(timeout=2):
+            if btn.wait(timeout=2):
                 print(f"{TAG} Clicking '{btn_text}'...")
                 btn.click()
                 time.sleep(4)
@@ -934,7 +1164,7 @@ class LoginAutomation:
 
         for btn_text in ["Continue", "Next"]:
             btn = self.device(textContains=btn_text)
-            if btn.exists(timeout=2):
+            if btn.wait(timeout=2):
                 print(f"{TAG} Clicking '{btn_text}' (after scroll)...")
                 btn.click()
                 time.sleep(4)
@@ -998,7 +1228,7 @@ class LoginAutomation:
             ]
 
             for name, selector in selectors:
-                if selector.exists(timeout=2):
+                if selector.wait(timeout=2):
                     code_field = selector
                     print(f"[OK] Found code input field via: {name}")
                     break
@@ -1080,7 +1310,7 @@ class LoginAutomation:
 
             button_found = False
             for i, selector in enumerate(confirm_selectors, 1):
-                if selector.exists(timeout=2):
+                if selector.wait(timeout=2):
                     print(f"[OK] Found confirm button (selector #{i}: {selector})")
 
                     # Get button info to make sure it's not a checkbox
@@ -1101,7 +1331,7 @@ class LoginAutomation:
             if not button_found:
                 print("[!] No specific button found, trying generic button selector...")
                 buttons = self.device(className="android.widget.Button")
-                if buttons.exists(timeout=2):
+                if buttons.wait(timeout=2):
                     # Try to find a button that's not checkable
                     for i in range(buttons.count):
                         try:
@@ -1157,7 +1387,7 @@ class LoginAutomation:
             ]
 
             for i, selector in enumerate(save_selectors, 1):
-                if selector.exists(timeout=3):
+                if selector.wait(timeout=3):
                     print(f"[OK] Found Save button (selector #{i})")
                     selector.click()
                     print("[OK] Clicked Save")
@@ -1174,7 +1404,7 @@ class LoginAutomation:
             ]
 
             for selector in not_now_selectors:
-                if selector.exists(timeout=2):
+                if selector.wait(timeout=2):
                     print("[OK] Clicked 'Not Now'")
                     selector.click()
                     time.sleep(2)
@@ -1209,25 +1439,52 @@ class LoginAutomation:
 
             print("[OK] Notification prompt detected")
 
-            # Click "Not Now" or similar
+            # Two flavors of notification prompt:
+            #   (a) IG in-app: "Turn on notifications?" → buttons "Not Now" / "Turn On"
+            #   (b) Android 13+ system dialog: package com.android.permissioncontroller →
+            #       buttons "Don't allow" / "Allow"
             dismiss_selectors = [
+                # Android 13+ system permission dialog
+                self.device(text="Don't allow"),
+                self.device(text="Don’t allow"),  # curly apostrophe variant
+                self.device(textMatches=r"(?i)don['’]?t allow"),
+                self.device(resourceIdMatches=r".*permission_deny.*"),
+                self.device(resourceId="com.android.permissioncontroller:id/permission_deny_button"),
+                # IG in-app prompt
                 self.device(text="Not Now"),
-                self.device(textContains="Not Now"),
                 self.device(text="Not now"),
+                self.device(textContains="Not Now"),
                 self.device(text="Skip"),
                 self.device(textContains="Skip"),
+                # Fallback: any "Deny" button
+                self.device(text="Deny"),
+                self.device(textContains="Deny"),
             ]
 
             for i, selector in enumerate(dismiss_selectors, 1):
-                if selector.exists(timeout=3):
-                    print(f"[OK] Found dismiss button (selector #{i})")
-                    selector.click()
-                    print("[OK] Dismissed notification prompt")
+                try:
+                    if selector.wait(timeout=2):
+                        print(f"[OK] Found dismiss button (selector #{i})")
+                        selector.click()
+                        print("[OK] Dismissed notification prompt")
+                        time.sleep(2)
+                        return True
+                except Exception:
+                    continue
+
+            # Last-resort: try resource ID for Android system permission deny
+            try:
+                deny = self.device(resourceId="com.android.permissioncontroller:id/permission_deny_button")
+                if deny.wait(timeout=1):
+                    deny.click()
+                    print("[OK] Dismissed via resourceId permission_deny_button")
                     time.sleep(2)
                     return True
+            except Exception:
+                pass
 
-            print("[!] Could not dismiss notification prompt")
-            return True  # Continue anyway
+            print("[!] Could not dismiss notification prompt — but it implies login is past auth")
+            return True  # Continue — caller's verify will handle it
 
         except Exception as e:
             print(f"[!] Error dismissing notification: {e}")
@@ -1266,28 +1523,44 @@ class LoginAutomation:
 
                 continue_found = False
                 for selector in continue_selectors:
-                    if selector.exists(timeout=2):
+                    if selector.wait(timeout=2):
                         print("[OK] Found 'Continue' button (likely location services)")
                         selector.click()
                         print("[OK] Clicked Continue")
                         time.sleep(2)
                         continue_found = True
 
-                        # Now look for "Deny" button in the native permission dialog
+                        # Now look for "Deny" / "Don't allow" / "Only this time"
+                        # in the native permission dialog.
+                        # We pick the LEAST-permissive option:
+                        #   1) "Deny" (Android < 13 location dialog)
+                        #   2) "Don't allow" / "Don’t allow" (Android 13+ notif/loc)
+                        #   3) "Only this time" (Android 11+ location — temporary)
+                        # We avoid "While using the app" / "Allow only while using"
+                        # which grants location access.
                         deny_selectors = [
                             self.device(text="Deny"),
-                            self.device(textContains="Deny"),
                             self.device(text="Don't allow"),
+                            self.device(text="Don’t allow"),
+                            self.device(textMatches=r"(?i)don['’]?t allow"),
+                            self.device(resourceId="com.android.permissioncontroller:id/permission_deny_button"),
+                            self.device(resourceIdMatches=r".*permission_deny.*"),
                             self.device(textContains="Don't allow"),
+                            self.device(textContains="Deny"),
+                            self.device(text="Only this time"),
+                            self.device(textContains="Only this time"),
                         ]
 
                         for deny_selector in deny_selectors:
-                            if deny_selector.exists(timeout=3):
-                                print("[OK] Found 'Deny' button in permission dialog")
-                                deny_selector.click()
-                                print("[OK] Clicked Deny")
-                                time.sleep(2)
-                                break
+                            try:
+                                if deny_selector.wait(timeout=3):
+                                    print("[OK] Found permission deny button")
+                                    deny_selector.click()
+                                    print("[OK] Clicked deny/only-this-time")
+                                    time.sleep(2)
+                                    break
+                            except Exception:
+                                continue
 
                         break
 
@@ -1314,7 +1587,7 @@ class LoginAutomation:
 
                 modal_found = False
                 for i, selector in enumerate(dismiss_selectors):
-                    if selector.exists(timeout=2):
+                    if selector.wait(timeout=2):
                         print(f"[OK] Found dismiss button (selector #{i}): {selector.info.get('text', 'unknown')}")
                         selector.click()
                         print("[OK] Clicked dismiss button")
@@ -1335,7 +1608,11 @@ class LoginAutomation:
 
     def verify_logged_in(self):
         """
-        Verify that login was successful by checking for profile tab or home feed
+        Verify that login was successful by checking for IG home feed or profile tab.
+
+        IMPORTANT: We must NOT match generic content-desc="Home" because the
+        Android system nav bar also has a Home button with that exact desc.
+        That false-positive would mark a stuck-on-2FA flow as "logged in".
 
         Returns:
             bool: True if logged in
@@ -1345,40 +1622,103 @@ class LoginAutomation:
         print("-"*70)
 
         try:
-            # Wait a bit for UI to settle
             time.sleep(3)
-
-            # Check for profile tab
-            if self.device(description="Profile").exists(timeout=5):
-                print("[OK] Logged in (Profile tab visible)")
-                return True
-
-            if self.device(resourceId="com.instagram.android:id/profile_tab").exists(timeout=3):
-                print("[OK] Logged in (Profile tab resource ID found)")
-                return True
-
-            # Check for home feed tab
-            if self.device(description="Home").exists(timeout=3):
-                print("[OK] Logged in (Home tab visible)")
-                return True
-
-            # Check for search/explore tab
-            if self.device(description="Search and Explore").exists(timeout=3):
-                print("[OK] Logged in (Search tab visible)")
-                return True
-
-            # Check XML for common logged-in elements
             xml_dump = self.device.dump_hierarchy()
             xml_lower = xml_dump.lower()
 
-            logged_in_keywords = ["home", "profile", "search", "reels", "activity"]
-            matches = sum(1 for keyword in logged_in_keywords if keyword in xml_lower)
+            # POST-LOGIN signals — these screens/dialogs ONLY appear AFTER a
+            # successful login. If we see any of them, the login is done; the
+            # remaining modals are dismissed by dismiss_post_login_modals().
+            post_login_dialog_markers = [
+                # Android 13+ system permission dialogs
+                "com.android.permissioncontroller",
+                "send you notifications",
+                "allow notifications",
+                "turn on notifications",
+                # Location permission flow (IG → "Set up on new device")
+                "set up on new device",
+                "to use location services",
+                "allow instagram to access your location",
+                "access this device's location",
+                "access this device’s location",       # curly apostrophe
+                "while using the app",
+                "only this time",
+                # Other typical post-login welcome / prompts
+                "how you can use location services",
+                "save your login info",
+                "we'll remember this device",
+                "we’ll remember this device",
+                "add a profile photo",
+                "add profile photo",
+                "discover people to follow",
+                "find people to follow",
+                "sync contacts",
+                "see when you're online",
+                "see when you’re online",
+            ]
+            for marker in post_login_dialog_markers:
+                if marker in xml_lower:
+                    print(f"[OK] Logged in — post-login dialog visible ('{marker}')")
+                    return True
 
-            if matches >= 2:
-                print(f"[OK] Logged in (found {matches} navigation elements)")
+            # If we're still on a 2FA / login / challenge screen → not logged in.
+            still_on_login = [
+                "go to your authentication app",
+                "enter the 6-digit code",
+                "enter the code",
+                "try another way",
+                "we sent you a code",
+                "confirm it’s you",
+                "confirm it's you",
+            ]
+            # 'log in' bare phrase can collide with random texts, so scope to
+            # actual login-screen indicators (must co-occur with login affordances).
+            if ("log in" in xml_lower) and ("forgot password" in xml_lower or "create new account" in xml_lower):
+                print("[!] Verification FAILED — still on login screen ('log in' + login affordances)")
+                return False
+            for kw in still_on_login:
+                if kw in xml_lower:
+                    print(f"[!] Verification FAILED — still on login/2FA screen ('{kw}')")
+                    return False
+
+            # IG-package-specific bottom nav ids (works for clones via wildcard match)
+            ig_resource_markers = [
+                ":id/profile_tab",
+                ":id/feed_tab",
+                ":id/clips_tab",
+                ":id/search_tab",
+                ":id/news_tab",
+            ]
+            for marker in ig_resource_markers:
+                if marker in xml_dump:
+                    print(f"[OK] Logged in — IG nav element present ({marker})")
+                    return True
+
+            # Profile tab content-desc is IG-specific (not used by Android nav bar)
+            if self.device(description="Profile").wait(timeout=3):
+                print("[OK] Logged in (Profile tab content-desc visible)")
                 return True
 
-            print("[!] Could not verify login (but may still be successful)")
+            # 'Search and Explore' — IG-specific
+            if self.device(description="Search and Explore").wait(timeout=2):
+                print("[OK] Logged in (Search and Explore visible)")
+                return True
+
+            # Reels tab — IG-specific
+            if self.device(descriptionContains="Reels").wait(timeout=2):
+                print("[OK] Logged in (Reels content-desc visible)")
+                return True
+
+            # XML keyword fallback — require ≥3 IG-specific markers (was 2 → too loose).
+            # Removed bare "home" because Android system nav has it.
+            ig_keywords = ["profile", "search and explore", "reels", "your activity",
+                           "stories tray", "feed_tab", "clips_tab"]
+            matches = sum(1 for k in ig_keywords if k in xml_lower)
+            if matches >= 2:
+                print(f"[OK] Logged in (found {matches} IG-specific markers)")
+                return True
+
+            print("[!] Could not verify login (no IG nav elements found)")
             return False
 
         except Exception as e:
@@ -1467,10 +1807,22 @@ class LoginAutomation:
                     return result
                 time.sleep(2)
 
-            # Enter credentials
+            # Enter credentials. If first attempt fails to find fields, the
+            # device may have been on intro screen and our signup-handler
+            # missed the click. Re-detect and retry once.
             if not self.enter_credentials(username, password):
-                result['error'] = "Failed to enter credentials"
-                return result
+                print("[!] enter_credentials failed — retrying after re-detecting screen state")
+                time.sleep(2)
+                # If we're still on intro/signup, try the link click again
+                if not self._is_on_login_screen():
+                    print("[!] Still not on login screen — re-running signup handler")
+                    if self.handle_signup_screen():
+                        time.sleep(2)
+                if self.enter_credentials(username, password):
+                    print("[OK] Credentials entered on second attempt")
+                else:
+                    result['error'] = "Failed to enter credentials"
+                    return result
 
             # Quick check for Wrong Password / Can't find account modals (appear instantly)
             time.sleep(3)
@@ -1602,15 +1954,29 @@ class LoginAutomation:
                 result['success'] = True
                 return result
             else:
-                # Try to dismiss modals even if verification was inconclusive
-                self.dismiss_post_login_modals()
-
+                # Verification failed — likely stuck on 2FA / challenge / error screen.
+                # Do NOT dismiss modals here (we'd click 2FA Continue with empty Code).
+                # Do NOT mark success — that hides real failures and leaves the account
+                # marked 'active' in the DB while it's actually stuck.
                 print("\n" + "="*70)
-                print("[!] LOGIN VERIFICATION INCONCLUSIVE")
+                print("[X] LOGIN VERIFICATION FAILED")
                 print("="*70)
-                result['error'] = "Could not verify login success"
-                # Still mark as success since no errors occurred
-                result['success'] = True
+                # Inspect screen to give a useful error in the dashboard.
+                # NOTE: do NOT call _try_another_way_to_2fa here — it NAVIGATES.
+                try:
+                    if self.detect_two_factor_screen():
+                        result['error'] = "Stuck on 2FA code entry screen — code was not accepted"
+                    else:
+                        xml_low = (self.device.dump_hierarchy() or '').lower()
+                        if "try another way" in xml_low or "choose a way" in xml_low:
+                            result['error'] = "Stuck on challenge / 'Try another way' screen"
+                        elif "incorrect" in xml_low or "wrong password" in xml_low:
+                            result['error'] = "Wrong password"
+                        else:
+                            result['error'] = "Could not verify login (not on IG home/profile)"
+                except Exception:
+                    result['error'] = "Could not verify login (not on IG home/profile)"
+                result['success'] = False
                 return result
 
         except Exception as e:

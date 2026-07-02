@@ -1,4 +1,30 @@
 {
-  "username": "admin",
-  "password_hash": "scrypt:32768:8:1$qsf0yRrqJnNnThuo$8130ca833ebe7a144007590fd46447049646146877b331ebac917875d693741861e7a2d9371ebc9a4315aa359e631a5a1b0c5674824d9bb65c2f147d5a67a8f7"
+  "users": [
+    {
+      "username": "admin",
+      "password_hash": "scrypt:32768:8:1$qsf0yRrqJnNnThuo$8130ca833ebe7a144007590fd46447049646146877b331ebac917875d693741861e7a2d9371ebc9a4315aa359e631a5a1b0c5674824d9bb65c2f147d5a67a8f7",
+      "role": "superadmin",
+      "permissions": [
+        "*"
+      ]
+    },
+    {
+      "username": "denis",
+      "password_hash": "scrypt:32768:8:1$x0cQ3LRT30Di8ezh$1ca14ef61aa8bdca8f16f7ea0c3086b7a1f6bb4189e295e02fb0a69f121d92a9f782eb5d9080a8a491abf4b902a3d4b30feeb49d3578a5f5cf93555ef8746a4d",
+      "role": "scheduler",
+      "permissions": [
+        "dashboard",
+        "content"
+      ]
+    },
+    {
+      "username": "vojto",
+      "password_hash": "scrypt:32768:8:1$pUVnfRkIo8nJ0lWY$4196285f031ac8648e5aa683d917a6339d8f5ea9dad8867bb55ff30e220a38a3ca2b0a1bfe95967dcd1949b604f7f88c346e0a128163e6516801cf541da3bf83",
+      "role": "scheduler",
+      "permissions": [
+        "dashboard",
+        "content"
+      ]
+    }
+  ]
 }

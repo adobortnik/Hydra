@@ -552,31 +552,73 @@
 
         <!-- Step 4: Select Targets -->
         <div class="step-panel" id="step4">
-            <h5 class="mb-3">Select target accounts</h5>
-            <p class="text-muted small mb-3">Pick accounts from one or multiple devices. Use the filter to narrow down, selections persist across filter changes.</p>
-            <div class="row">
-                <div class="col-md-5">
-                    <div class="mb-3">
-                        <label class="form-label">Filter by Device</label>
-                        <select class="form-select bg-dark text-white border-secondary" id="targetDevice" onchange="loadTargetAccounts()">
-                            <option value="all">All Devices</option>
-                        </select>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="selectAllAccounts" onchange="toggleAllAccounts()">
-                        <label class="form-check-label" for="selectAllAccounts">
-                            <strong>Select all visible</strong>
-                        </label>
-                    </div>
+            <h5 class="mb-1">Select target accounts</h5>
+            <p class="text-muted small mb-3">
+                Filter by device, tag, or search. Selection persists across filter changes —
+                tick accounts on device A, switch to device B, your A picks stay.
+            </p>
+
+            <!-- Filter row -->
+            <div class="row g-2 mb-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">Search username</label>
+                    <input type="search" class="form-control form-control-sm bg-dark text-white border-secondary"
+                           id="targetSearch" placeholder="type to filter…"
+                           oninput="renderTargetAccounts()">
                 </div>
-                <div class="col-md-7">
-                    <label class="form-label">Accounts <span class="text-muted" id="accountCountLabel">(0 selected)</span></label>
-                    <div class="account-checkbox-list border border-secondary rounded p-2" id="accountCheckboxList" style="max-height:400px;overflow-y:auto">
-                        <div class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
-                    </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">Device</label>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary"
+                            id="targetDevice" onchange="renderTargetAccounts()">
+                        <option value="all">All devices</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">Tag</label>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary"
+                            id="targetTag" onchange="renderTargetAccounts()">
+                        <option value="all">All tags</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">Type</label>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary"
+                            id="targetType" onchange="renderTargetAccounts()">
+                        <option value="all">Mothers + slaves</option>
+                        <option value="slaves" selected>Slaves only</option>
+                        <option value="mothers">Mothers only</option>
+                    </select>
                 </div>
             </div>
-            <div class="mt-4 d-flex justify-content-between">
+
+            <!-- Quick actions -->
+            <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+                <button class="btn btn-sm btn-outline-light" onclick="targetSelectAllVisible(true)">
+                    <i class="fas fa-check-square me-1"></i> Select all visible
+                </button>
+                <button class="btn btn-sm btn-outline-light" onclick="targetSelectAllVisible(false)">
+                    <i class="fas fa-square me-1"></i> Deselect visible
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="targetClearAll()">
+                    <i class="fas fa-times me-1"></i> Clear all
+                </button>
+                <span class="ms-auto small">
+                    <span class="text-muted">Visible:</span>
+                    <strong id="visibleCountLabel">0</strong>
+                    <span class="text-muted ms-3">Selected:</span>
+                    <strong class="text-info" id="accountCountLabel">0</strong>
+                </span>
+            </div>
+
+            <!-- Account list -->
+            <div class="account-checkbox-list border border-secondary rounded p-2"
+                 id="accountCheckboxList" style="max-height:480px;overflow-y:auto;">
+                <div class="text-muted text-center py-3">
+                    <i class="fas fa-spinner fa-spin"></i> Loading…
+                </div>
+            </div>
+
+            <div class="mt-3 d-flex justify-content-between">
                 <button class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left me-1"></i> Back</button>
                 <button class="btn btn-primary" onclick="nextStep()" id="btnStep4Next" disabled>
                     Next <i class="fas fa-arrow-right ms-1"></i>
@@ -843,6 +885,52 @@
                 </div>
             </div>
 
+            <!-- Anti-detect (per-slave variant spoofing) -->
+            <div class="card mb-3" style="background:#161224;border:1px solid #3a2d52;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-bold" style="color:#a78bfa;">
+                                <i class="fas fa-shield-alt me-2"></i>Anti-detect spoofing
+                            </div>
+                            <small class="text-white-50" style="font-size:0.78rem;">
+                                Generates a perceptually-unique variant of each file per slave so IG can't trivially
+                                correlate accounts via duplicate-content hash.
+                                <a href="/spoofing" target="_blank" style="color:#a78bfa;">Try /spoofing →</a>
+                            </small>
+                        </div>
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" id="batchSpoofEnabled" checked
+                                   style="cursor:pointer; width:42px; height:22px;">
+                        </div>
+                    </div>
+                    <div id="batchSpoofControls" class="mt-3 d-flex gap-3 align-items-end flex-wrap">
+                        <div>
+                            <label class="form-label small text-white-50 mb-1">Strength</label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary"
+                                    id="batchSpoofPreset" style="width:130px;">
+                                <option value="light">light</option>
+                                <option value="medium" selected>medium</option>
+                                <option value="strong">strong</option>
+                            </select>
+                        </div>
+                        <div class="form-check ms-2" style="padding-top:6px;">
+                            <input class="form-check-input" type="checkbox" id="batchSpoofMirror" checked>
+                            <label class="form-check-label small text-white-50" for="batchSpoofMirror"
+                                   style="cursor:pointer;">
+                                Allow mirror flip
+                                <i class="fas fa-info-circle ms-1"
+                                   title="Uncheck for content with visible text/direction"></i>
+                            </label>
+                        </div>
+                        <div class="text-white-50 small ms-auto" style="font-size:0.7rem;">
+                            <i class="fas fa-clock me-1"></i>~5-10s per variant
+                            (<span id="batchSpoofEta">—</span> total)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
                 <table class="table table-sm table-dark-custom" id="reviewTable">
                     <thead><tr><th>#</th><th>Time</th><th>Account</th><th>Media</th></tr></thead>
@@ -892,7 +980,13 @@
     <!-- ============ HISTORY TAB ============ -->
     <div class="tab-pane fade" id="tab-history" role="tabpanel">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0">History</h5>
+            <h5 class="mb-0">History
+                <span class="badge bg-warning text-dark ms-2" id="missedBadge" style="display:none;cursor:pointer"
+                      onclick="$('#historyStatusFilter').val('missed');loadHistory();"
+                      title="Pending items whose scheduled time already passed — click to filter">
+                    <i class="fas fa-clock me-1"></i><span id="missedBadgeCount">0</span> missed
+                </span>
+            </h5>
             <div class="d-flex gap-2">
                 <select class="form-select form-select-sm bg-dark text-white border-secondary" id="historyTypeFilter" style="width:auto" onchange="loadHistory()">
                     <option value="">All Types</option>
@@ -904,6 +998,8 @@
                     <option value="completed,failed">Completed + Failed</option>
                     <option value="completed">Completed Only</option>
                     <option value="failed">Failed Only</option>
+                    <option value="missed">Missed (overdue)</option>
+                    <option value="failed,missed">Failed + Missed</option>
                 </select>
                 <button class="btn btn-sm btn-outline-light" onclick="loadHistory()"><i class="fas fa-sync-alt"></i></button>
             </div>
@@ -913,11 +1009,11 @@
                 <thead>
                     <tr>
                         <th>Scheduled</th><th>Posted</th><th>Type</th><th>Account</th>
-                        <th>Caption</th><th>Status</th><th>Error</th>
+                        <th>Caption</th><th>Status</th><th>Error</th><th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="historyTableBody">
-                    <tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-4">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -983,6 +1079,37 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="saveEditItem()">
                     <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reschedule Modal (failed / missed content) -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-calendar-plus me-2 text-warning"></i>Reschedule Content</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="rescheduleItemId">
+                <div class="mb-2 small text-muted" id="rescheduleSummary"></div>
+                <div class="mb-3">
+                    <label class="form-label">New scheduled time</label>
+                    <input type="datetime-local" class="form-control bg-dark text-white border-secondary" id="rescheduleTime">
+                    <div class="form-text text-muted">
+                        Sets the item back to <strong>pending</strong> and clears the old error so the
+                        bot picks it up again. Defaults to tomorrow at the original posting hour
+                        (keeps it inside the account's work window).
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="applyReschedule()">
+                    <i class="fas fa-calendar-check me-1"></i>Reschedule
                 </button>
             </div>
         </div>
@@ -1221,17 +1348,22 @@ $(document).ready(function() {
     loadDevicesForWizard();
     loadFolders();
 
+    // If a batch was running before this page reload, re-attach polling.
+    _resumeRunningBatch();
+
     // Set default dates
     const now = new Date();
     now.setHours(now.getHours() + 1, 0, 0, 0);
     const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     $('#scheduleStartTime').val(local);
 
-    // Set default date range for strategies
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const weekLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-    $('#evenStartDate, #randomStartDate, #whStartDate').val(todayStr);
-    $('#evenEndDate, #randomEndDate, #whEndDate').val(weekLater);
+    // Set default date range for strategies — use LOCAL date (toISOString
+    // would shift to UTC and render one day earlier for any tz east of UTC).
+    const _isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const _today = new Date(); _today.setHours(0,0,0,0);
+    const _weekLater = new Date(_today.getTime() + 7 * 86400000);
+    $('#evenStartDate, #randomStartDate, #whStartDate').val(_isoLocal(_today));
+    $('#evenEndDate, #randomEndDate, #whEndDate').val(_isoLocal(_weekLater));
 
     // Tab change handlers
     $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
@@ -1248,6 +1380,11 @@ $(document).ready(function() {
     $('#fillWeekPostsPerDay, #fillWeekStartDay').on('change', updateSchedulePreview);
     $('#randomStartDate, #randomEndDate, #randomPostsPerDay, #randomWindowStart, #randomWindowEnd').on('change input', updateSchedulePreview);
     $('#whStartDate, #whEndDate, #whPostsPerDay, #whBufferMinutes, #whRandomize').on('change input', updateSchedulePreview);
+    // Stop auto-deriving the end-date once the user has typed into ANY date
+    // field — they take ownership.
+    $('#whEndDate, #evenEndDate, #randomEndDate').on('change', function() {
+        _userTouchedEndDate = true;
+    });
     $('#roundRobinCheck').on('change', updateSchedulePreview);
 });
 
@@ -1258,6 +1395,11 @@ function loadStats() {
         $('#statPosting').text(data.posting || 0);
         $('#statCompleted').text(data.completed_today || 0);
         $('#statFailed').text(data.failed_today || 0);
+        // Missed = overdue pending (engine downtime). Surface as a clickable
+        // badge in the History header so the operator can jump straight to them.
+        const missed = data.missed || 0;
+        $('#missedBadgeCount').text(missed);
+        $('#missedBadge').toggle(missed > 0);
     });
 }
 
@@ -1296,7 +1438,12 @@ function loadCalendar() {
             let itemsHtml = '';
             dayItems.forEach(item => {
                 const time = item.scheduled_time ? item.scheduled_time.slice(11, 16) : '??:??';
-                const statusIcon = item.status === 'completed' ? '<i class="fas fa-check text-success"></i>' : item.status === 'failed' ? '<i class="fas fa-times text-danger"></i>' : '';
+                const overdue = item.status === 'pending' && item.scheduled_time &&
+                    new Date(item.scheduled_time).getTime() < today.getTime();
+                const statusIcon = item.status === 'completed' ? '<i class="fas fa-check text-success"></i>'
+                    : item.status === 'failed' ? '<i class="fas fa-times text-danger"></i>'
+                    : overdue ? '<i class="fas fa-clock text-warning" title="Missed — overdue pending"></i>'
+                    : '';
                 const ctBadge = calTypeIcon(item.content_type);
                 itemsHtml += `
                     <div class="cal-item type-${item.content_type}" onclick="openEditModal(${item.id})" title="${item.username} - ${item.content_type}">
@@ -1612,7 +1759,34 @@ function updateMediaInfo() {
     if (filtered < total) infoText += ` (showing ${filtered}/${total})`;
     $('#mediaSelectionInfo').text(infoText);
     $('#btnStep2Next').prop('disabled', count === 0);
+
+    // Auto-suggest end-date based on media count (one file per day default).
+    // Leaves user override intact via _userTouchedEndDate flag — once they
+    // type into the field manually we stop overwriting it.
+    if (count > 0 && !_userTouchedEndDate) {
+        // toISOString().slice(0,10) returns UTC date, which in any
+        // timezone east of UTC silently shifts the rendered date one day
+        // EARLIER than local midnight. Format the local date directly.
+        const _localISODate = (d) => {
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        };
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        // count days from today (e.g. 16 videos → end is today + 16,
+        // giving a buffer day on top of one-per-day, matches operator's
+        // mental model "16 days from now").
+        const end = new Date(today.getTime() + count * 86400000);
+        $('#whStartDate, #evenStartDate, #randomStartDate').val(_localISODate(today));
+        $('#whEndDate, #evenEndDate, #randomEndDate').val(_localISODate(end));
+        // Recompute schedule preview if we're past step 2
+        if (typeof updateSchedulePreview === 'function') updateSchedulePreview();
+    }
 }
+
+let _userTouchedEndDate = false;
 
 // ============ DRAG & DROP UPLOAD ============
 function handleDropzoneUpload(e) {
@@ -1629,61 +1803,111 @@ function handleFileInputUpload(files) {
 }
 
 function uploadFiles(files) {
-    const formData = new FormData();
-    for (let i = 0; i < files.length; i++) {
-        formData.append('file', files[i]);
-    }
-    formData.append('folder_id', currentFolderId || '');
-
-    // Show progress
+    // Upload files SEQUENTIALLY, one POST per file.
+    //
+    // The old impl bundled all N files into one multipart request, which
+    // for 10-15 reels at 50+ MB each blew past the server's
+    // MAX_CONTENT_LENGTH (512 MB) and bounced as HTML — frontend then saw
+    // `xhr.responseJSON` as null and surfaced "Unknown error".
+    // Per-file uploads also give us real progress and partial-success.
+    const total = files.length;
+    const all = Array.from(files);
     const progressBar = $('#uploadProgressBar');
     const progressFill = $('#uploadProgressFill');
     progressBar.show();
-    progressFill.css('width', '10%');
+    progressFill.css('width', '0%');
 
-    $.ajax({
-        url: API + '/upload',
-        method: 'POST',
-        data: formData,
-        processData: false,
-        contentType: false,
-        xhr: function() {
-            const xhr = new XMLHttpRequest();
-            xhr.upload.addEventListener('progress', function(e) {
-                if (e.lengthComputable) {
-                    const pct = Math.round((e.loaded / e.total) * 100);
-                    progressFill.css('width', pct + '%');
+    const okFiles = [];
+    const failed = [];
+    let done = 0;
+
+    function _humanErr(xhr, status) {
+        // Prefer JSON body if backend sent one
+        if (xhr.responseJSON && xhr.responseJSON.error) return xhr.responseJSON.error;
+        // 413 = Flask's MAX_CONTENT_LENGTH triggered (returns HTML)
+        if (xhr.status === 413) return 'File too large for server (>512 MB per request)';
+        // 0 = network / abort
+        if (xhr.status === 0)   return 'Network error / upload aborted';
+        if (xhr.status)         return `HTTP ${xhr.status} ${xhr.statusText || ''}`.trim();
+        return status || 'Unknown error';
+    }
+
+    function uploadOne(file) {
+        return new Promise((resolve) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('folder_id', currentFolderId || '');
+
+            $.ajax({
+                url: API + '/upload',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                timeout: 600000,   // 10 min per file
+                xhr: function() {
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.addEventListener('progress', function(e) {
+                        if (e.lengthComputable) {
+                            const filePct = e.loaded / e.total;        // 0..1 of THIS file
+                            const overall = ((done + filePct) / total) * 100;
+                            progressFill.css('width', overall.toFixed(1) + '%');
+                        }
+                    });
+                    return xhr;
+                },
+                success: function(data) {
+                    const first = (data.files || [])[0];
+                    if (first && first.success) {
+                        okFiles.push(first);
+                    } else {
+                        failed.push({name: file.name,
+                                     error: (first && first.error) || data.error || 'upload returned no path'});
+                    }
+                    done++;
+                    progressFill.css('width', ((done / total) * 100).toFixed(1) + '%');
+                    resolve();
+                },
+                error: function(xhr, status) {
+                    failed.push({name: file.name, error: _humanErr(xhr, status)});
+                    done++;
+                    progressFill.css('width', ((done / total) * 100).toFixed(1) + '%');
+                    resolve();
                 }
             });
-            return xhr;
-        },
-        success: function(data) {
-            progressFill.css('width', '100%');
-            setTimeout(() => { progressBar.hide(); progressFill.css('width', '0'); }, 1000);
+        });
+    }
 
-            // Refresh current folder view
-            if (currentFolderId) {
-                loadFolderMedia(currentFolderId);
-            }
-            // Refresh folder list (counts may have changed)
-            loadFolders();
+    // Sequential await chain (don't slam the server with 15 parallel uploads)
+    (async function () {
+        for (const f of all) await uploadOne(f);
 
-            const count = (data.files || []).filter(f => f.success).length;
-            if (count > 0) {
-                // Auto-select uploaded files
-                (data.files || []).forEach(f => {
-                    if (f.success && !wizardState.selectedMedia.some(m => m.path === f.path)) {
-                        wizardState.selectedMedia.push(f);
-                    }
-                });
-                updateMediaInfo();
+        // All done — refresh + surface results
+        setTimeout(() => { progressBar.hide(); progressFill.css('width', '0'); }, 800);
+        if (currentFolderId) loadFolderMedia(currentFolderId);
+        loadFolders();
+
+        // Auto-select successfully uploaded files
+        okFiles.forEach(f => {
+            if (!wizardState.selectedMedia.some(m => m.path === f.path)) {
+                wizardState.selectedMedia.push(f);
             }
-        },
-        error: function(xhr) {
-            progressBar.hide(); progressFill.css('width', '0');
-            showToast('Upload failed: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'), 'error');
+        });
+        updateMediaInfo();
+
+        if (failed.length === 0) {
+            showToast(`Uploaded ${okFiles.length} file${okFiles.length !== 1 ? 's' : ''}`, 'success');
+        } else if (okFiles.length > 0) {
+            const first = failed[0];
+            showToast(`${okFiles.length}/${total} uploaded — ${failed.length} failed (${first.name}: ${first.error})`, 'warning');
+        } else {
+            const first = failed[0];
+            showToast(`All ${total} uploads failed (${first.name}: ${first.error})`, 'error');
         }
-    });
+        if (failed.length) {
+            console.warn('[upload] failures:', failed);
+        }
+    })();
 }
 
 // ============ STEP 3: CONFIGURE ============
@@ -1800,7 +2024,7 @@ function previewAiTags() {
 }
 
 // ============ STEP 4: TARGET ACCOUNTS ============
-var _allAccounts = [];  // cache all accounts across devices
+var _allAccounts = [];  // cache, populated once
 
 function loadDevicesForWizard() {
     $.get(API + '/devices', function(data) {
@@ -1814,105 +2038,258 @@ function loadDevicesForWizard() {
     // Pre-load all accounts
     $.get(API + '/accounts', function(data) {
         _allAccounts = data.accounts || [];
+        _populateTagDropdown();
     });
 }
 
+function _populateTagDropdown() {
+    const tags = {};
+    _allAccounts.forEach(a => {
+        const t = (a.tag || '').trim();
+        if (!t) return;
+        tags[t] = (tags[t] || 0) + 1;
+    });
+    const sorted = Object.entries(tags).sort((a, b) => b[1] - a[1]);
+    const sel = $('#targetTag');
+    sel.find('option:not(:first)').remove();
+    sel.append('<option value="__untagged__">(no tag)</option>');
+    sorted.forEach(([tag, n]) => {
+        sel.append(`<option value="${tag}">${tag} (${n})</option>`);
+    });
+}
+
+// "Load" hook called when entering Step 4 — just paint, accounts are cached.
 function loadTargetAccounts() {
-    const deviceFilter = $('#targetDevice').val();
-
-    // Use cached accounts or fetch fresh
-    function renderAccounts(accounts) {
-        _allAccounts = accounts;
-        const filtered = (!deviceFilter || deviceFilter === 'all')
-            ? accounts
-            : accounts.filter(a => a.device_serial === deviceFilter);
-
-        let html = '';
-        if (filtered.length === 0) {
-            html = '<div class="text-muted text-center py-3">No active accounts found</div>';
-        } else {
-            // Group by device for clarity
-            const byDevice = {};
-            filtered.forEach(a => {
-                const key = a.device_serial;
-                if (!byDevice[key]) byDevice[key] = [];
-                byDevice[key].push(a);
-            });
-
-            const deviceKeys = Object.keys(byDevice).sort();
-            const showHeaders = deviceKeys.length > 1;
-
-            deviceKeys.forEach(ds => {
-                const devName = (allDevices.find(d => d.device_serial === ds) || {}).device_name || ds;
-                if (showHeaders) {
-                    html += `<div class="px-2 py-1 mt-2 mb-1" style="font-size:0.75rem;color:#6c757d;border-bottom:1px solid rgba(255,255,255,0.05)">
-                        <i class="fas fa-mobile-alt me-1"></i>${devName}
-                    </div>`;
-                }
-                byDevice[ds].forEach(a => {
-                    const checked = wizardState.selectedAccounts.some(
-                        sa => sa.username === a.username && sa.device_serial === a.device_serial
-                    ) ? 'checked' : '';
-                    // Format work hours label
-                    const st = parseInt(a.start_time) || 0;
-                    const et = parseInt(a.end_time) || 0;
-                    let workHoursLabel;
-                    if (st === et || (st === 0 && et === 0)) {
-                        workHoursLabel = '<span class="badge bg-secondary bg-opacity-50 ms-2" style="font-size:0.7rem">24h</span>';
-                    } else {
-                        workHoursLabel = `<span class="badge bg-success bg-opacity-25 text-success ms-2" style="font-size:0.7rem">${String(st).padStart(2,'0')}:00–${String(et).padStart(2,'0')}:00</span>`;
-                    }
-                    html += `<div class="account-check-item">
-                        <div class="form-check">
-                            <input class="form-check-input acct-check" type="checkbox" ${checked}
-                                   data-id="${a.id}" data-serial="${a.device_serial}" data-username="${a.username}"
-                                   data-start-time="${st}" data-end-time="${et}"
-                                   onchange="updateAccountSelection()">
-                            <label class="form-check-label">
-                                <strong>${a.username}</strong>${workHoursLabel}
-                                ${showHeaders ? '' : '<small class="text-muted ms-2">' + ds + '</small>'}
-                            </label>
-                        </div>
-                    </div>`;
-                });
-            });
-        }
-        $('#accountCheckboxList').html(html);
-        // Don't call updateAccountSelection here — preserve existing selections
-        // Just update the count display
-        const count = wizardState.selectedAccounts.length;
-        $('#accountCountLabel').text(`(${count} selected)`);
-        $('#btnStep4Next').prop('disabled', count === 0);
-    }
-
-    if (_allAccounts.length > 0) {
-        renderAccounts(_allAccounts);
-    } else {
+    if (!_allAccounts.length) {
         $.get(API + '/accounts', function(data) {
-            renderAccounts(data.accounts || []);
+            _allAccounts = data.accounts || [];
+            _populateTagDropdown();
+            renderTargetAccounts();
         });
+    } else {
+        renderTargetAccounts();
     }
+}
+
+function _filterAccountsForRender() {
+    const deviceFilter = $('#targetDevice').val();
+    const tagFilter    = $('#targetTag').val();
+    const typeFilter   = $('#targetType').val();
+    const q = ($('#targetSearch').val() || '').trim().toLowerCase();
+
+    return _allAccounts.filter(a => {
+        if (deviceFilter && deviceFilter !== 'all' && a.device_serial !== deviceFilter) return false;
+        if (tagFilter && tagFilter !== 'all') {
+            if (tagFilter === '__untagged__') {
+                if (a.tag) return false;
+            } else if ((a.tag || '') !== tagFilter) return false;
+        }
+        if (typeFilter === 'mothers' && !a.is_mother) return false;
+        if (typeFilter === 'slaves'  &&  a.is_mother) return false;
+        if (q && !(a.username || '').toLowerCase().includes(q)) return false;
+        return true;
+    });
+}
+
+function renderTargetAccounts() {
+    const visible = _filterAccountsForRender();
+    const list = $('#accountCheckboxList');
+
+    if (!_allAccounts.length) {
+        list.html('<div class="text-muted text-center py-3">No accounts loaded.</div>');
+        _refreshCountLabels(0);
+        return;
+    }
+
+    if (!visible.length) {
+        list.html('<div class="text-muted text-center py-3">No accounts match the current filters.</div>');
+        _refreshCountLabels(0);
+        return;
+    }
+
+    // Group: by tag if any tag has >1 row, else by device.
+    const byTag = {};
+    visible.forEach(a => {
+        const k = a.tag || '(no tag)';
+        if (!byTag[k]) byTag[k] = [];
+        byTag[k].push(a);
+    });
+    const tagKeys = Object.keys(byTag).sort((a, b) => {
+        if (a === '(no tag)') return 1;
+        if (b === '(no tag)') return -1;
+        return a.localeCompare(b);
+    });
+
+    let html = '';
+    tagKeys.forEach(tag => {
+        const accts = byTag[tag];
+        const mother = accts.find(a => a.is_mother);
+        const groupHead = (tag === '(no tag)')
+            ? `<span class="text-muted">untagged</span>`
+            : `<span class="badge bg-info bg-opacity-25 text-info" style="font-size:0.72rem;">${tag}</span>
+               ${mother ? `<span class="ms-2 text-muted small">mother: <strong>@${mother.username}</strong></span>` : ''}`;
+        const sel = accts.filter(a =>
+            wizardState.selectedAccounts.some(sa => sa.username === a.username && sa.device_serial === a.device_serial)
+        ).length;
+        html += `<div class="px-2 py-1 mt-2 mb-1 d-flex justify-content-between align-items-center"
+                       style="font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <div>${groupHead} <span class="text-muted ms-2">${accts.length} accts</span></div>
+            <div>
+                <button class="btn btn-xs btn-outline-light py-0 px-2" style="font-size:0.65rem;"
+                        onclick="_targetSelectGroup('${tag.replace(/'/g, "\\'")}', true)" title="Select all in this group">
+                    + all
+                </button>
+                <button class="btn btn-xs btn-outline-light py-0 px-2 ms-1" style="font-size:0.65rem;"
+                        onclick="_targetSelectGroup('${tag.replace(/'/g, "\\'")}', false)" title="Deselect all in this group">
+                    – none
+                </button>
+                <span class="text-info ms-2 small">${sel}/${accts.length}</span>
+            </div>
+        </div>`;
+
+        // Sort: mother first, then by username
+        accts.sort((a, b) => {
+            if (a.is_mother !== b.is_mother) return a.is_mother ? -1 : 1;
+            return (a.username || '').localeCompare(b.username || '');
+        });
+
+        accts.forEach(a => {
+            const checked = wizardState.selectedAccounts.some(
+                sa => sa.username === a.username && sa.device_serial === a.device_serial
+            ) ? 'checked' : '';
+            const st = parseInt(a.start_time) || 0;
+            const et = parseInt(a.end_time) || 0;
+            const hoursBadge = (st === et || (st === 0 && et === 0))
+                ? '<span class="badge bg-secondary bg-opacity-50 ms-2" style="font-size:0.65rem">24h</span>'
+                : `<span class="badge bg-success bg-opacity-25 text-success ms-2" style="font-size:0.65rem">${String(st).padStart(2,'0')}–${String(et).padStart(2,'0')}</span>`;
+            const motherBadge = a.is_mother
+                ? '<span class="badge bg-warning bg-opacity-25 text-warning ms-1" style="font-size:0.65rem;" title="Mother account">👑 mother</span>'
+                : '';
+            const devLabel = `<small class="text-muted ms-2" style="font-size:0.7rem;">${a.device_name || a.device_serial}</small>`;
+            html += `<div class="account-check-item">
+                <div class="form-check d-flex align-items-center" style="padding-left:1.6rem;">
+                    <input class="form-check-input acct-check" type="checkbox" ${checked}
+                           data-id="${a.id}" data-serial="${a.device_serial}" data-username="${a.username}"
+                           data-tag="${a.tag || ''}" data-is-mother="${a.is_mother ? 1 : 0}"
+                           data-start-time="${st}" data-end-time="${et}"
+                           onchange="toggleAccountSelection(this)">
+                    <label class="form-check-label ms-1 flex-grow-1">
+                        <strong>@${a.username}</strong>${motherBadge}${hoursBadge}${devLabel}
+                    </label>
+                </div>
+            </div>`;
+        });
+    });
+
+    list.html(html);
+    _refreshCountLabels(visible.length);
+}
+
+function _refreshCountLabels(visibleCount) {
+    $('#visibleCountLabel').text(visibleCount);
+    const sel = wizardState.selectedAccounts.length;
+    $('#accountCountLabel').text(sel);
+    $('#btnStep4Next').prop('disabled', sel === 0);
+}
+
+// Quick actions
+function targetSelectAllVisible(checked) {
+    const visible = _filterAccountsForRender();
+    visible.forEach(a => {
+        const cb = $(`#accountCheckboxList .acct-check[data-username="${a.username}"][data-serial="${a.device_serial}"]`)[0];
+        if (cb && cb.checked !== checked) {
+            cb.checked = checked;
+            toggleAccountSelection(cb);
+        } else if (!cb) {
+            // Not in DOM (shouldn't happen since visible == rendered), fake the toggle.
+            const fake = { checked, dataset: {
+                id: a.id, serial: a.device_serial, username: a.username,
+                tag: a.tag || '', isMother: a.is_mother ? 1 : 0,
+                startTime: a.start_time || 0, endTime: a.end_time || 0,
+            }};
+            // Use jQuery-like accessors
+            fake.checked = checked;
+            // ignore — we'll just re-render
+        }
+    });
+    renderTargetAccounts();
+}
+
+function _targetSelectGroup(tagName, checked) {
+    const target = (tagName === '(no tag)') ? '' : tagName;
+    const matches = _filterAccountsForRender().filter(a => (a.tag || '') === target);
+    matches.forEach(a => {
+        const exists = wizardState.selectedAccounts.findIndex(
+            sa => sa.username === a.username && sa.device_serial === a.device_serial);
+        if (checked && exists === -1) {
+            wizardState.selectedAccounts.push({
+                account_id: a.id,
+                device_serial: a.device_serial,
+                username: a.username,
+                start_time: a.start_time,
+                end_time: a.end_time,
+            });
+        } else if (!checked && exists !== -1) {
+            wizardState.selectedAccounts.splice(exists, 1);
+        }
+    });
+    renderTargetAccounts();
+}
+
+function targetClearAll() {
+    if (!wizardState.selectedAccounts.length) return;
+    if (!confirm(`Clear all ${wizardState.selectedAccounts.length} selected accounts?`)) return;
+    wizardState.selectedAccounts = [];
+    renderTargetAccounts();
 }
 
 function toggleAllAccounts() {
+    // Apply to currently-VISIBLE checkboxes only. Non-visible (filtered-out)
+    // selections are untouched. "Select all" only selects what's on screen.
     const checked = $('#selectAllAccounts').is(':checked');
-    $('.acct-check').prop('checked', checked);
-    updateAccountSelection();
+    $('.acct-check').each(function () {
+        const cb = this;
+        if (cb.checked !== checked) {
+            cb.checked = checked;
+            toggleAccountSelection(cb);
+        }
+    });
 }
 
-function updateAccountSelection() {
-    wizardState.selectedAccounts = [];
-    $('.acct-check:checked').each(function() {
-        wizardState.selectedAccounts.push({
-            account_id: parseInt($(this).data('id')),
-            device_serial: $(this).data('serial'),
-            username: $(this).data('username'),
-            start_time: $(this).data('start-time'),
-            end_time: $(this).data('end-time')
+function toggleAccountSelection(cb) {
+    // Per-checkbox add/remove from wizardState. Crucially does NOT wipe the
+    // whole list — older impl rebuilt selectedAccounts from `.acct-check:checked`
+    // which only sees VISIBLE rows, so changing the device filter and ticking
+    // another account silently dropped everything previously selected on
+    // device A. Fixed 2026-05-28.
+    const sa = wizardState.selectedAccounts;
+    const serial = $(cb).data('serial');
+    const username = $(cb).data('username');
+    const isOn = cb.checked;
+    const idx = sa.findIndex(x => x.username === username && x.device_serial === serial);
+
+    if (isOn && idx === -1) {
+        sa.push({
+            account_id: parseInt($(cb).data('id')),
+            device_serial: serial,
+            username: username,
+            start_time: $(cb).data('start-time'),
+            end_time: $(cb).data('end-time'),
         });
-    });
+    } else if (!isOn && idx !== -1) {
+        sa.splice(idx, 1);
+    }
+
+    // Update group counter + total without full re-render (cheaper)
+    const sel = sa.length;
+    $('#accountCountLabel').text(sel);
+    $('#btnStep4Next').prop('disabled', sel === 0);
+}
+
+// Legacy alias
+function updateAccountSelection() {
     const count = wizardState.selectedAccounts.length;
-    $('#accountCountLabel').text(`(${count} selected)`);
+    $('#accountCountLabel').text(count);
     $('#btnStep4Next').prop('disabled', count === 0);
 }
 
@@ -2115,10 +2492,22 @@ function buildScheduleItems() {
                     mediaPointer++;
                 }
             } else {
-                // Each account gets ALL media
+                // Each account gets ALL media — STAGGERED by account index so
+                // on any given day the N selected accounts post N DIFFERENT
+                // source videos. Without the +a offset, day=0 saw every
+                // account posting video #0, day=1 every account posting #1,
+                // etc. — IG's perceptual-hash correlation would group them
+                // as "same content on multiple accounts same day" even
+                // though our spoofing makes the files bit-different.
+                //
+                // Latin-square style: account a starts at media (a) and
+                // cycles. For 4 accounts × 16 videos:
+                //   acct0 day0 → m0,  acct1 day0 → m1,  acct2 → m2, acct3 → m3
+                //   acct0 day1 → m1,  acct1 day1 → m2,  acct2 → m3, acct3 → m4
+                //   ...
                 mediaForAcct = [];
                 for (let t = 0; t < acctTimes.length; t++) {
-                    mediaForAcct.push(t % mediaCount);
+                    mediaForAcct.push((t + a) % mediaCount);
                 }
             }
 
@@ -2255,6 +2644,14 @@ function buildReview() {
     }
     if (total > showMax) tbody += `<tr><td colspan="4" class="text-muted text-center">... ${total - showMax} more</td></tr>`;
     $('#reviewTableBody').html(tbody);
+
+    // Anti-detect ETA — ~7s per variant average (with retry/escalate margin)
+    const seconds = total * 7;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    $('#batchSpoofEta').text(
+        mins > 0 ? `~${mins}m ${secs}s` : `~${secs}s`
+    );
 }
 
 // ============ SUBMIT BATCH ============
@@ -2294,7 +2691,10 @@ function submitBatch() {
         media_paths: wizardState.selectedMedia.map(m => m.full_path),
         accounts: wizardState.selectedAccounts,
         start_time: items[0].time.toISOString(),
-        interval_hours: wizardState.intervalHours || 1
+        interval_hours: wizardState.intervalHours || 1,
+        spoof_enabled:      $('#batchSpoofEnabled').is(':checked'),
+        spoof_preset:       $('#batchSpoofPreset').val() || 'medium',
+        spoof_allow_mirror: $('#batchSpoofMirror').is(':checked'),
     };
 
     $.ajax({
@@ -2326,7 +2726,40 @@ function submitBatch() {
     });
 }
 
+// Persist the running batch id so a page refresh / navigation doesn't
+// orphan the progress modal — backend keeps running, UI re-attaches.
+const _BATCH_STORE_KEY = 'cs_running_batch';
+const _BATCH_TTL_MS = 30 * 60 * 1000;  // 30 min
+
+function _saveRunningBatch(batchId, totalEstimate) {
+    try {
+        localStorage.setItem(_BATCH_STORE_KEY, JSON.stringify({
+            batch_id: batchId,
+            total: totalEstimate,
+            started_at: Date.now(),
+        }));
+    } catch (e) {}
+}
+function _loadRunningBatch() {
+    try {
+        const s = localStorage.getItem(_BATCH_STORE_KEY);
+        if (!s) return null;
+        const d = JSON.parse(s);
+        if (!d.batch_id) return null;
+        if (Date.now() - (d.started_at || 0) > _BATCH_TTL_MS) {
+            localStorage.removeItem(_BATCH_STORE_KEY);
+            return null;
+        }
+        return d;
+    } catch (e) { return null; }
+}
+function _clearRunningBatch() {
+    try { localStorage.removeItem(_BATCH_STORE_KEY); } catch(e){}
+}
+
 function showBatchProgressModal(batchId, totalEstimate) {
+    _saveRunningBatch(batchId, totalEstimate);
+
     $('#batchProgressBar').css('width', '0%').removeClass('bg-danger');
     $('#batchProgressBar').addClass('progress-bar-striped progress-bar-animated bg-success');
     $('#batchProgressPct').text('0%');
@@ -2340,6 +2773,30 @@ function showBatchProgressModal(batchId, totalEstimate) {
     modal.show();
 
     _batchPollTimer = setInterval(function() { pollBatchProgress(batchId); }, 500);
+}
+
+// On page load, restore the progress modal for any batch still running
+// from before the refresh/navigation. Polls the backend once to confirm
+// it's actually alive — if the server returns 404 (expired/cleared) we
+// just wipe localStorage and stay quiet.
+function _resumeRunningBatch() {
+    const d = _loadRunningBatch();
+    if (!d) return;
+    $.ajax({
+        url: API + '/batch/' + d.batch_id + '/progress',
+        success: function(resp) {
+            if (!resp || resp.status === 'completed' || resp.status === 'failed') {
+                _clearRunningBatch();
+                return;
+            }
+            // Re-attach the same modal + polling
+            showBatchProgressModal(d.batch_id, d.total || resp.total || 1);
+        },
+        error: function(xhr) {
+            // 404 = backend forgot it (server restart, old batch)
+            _clearRunningBatch();
+        }
+    });
 }
 
 function pollBatchProgress(batchId) {
@@ -2366,6 +2823,7 @@ function pollBatchProgress(batchId) {
         if (data.status === 'completed') {
             clearInterval(_batchPollTimer);
             _batchPollTimer = null;
+            _clearRunningBatch();
 
             $('#batchProgressBar').css('width', '100%').removeClass('progress-bar-animated');
             $('#batchProgressPct').text('100%');
@@ -2394,6 +2852,7 @@ function pollBatchProgress(batchId) {
         } else if (data.status === 'failed') {
             clearInterval(_batchPollTimer);
             _batchPollTimer = null;
+            _clearRunningBatch();
 
             $('#batchProgressBar').removeClass('bg-success progress-bar-animated').addClass('bg-danger');
             $('#batchProgressLabel').text('Batch failed');
@@ -2483,21 +2942,37 @@ function loadHistory() {
     let url = API + '?status=' + status + '&limit=100';
     if (type) url += '&content_type=' + type;
 
+    const nowMs = Date.now();
     $.get(url, function(data) {
         const items = data.items || [];
         let html = '';
         if (items.length === 0) {
-            html = '<tr><td colspan="7" class="text-center text-muted py-4">No history items</td></tr>';
+            html = '<tr><td colspan="8" class="text-center text-muted py-4">No history items</td></tr>';
         } else {
             items.forEach(item => {
+                // A 'pending' row whose scheduled_time is in the past is a
+                // MISSED slot (engine was down). Show it as such even though
+                // its raw status column still says 'pending'.
+                const overdue = item.status === 'pending' &&
+                    item.scheduled_time && new Date(item.scheduled_time).getTime() < nowMs;
+                const displayStatus = overdue ? 'missed' : item.status;
+                // Reschedule is offered for anything that didn't post: failed
+                // or missed. Completed/cancelled get a plain edit.
+                const canReschedule = (item.status === 'failed' || overdue);
+                const actions = `
+                    ${canReschedule ? `<button class="btn btn-sm btn-warning" title="Reschedule"
+                        onclick="rescheduleItem(${item.id})"><i class="fas fa-calendar-plus"></i></button>` : ''}
+                    <button class="btn btn-sm btn-outline-light ms-1" title="Edit"
+                        onclick="openEditModal(${item.id})"><i class="fas fa-edit"></i></button>`;
                 html += `<tr>
                     <td>${formatDateTime(new Date(item.scheduled_time))}</td>
                     <td>${item.posted_at ? formatDateTime(new Date(item.posted_at)) : '-'}</td>
                     <td>${typeIcon(item.content_type)}</td>
                     <td>${item.username || '-'}</td>
                     <td class="text-truncate" style="max-width:200px">${item.caption || '-'}</td>
-                    <td>${statusBadge(item.status)}</td>
+                    <td>${statusBadge(displayStatus)}</td>
                     <td class="text-truncate text-danger" style="max-width:150px">${item.error_message || '-'}</td>
+                    <td style="white-space:nowrap">${actions}</td>
                 </tr>`;
             });
         }
@@ -2621,6 +3096,7 @@ function saveEditItem() {
             loadPending();
             loadCalendar();
             loadStats();
+            loadHistory();
         },
         error: function(xhr) {
             showToast((xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'), 'error');
@@ -2639,6 +3115,7 @@ function deleteItem() {
             loadPending();
             loadCalendar();
             loadStats();
+            loadHistory();
         }
     });
 }
@@ -2651,6 +3128,66 @@ function cancelItem(id) {
         contentType: 'application/json',
         data: JSON.stringify({ status: 'cancelled' }),
         success: function() { loadPending(); loadStats(); }
+    });
+}
+
+// ============ RESCHEDULE (failed / missed) ============
+// Pad a number to 2 digits for datetime-local strings.
+function _pad2(n) { return String(n).padStart(2, '0'); }
+
+// Format a Date into the value a <input type="datetime-local"> expects,
+// using LOCAL time components (not toISOString, which is UTC and would
+// shift the displayed hour).
+function _toLocalInputValue(d) {
+    return d.getFullYear() + '-' + _pad2(d.getMonth() + 1) + '-' + _pad2(d.getDate()) +
+        'T' + _pad2(d.getHours()) + ':' + _pad2(d.getMinutes());
+}
+
+function rescheduleItem(itemId) {
+    $.get(API + '/' + itemId, function(item) {
+        $('#rescheduleItemId').val(item.id);
+        $('#rescheduleSummary').html(
+            `<i class="fas fa-${item.content_type === 'reel' ? 'film' : item.content_type === 'story' ? 'circle-notch' : 'image'} me-1"></i>` +
+            `<strong>@${item.username || '?'}</strong> · ${item.content_type} · ` +
+            `originally ${item.scheduled_time ? item.scheduled_time.replace('T', ' ').slice(0, 16) : '?'}`
+        );
+        // Default: tomorrow at the ORIGINAL posting hour. The original slot was
+        // already chosen inside the account's work window, so reusing its
+        // time-of-day keeps the new slot inside that window too.
+        let def = new Date();
+        def.setDate(def.getDate() + 1);
+        if (item.scheduled_time) {
+            const orig = new Date(item.scheduled_time);
+            if (!isNaN(orig.getTime())) {
+                def.setHours(orig.getHours(), orig.getMinutes(), 0, 0);
+            }
+        }
+        $('#rescheduleTime').val(_toLocalInputValue(def));
+        new bootstrap.Modal('#rescheduleModal').show();
+    });
+}
+
+function applyReschedule() {
+    const id = $('#rescheduleItemId').val();
+    const newTime = $('#rescheduleTime').val();
+    if (!newTime) { showToast('Pick a new time first', 'warning'); return; }
+    $.ajax({
+        url: API + '/' + id,
+        method: 'PUT',
+        contentType: 'application/json',
+        // Back to pending + wipe the old error so the engine re-attempts it.
+        data: JSON.stringify({ scheduled_time: newTime, status: 'pending', error_message: '' }),
+        success: function() {
+            bootstrap.Modal.getInstance(document.getElementById('rescheduleModal')).hide();
+            showToast('Rescheduled to ' + newTime.replace('T', ' '), 'success');
+            loadHistory();
+            loadCalendar();
+            loadStats();
+            if (typeof loadPending === 'function') loadPending();
+        },
+        error: function(xhr) {
+            showToast((xhr.responseJSON ? xhr.responseJSON.error : 'Reschedule failed'), 'error');
+        }
     });
 }
 
@@ -2674,7 +3211,8 @@ function statusBadge(status) {
         pending: 'badge-pending', posting: 'badge-posting',
         completed: 'badge-completed', failed: 'badge-failed',
         cancelled: 'badge-cancelled', active: 'badge-pending',
-        completed_with_errors: 'badge-failed'
+        completed_with_errors: 'badge-failed',
+        missed: 'bg-warning text-dark'
     };
     return `<span class="badge ${map[status] || 'bg-secondary'}">${status}</span>`;
 }
@@ -2905,6 +3443,15 @@ $(document).on('hidden.bs.modal', '#testPostModal', function() {
         clearInterval(tpPollTimer);
         tpPollTimer = null;
     }
+});
+
+// Anti-detect: dim the strength controls when the master toggle is off
+$(document).on('change', '#batchSpoofEnabled', function () {
+    const enabled = this.checked;
+    $('#batchSpoofControls').css({
+        opacity: enabled ? '1' : '0.45',
+        pointerEvents: enabled ? '' : 'none',
+    });
 });
 </script>
 {% endblock %}

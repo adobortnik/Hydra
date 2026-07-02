@@ -516,7 +516,12 @@ class TagBasedAutomation:
                 data['profile_picture_id'] = random.choice(pictures)['id']
 
             # Bio strategy
-            if campaign['bio_strategy'] == 'template' and bio_templates:
+            if campaign['bio_strategy'] in ('none', 'skip', 'manual'):
+                # Bio change DISABLED — leave new_bio unset so the processor
+                # skips it (otherwise the catch-all below would still apply
+                # mother_bio, making change_bio:false a no-op).
+                pass
+            elif campaign['bio_strategy'] == 'template' and bio_templates:
                 bio_idx = i % len(bio_templates)
                 data['new_bio'] = bio_templates[bio_idx]['bio_text']
             elif campaign['bio_strategy'] == 'ai' and campaign['use_ai']:
@@ -663,51 +668,36 @@ class TagBasedAutomation:
 
     def _get_instagram_package(self, device_serial, username):
         """
-        Get Instagram package name from account's settings.db
+        Resolve the Instagram package (clone) for one account from
+        phone_farm.db — the single source of truth used by the bot engine.
 
-        Args:
-            device_serial: Device serial number
-            username: Account username
+        Legacy Onimator settings.db lookup was removed 2026-05-28 — Onimator
+        is no longer in use for any account; reading from a dead filesystem
+        was causing every new account to silently get the original IG app
+        instead of its clone (incident: Craig batch #895-908).
 
-        Returns:
-            str: Instagram package name (e.g., 'com.instagram.androide')
+        Returns 'com.instagram.android' only if the account row is genuinely
+        missing — that's a data-integrity bug worth logging loudly.
         """
-        settings_db_path = BASE_DIR / device_serial / username / "settings.db"
-
-        if not settings_db_path.exists():
-            print(f"Warning: Settings not found for {device_serial}/{username}, using default package")
-            return 'com.instagram.android'
-
+        farm_db = Path(__file__).parent.parent.parent / 'db' / 'phone_farm.db'
         try:
-            conn = sqlite3.connect(settings_db_path)
-            cursor = conn.cursor()
-
-            # Read current settings
-            cursor.execute('SELECT settings FROM accountsettings WHERE id = 1')
-            row = cursor.fetchone()
-
+            conn = sqlite3.connect(str(farm_db))
+            cur = conn.execute(
+                "SELECT instagram_package FROM accounts "
+                "WHERE device_serial = ? AND username = ?",
+                (device_serial, username))
+            row = cur.fetchone()
+            conn.close()
             if row and row[0]:
-                settings = json.loads(row[0])
-
-                # Try app_cloner field first (format: "com.instagram.androie/com.instagram.mainactivity.mainactivity")
-                app_cloner = settings.get('app_cloner', '')
-                if app_cloner and '/' in app_cloner:
-                    # Extract just the package name (before the slash)
-                    package = app_cloner.split('/')[0]
-                    conn.close()
-                    return package
-
-                # Fallback to instagram_package field
-                package = settings.get('instagram_package', 'com.instagram.android')
-                conn.close()
-                return package
-            else:
-                conn.close()
-                return 'com.instagram.android'
-
+                return row[0]
         except Exception as e:
-            print(f"Error reading package for {device_serial}/{username}: {e}")
-            return 'com.instagram.android'
+            print(f"⚠ phone_farm.db package lookup failed for "
+                  f"{device_serial}/{username}: {e}")
+
+        print(f"⚠ No account row in phone_farm.db for "
+              f"{device_serial}/{username} — defaulting to com.instagram.android. "
+              f"(This is a bug — investigate the account.)")
+        return 'com.instagram.android'
 
 
 if __name__ == "__main__":

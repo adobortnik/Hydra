@@ -85,6 +85,12 @@
             <button class="btn btn-success" id="loginBtn" onclick="loginSelected()">
                 <i class="fas fa-sign-in-alt me-1"></i> Login Selected (<span id="selectedCount">0</span>)
             </button>
+            <div class="form-check form-switch ms-2 d-inline-flex align-items-center" style="vertical-align:middle;">
+                <input class="form-check-input me-1" type="checkbox" id="showLogWindowToggle" title="Open a separate console window showing live login automation log when starting the batch">
+                <label class="form-check-label small text-white-50 mb-0" for="showLogWindowToggle">
+                    <i class="fas fa-terminal me-1"></i>Live log window
+                </label>
+            </div>
         </div>
     </div>
 </div>
@@ -433,14 +439,14 @@ let verifyActiveAccounts = [];
 let verifyDevicesData = [];
 
 function startVerify() {
-    // Fetch active accounts from backend
-    $('#verifyDeviceList').html('<div class="text-muted text-center py-2"><i class="fas fa-spinner fa-spin me-1"></i> Loading active accounts...</div>');
+    // Fetch ALL checkable accounts from backend (any status except dead)
+    $('#verifyDeviceList').html('<div class="text-muted text-center py-2"><i class="fas fa-spinner fa-spin me-1"></i> Loading accounts...</div>');
     $('#verifyGroupFilter').html('<option value="">All Groups</option>');
     new bootstrap.Modal('#verifyModal').show();
 
     $.get('/api/login-v2/active-accounts', function(data) {
         if (data.status !== 'success' || !data.accounts || data.accounts.length === 0) {
-            $('#verifyDeviceList').html('<div class="text-muted text-center py-2">No active accounts found</div>');
+            $('#verifyDeviceList').html('<div class="text-muted text-center py-2">No accounts to verify</div>');
             $('#verifyCountInfo').text('Nothing to verify');
             return;
         }
@@ -504,7 +510,7 @@ function filterVerifyDevicesByGroup() {
 function updateVerifyCount() {
     const selected = $('.verify-dev-check:checked').map(function() { return $(this).val(); }).get();
     const count = verifyActiveAccounts.filter(a => selected.includes(a.device_serial)).length;
-    $('#verifyCountInfo').html(`<strong>${count}</strong> active account(s) on <strong>${selected.length}</strong> device(s) will be verified`);
+    $('#verifyCountInfo').html(`<strong>${count}</strong> account(s) on <strong>${selected.length}</strong> device(s) will be verified <small class="text-muted">(any status except suspended/banned/replaced; verifier will set correct status based on actual screen)</small>`);
 }
 
 function executeVerify() {
@@ -635,6 +641,19 @@ function loginSelected() {
                         activeBatchId = execData.batch_id;
                         showProgress(execData.total_tasks);
                         startPolling();
+
+                        // Optional: open live log window
+                        if ($('#showLogWindowToggle').is(':checked')) {
+                            $.ajax({
+                                url: '/api/login-v2/open-log-window',
+                                method: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify({ batch_id: execData.batch_id }),
+                                error: function(xhr) {
+                                    console.warn('Could not open log window:', xhr.responseText);
+                                }
+                            });
+                        }
                     } else {
                         alert(execData.message);
                     }

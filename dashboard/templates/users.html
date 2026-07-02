@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Users - Hydra Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="fas fa-users-cog me-2"></i>User Management</h4>
+  <button class="btn btn-primary" id="btnAdd"><i class="fas fa-user-plus me-1"></i> Add user</button>
+</div>
+<div id="alertBox" class="d-none mb-3"></div>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-dark table-hover mb-0 align-middle">
+      <thead><tr><th>User</th><th>Role</th><th>Permissions</th><th class="text-end">Actions</th></tr></thead>
+      <tbody id="userRows"><tr><td colspan="4" class="text-muted p-3">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<p class="text-muted small mt-2">Permissions gate which nav sections a user can open. A <b>superadmin</b> sees everything and manages users. API endpoints are not individually locked — this controls page access for trusted users.</p>
+
+<!-- Add/Edit modal -->
+<div class="modal fade" id="userModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header"><h5 class="modal-title" id="umTitle">Add user</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="umEditing">
+        <div class="mb-3"><label class="form-label">Username</label>
+          <input class="form-control" id="umUser" autocomplete="off"></div>
+        <div class="mb-3"><label class="form-label">Password <span id="umPwHint" class="text-muted small"></span></label>
+          <input type="password" class="form-control" id="umPass" autocomplete="new-password"></div>
+        <div class="mb-3"><label class="form-label">Role preset</label>
+          <select class="form-select" id="umRole">
+            {% for key, perms in presets.items() %}<option value="{{ key }}">{{ key }}</option>{% endfor %}
+          </select></div>
+        <div id="umMatrix">
+          <label class="form-label">Permissions</label>
+          <div class="row g-2">
+            {% for key, label in permissions %}
+            <div class="col-6"><div class="form-check">
+              <input class="form-check-input perm-cb" type="checkbox" value="{{ key }}" id="perm_{{ key }}">
+              <label class="form-check-label" for="perm_{{ key }}">{{ label }}</label>
+            </div></div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" id="umSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PRESETS = {{ presets|tojson }};
+let MODAL;
+
+function alertMsg(msg, ok){
+  const a=document.getElementById('alertBox');
+  a.className='alert '+(ok?'alert-success':'alert-danger');
+  a.textContent=msg; a.classList.remove('d-none');
+  setTimeout(()=>a.classList.add('d-none'), 4000);
+}
+
+async function loadUsers(){
+  const r=await fetch('/api/users');
+  if(!r.ok){ document.getElementById('userRows').innerHTML='<tr><td colspan="4" class="text-danger p-3">Access denied</td></tr>'; return; }
+  const d=await r.json();
+  const rows=d.users.map(u=>{
+    const perms = u.is_superadmin ? '<span class="badge bg-warning text-dark">ALL (superadmin)</span>'
+      : (u.permissions.length ? u.permissions.map(p=>`<span class="badge bg-secondary me-1">${p}</span>`).join('') : '<span class="text-muted">none</span>');
+    const isSelf = u.username===d.current;
+    return `<tr>
+      <td><i class="fas fa-user me-2"></i>${u.username}${isSelf?' <span class="text-muted small">(you)</span>':''}</td>
+      <td><span class="badge ${u.is_superadmin?'bg-warning text-dark':'bg-info text-dark'}">${u.role}</span></td>
+      <td>${perms}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-light" onclick='editUser(${JSON.stringify(u)})'><i class="fas fa-pen"></i></button>
+        ${isSelf?'':`<button class="btn btn-sm btn-outline-danger" onclick="delUser('${u.username}')"><i class="fas fa-trash"></i></button>`}
+      </td></tr>`;
+  }).join('');
+  document.getElementById('userRows').innerHTML=rows||'<tr><td colspan="4" class="text-muted p-3">No users</td></tr>';
+}
+
+function applyPreset(role){
+  const mtx=document.getElementById('umMatrix');
+  if(role==='superadmin'){ mtx.style.opacity=.4; document.querySelectorAll('.perm-cb').forEach(c=>{c.checked=false;c.disabled=true;}); return; }
+  mtx.style.opacity=1;
+  const preset=PRESETS[role]||[];
+  document.querySelectorAll('.perm-cb').forEach(c=>{ c.disabled=false; if(role!=='custom') c.checked=preset.includes(c.value); });
+}
+
+function openModal(edit){
+  document.getElementById('umTitle').textContent=edit?'Edit user':'Add user';
+  document.getElementById('umEditing').value=edit?edit.username:'';
+  document.getElementById('umUser').value=edit?edit.username:'';
+  document.getElementById('umUser').disabled=!!edit;
+  document.getElementById('umPass').value='';
+  document.getElementById('umPwHint').textContent=edit?'(leave blank to keep)':'';
+  document.getElementById('umRole').value=edit?edit.role:'custom';
+  document.querySelectorAll('.perm-cb').forEach(c=>c.checked=edit?(edit.permissions||[]).includes(c.value):false);
+  applyPreset(document.getElementById('umRole').value);
+  if(edit && !edit.is_superadmin){ document.querySelectorAll('.perm-cb').forEach(c=>c.checked=(edit.permissions||[]).includes(c.value)); }
+  MODAL.show();
+}
+function editUser(u){ openModal(u); }
+
+async function delUser(username){
+  if(!confirm('Delete user '+username+'?')) return;
+  const r=await fetch('/api/users/'+encodeURIComponent(username),{method:'DELETE'});
+  const d=await r.json();
+  if(r.ok) { alertMsg('Deleted '+username,true); loadUsers(); } else alertMsg(d.error||'failed',false);
+}
+
+async function saveUser(){
+  const editing=document.getElementById('umEditing').value;
+  const role=document.getElementById('umRole').value;
+  const perms=[...document.querySelectorAll('.perm-cb:checked')].map(c=>c.value);
+  const pass=document.getElementById('umPass').value;
+  const body={role, permissions:perms};
+  if(pass) body.password=pass;
+  let r;
+  if(editing){
+    r=await fetch('/api/users/'+encodeURIComponent(editing),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  } else {
+    body.username=document.getElementById('umUser').value.trim();
+    if(!body.username){ alertMsg('username required',false); return; }
+    r=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }
+  const d=await r.json();
+  if(r.ok){ MODAL.hide(); alertMsg('Saved',true); loadUsers(); } else alertMsg(d.error||'failed',false);
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  MODAL=new bootstrap.Modal(document.getElementById('userModal'));
+  document.getElementById('btnAdd').addEventListener('click',()=>openModal(null));
+  document.getElementById('umRole').addEventListener('change',e=>applyPreset(e.target.value));
+  document.getElementById('umSave').addEventListener('click',saveUser);
+  loadUsers();
+});
+</script>
+{% endblock %}

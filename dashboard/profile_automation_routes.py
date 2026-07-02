@@ -562,27 +562,33 @@ def quick_campaign():
             'change_username': True
         })
 
-        if not all([tag, mother_account]):
-            return jsonify({
-                'status': 'error',
-                'message': 'tag and mother_account are required'
-            }), 400
+        # `mother_account` is OPTIONAL. It's only a *source* to derive
+        # bio/username FROM when using AI/variation. Editing a (new) mother
+        # account directly — uploading a picture + writing a custom bio — needs
+        # no source mother. create_campaign(mother_account=None) + the nullable
+        # DB column handle empty fine. Only `tag` is required (the frontend
+        # always sends at least 'manual'). Previously mother_account was
+        # mandatory, which blocked exactly this case (400).
+        if not tag:
+            return jsonify({'status': 'error', 'message': 'tag is required'}), 400
 
         # Get uploaded picture ID for simplified picture handling
         uploaded_picture_id = data.get('uploaded_picture_id')
 
-        # Build strategies based on action checkboxes
-        strategies = {}
-
-        if actions.get('change_picture', True):
-            # Use uploaded picture directly (simplified: single picture for all accounts)
-            strategies['profile_picture'] = 'uploaded'
-
-        if actions.get('change_bio', True):
-            strategies['bio'] = 'ai' if use_ai else 'template'
-
-        if actions.get('change_username', True):
-            strategies['username'] = 'creative' if name_shortcuts else ('ai' if use_ai else 'variation')
+        # Build strategies based on action checkboxes.
+        # IMPORTANT: disabled actions MUST get an explicit skip value. If we
+        # just omit the key, create_campaign defaults profile_picture→'rotate'
+        # and bio→'template' (both ACTIVE) — so change_picture:false /
+        # change_bio:false were silently ignored (a "bio-only" task still
+        # rotated a picture). 'none' picture → no picture_id assigned → step
+        # skipped; 'none' bio → new_bio left unset → step skipped; 'manual'
+        # username = skip (existing convention).
+        strategies = {
+            'profile_picture': 'uploaded' if actions.get('change_picture', True) else 'none',
+            'bio': ('ai' if use_ai else 'template') if actions.get('change_bio', True) else 'none',
+            'username': ('creative' if name_shortcuts else ('ai' if use_ai else 'variation'))
+                        if actions.get('change_username', True) else 'manual',
+        }
 
         # Create campaign
         campaign_id = automation.create_campaign(
@@ -884,6 +890,71 @@ def get_statistics():
         }), 500
 
 
+@profile_automation_bp.route('/tasks/<int:task_id>/log', methods=['GET'])
+def get_task_log(task_id):
+    """
+    Return the worker log lines for one profile-automation task. Reads
+    dashboard_stdout.log (where ParallelProfileProcessor + AutomatedProfileManager
+    print) and isolates the block(s) between `Processing Task ID: <id>` and
+    the next `Processing Task ID:` line. Multiple attempts (restart) get
+    concatenated with separators.
+    """
+    from pathlib import Path
+    log_path = Path(__file__).parent / 'logs' / 'dashboard_stdout.log'
+    if not log_path.exists():
+        return jsonify({'status': 'error',
+                        'message': f'log file not found: {log_path}'}), 404
+
+    # Tail last 80 MB to keep memory bounded — most recent attempt(s) are at the
+    # end. A typical task block is ~50–200 lines so this gives lots of headroom.
+    MAX_TAIL = 80 * 1024 * 1024
+    try:
+        size = log_path.stat().st_size
+        with open(log_path, 'rb') as f:
+            if size > MAX_TAIL:
+                f.seek(size - MAX_TAIL)
+                f.readline()  # skip partial first line
+            data = f.read()
+        text = data.decode('utf-8', errors='replace')
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    marker = f"Processing Task ID: {task_id}"
+    blocks = []
+    cur = None
+    for line in text.splitlines():
+        if 'Processing Task ID:' in line:
+            # boundary
+            if marker in line:
+                if cur is not None:
+                    blocks.append(cur)
+                cur = [line]
+            else:
+                if cur is not None:
+                    blocks.append(cur)
+                    cur = None
+        elif cur is not None:
+            cur.append(line)
+    if cur is not None:
+        blocks.append(cur)
+
+    if not blocks:
+        return jsonify({'status': 'success', 'task_id': task_id,
+                        'attempts': 0,
+                        'log': f'No log lines found for task {task_id}. '
+                               f'Either the task has not started yet, '
+                               f'or its log is older than the {MAX_TAIL//(1024*1024)} MB tail '
+                               f'window we read.',
+                        'lines': 0})
+
+    sep = '\n\n──── new attempt ────\n\n'
+    rendered = sep.join('\n'.join(b) for b in blocks)
+    return jsonify({'status': 'success', 'task_id': task_id,
+                    'attempts': len(blocks),
+                    'lines': sum(len(b) for b in blocks),
+                    'log': rendered})
+
+
 @profile_automation_bp.route('/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
     """
@@ -926,6 +997,98 @@ def restart_task(task_id):
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+@profile_automation_bp.route('/single-action', methods=['POST'])
+def single_account_action():
+    """Change bio and/or profile picture on ONE account immediately.
+
+    Stops the device's bot engine first (so it doesn't fight us on the same
+    u2 session), runs the profile action on just that account, then restarts
+    the engine if it was running. Used by the per-account "Quick Profile Edit"
+    in the shared account panel (account detail + mother detail).
+
+    Body: { device_serial, username, bio? , uploaded_picture_id? }
+    """
+    import sys, time as _t, sqlite3 as _sq
+    from pathlib import Path as _P
+    data = request.get_json() or {}
+    device_serial = (data.get('device_serial') or '').strip()
+    username = (data.get('username') or '').strip()
+    bio = (data.get('bio') or '').strip() or None
+    pic_id = data.get('uploaded_picture_id') or None
+
+    if not device_serial or not username:
+        return jsonify({'status': 'error', 'message': 'device_serial and username are required'}), 400
+    if not bio and not pic_id:
+        return jsonify({'status': 'error', 'message': 'Provide a bio and/or a picture to change'}), 400
+
+    sys.path.insert(0, str(_P(__file__).parent / 'uiAutomator'))
+    from profile_automation_db import add_profile_update_task, get_pending_tasks
+    from parallel_profile_processor import ParallelProfileProcessor
+
+    # Resolve the account's instagram package from phone_farm.db
+    pkg = 'com.instagram.android'
+    try:
+        _pf = str(_P(__file__).parent.parent / 'db' / 'phone_farm.db')
+        _con = _sq.connect(_pf)
+        _r = _con.execute("SELECT instagram_package FROM accounts WHERE device_serial=? AND username=?",
+                          (device_serial, username)).fetchone()
+        _con.close()
+        if _r and _r[0]:
+            pkg = _r[0]
+    except Exception as e:
+        print(f"[single-action] package lookup failed: {e}")
+
+    # 1) Create the single profile-update task
+    task_id = add_profile_update_task(
+        device_serial=device_serial, instagram_package=pkg, username=username,
+        new_bio=bio, profile_picture_id=pic_id)
+
+    # 2) Stop the device's bot engine (so it releases the u2 session)
+    was_running = False
+    try:
+        from bot_launcher_routes import _find_process_for_serial, _kill_pid, _launch_device
+        procs = _find_process_for_serial(device_serial, use_cache=False)
+        was_running = len(procs) > 0
+        for p in procs:
+            _kill_pid(p['pid'])
+        if was_running:
+            _t.sleep(4)  # let atx-agent / u2 fully release the device
+    except Exception as e:
+        print(f"[single-action] engine stop failed: {e}")
+
+    # 3) Run ONLY this task
+    result = {'successful': 0, 'failed': 0, 'total': 0}
+    err = None
+    try:
+        pending = [t for t in get_pending_tasks()
+                   if t.get('device_serial') == device_serial and t.get('id') == task_id]
+        if pending:
+            proc = ParallelProfileProcessor()
+            proc.run_parallel(pending, max_parallel_devices=1)
+            result = proc.results
+    except Exception as e:
+        import traceback
+        err = str(e)
+        print(f"[single-action] processing failed: {e}\n{traceback.format_exc()}")
+    finally:
+        # 4) Restart the engine if we stopped it
+        if was_running:
+            try:
+                from bot_launcher_routes import _launch_device
+                _launch_device(device_serial)
+            except Exception as e:
+                print(f"[single-action] engine restart failed: {e}")
+
+    ok = (result.get('successful', 0) > 0) and not err
+    return jsonify({
+        'status': 'success' if ok else 'error',
+        'task_id': task_id,
+        'engine_restarted': was_running,
+        'stats': result,
+        'message': (err or ('Done — engine restarted' if was_running else 'Done')),
+    }), (200 if ok else 500)
 
 
 @profile_automation_bp.route('/tasks/process-parallel', methods=['POST'])
